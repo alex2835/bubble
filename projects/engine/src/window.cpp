@@ -4,55 +4,55 @@ namespace bubble
 {
 Window::Window( const std::string& name, WindowSize size )
 {
-	if( !glfwInit() )
-		throw std::runtime_error( "GLFW init error" );
+    if( !glfwInit() )
+        throw std::runtime_error( "GLFW init error" );
 
-	mWindow = glfwCreateWindow( size.mWidth, size.mHeight, name.c_str(), NULL, NULL );
-	if( !mWindow )
-	{
-		glfwTerminate();
-		throw std::runtime_error( "GLFW window creation error" );
-	}
-	glfwMakeContextCurrent( mWindow );
+    mWindow = glfwCreateWindow( size.mWidth, size.mHeight, name.c_str(), NULL, NULL );
+    if( !mWindow )
+    {
+        glfwTerminate();
+        throw std::runtime_error( "GLFW window creation error" );
+    }
+    glfwMakeContextCurrent( mWindow );
 
-	GLenum err = glewInit();
-	if( GLEW_OK != err )
-	{
-		std::cerr << "Error: " << glewGetErrorString( err ) << std::endl;
-		glfwTerminate();
-		throw std::runtime_error( "GLEW init error" );
-	}
+    GLenum err = glewInit();
+    if( GLEW_OK != err )
+    {
+        std::cerr << "Error: " << glewGetErrorString( err ) << std::endl;
+        glfwTerminate();
+        throw std::runtime_error( "GLEW init error" );
+    }
 }
 
 Window::~Window()
 {
-	glfwTerminate();
+    glfwTerminate();
 }
 
 bool Window::ShouldClose()
 {
-	return mShouldClose;
+    return mShouldClose;
 }
 
 WindowSize Window::GetSize()
 {
-	return mWindowSize;
+    return mWindowSize;
 }
 
 void Window::PollEvents()
 {
-	glfwPollEvents();
-	mShouldClose = glfwWindowShouldClose( mWindow );
+    glfwPollEvents();
+    mShouldClose = glfwWindowShouldClose( mWindow );
 }
 
 void Window::OnUpdate()
 {
-	glfwSwapBuffers( mWindow );
+    glfwSwapBuffers( mWindow );
 }
 
 void Window::SetVSync( bool vsync )
 {
-	glfwSwapInterval( vsync );
+    glfwSwapInterval( vsync );
 }
 
 }

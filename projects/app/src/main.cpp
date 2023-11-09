@@ -9,8 +9,8 @@ using namespace bubble;
 
 int main()
 {
-	Window window( "Test", WindowSize{ 600, 400 } );
-	while( !window.ShouldClose() )
-		window.PollEvents();
-	return 0;
+    Window window( "Test", WindowSize{ 600, 400 } );
+    while( !window.ShouldClose() )
+        window.PollEvents();
+    return 0;
 }
