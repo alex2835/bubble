@@ -3,7 +3,8 @@
 #include <iostream>
 #include <string>
 
-#include "window.hpp"
+#include "window/window.hpp"
+#include "serialization/event_serialization.hpp"
 
 using namespace bubble;
 
@@ -11,6 +12,10 @@ int main()
 {
     Window window( "Test", WindowSize{ 600, 400 } );
     while( !window.ShouldClose() )
-        window.PollEvents();
+    {
+        auto events = window.PollEvents();
+        for( auto event : events )
+            std::cout << ToString( event ) << "\n\n";
+    }
     return 0;
 }
