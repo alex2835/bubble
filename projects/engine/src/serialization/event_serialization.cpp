@@ -340,7 +340,7 @@ std::string ToString<Event>( const Event& key )
     {
         res += "Type: MouseMove";
         res = res + "\nPosition: x:" + std::to_string( key.mMouse.Pos.x ) + 
-                             " y:" + std::to_string(key.mMouse.Pos.x);
+                             " y:" + std::to_string( key.mMouse.Pos.x );
         res = res + "\nOffset: x:" + std::to_string( key.mMouse.Offset.x ) +
                            " y:" + std::to_string( key.mMouse.Offset.x );
     }

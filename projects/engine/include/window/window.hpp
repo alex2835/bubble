@@ -27,7 +27,6 @@ public:
     WindowSize GetSize() const;
     bool ShouldClose() const;
 
-    void AddEvent( Event event );
     const std::vector<Event>& PollEvents();
     void OnUpdate();
 

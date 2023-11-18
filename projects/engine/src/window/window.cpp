@@ -24,7 +24,7 @@ void Window::KeyCallback( GLFWwindow* window, int key, int scancode, int action,
     event.mKeyboard.Mods.SUPER = mods & GLFW_MOD_SUPER;
     event.mKeyboard.Mods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
     event.mKeyboard.Mods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
-    win->AddEvent( event );
+    win->mEvents.push_back( event );
 }
 
 void Window::MouseButtonCallback( GLFWwindow* window, int key, int action, int mods )
@@ -32,15 +32,15 @@ void Window::MouseButtonCallback( GLFWwindow* window, int key, int action, int m
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     Event event;
     event.mType = EventType::MouseKey; 
-    event.mKeyboard.Key = static_cast<KeyboardKey>( key );
-    event.mKeyboard.Action = static_cast<KeyAction>( action );
-    event.mKeyboard.Mods.SHIFT = mods & GLFW_MOD_SHIFT;
-    event.mKeyboard.Mods.CONTROL = mods & GLFW_MOD_CONTROL;
-    event.mKeyboard.Mods.ALT = mods & GLFW_MOD_ALT;
-    event.mKeyboard.Mods.SUPER = mods & GLFW_MOD_SUPER;
-    event.mKeyboard.Mods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
-    event.mKeyboard.Mods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
-    win->AddEvent( event );
+    event.mMouse.Key = static_cast<MouseKey>( key );
+    event.mMouse.Action = static_cast<KeyAction>( action );
+    event.mMouse.Mods.SHIFT = mods & GLFW_MOD_SHIFT;
+    event.mMouse.Mods.CONTROL = mods & GLFW_MOD_CONTROL;
+    event.mMouse.Mods.ALT = mods & GLFW_MOD_ALT;
+    event.mMouse.Mods.SUPER = mods & GLFW_MOD_SUPER;
+    event.mMouse.Mods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
+    event.mMouse.Mods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
+    win->mEvents.push_back( event );
 }
 
 void Window::MouseCallback( GLFWwindow* window, double xpos, double ypos )
@@ -62,6 +62,7 @@ void Window::ScrollCallback( GLFWwindow* window, double xoffset, double yoffset 
     Event event;
     event.mType = EventType::MouseZoom;
     event.mMouse.ZoomOffset -= yoffset;
+    win->mEvents.push_back( event );
 }
 
 void Window::WindowSizeCallback( GLFWwindow* window, int width, int height )
@@ -128,10 +129,6 @@ bool Window::ShouldClose() const
     return mShouldClose;
 }
 
-void Window::AddEvent( Event event )
-{
-    mEvents.push_back( event );
-}
 
 const std::vector<Event>& Window::PollEvents()
 {
