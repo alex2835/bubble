@@ -6,8 +6,8 @@ namespace bubble
 
 struct MouseInput
 {
-	glm::vec2 mMousePos;
-	glm::vec2 mMouseOffset;
+	glm::vec2 mMousePos = { 0, 0 };
+	glm::vec2 mMouseOffset = { 0, 0 };
 };
 
 }

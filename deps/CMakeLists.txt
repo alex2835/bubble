@@ -26,3 +26,5 @@ FetchContent_Declare(
   GIT_TAG 0.9.9.8
 )
 add_subdirectory(glm)
+add_subdirectory(glm-aabb)
+add_subdirectory(stb_image)

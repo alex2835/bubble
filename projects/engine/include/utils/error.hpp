@@ -1,8 +1,16 @@
 #pragma once 
 #include <GL/glew.h>
+#include <cstdlib>
+#include <iostream>
 
 namespace bubble
 {
+#define BUBBLE_ASSERT( x, str ) assert( x && str );
+
+inline void GLClearError()
+{
+    while( glGetError() != GL_NO_ERROR );
+}
 
 inline void PrintOpenGLErrors( char const* const Function, char const* const File, int const Line )
 {
@@ -21,10 +29,7 @@ inline void PrintOpenGLErrors( char const* const Function, char const* const Fil
 }
 
 #ifdef _DEBUG
-#define CheckedGLCall(x) while(glGetError()); (x); bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__);
-#define CheckedGLResult(x) (x); bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__);
-#define CheckExistingErrors(x) bubble::PrintOpenGLErrors(">>BEFORE<< "#x, __FILE__, __LINE__);
+#define glcall(x) GLClearError(); x; bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__);
 #else
-#define CheckedGLCall(x) (x)
-#define CheckExistingErrors(x)
+#define glcall(x) (x)
 #endif

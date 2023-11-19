@@ -61,7 +61,7 @@ void Window::ScrollCallback( GLFWwindow* window, double xoffset, double yoffset 
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     Event event;
     event.mType = EventType::MouseZoom;
-    event.mMouse.ZoomOffset -= yoffset;
+    event.mMouse.ZoomOffset -= static_cast<float>( yoffset );
     win->mEvents.push_back( event );
 }
 

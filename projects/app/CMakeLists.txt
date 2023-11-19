@@ -15,3 +15,8 @@ target_link_libraries(${TARGET_NAME} bubble_engine)
 target_include_directories(${TARGET_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+# C4251 suppress stl dll error
+target_compile_options(${TARGET_NAME} PRIVATE
+	/wd4251 /WX
+)

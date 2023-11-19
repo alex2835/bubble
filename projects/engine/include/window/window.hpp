@@ -18,7 +18,7 @@ struct WindowSize
     int mHeight = 0;
 };
  
-class BUBBLE_ENGINE_DLL_EXPORT Window
+class BUBBLE_ENGINE_EXPORT Window
 {
 public:
     Window( const std::string& name, WindowSize size );
@@ -45,7 +45,6 @@ private:
     GLFWwindow* mWindow;
     WindowSize mWindowSize;
     bool mShouldClose = false;
-
     MouseInput mMouseInput;
     std::vector<Event> mEvents;
 };

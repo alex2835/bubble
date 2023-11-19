@@ -23,7 +23,7 @@ enum class KeyAction
 
 struct Event
 {
-    EventType mType;
+    EventType mType = EventType::KeyboardKey;
     struct
     {
         KeyboardKey Key = KeyboardKey::UNKNOWN;

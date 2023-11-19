@@ -9,9 +9,15 @@ add_definitions(-DBUILDING_BUBBLE_ENGINE)
 
 target_link_libraries(${TARGET_NAME} libglew_static)
 target_link_libraries(${TARGET_NAME} glfw)
-target_link_libraries(${TARGET_NAME} glm::glm)
 target_link_libraries(${TARGET_NAME} imgui)
+target_link_libraries(${TARGET_NAME} glm::glm)
+target_link_libraries(${TARGET_NAME} glm_aabb)
+target_link_libraries(${TARGET_NAME} stb_image)
 
 target_include_directories(${TARGET_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_options(${TARGET_NAME} PRIVATE
+	/wd4251 /WX
 )
