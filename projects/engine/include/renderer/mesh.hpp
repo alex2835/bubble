@@ -4,7 +4,6 @@
 #include "utils/imexp.hpp"
 #include "renderer/buffer.hpp"
 #include "renderer/texture.hpp"
-#include "renderer/vertex_array.hpp"
 #include "renderer/material.hpp"
 
 namespace bubble

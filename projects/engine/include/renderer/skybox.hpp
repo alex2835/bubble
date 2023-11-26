@@ -3,7 +3,7 @@
 #include "glm/gtx/transform.hpp"
 #include "utils/imexp.hpp"
 #include "renderer/cubemap.hpp"
-#include "renderer/vertex_array.hpp"
+#include "renderer/buffer.hpp"
 
 
 namespace bubble

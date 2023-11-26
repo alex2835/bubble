@@ -14,11 +14,11 @@ Mesh::Mesh( const std::string& name,
 {
     BufferLayout layout
     {
-        { GLSLDataType::Float3, "Position",  mVertices.mPositions.size()  },
-        { GLSLDataType::Float3, "Normal",    mVertices.mNormals.size()    },
-        { GLSLDataType::Float2, "TexCoords", mVertices.mTexCoords.size()  },
-        { GLSLDataType::Float3, "Tangent",   mVertices.mTangents.size()   },
-        { GLSLDataType::Float3, "Bitangent", mVertices.mBitangents.size() }
+        { "Position",  GLSLDataType::Float3, mVertices.mPositions.size()  },
+        { "Normal",    GLSLDataType::Float3, mVertices.mNormals.size()    },
+        { "TexCoords", GLSLDataType::Float2, mVertices.mTexCoords.size()  },
+        { "Tangent",   GLSLDataType::Float3, mVertices.mTangents.size()   },
+        { "Bitangent", GLSLDataType::Float3, mVertices.mBitangents.size() }
     };
 
     size_t size = sizeof( glm::vec3 ) * mVertices.mPositions.size() + sizeof( glm::vec3 ) * mVertices.mNormals.size() +
@@ -42,11 +42,8 @@ Mesh::Mesh( const std::string& name,
 
     memmove( data.data() + offset, mVertices.mBitangents.data(), sizeof( glm::vec3 ) * mVertices.mBitangents.size() );
 
-
     IndexBuffer  index_buffer = IndexBuffer( mIndices.data(), mIndices.size() );
-    VertexBuffer vertex_buffer = VertexBuffer( data.data(), size );
-    vertex_buffer.SetLayout( layout );
-
+    VertexBuffer vertex_buffer = VertexBuffer( layout, data.data(), size );
     mVertexArray.AddVertexBuffer( std::move( vertex_buffer ) );
     mVertexArray.SetIndexBuffer( std::move( index_buffer ) );
 }

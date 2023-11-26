@@ -12,12 +12,8 @@
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT Shader
+class BUBBLE_ENGINE_EXPORT Shader
 {
-    std::string mName;
-    GLuint  mShaderID;
-    mutable std::unordered_map<std::string, int> mUniformCache;
-
 public:
     Shader() = default;
 
@@ -49,5 +45,11 @@ public:
     void SetTexture2D( const std::string& name, int tex_id, int slot = 0 ) const;
     void SetTexture2D( const std::string& name, const Texture2D& texture, int slot = 0 ) const;
     void SetTexture2D( const std::string& name, const Ref<Texture2D>& texture, int slot = 0 ) const;
+
+//private:
+    std::string mName;
+    GLuint  mShaderID;
+    mutable std::unordered_map<std::string, int> mUniformCache;
 };
+
 }
