@@ -1,4 +1,7 @@
 #pragma once
+#if defined(IMGUI_IMPL_OPENGL_ES2)
+#include <GLES2/gl2.h>
+#endif
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <stdexcept>
@@ -32,6 +35,9 @@ public:
 
     void SetVSync( bool vsync );
 
+    GLFWwindow* GetHandle() const;
+    const char* GetGLSLVersion() const;
+
 private:
     static void ErrorCallback( int error, const char* description );
     static void KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods );
@@ -41,8 +47,8 @@ private:
     static void WindowSizeCallback( GLFWwindow* window, int width, int height );
     static void FramebufferSizeCallback( GLFWwindow* window, int width, int height );
 
-
     GLFWwindow* mWindow;
+    const char* mGLSLVersion;
     WindowSize mWindowSize;
     bool mShouldClose = false;
     MouseInput mMouseInput;

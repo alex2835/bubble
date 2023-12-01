@@ -159,15 +159,15 @@ void Loader::CompileShaders( Shader& shader,
 			}
 		}
 	}
-
 	// Shader program
 	shader.mShaderID = glCreateProgram();
-
 	// Link shaders
 	glcall( glAttachShader( shader.mShaderID, vertex_shader ) );
 	glcall( glAttachShader( shader.mShaderID, fragment_shader ) );
 	if ( geometry_source.size() )
+	{
 		glcall( glAttachShader( shader.mShaderID, geometry_shader ) );
+	}
 	glcall( glLinkProgram( shader.mShaderID ) );
 
 	{
