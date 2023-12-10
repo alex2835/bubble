@@ -1,11 +1,13 @@
 message(STATUS "Fetching imgui ...")
 
-FetchContent_GetProperties(imgui)
-if (NOT imgui_POPULATED)
-  FetchContent_Populate(imgui)
-endif ()
+#FetchContent_GetProperties(imgui)
+#if (NOT imgui_POPULATED)
+#  FetchContent_Populate(imgui)
+#endif ()
 
-add_library(imgui
+set(imgui_SOURCE_DIR "imgui")
+
+add_library(imgui STATIC
   ${imgui_SOURCE_DIR}/imgui.cpp
   ${imgui_SOURCE_DIR}/imgui.h
   ${imgui_SOURCE_DIR}/imconfig.h
@@ -28,4 +30,11 @@ target_include_directories(imgui PUBLIC
 )
 target_link_libraries(imgui PUBLIC glfw)
 
-FetchContent_MakeAvailable(imgui)
+#if(EMSCRIPTEN)
+#set_target_properties(imgui
+#        PROPERTIES SUFFIX ".html"
+#        LINK_FLAGS " --bind -s USE_WEBGL2=1 -s USE_GLFW=3 -s WASM=1"
+#)
+#endif()
+
+#FetchContent_MakeAvailable(imgui)

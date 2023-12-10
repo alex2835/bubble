@@ -1,5 +1,6 @@
 #pragma once 
 #include <GL/glew.h>
+#include "log/log.hpp"
 #include <cstdlib>
 #include <iostream>
 
@@ -20,9 +21,9 @@ inline void PrintOpenGLErrors( char const* const Function, char const* const Fil
     {
         char const* ErrorString = (char const*)glewGetErrorString( Error );
         if( ErrorString )
-            std::cerr << ( "OpenGL Error in %s at line %d calling function %s: '%s'", File, Line, Function, ErrorString ) << std::endl;
+            LogError( "OpenGL Error in {} at line {} calling function {}: '{}'", File, Line, Function, ErrorString );
         else
-            std::cerr << ( "OpenGL Error in %s at line %d calling function %s: '%d 0x%X'", File, Line, Function, Error, Error ) << std::endl;
+            LogError( "OpenGL Error in {} at line {} calling function {}: '{}", File, Line, Function, Error );
     }
 }
 

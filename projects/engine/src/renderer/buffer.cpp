@@ -11,6 +11,7 @@ uint32_t GLSLDataTypeSize( GLSLDataType type )
     {
     case GLSLDataType::Float:
         return sizeof( GLfloat );
+    case GLSLDataType::Float2:
         return sizeof( GLfloat ) * 2;
     case GLSLDataType::Float3:
         return sizeof( GLfloat ) * 3;
@@ -620,47 +621,47 @@ void UniformArrayElemnt::SetData( const void* data, size_t size, uint32_t offset
 
 void UniformArrayElemnt::SetInt( const std::string& name, int data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Int );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Int );
     SetRawData( elem, &data );
 }
 
 
 void UniformArrayElemnt::SetFloat( const std::string& name, float data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Float );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float );
     SetRawData( elem, &data );
 }
 
 
 void UniformArrayElemnt::SetFloat2( const std::string& name, const glm::vec2& data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Float2 );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float2 );
     SetRawData( elem, glm::value_ptr( data ) );
 }
 
 
 void UniformArrayElemnt::SetFloat3( const std::string& name, const glm::vec3& data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Float3 );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float3 );
     SetRawData( elem, glm::value_ptr( data ) );
 }
 
 
 void UniformArrayElemnt::SetFloat4( const std::string& name, const glm::vec4& data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Float4 );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float4 );
     SetRawData( elem, glm::value_ptr( data ) );
 }
 
 
 void UniformArrayElemnt::SetMat4( const std::string& name, const glm::mat4& data )
 {
-    BufferElement* elem = FindBufferElement( name, GLSLDataType::Mat4 );
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Mat4 );
     SetRawData( elem, glm::value_ptr( data ) );
 }
 
 
-BufferElement* UniformArrayElemnt::FindBufferElement( const std::string& name, GLSLDataType type )
+const BufferElement& UniformArrayElemnt::FindBufferElement( const std::string& name, GLSLDataType type )
 {
     auto elem = std::find_if( mLayout->begin(), mLayout->end(),
                               [&name, &type]( const BufferElement& elem )
@@ -668,14 +669,14 @@ BufferElement* UniformArrayElemnt::FindBufferElement( const std::string& name, G
         return elem.mName == name && elem.mType == type;
     } );
     BUBBLE_ASSERT( elem != mLayout->end(), "Uniform buffer element not founded" );
-    return elem._Ptr;
+    return *elem;
 }
 
-void UniformArrayElemnt::SetRawData( BufferElement* elem, const void* data )
+void UniformArrayElemnt::SetRawData( const BufferElement& elem, const void* data )
 {
-    size_t array_index_offset = mLayout->mStride * mArrayIndex + elem->mOffset;
+    size_t array_index_offset = mLayout->mStride * mArrayIndex + elem.mOffset;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem->mSize, data );
+    glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem.mSize, data );
     glBindBuffer( GL_UNIFORM_BUFFER, 0 );
 }
 

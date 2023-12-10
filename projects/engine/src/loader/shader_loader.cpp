@@ -6,12 +6,12 @@
 namespace bubble
 {
 
-Ref<Shader> Loader::LoadShader( const std::string& path )
+Ref<Shader> Loader::LoadShader( const std::path& path )
 {
 	Ref<Shader> shader = CreateRef<Shader>();
 	std::string vertexSource, fragmentSource, geometry;
 
-	shader->mName = path.substr( path.find_last_of( '/' ) + 1 );
+	shader->mName = path.filename().string();
 	ParseShaders( path, vertexSource, fragmentSource, geometry );
 	CompileShaders( *shader, vertexSource, fragmentSource, geometry );
 	return shader;
@@ -31,7 +31,7 @@ Ref<Shader> Loader::LoadShader( const std::string& name,
 }
 
 
-void Loader::ParseShaders( const std::string& path,
+void Loader::ParseShaders( const std::path& path,
 						   std::string& vertex,
 						   std::string& fragment,
 						   std::string& geometry )
@@ -44,7 +44,7 @@ void Loader::ParseShaders( const std::string& path,
 
 	std::ifstream stream( path );
 	if ( !stream.is_open() )
-		throw std::runtime_error( "Incorrect shader file path: " + path );
+		throw std::runtime_error( std::format( "Incorrect shader file path: {}", path.string() ) );
 
 	std::string line;
 	std::stringstream shaders[3];

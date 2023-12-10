@@ -217,8 +217,8 @@ struct BUBBLE_ENGINE_EXPORT UniformArrayElemnt
     void SetMat4( const std::string& name, const glm::mat4& data );
 
 private:
-    BufferElement* FindBufferElement( const std::string& name, GLSLDataType type );
-    void SetRawData( BufferElement* elem, const void* data );
+    const BufferElement& FindBufferElement( const std::string& name, GLSLDataType type );
+    void SetRawData( const BufferElement& elem, const void* data );
 };
 
 }

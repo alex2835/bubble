@@ -62,7 +62,7 @@ public:
 
     bool operator==( const Texture2D& other ) const;
 
-private:
+//private:
     GLuint mRendererID = 0;
     Texture2DSpecification mSpecification;
 };

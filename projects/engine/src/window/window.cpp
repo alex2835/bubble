@@ -1,11 +1,12 @@
 #include "window/window.hpp"
+#include "log/log.hpp"
 
 namespace bubble
 {
 
 void Window::ErrorCallback( int error, const char* description )
 {
-    std::cerr << "Error: " << error << " Description: " << description;
+    LogError( "Error: {} \nDescription: {}", error, description );
 }
 
 void Window::KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods )
@@ -83,6 +84,7 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, int width, int height 
 Window::Window( const std::string& name, WindowSize size )
     : mWindowSize( size )
 {
+    glfwSetErrorCallback( ErrorCallback );
     if( !glfwInit() )
         throw std::runtime_error( "GLFW init error" );
 
@@ -120,7 +122,6 @@ Window::Window( const std::string& name, WindowSize size )
     glfwSetWindowUserPointer( mWindow, this );
     glfwSetInputMode( mWindow, GLFW_LOCK_KEY_MODS, GLFW_TRUE );
     // set callback functions
-    glfwSetErrorCallback( ErrorCallback );
     glfwSetKeyCallback( mWindow, KeyCallback );
     glfwSetMouseButtonCallback( mWindow, MouseButtonCallback );
     glfwSetCursorPosCallback( mWindow, MouseCallback );
@@ -128,17 +129,44 @@ Window::Window( const std::string& name, WindowSize size )
     glfwSetWindowSizeCallback( mWindow, WindowSizeCallback );
     glfwSetFramebufferSizeCallback( mWindow, FramebufferSizeCallback );
 
+#if !defined(__EMSCRIPTEN__)
     GLenum err = glewInit();
-    if( GLEW_OK != err )
+    if ( GLEW_OK != err )
     {
         std::cerr << "Error: " << glewGetErrorString( err ) << std::endl;
         glfwTerminate();
         throw std::runtime_error( "GLEW init error" );
     }
+#endif
+
+    IMGUI_CHECKVERSION();
+    mImGuiContext = ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+
+    //LoadIniSettingsFromMemory()
+    io.IniFilename = nullptr;
+
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
+    {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+    ImGui_ImplGlfw_InitForOpenGL( mWindow, true );
+    ImGui_ImplOpenGL3_Init( mGLSLVersion );
 }
 
 Window::~Window()
 {
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
     glfwDestroyWindow( mWindow );
     glfwTerminate();
 }
@@ -152,7 +180,6 @@ bool Window::ShouldClose() const
 {
     return mShouldClose;
 }
-
 
 const std::vector<Event>& Window::PollEvents()
 {
@@ -180,6 +207,35 @@ GLFWwindow* Window::GetHandle() const
 const char* Window::GetGLSLVersion() const
 {
     return mGLSLVersion;
+}
+
+
+ImGuiContext* Window::GetImGuiContext()
+{
+    return mImGuiContext;
+}
+
+void Window::ImGuiBegin()
+{
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    ImGui::DockSpaceOverViewport( ImGui::GetMainViewport() );
+}
+
+void Window::ImGuiEnd()
+{
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
+
+    // Multi viewports
+    ImGuiIO& io = ImGui::GetIO();
+    if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
+    {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+        glfwMakeContextCurrent( mWindow );
+    }
 }
 
 

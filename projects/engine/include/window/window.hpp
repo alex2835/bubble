@@ -1,13 +1,22 @@
 #pragma once
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-#include <GLES2/gl2.h>
+#if defined(__EMSCRIPTEN__)
+#   include <emscripten.h>
+#   include <emscripten/html5.h>
+#   define GL_GLEXT_PROTOTYPES
+#   define EGL_EGLEXT_PROTOTYPES
+#else
+#   include <GL/glew.h>
+#   include <GLFW/glfw3.h>
+#   if defined(IMGUI_IMPL_OPENGL_ES2)
+#       include <GLES2/gl2.h>
+#   endif
 #endif
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 #include <stdexcept>
 #include <iostream>
 #include <vector>
-
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_glfw.h>
 #include "utils/imexp.hpp"
 #include "window/event.hpp"
 #include "window/input.hpp"
@@ -38,6 +47,9 @@ public:
     GLFWwindow* GetHandle() const;
     const char* GetGLSLVersion() const;
 
+    ImGuiContext* GetImGuiContext();
+    void ImGuiBegin();
+    void ImGuiEnd();
 private:
     static void ErrorCallback( int error, const char* description );
     static void KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods );
@@ -48,6 +60,7 @@ private:
     static void FramebufferSizeCallback( GLFWwindow* window, int width, int height );
 
     GLFWwindow* mWindow;
+    ImGuiContext* mImGuiContext;
     const char* mGLSLVersion;
     WindowSize mWindowSize;
     bool mShouldClose = false;
