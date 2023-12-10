@@ -1,14 +1,24 @@
-# Buble
-C++ OpeGL Imgui - Game engine.
+# Buble  Game Engine
+C++ OpeGL Imgui
 
-# Windows build
+## Build
+### Windows
+~~~
 mkdir build
 cd build
 cmake ..
 cmake --build .
+~~~
 
-# Emscripten(Webassembly) build
+### Emscripten(Webassembly)
+~~~
 mkdir build
 cd build
 emcmake cmake ..
 cmake --build .
+~~~
+Run server in bin directory
+~~~
+python3 -m http.server
+~~~
+and follow http://localhost:8000/

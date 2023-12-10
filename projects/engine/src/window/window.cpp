@@ -81,6 +81,7 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, int width, int height 
 }
 
 
+
 Window::Window( const std::string& name, WindowSize size )
     : mWindowSize( size )
 {
