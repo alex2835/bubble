@@ -32,10 +32,6 @@ if(WIN32)
 	list(APPEND DEFINITIONS -DWIN32_MEAN_AND_LEAN -DVC_EXTRALEAN -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
-if(MSVC)
-	list(APPEND LIBGLEW_SRCS ${RC_DIR}/glew.rc)
-endif()
-
 # Use namespaced libraries when supported
 if(${CMAKE_VERSION} VERSION_GREATER 3.14)
 	set(USE_NAMESPACED_LIB YES)
