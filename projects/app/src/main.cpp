@@ -13,14 +13,16 @@ using namespace bubble;
 
 int main()
 {
+    Loader loader;
+    Ref<Model> teapot = loader.LoadModel("models/teapot.obj");
+    if (!teapot) {
+        return 1;
+    }
+
     Window window( "Bubble", WindowSize{ 1200, 720 } );
     ImGui::SetCurrentContext( window.GetImGuiContext() );
 
-#ifdef __EMSCRIPTEN__
-    EMSCRIPTEN_MAINLOOP_BEGIN
-#else
     while ( !window.ShouldClose() )
-#endif
     {
         window.PollEvents();
         
@@ -32,9 +34,6 @@ int main()
         window.ImGuiEnd();
         window.OnUpdate();
     }
-#ifdef __EMSCRIPTEN__
-    EMSCRIPTEN_MAINLOOP_END;
-#endif
     return 0;
 }
 

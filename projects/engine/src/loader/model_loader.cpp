@@ -48,8 +48,11 @@ Ref<Model> Loader::LoadModel( const std::path& path )
 
 	Assimp::Importer importer;
 	const aiScene* scene = importer.ReadFile( path.string(), 0);
-	if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
-		throw std::runtime_error( "ERROR::ASSIMP\n" + std::string( importer.GetErrorString() ) );
+	if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) || !scene->mRootNode)
+	{
+		LogError("ERROR::ASSIMP " + std::string(importer.GetErrorString()));
+		return Ref<Model>();
+	}
 	importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
 	model->mMeshes.reserve( scene->mNumMeshes );
