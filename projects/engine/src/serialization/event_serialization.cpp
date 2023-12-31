@@ -340,9 +340,9 @@ std::string ToString<Event>( const Event& key )
     {
         res += "Type: MouseMove";
         res = res + "\nPosition: x:" + std::to_string( key.mMouse.Pos.x ) + 
-                             " y:" + std::to_string( key.mMouse.Pos.x );
+                             " y:" + std::to_string( key.mMouse.Pos.y );
         res = res + "\nOffset: x:" + std::to_string( key.mMouse.Offset.x ) +
-                           " y:" + std::to_string( key.mMouse.Offset.x );
+                           " y:" + std::to_string( key.mMouse.Offset.y );
     }
     else if( key.mType == EventType::MouseZoom )
     {

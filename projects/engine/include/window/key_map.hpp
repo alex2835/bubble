@@ -1,9 +1,9 @@
 #pragma once
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 namespace bubble
 {
-
 enum class KeyboardKey
 {
     UNKNOWN = GLFW_KEY_UNKNOWN,
@@ -134,16 +134,6 @@ enum class KeyboardKey
     KEY_LAST = GLFW_KEY_LAST
 };
 
-struct KeyMods
-{
-    bool SHIFT = false;
-    bool CONTROL = false;
-    bool ALT = false;
-    bool SUPER = false;
-    bool CAPS_LOCK = false;
-    bool NUM_LOCK = false;
-};
-
 enum class MouseKey
 {
     UNKNOWN = GLFW_KEY_UNKNOWN,
@@ -155,6 +145,23 @@ enum class MouseKey
     BUTTON_6 = GLFW_MOUSE_BUTTON_6,
     BUTTON_7 = GLFW_MOUSE_BUTTON_7,
     BUTTON_8 = GLFW_MOUSE_BUTTON_8,
+};
+
+struct KeyMods
+{
+    bool SHIFT = false;
+    bool CONTROL = false;
+    bool ALT = false;
+    bool SUPER = false;
+    bool CAPS_LOCK = false;
+    bool NUM_LOCK = false;
+};
+
+enum class KeyAction
+{
+    Release = GLFW_RELEASE,
+    Press = GLFW_PRESS,
+    Repeat = GLFW_REPEAT
 };
 
 }

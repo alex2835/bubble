@@ -33,12 +33,15 @@ public:
     Mesh( Mesh&& ) = default;
     Mesh& operator= ( Mesh&& ) = default;
 
+    void BindVertetxArray() const;
+    size_t IndiciesSize() const;
+
 private:
     std::string			  mName;
     VertexArray           mVertexArray;
-    BasicMaterial         mMaterial;
     VertexData            mVertices;
     std::vector<uint32_t> mIndices;
+    BasicMaterial         mMaterial;
 };
 
 }

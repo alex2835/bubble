@@ -8,9 +8,6 @@
 
 namespace bubble
 {
-Scope<MeshNode> ProcessNode( Model& model, aiNode* node, const aiScene* scene, Loader* loader, const std::path& path );
-Mesh ProcessMesh( aiMesh* mesh, const aiScene* scene, Loader* loader, const std::path& path );
-BasicMaterial LoadMaterialTextures( aiMaterial* mat, Loader* loader, const std::path& path );
 
 std::string GetModelName( const std::string model_path )
 {
@@ -53,38 +50,37 @@ Ref<Model> Loader::LoadModel( const std::path& path )
 	importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
 	model->mMeshes.reserve( scene->mNumMeshes );
-	model->mRootNode = ProcessNode( *model, scene->mRootNode, scene, this, path );
+	model->mRootNode = ProcessNode( *model, scene->mRootNode, scene, path );
 	model->CreateBoundingBox();
 	//model->mShader = GetSystemShader( "Phong shader" );
 	return model;
 }
 
-Scope<MeshNode> ProcessNode( Model& model,
-							 aiNode* node,
-							 const aiScene* scene,
-							 Loader* loader,
-							 const std::path& path )
+
+Scope<MeshNode> Loader::ProcessNode( Model& model,
+                                     const aiNode* node,
+                                     const aiScene* scene,
+                                     const std::path& path )
 {
 	Scope<MeshNode> mesh_node = CreateScope<MeshNode>( node->mName.C_Str() );
 
 	for ( uint32_t i = 0; i < node->mNumMeshes; i++ )
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		model.mMeshes.emplace_back( ProcessMesh( mesh, scene, loader, path ) );
+		model.mMeshes.emplace_back( ProcessMesh( mesh, scene, path ) );
 		mesh_node->mMeshes.push_back( &model.mMeshes.back() );
 	}
 
 	for ( uint32_t i = 0; i < node->mNumChildren; i++ )
-		mesh_node->mChildern.push_back( ProcessNode( model, node->mChildren[i], scene, loader, path ) );
+		mesh_node->mChildern.push_back( ProcessNode( model, node->mChildren[i], scene, path ) );
 
 	return std::move( mesh_node );
 }
 
 
-Mesh ProcessMesh( aiMesh* mesh,
-				  const aiScene* scene,
-				  Loader* loader,
-				  const std::path& path )
+Mesh Loader::ProcessMesh( const aiMesh* mesh,
+                          const aiScene* scene,
+                          const std::path& path )
 {
 	VertexData vertices;
 	std::vector<uint32_t> indices;
@@ -125,12 +121,12 @@ Mesh ProcessMesh( aiMesh* mesh,
 
 	// Process materials
 	aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
-	BasicMaterial material = LoadMaterialTextures( assimp_material, loader, path );
+	BasicMaterial material = LoadMaterialTextures( assimp_material, path );
 
 	return Mesh( mesh->mName.C_Str(), std::move( material ), std::move( vertices ), std::move( indices ) );
 }
 
-BasicMaterial LoadMaterialTextures( aiMaterial* mat, Loader* loader, const std::path& path )
+BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const std::path& path )
 {
 	const aiTextureType types[] = { aiTextureType_DIFFUSE , aiTextureType_SPECULAR, aiTextureType_HEIGHT, aiTextureType_NORMALS };
 
@@ -150,19 +146,19 @@ BasicMaterial LoadMaterialTextures( aiMaterial* mat, Loader* loader, const std::
 				switch ( types[i] )
 				{
 				case aiTextureType_DIFFUSE:
-					material.mDiffuseMap = loader->LoadTexture2D( directory / str.C_Str() );
+					material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
 					break;
 
 				case aiTextureType_SPECULAR:
-					material.mSpecularMap = loader->LoadTexture2D( directory / str.C_Str() );
+					material.mSpecularMap = LoadTexture2D( directory / str.C_Str() );
 					break;
 
 				case aiTextureType_NORMALS:
-					material.mNormalMap = loader->LoadTexture2D( directory / str.C_Str() );
+					material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
 					break;
 
 				case aiTextureType_HEIGHT:
-					material.mNormalMap = loader->LoadTexture2D( directory / str.C_Str() );
+					material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
 					break;
 
 				default:
@@ -191,7 +187,7 @@ BasicMaterial LoadMaterialTextures( aiMaterial* mat, Loader* loader, const std::
 	//		material.mShininess = static_cast<int>( shininess );
 
 	// If no textures create 1x1 white one
-	//Ref<Texture2D> white_plug = loader->LoadTexture2DSingleColor( "white plug", glm::vec4( 1.0f ) );
+	//Ref<Texture2D> white_plug = LoadTexture2DSingleColor( "white plug", glm::vec4( 1.0f ) );
 
 	//if ( !material.mDiffuseMap )
 	//	material.mDiffuseMap = white_plug;

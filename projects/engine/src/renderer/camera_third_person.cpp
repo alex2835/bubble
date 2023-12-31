@@ -5,131 +5,131 @@ namespace bubble
 {
 
 ThirdPersonCamera::ThirdPersonCamera( float yaw, float pitch )
-    : Center( glm::vec3( 0, 0, 0 ) ),
+    : mCenter( glm::vec3( 0, 0, 0 ) ),
     Camera( glm::vec3(), yaw, pitch )
 {
 }
 
-void ThirdPersonCamera::ProcessRotation( CameraMovement direction, DeltaTime dt )
+void ThirdPersonCamera::ProcessRotation( CameraMovement direction )
 {
-    float max_speed = MaxSpeed * DeltaSpeed;
+    float max_speed = mMaxSpeed * mDeltaSpeed;
 
     // Horizontal speed
     if( direction == CameraMovement::LEFT )
     {
-        if( SpeedX < 0 )
-            SpeedX = 0;
-        SpeedX = SpeedX < max_speed ? SpeedX + DeltaSpeed : max_speed;
-        IsRotatingX = true;
+        if( mSpeedX < 0 )
+            mSpeedX = 0;
+        mSpeedX = mSpeedX < max_speed ? mSpeedX + mDeltaSpeed : max_speed;
+        mIsRotatingX = true;
     }
     else if( direction == CameraMovement::RIGHT )
     {
-        if( SpeedX > 0 )
-            SpeedX = 0;
-        SpeedX = SpeedX > -max_speed ? SpeedX - DeltaSpeed : -max_speed;
-        IsRotatingX = true;
+        if( mSpeedX > 0 )
+            mSpeedX = 0;
+        mSpeedX = mSpeedX > -max_speed ? mSpeedX - mDeltaSpeed : -max_speed;
+        mIsRotatingX = true;
     }
 
     // Vertical speed
     if( direction == CameraMovement::UP )
     {
-        if( SpeedY < 0 )
-            SpeedY = 0;
-        SpeedY = SpeedY < max_speed ? SpeedY + DeltaSpeed : max_speed;
-        IsRotatingY = true;
+        if( mSpeedY < 0 )
+            mSpeedY = 0;
+        mSpeedY = mSpeedY < max_speed ? mSpeedY + mDeltaSpeed : max_speed;
+        mIsRotatingY = true;
     }
     else if( direction == CameraMovement::DOWN )
     {
-        if( SpeedY > 0 )
-            SpeedY = 0;
-        SpeedY = SpeedY > -max_speed ? SpeedY - DeltaSpeed : -max_speed;
-        IsRotatingY = true;
+        if( mSpeedY > 0 )
+            mSpeedY = 0;
+        mSpeedY = mSpeedY > -max_speed ? mSpeedY - mDeltaSpeed : -max_speed;
+        mIsRotatingY = true;
     }
 
     // Clamp
-    if( fabs( SpeedX ) > max_speed )
-        SpeedX = sgn( SpeedX ) * max_speed;
+    if( std::fabs( mSpeedX ) > max_speed )
+        mSpeedX = Sign( mSpeedX ) * max_speed;
 
-    if( fabs( SpeedY ) > max_speed )
-        SpeedY = sgn( SpeedY ) * max_speed;
+    if( std::fabs( mSpeedY ) > max_speed )
+        mSpeedY = Sign( mSpeedY ) * max_speed;
 }
 
 
 void ThirdPersonCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
 {
-    float xoffset = ( LastMouseX - MousePosX ) * MouseSensitivity;
-    float yoffset = ( LastMouseY - MousePosY ) * MouseSensitivity;
+    float xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
+    float yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
 
-    LastMouseX = MousePosX;
-    LastMouseY = MousePosY;
+    mLastMouseX = MousePosX;
+    mLastMouseY = MousePosY;
 
-    Yaw -= xoffset;
-    Pitch -= yoffset;
+    mYaw -= xoffset;
+    mPitch -= yoffset;
 
-    if( Pitch > PI / 2.0f - 0.1f )
-        Pitch = PI / 2.0f - 0.1f;
+    if( mPitch > camera::PI / 2.0f - 0.1f )
+        mPitch = camera::PI / 2.0f - 0.1f;
 
-    if( Pitch < -PI / 2.0f + 0.1f )
-        Pitch = -PI / 2.0f + 0.1f;
+    if( mPitch < -camera::PI / 2.0f + 0.1f )
+        mPitch = -camera::PI / 2.0f + 0.1f;
 }
 
 
-void ThirdPersonCamera::ProcessMouseMovementShift( float xoffset, float yoffset )
+void ThirdPersonCamera::ProcessMouseMovementOffset( float xoffset, float yoffset )
 {
-    xoffset *= MouseSensitivity;
-    yoffset *= MouseSensitivity;
+    xoffset *= mMouseSensitivity;
+    yoffset *= mMouseSensitivity;
 
-    Yaw += xoffset;
-    Pitch += yoffset;
+    mYaw += xoffset;
+    mPitch += yoffset;
 
-    if( Pitch > PI / 2.0f - 0.1f )
-        Pitch = PI / 2.0f - 0.1f;
+    if( mPitch > camera::PI / 2.0f - 0.1f )
+        mPitch = camera::PI / 2.0f - 0.1f;
 
-    if( Pitch < -PI / 2.0f + 0.1f )
-        Pitch = -PI / 2.0f + 0.1f;
+    if( mPitch < -camera::PI / 2.0f + 0.1f )
+        mPitch = -camera::PI / 2.0f + 0.1f;
 }
 
 
 void ThirdPersonCamera::ProcessMouseScroll( float yoffset )
 {
-    if( Fov >= 0.1f && Fov <= PI / 2.0f )
-        Fov -= yoffset * DeltaFov;
+    if( mFov >= 0.1f && mFov <= camera::PI / 2.0f )
+        mFov -= yoffset * mDeltaFov;
 
-    if( Fov < 0.1f )
-        Fov = 0.1f;
+    if( mFov < 0.1f )
+        mFov = 0.1f;
 
-    if( Fov > PI / 2.0f )
-        Fov = PI / 2.0f;
+    if( mFov > camera::PI / 2.0f )
+        mFov = camera::PI / 2.0f;
 }
 
 
-void ThirdPersonCamera::Update( DeltaTime dt )
+void ThirdPersonCamera::OnUpdate( DeltaTime dt )
 {
     // Inertia
-    if( !IsRotatingX )
-        SpeedX = fabs( SpeedX ) < 0.01f ? SpeedX = 0 : SpeedX - sgn( SpeedX ) * DeltaSpeed;
+    if( !mIsRotatingX )
+        mSpeedX = std::abs( mSpeedX ) < 0.01f ? mSpeedX = 0 : mSpeedX - Sign( mSpeedX ) * mDeltaSpeed;
 
-    if( !IsRotatingY )
-        SpeedY = fabs( SpeedY ) < 0.01f ? SpeedY = 0 : SpeedY - sgn( SpeedY ) * DeltaSpeed;
+    if( !mIsRotatingY )
+        mSpeedY = std::abs( mSpeedY ) < 0.01f ? mSpeedY = 0 : mSpeedY - Sign( mSpeedY ) * mDeltaSpeed;
 
-    IsRotatingX = false;
-    IsRotatingY = false;
+    mIsRotatingX = false;
+    mIsRotatingY = false;
 
-    Yaw += SpeedX * dt.GetSeconds();
-    Pitch += SpeedY * dt.GetSeconds();
+    mYaw += mSpeedX * dt.GetSeconds();
+    mPitch += mSpeedY * dt.GetSeconds();
 
     // Transformation matrix
     glm::mat4 transform = glm::mat4( 1.0f );
-    transform = glm::rotate( transform, Yaw, glm::vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, Pitch, glm::vec3( 1, 0, 0 ) );
-    transform = glm::translate( transform, Center );
+    transform = glm::rotate( transform, mYaw, glm::vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mPitch, glm::vec3( 1, 0, 0 ) );
+    transform = glm::translate( transform, mCenter );
 
-    Position = transform * glm::vec4( 0, 0, Radius, 0 );
+    mPosition = transform * glm::vec4( 0, 0, mRadius, 0 );
 
     // Basis
-    Front = glm::normalize( Center - Position );
-    Right = glm::normalize( glm::cross( Front, WorldUp ) );
-    Up = glm::normalize( glm::cross( Right, Front ) );
+    mFront = glm::normalize( mCenter - mPosition );
+    mRight = glm::normalize( glm::cross( mFront, mWorldUp ) );
+    mUp = glm::normalize( glm::cross( mRight, mFront ) );
 }
 
 }

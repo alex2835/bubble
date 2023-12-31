@@ -1,30 +1,33 @@
 
 #include "utils/timer.hpp"
-using namespace std::chrono;
 
 namespace bubble
 {
+std::time_point Timer::mGlobalStartTime = Now();
 
-Time::Time( float time )
+
+TimePoint::TimePoint( float time )
     : mTime( time )
 {
 }
 
-float Time::GetSeconds()
+float TimePoint::GetSeconds()
 {
     return mTime;
 }
 
-float Time::GetMilliseconds()
+float TimePoint::GetMilliseconds()
 {
     return mTime * 1000.0f;
 }
 
-void Timer::Update()
+
+
+void Timer::OnUpdate()
 {
-    high_resolution_clock::time_point now = Now();
-    duration<float> time_dif = duration_cast<duration<float>>( now - mLastTime );
-    mDeltatime = time_dif.count();
+    std::time_point now = Now();
+    std::duration<float> time_dif = duration_cast<std::duration<float>>( now - mLastTime );
+    mDeltatime = DeltaTime( time_dif.count() );
     mLastTime = now;
 }
 
@@ -33,16 +36,15 @@ DeltaTime Timer::GetDeltaTime()
     return mDeltatime;
 }
 
-std::chrono::high_resolution_clock::time_point Timer::Now()
+std::time_point Timer::Now()
 {
-    return  high_resolution_clock::now();
+    return  std::high_resolution_clock::now();
 }
 
-//Time Timer::GetTime()
-//{
-//    high_resolution_clock::time_point now = Now();
-//    duration<float> time_dif = duration_cast<duration<float>>( now - ProgramStartTime );
-//    return time_dif.count();
-//}
+TimePoint Timer::GetGlobalTime()
+{
+    return TimePoint( std::duration_cast<std::duration<float>>( 
+                            std::system_clock::now().time_since_epoch() ).count() );
+}
 
 }

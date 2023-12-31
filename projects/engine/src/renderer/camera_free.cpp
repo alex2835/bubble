@@ -6,120 +6,120 @@ namespace bubble
 FreeCamera::FreeCamera( const glm::vec3& position,
                         float yaw,
                         float pitch,
-                        float fov,
+                        float mFov,
                         const glm::vec3& up )
-    : Camera( position, yaw, pitch, fov, up )
+    : Camera( position, yaw, pitch, mFov, up )
 {
 }
 
-void FreeCamera::ProcessMovement( CameraMovement direction, DeltaTime dt )
+void FreeCamera::ProcessMovement( CameraMovement direction )
 {
-    float max_speed = MaxSpeed * DeltaSpeed;
+    float max_speed = mMaxSpeed * mDeltaSpeed;
 
     // Speed x
     if( direction == CameraMovement::FORWARD )
     {
-        if( SpeedX < 0 )
-            SpeedX = 0;
-        SpeedX = SpeedX < max_speed ? SpeedX + DeltaSpeed : max_speed;
-        IsMovingX = true;
+        if( mSpeedX < 0 )
+            mSpeedX = 0;
+        mSpeedX = mSpeedX < max_speed ? mSpeedX + mDeltaSpeed : max_speed;
+        mIsMovingX = true;
     }
     else if( direction == CameraMovement::BACKWARD )
     {
-        if( SpeedX > 0 )
-            SpeedX = 0;
-        SpeedX = SpeedX > -max_speed ? SpeedX - DeltaSpeed : -max_speed;
-        IsMovingX = true;
+        if( mSpeedX > 0 )
+            mSpeedX = 0;
+        mSpeedX = mSpeedX > -max_speed ? mSpeedX - mDeltaSpeed : -max_speed;
+        mIsMovingX = true;
     }
 
     // Speed y
     if( direction == CameraMovement::RIGHT )
     {
-        if( SpeedY < 0 )
-            SpeedY = 0;
-        SpeedY = SpeedY < max_speed ? SpeedY + DeltaSpeed : max_speed;
-        IsMovingY = true;
+        if( mSpeedY < 0 )
+            mSpeedY = 0;
+        mSpeedY = mSpeedY < max_speed ? mSpeedY + mDeltaSpeed : max_speed;
+        mIsMovingY = true;
     }
     else if( direction == CameraMovement::LEFT )
     {
-        if( SpeedY > 0 )
-            SpeedY = 0;
-        SpeedY = SpeedY > -max_speed ? SpeedY - DeltaSpeed : -max_speed;
-        IsMovingY = true;
+        if( mSpeedY > 0 )
+            mSpeedY = 0;
+        mSpeedY = mSpeedY > -max_speed ? mSpeedY - mDeltaSpeed : -max_speed;
+        mIsMovingY = true;
     }
 
     // Speed z
     // ...
 
     // Clamp
-    if( fabs( SpeedX ) > max_speed )
-        SpeedX = sgn( SpeedX ) * max_speed;
+    if( std::abs( mSpeedX ) > max_speed )
+        mSpeedX = Sign( mSpeedX ) * max_speed;
 
-    if( fabs( SpeedY ) > max_speed )
-        SpeedY = sgn( SpeedY ) * max_speed;
+    if( std::abs( mSpeedY ) > max_speed )
+        mSpeedY = Sign( mSpeedY ) * max_speed;
 }
 
 
 void FreeCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
 {
-    float xoffset = ( LastMouseX - MousePosX ) * MouseSensitivity;
-    float yoffset = ( LastMouseY - MousePosY ) * MouseSensitivity;
+    float xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
+    float yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
 
-    LastMouseX = MousePosX;
-    LastMouseY = MousePosY;
+    mLastMouseX = MousePosX;
+    mLastMouseY = MousePosY;
 
-    Yaw -= xoffset;
-    Pitch -= yoffset;
+    mYaw -= xoffset;
+    mPitch -= yoffset;
 
-    if( Pitch > PI / 2.0f - 0.1f )
-        Pitch = PI / 2.0f - 0.1f;
+    if( mPitch > camera::PI / 2.0f - 0.1f )
+        mPitch = camera::PI / 2.0f - 0.1f;
 
-    if( Pitch < -PI / 2.0f + 0.1f )
-        Pitch = -PI / 2.0f + 0.1f;
+    if( mPitch < -camera::PI / 2.0f + 0.1f )
+        mPitch = -camera::PI / 2.0f + 0.1f;
 }
 
-void FreeCamera::ProcessMouseMovementShift( float xoffset, float yoffset )
+void FreeCamera::ProcessMouseMovementOffset( float xoffset, float yoffset )
 {
-    xoffset *= MouseSensitivity;
-    yoffset *= MouseSensitivity;
+    xoffset *= mMouseSensitivity;
+    yoffset *= mMouseSensitivity;
 
-    Yaw += xoffset;
-    Pitch += yoffset;
+    mYaw += xoffset;
+    mPitch += yoffset;
 
-    if( Pitch > PI / 2.0f - 0.1f )
-        Pitch = PI / 2.0f - 0.1f;
+    if( mPitch > camera::PI / 2.0f - 0.1f )
+        mPitch = camera::PI / 2.0f - 0.1f;
 
-    if( Pitch < -PI / 2.0f + 0.1f )
-        Pitch = -PI / 2.0f + 0.1f;
+    if( mPitch < -camera::PI / 2.0f + 0.1f )
+        mPitch = -camera::PI / 2.0f + 0.1f;
 }
 
 
 void FreeCamera::ProcessMouseScroll( float yoffset )
 {
-    if( Fov >= 0.1f && Fov <= PI / 2.0f )
-        Fov += yoffset * DeltaFov;
+    if( mFov >= 0.1f && mFov <= camera::PI / 2.0f )
+        mFov += yoffset * mDeltaFov;
 
-    if( Fov < 0.1f )
-        Fov = 0.1f;
+    if( mFov < 0.1f )
+        mFov = 0.1f;
 
-    if( Fov > PI / 2.0f )
-        Fov = PI / 2.0f;
+    if( mFov > camera::PI / 2.0f )
+        mFov = camera::PI / 2.0f;
 }
 
-void FreeCamera::Update( DeltaTime dt )
+void FreeCamera::OnUpdate( DeltaTime dt )
 {
     // Inertia
-    if( !IsMovingX )
-        SpeedX = fabs( SpeedX ) < 0.01f ? SpeedX = 0 : SpeedX - sgn( SpeedX ) * DeltaSpeed;
+    if( !mIsMovingX )
+        mSpeedX = std::abs( mSpeedX ) < 0.01f ? mSpeedX = 0 : mSpeedX - Sign( mSpeedX ) * mDeltaSpeed;
 
-    if( !IsMovingY )
-        SpeedY = fabs( SpeedY ) < 0.01f ? SpeedY = 0 : SpeedY - sgn( SpeedY ) * DeltaSpeed;
+    if( !mIsMovingY )
+        mSpeedY = std::abs( mSpeedY ) < 0.01f ? mSpeedY = 0 : mSpeedY - Sign( mSpeedY ) * mDeltaSpeed;
 
-    IsMovingX = false;
-    IsMovingY = false;
+    mIsMovingX = false;
+    mIsMovingY = false;
 
-    Position += Front * SpeedX * dt.GetSeconds();
-    Position -= Right * SpeedY * dt.GetSeconds();
+    mPosition += mFront * mSpeedX * dt.GetSeconds();
+    mPosition += mRight * mSpeedY * dt.GetSeconds();
 
     UpdateCameraVectors();
 }

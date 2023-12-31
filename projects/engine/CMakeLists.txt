@@ -27,8 +27,8 @@ if(EMSCRIPTEN)
 		--bind -sUSE_WEBGL2=1 -sUSE_GLFW=3 -sWASM=1
 	)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-	target_compile_options(${TARGET_NAME} PRIVATE
-	  # C4251 suppress stl dll error
+	target_compile_options(${TARGET_NAME} PUBLIC
+	  # C4251 suppress stl dll warnings
 	  /wd4251 /WX
 	)
 endif()

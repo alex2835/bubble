@@ -7,25 +7,26 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT ThirdPersonCamera : public Camera
 {
-    glm::vec3 Center;
-    float Radius = 20.0f;
+    glm::vec3 mCenter;
+    float mRadius = 20.0f;
 
-    float LastMouseX = 0.5f;
-    float LastMouseY = 0.5f;
+    float mLastMouseX = 0.5f;
+    float mLastMouseY = 0.5f;
 
-    bool IsRotatingX = false;
-    bool IsRotatingY = false;
+    bool mIsRotatingX = false;
+    bool mIsRotatingY = false;
 
-    ThirdPersonCamera( float yaw = YAW, float pitch = PITCH );
+    ThirdPersonCamera( float yaw = camera::YAW, 
+                       float pitch = camera::PITCH );
 
     /*
         Directions: UP, DOWN, LEFT, RIGHT
     */
-    void ProcessRotation( CameraMovement direction, DeltaTime dt );
+    void ProcessRotation( CameraMovement direction );
     void ProcessMouseMovement( float xMousePos, float yMousePos );
-    void ProcessMouseMovementShift( float xoffset, float yoffset );
+    void ProcessMouseMovementOffset( float xoffset, float yoffset );
     void ProcessMouseScroll( float yoffset );
-    void Update( DeltaTime dt );
+    void OnUpdate( DeltaTime dt );
 };
 
 }

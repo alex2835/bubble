@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/glm.hpp>
 #include "window/key_map.hpp"
+#include "window/input.hpp"
 
 namespace bubble
 {
@@ -12,13 +13,7 @@ enum class EventType
     MouseMove,
     MouseZoom,
 
-};
-
-enum class KeyAction
-{
-    Release = GLFW_RELEASE,
-    Press   = GLFW_PRESS,
-    Repeat  = GLFW_REPEAT
+    ShouldClose
 };
 
 struct Event
@@ -35,10 +30,13 @@ struct Event
         MouseKey Key = MouseKey::UNKNOWN;
         KeyAction Action = KeyAction::Release;
         KeyMods Mods;
-        glm::fvec2 Pos = { 0, 0 };
-        glm::fvec2 Offset = { 0, 0 };
-        float ZoomOffset = 0;
+        glm::vec2 Pos;
+        glm::vec2 Offset;
+        float ZoomOffset;
     } mMouse;
+
+    const KeyboardInput* mKeyboardInput;
+    const MouseInput* mMouseInput;
 };
 
 }

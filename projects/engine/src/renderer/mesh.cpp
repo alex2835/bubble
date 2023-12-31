@@ -48,4 +48,14 @@ Mesh::Mesh( const std::string& name,
     mVertexArray.SetIndexBuffer( std::move( index_buffer ) );
 }
 
+void Mesh::BindVertetxArray() const
+{
+    mVertexArray.Bind();
+}
+
+size_t Mesh::IndiciesSize() const
+{
+    return mIndices.size();
+}
+
 }

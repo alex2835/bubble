@@ -11,46 +11,45 @@ void Window::ErrorCallback( int error, const char* description )
 
 void Window::KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods )
 {
-    if( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
-        glfwSetWindowShouldClose( window, GL_TRUE );
-
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    Event event;
-    event.mType = EventType::KeyboardKey;
-    event.mKeyboard.Key = static_cast<KeyboardKey>( key );
-    event.mKeyboard.Action = static_cast<KeyAction>( action );
-    event.mKeyboard.Mods.SHIFT = mods & GLFW_MOD_SHIFT;
-    event.mKeyboard.Mods.CONTROL = mods & GLFW_MOD_CONTROL;
-    event.mKeyboard.Mods.ALT = mods & GLFW_MOD_ALT;
-    event.mKeyboard.Mods.SUPER = mods & GLFW_MOD_SUPER;
-    event.mKeyboard.Mods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
-    event.mKeyboard.Mods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
-    win->mEvents.push_back( event );
+
+    if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
+    {
+        glfwSetWindowShouldClose( window, GL_TRUE );
+        Event event = win->CreateEvent();
+        event.mType = EventType::ShouldClose;
+        win->mEvents.push_back( event );
+    }
+    win->mKeyboardInput.mKeyState[key] = action;
+    win->mKeyboardInput.mKeyMods.SHIFT |= bool(mods & GLFW_MOD_SHIFT);
+    win->mKeyboardInput.mKeyMods.CONTROL |= bool(mods & GLFW_MOD_CONTROL);
+    win->mKeyboardInput.mKeyMods.ALT |= bool(mods & GLFW_MOD_ALT);
+    win->mKeyboardInput.mKeyMods.SUPER |= bool(mods & GLFW_MOD_SUPER);
+    win->mKeyboardInput.mKeyMods.CAPS_LOCK |= bool(mods & GLFW_MOD_CAPS_LOCK);
+    win->mKeyboardInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
 void Window::MouseButtonCallback( GLFWwindow* window, int key, int action, int mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    Event event;
-    event.mType = EventType::MouseKey; 
-    event.mMouse.Key = static_cast<MouseKey>( key );
-    event.mMouse.Action = static_cast<KeyAction>( action );
-    event.mMouse.Mods.SHIFT = mods & GLFW_MOD_SHIFT;
-    event.mMouse.Mods.CONTROL = mods & GLFW_MOD_CONTROL;
-    event.mMouse.Mods.ALT = mods & GLFW_MOD_ALT;
-    event.mMouse.Mods.SUPER = mods & GLFW_MOD_SUPER;
-    event.mMouse.Mods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
-    event.mMouse.Mods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
-    win->mEvents.push_back( event );
+    win->mMouseInput.mKeyState[key] = action;
+    win->mMouseInput.mKeyMods.SHIFT |= bool(mods & GLFW_MOD_SHIFT);
+    win->mMouseInput.mKeyMods.CONTROL |= bool(mods & GLFW_MOD_CONTROL);
+    win->mMouseInput.mKeyMods.ALT |= bool(mods & GLFW_MOD_ALT);
+    win->mMouseInput.mKeyMods.SUPER |= bool(mods & GLFW_MOD_SUPER);
+    win->mMouseInput.mKeyMods.CAPS_LOCK |= bool(mods & GLFW_MOD_CAPS_LOCK);
+    win->mMouseInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
 void Window::MouseCallback( GLFWwindow* window, double xpos, double ypos )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    auto mouse_pos = glm::vec2( xpos, ypos );
+    auto window_size = win->GetSize();
+    auto mouse_pos = glm::vec2( xpos, window_size.mHeight - ypos );
     win->mMouseInput.mMouseOffset = mouse_pos - win->mMouseInput.mMousePos;
     win->mMouseInput.mMousePos = mouse_pos;
-    Event event;
+
+    Event event = win->CreateEvent();
     event.mType = EventType::MouseMove;
     event.mMouse.Pos = win->mMouseInput.mMousePos;
     event.mMouse.Offset = win->mMouseInput.mMouseOffset;
@@ -60,7 +59,7 @@ void Window::MouseCallback( GLFWwindow* window, double xpos, double ypos )
 void Window::ScrollCallback( GLFWwindow* window, double xoffset, double yoffset )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    Event event;
+    Event event = win->CreateEvent();
     event.mType = EventType::MouseZoom;
     event.mMouse.ZoomOffset -= static_cast<float>( yoffset );
     win->mEvents.push_back( event );
@@ -78,6 +77,54 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, int width, int height 
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mWindowSize = WindowSize{ width, height };
     glViewport( 0, 0, width, height );
+}
+
+void Window::FillKeyboardEvents()
+{
+    for ( size_t key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
+    {
+        if ( mKeyboardInput.mKeyState[key] == NO_STATE )
+            continue;
+
+        auto action = mKeyboardInput.mKeyState[key];
+        if ( mKeyboardInput.mKeyState[key] == (int)KeyAction::Release )
+            mKeyboardInput.mKeyState[key] = NO_STATE;
+
+        Event event = CreateEvent();
+        event.mType = EventType::KeyboardKey;
+        event.mKeyboard.Key = static_cast<KeyboardKey>( key );
+        event.mKeyboard.Action = static_cast<KeyAction>( action );
+        event.mKeyboard.Mods = mKeyboardInput.mKeyMods;
+        mEvents.push_back( event );
+    }
+}
+
+void Window::FillMouseEvents()
+{
+    for ( size_t key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
+    {
+        if ( mMouseInput.mKeyState[key] == NO_STATE )
+            continue;
+
+        auto action = mMouseInput.mKeyState[key];
+        if ( mMouseInput.mKeyState[key] == (int)KeyAction::Release )
+            mMouseInput.mKeyState[key] = NO_STATE;
+
+        Event event= CreateEvent();
+        event.mType = EventType::MouseKey;
+        event.mMouse.Key = static_cast<MouseKey>( key );
+        event.mMouse.Action = static_cast<KeyAction>( action );
+        event.mMouse.Mods = mMouseInput.mKeyMods;
+        mEvents.push_back( event );
+    }
+}
+
+bubble::Event Window::CreateEvent() const
+{
+    Event event;
+    event.mKeyboardInput = &mKeyboardInput;
+    event.mMouseInput = &mMouseInput;
+    return event;
 }
 
 
@@ -107,8 +154,8 @@ Window::Window( const std::string& name, WindowSize size )
     // GL 3.0 + GLSL 130
     mGLSLVersion = "#version 130";
     glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 3 );
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 0 );
-    //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
+    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 3 );
+    glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
 
@@ -186,6 +233,8 @@ const std::vector<Event>& Window::PollEvents()
 {
     mEvents.clear();
     glfwPollEvents();
+    FillKeyboardEvents();
+    FillMouseEvents();
     mShouldClose = glfwWindowShouldClose( mWindow );
     return mEvents;
 }
@@ -209,6 +258,8 @@ const char* Window::GetGLSLVersion() const
 {
     return mGLSLVersion;
 }
+
+
 
 
 ImGuiContext* Window::GetImGuiContext()

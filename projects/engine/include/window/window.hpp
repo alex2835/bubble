@@ -51,6 +51,9 @@ public:
     void ImGuiBegin();
     void ImGuiEnd();
 private:
+    Event CreateEvent() const;
+    void FillKeyboardEvents();
+    void FillMouseEvents();
     static void ErrorCallback( int error, const char* description );
     static void KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods );
     static void MouseButtonCallback( GLFWwindow* window, int key, int action, int mods );
@@ -65,6 +68,7 @@ private:
     WindowSize mWindowSize;
     bool mShouldClose = false;
     MouseInput mMouseInput;
+    KeyboardInput mKeyboardInput;
     std::vector<Event> mEvents;
 };
 

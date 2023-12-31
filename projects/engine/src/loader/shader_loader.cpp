@@ -18,10 +18,10 @@ Ref<Shader> Loader::LoadShader( const std::path& path )
 }
 
 
-Ref<Shader> Loader::LoadShader( const std::string& name,
-                                const std::string& vertex,
-                                const std::string& fragment,
-                                const std::string& geometry )
+Ref<Shader> Loader::LoadShader( const std::string_view name,
+                                const std::string_view vertex,
+                                const std::string_view fragment,
+                                const std::string_view geometry )
 {
 	Ref<Shader> shader = CreateRef<Shader>();
 	shader->mName = name;
@@ -72,13 +72,13 @@ void Loader::ParseShaders( const std::path& path,
 
 
 void Loader::CompileShaders( Shader& shader,
-							 const std::string& vertex_source,
-							 const std::string& fragment_source,
-							 const std::string& geometry_source )
+							 const std::string_view vertex_source,
+							 const std::string_view fragment_source,
+                             const std::string_view geometry_source )
 {
 	// Vertex shaders
 	GLint vertex_shader = glCreateShader( GL_VERTEX_SHADER );
-	const char* cvertex_source = vertex_source.c_str();
+	const char* cvertex_source = vertex_source.data();
 	glcall( glShaderSource( vertex_shader, 1, &cvertex_source, NULL ) );
 	glcall( glCompileShader( vertex_shader ) );
 	{
@@ -104,7 +104,7 @@ void Loader::CompileShaders( Shader& shader,
 
 	// Fragment shader
 	GLint fragment_shader = glCreateShader( GL_FRAGMENT_SHADER );
-	const char* cfragment_source = fragment_source.c_str();
+	const char* cfragment_source = fragment_source.data();
 	glcall( glShaderSource( fragment_shader, 1, &cfragment_source, NULL ) );
 	glcall( glCompileShader( fragment_shader ) );
 	{
@@ -134,7 +134,7 @@ void Loader::CompileShaders( Shader& shader,
 	if ( geometry_source.size() )
 	{
 		geometry_shader = glCreateShader( GL_GEOMETRY_SHADER );
-		const char* cgeometry_source = geometry_source.c_str();
+		const char* cgeometry_source = geometry_source.data();
 		glcall( glShaderSource( geometry_shader, 1, &cgeometry_source, NULL ) );
 		glcall( glCompileShader( geometry_shader ) );
 		{
