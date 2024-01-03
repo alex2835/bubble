@@ -1,13 +1,11 @@
 #pragma once
 #include <string>
 #include <stdexcept>
-#include "window/key_map.hpp"
-#include "serialization/event_serialization.hpp"
-
+#include "engine/window/key_map.hpp"
+#include "engine/serialization/event_serialization.hpp"
 
 namespace bubble
 {
-
 template <>
 std::string ToString<KeyboardKey>( const KeyboardKey& key )
 {

@@ -1,35 +1,35 @@
 
 #include <stb_image.h>
-#include "renderer/texture.hpp"
+#include "engine/renderer/texture.hpp"
 
 namespace bubble
 {
 
-void SetTextureSpecChanels( Texture2DSpecification& spec, int channels )
+void Texture2DSpecification::SetTextureSpecChanels( int channels )
 {
     switch( channels )
     {
     case 1:
-        spec.mInternalFormat = GL_R8;
-        spec.mDataFormat = GL_RED;
+        mInternalFormat = GL_R8;
+        mDataFormat = GL_RED;
         break;
     case 3:
-        spec.mInternalFormat = GL_RGB8;
-        spec.mDataFormat = GL_RGB;
+        mInternalFormat = GL_RGB8;
+        mDataFormat = GL_RGB;
         break;
     case 4:
-        spec.mInternalFormat = GL_RGBA8;
-        spec.mDataFormat = GL_RGBA;
+        mInternalFormat = GL_RGBA8;
+        mDataFormat = GL_RGBA;
         break;
     default:
         BUBBLE_ASSERT( false, "Format not supported!" );
     }
 }
 
-uint32_t ExtractTextureSpecChannels( const Texture2DSpecification& spec )
+uint32_t Texture2DSpecification::ExtractTextureSpecChannels() const
 {
     uint32_t bpp = 0;
-    switch( spec.mDataFormat )
+    switch( mDataFormat )
     {
     case GL_RGBA:
         bpp = 4;
@@ -46,12 +46,32 @@ uint32_t ExtractTextureSpecChannels( const Texture2DSpecification& spec )
     return bpp;
 }
 
-uint32_t GetTextureSize( const Texture2DSpecification& spec )
+uint32_t Texture2DSpecification::GetTextureSize() const
 {
-    return spec.mWidth * spec.mHeight * ExtractTextureSpecChannels( spec );
+    return mWidth * mHeight * ExtractTextureSpecChannels();
 }
 
 
+Texture2DSpecification Texture2DSpecification::CreateRGBA8( glm::uvec2 size )
+{
+    return Texture2DSpecification( size );
+}
+
+Texture2DSpecification Texture2DSpecification::CreateDepth( glm::uvec2 size )
+{
+    Texture2DSpecification specification( size );
+    specification.mChanelFormat = GL_FLOAT;
+    specification.mDataFormat = GL_DEPTH_COMPONENT;
+    specification.mInternalFormat = GL_DEPTH_COMPONENT;
+    specification.mWrapS = GL_CLAMP_TO_BORDER;
+    specification.mWrapT = GL_CLAMP_TO_BORDER;
+    return specification;
+}
+
+Texture2DSpecification::Texture2DSpecification( glm::uvec2 size )
+    : mWidth( size.x ),
+      mHeight( size.y )
+{}
 
 //Texture2D::Texture2D( const glm::vec4& color )
 //{
@@ -74,20 +94,24 @@ Texture2D::Texture2D( const Texture2DSpecification& spec )
     Invalidate();
 }
 
-Texture2D::Texture2D( uint32_t width, uint32_t height )
-    : mSpecification( { width, height } )
+Texture2D::Texture2D( glm::uvec2 size )
+    : mSpecification( Texture2DSpecification::CreateRGBA8( size ) )
 {
     Invalidate();
 }
 
 Texture2D::Texture2D( Texture2D&& other ) noexcept
     : mRendererID( other.mRendererID ),
-    mSpecification( other.mSpecification )
+      mSpecification( other.mSpecification )
 {
     other.mSpecification.mWidth = 0;
     other.mSpecification.mHeight = 0;
     other.mRendererID = 0;
 }
+
+Texture2D::Texture2D()
+    : mSpecification( Texture2DSpecification::CreateRGBA8() )
+{}
 
 Texture2D& Texture2D::operator=( Texture2D&& other ) noexcept
 {
@@ -108,23 +132,24 @@ Texture2D::~Texture2D()
     glDeleteTextures( 1, &mRendererID );
 }
 
-void Texture2D::SetData( void* data, uint32_t size )
+void Texture2D::SetData( void* data, size_t size )
 {
-    uint32_t channels = ExtractTextureSpecChannels( mSpecification );
+    Bind();
+    uint32_t channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0,
             mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }
 
-void Texture2D::GetData( void* data, uint32_t size ) const
+void Texture2D::GetData( void* data, size_t size ) const
 {
     Bind();
-    uint32_t channels = ExtractTextureSpecChannels( mSpecification );
+    uint32_t channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glGetTexImage( GL_TEXTURE_2D, 0, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }
 
-void Texture2D::Bind( uint32_t slot ) const
+void Texture2D::Bind( int slot ) const
 {
     glActiveTexture( GL_TEXTURE0 + slot );
     glBindTexture( GL_TEXTURE_2D, mRendererID );
@@ -142,12 +167,12 @@ void Texture2D::Resize( const glm::ivec2& new_size )
     Invalidate();
 }
 
-uint32_t Texture2D::GetWidth()  const
+GLsizei Texture2D::GetWidth()  const
 {
     return mSpecification.mWidth;
 }
 
-uint32_t Texture2D::GetHeight() const
+GLsizei Texture2D::GetHeight() const
 {
     return mSpecification.mHeight;
 }

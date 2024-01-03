@@ -1,6 +1,6 @@
 
-#include "log/log.hpp"
-#include "renderer/shader.hpp"
+#include "engine/log/log.hpp"
+#include "engine/renderer/shader.hpp"
 
 namespace bubble
 {

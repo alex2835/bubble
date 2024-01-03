@@ -1,5 +1,5 @@
 
-#include "renderer/camera_third_person.hpp"
+#include "engine/renderer/camera_third_person.hpp"
 
 namespace bubble
 {

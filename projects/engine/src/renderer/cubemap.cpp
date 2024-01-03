@@ -1,6 +1,6 @@
 
 #include <stb_image.h>
-#include "renderer/cubemap.hpp"
+#include "engine/renderer/cubemap.hpp"
 
 namespace bubble
 {

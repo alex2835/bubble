@@ -15,7 +15,6 @@ endif()
 #GIT_TAG v1.89.9-docking
 add_subdirectory(imgui)
 
-#assimp
 #GIT_REPOSITORY "https://github.com/assimp/assimp.git"
 #GIT_TAG v5.3.1
 option(ASSIMP_BUILD_TESTS "" OFF)
@@ -23,9 +22,10 @@ option(ASSIMP_BUILD_DOCS "" OFF)
 option(BUILD_SHARED_LIBS "" OFF)
 add_subdirectory(assimp)
 
-#glm
 #GIT_REPOSITORY "https://github.com/g-truc/glm.git"
 #GIT_TAG 0.9.9.8
 add_subdirectory(glm)
+
 add_subdirectory(glm-aabb)
 add_subdirectory(stb_image)
+add_subdirectory(recs)

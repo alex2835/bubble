@@ -1,19 +1,20 @@
 
-#include "log/log.hpp"
-#include "renderer/framebuffer.hpp"
+#include "engine/log/log.hpp"
+#include "engine/renderer/framebuffer.hpp"
 
 namespace bubble
 {
 Framebuffer::Framebuffer( const FramebufferSpecification& spec )
     : mSpecification( spec ),
-    mDepthAttachment( GetDepthAttachemtSpec() )
+      mColorAttachment( Texture2DSpecification::CreateRGBA8() ),
+      mDepthAttachment( Texture2DSpecification::CreateDepth() )
 {
     Invalidate();
 }
 
 Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
     : mColorAttachment( std::move( color ) ),
-    mDepthAttachment( std::move( depth ) )
+      mDepthAttachment( std::move( depth ) )
 {
     mSpecification = { mColorAttachment.GetWidth(), mColorAttachment.GetHeight() };
     Invalidate();
@@ -77,11 +78,6 @@ void Framebuffer::Invalidate()
         mColorAttachment.GetHeight() != mSpecification.mHeight )
     {
         mColorAttachment.Resize( { mSpecification.mWidth, mSpecification.mHeight } );
-    }
-
-    if( mDepthAttachment.GetWidth() != mSpecification.mWidth ||
-        mDepthAttachment.GetHeight() != mSpecification.mHeight )
-    {
         mDepthAttachment.Resize( { mSpecification.mWidth, mSpecification.mHeight } );
     }
 
@@ -92,12 +88,12 @@ void Framebuffer::Invalidate()
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
 }
 
-int Framebuffer::GetWidth() const
+GLsizei Framebuffer::GetWidth() const
 {
     return mSpecification.mWidth;
 }
 
-int Framebuffer::GetHeight() const
+GLsizei Framebuffer::GetHeight() const
 {
     return mSpecification.mHeight;
 }
@@ -120,16 +116,16 @@ void Framebuffer::BindWindow( Window& window )
     glViewport( 0, 0, window_size.mWidth, window_size.mHeight );
 }
 
-glm::ivec2 Framebuffer::GetSize() const
+glm::uvec2 Framebuffer::GetSize() const
 {
     return { GetWidth(), GetHeight() };
 }
 
-void Framebuffer::Resize( glm::ivec2 size )
+void Framebuffer::Resize( glm::uvec2 size )
 {
     // Prevent framebuffer error
-    mSpecification.mWidth = std::max( 1, size.x );
-    mSpecification.mHeight = std::max( 1, size.y );
+    mSpecification.mWidth = std::max( 1u, size.x );
+    mSpecification.mHeight = std::max( 1u, size.y );
     Invalidate();
 }
 
@@ -146,20 +142,7 @@ GLuint Framebuffer::GetColorAttachmentRendererID() const
 GLuint Framebuffer::GetDepthAttachmentRendererID() const
 {
     return mDepthAttachment.GetRendererID();
-
 }
-
-Texture2DSpecification Framebuffer::GetDepthAttachemtSpec()
-{
-    Texture2DSpecification specification;
-    specification.mChanelFormat = GL_FLOAT;
-    specification.mDataFormat = GL_DEPTH_COMPONENT;
-    specification.mInternalFormat = GL_DEPTH_COMPONENT;
-    specification.mWrapS = GL_CLAMP_TO_BORDER;
-    specification.mWrapT = GL_CLAMP_TO_BORDER;
-    return specification;
-}
-
 
 }
 

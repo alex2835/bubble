@@ -1,5 +1,5 @@
-#include "window/window.hpp"
-#include "log/log.hpp"
+#include "engine/window/window.hpp"
+#include "engine/log/log.hpp"
 
 namespace bubble
 {
@@ -68,14 +68,14 @@ void Window::ScrollCallback( GLFWwindow* window, double xoffset, double yoffset 
 void Window::WindowSizeCallback( GLFWwindow* window, int width, int height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ width, height };
+    win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
     glfwSetWindowSize( win->mWindow, width, height );
 }
 
 void Window::FramebufferSizeCallback( GLFWwindow* window, int width, int height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ width, height };
+    win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
     glViewport( 0, 0, width, height );
 }
 

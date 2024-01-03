@@ -1,6 +1,6 @@
 
-#include "utils/pointers.hpp"
-#include "renderer/skybox.hpp"
+#include "engine/utils/pointers.hpp"
+#include "engine/renderer/skybox.hpp"
 
 namespace bubble
 {

@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 #include <glm/glm.hpp>
-#include "window/input.hpp"
+#include "engine/window/input.hpp"
 
 namespace bubble
 {

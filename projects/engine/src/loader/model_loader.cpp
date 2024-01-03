@@ -1,6 +1,6 @@
-#include "utils/filesystem.hpp"
-#include "renderer/material.hpp"
-#include "loader/loader.hpp"
+#include "engine/utils/filesystem.hpp"
+#include "engine/renderer/material.hpp"
+#include "engine/loader/loader.hpp"
 #include "assimp/Importer.hpp"
 #include "assimp/Exporter.hpp"
 #include "assimp/scene.h"
@@ -8,13 +8,6 @@
 
 namespace bubble
 {
-
-std::string GetModelName( const std::string model_path )
-{
-	size_t start_pos = model_path.find_last_of( "/" ) + 1;
-	size_t end_pos = model_path.find_last_of( "." );
-	return model_path.substr( start_pos, end_pos - start_pos );
-}
 
 //Ref<Model> Loader::LoadAndCacheModel( std::string path )
 //{
@@ -43,8 +36,10 @@ Ref<Model> Loader::LoadModel( const std::path& path )
 {
 	auto model = CreateRef<Model>();
 
+	Assimp::Exporter exporter;
+
 	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile( path.string(), 0);
+    const aiScene* scene = importer.ReadFile( path.string(), 0 );
 	if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
 		throw std::runtime_error( "ERROR::ASSIMP\n" + std::string( importer.GetErrorString() ) );
 	importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
@@ -146,7 +141,7 @@ BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const std::pa
 				switch ( types[i] )
 				{
 				case aiTextureType_DIFFUSE:
-					material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
+                    material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
 					break;
 
 				case aiTextureType_SPECULAR:
