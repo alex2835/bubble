@@ -41,7 +41,6 @@ struct SceneCamera : public FreeCamera
             }
             }
         }break;
-
         case bubble::EventType::MouseKey:
             break;
         case bubble::EventType::MouseMove:

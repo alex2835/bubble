@@ -7,6 +7,14 @@ namespace bubble
 class EditorViewportInterface : IEditorInterface
 {
 public:
+    EditorViewportInterface() = default;
+    ~EditorViewportInterface() override = default;
+
+    std::string Name() override
+    {
+        return "Viewport";
+    }
+
     void OnInit() override
     {
     }
@@ -18,6 +26,9 @@ public:
 
     void OnDraw() override
     {
+        ImGui::Begin( "name" );
+        ImGui::Button( "test button", ImVec2{ 100, 200 } );
+        ImGui::End();
     }
 
 private:

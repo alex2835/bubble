@@ -3,6 +3,8 @@
 #include "engine/utils/emscripten_main_loop.hpp"
 #include <functional>
 
+namespace bubble
+{
 
 constexpr std::string_view vert_shader = R"shader(
     #version 420 core
@@ -31,9 +33,6 @@ constexpr std::string_view frag_shader = R"shader(
 )shader";
 
 
-
-namespace bubble
-{
 BubbleEditor::BubbleEditor() 
     : mWindow( "Bubble", WindowSize{ 1200, 720 } )
 {
@@ -42,10 +41,10 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    std::path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
-    auto model = loader.LoadModel( model_path );
-    auto shader = loader.LoadShader( "test_shader", vert_shader, frag_shader );
-    model->mShader = shader;
+    //std::path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
+    //auto model = mEngine.mLoader.LoadModel( model_path );
+    //auto shader = mEngine.mLoader.LoadShader( "test_shader", vert_shader, frag_shader );
+    //model->mShader = shader;
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
@@ -53,16 +52,14 @@ void BubbleEditor::Run()
     while ( !mWindow.ShouldClose() )
 #endif
     {
-
         // Events
         const auto& events = mWindow.PollEvents();
         for ( const auto& event : events )
-        {
             mSceneCamera.OnEvent( event );
-        }
+
         // Update
-        mTimer.OnUpdate();
-        mSceneCamera.OnUpdate( mTimer.GetDeltaTime() );
+        mEngine.OnUpdate();
+        mSceneCamera.OnUpdate( mEngine.mTimer.GetDeltaTime() );
 
         // Draw 
         //glClearColor( 0.2f, 0.3f, 0.3f, 1.0f );
@@ -76,6 +73,7 @@ void BubbleEditor::Run()
 
         mWindow.ImGuiBegin();
         ImGui::ShowDemoWindow();
+        mInterfaces.OnDraw();
         mWindow.ImGuiEnd();
         mWindow.OnUpdate();
     }
