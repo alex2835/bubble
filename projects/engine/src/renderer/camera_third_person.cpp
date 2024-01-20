@@ -4,15 +4,15 @@
 namespace bubble
 {
 
-ThirdPersonCamera::ThirdPersonCamera( float yaw, float pitch )
-    : mCenter( glm::vec3( 0, 0, 0 ) ),
-    Camera( glm::vec3(), yaw, pitch )
+ThirdPersonCamera::ThirdPersonCamera( f32 yaw, f32 pitch )
+    : mCenter( vec3( 0, 0, 0 ) ),
+    Camera( vec3(), yaw, pitch )
 {
 }
 
 void ThirdPersonCamera::ProcessRotation( CameraMovement direction )
 {
-    float max_speed = mMaxSpeed * mDeltaSpeed;
+    f32 max_speed = mMaxSpeed * mDeltaSpeed;
 
     // Horizontal speed
     if( direction == CameraMovement::LEFT )
@@ -55,10 +55,10 @@ void ThirdPersonCamera::ProcessRotation( CameraMovement direction )
 }
 
 
-void ThirdPersonCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
+void ThirdPersonCamera::ProcessMouseMovement( f32 MousePosX, f32 MousePosY )
 {
-    float xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
-    float yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
+    f32 xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
+    f32 yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
 
     mLastMouseX = MousePosX;
     mLastMouseY = MousePosY;
@@ -74,7 +74,7 @@ void ThirdPersonCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
 }
 
 
-void ThirdPersonCamera::ProcessMouseMovementOffset( float xoffset, float yoffset )
+void ThirdPersonCamera::ProcessMouseMovementOffset( f32 xoffset, f32 yoffset )
 {
     xoffset *= mMouseSensitivity;
     yoffset *= mMouseSensitivity;
@@ -90,7 +90,7 @@ void ThirdPersonCamera::ProcessMouseMovementOffset( float xoffset, float yoffset
 }
 
 
-void ThirdPersonCamera::ProcessMouseScroll( float yoffset )
+void ThirdPersonCamera::ProcessMouseScroll( f32 yoffset )
 {
     if( mFov >= 0.1f && mFov <= camera::PI / 2.0f )
         mFov -= yoffset * mDeltaFov;
@@ -119,17 +119,17 @@ void ThirdPersonCamera::OnUpdate( DeltaTime dt )
     mPitch += mSpeedY * dt.GetSeconds();
 
     // Transformation matrix
-    glm::mat4 transform = glm::mat4( 1.0f );
-    transform = glm::rotate( transform, mYaw, glm::vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, mPitch, glm::vec3( 1, 0, 0 ) );
-    transform = glm::translate( transform, mCenter );
+    mat4 transform = mat4( 1.0f );
+    transform = rotate( transform, mYaw, vec3( 0, 1, 0 ) );
+    transform = rotate( transform, mPitch, vec3( 1, 0, 0 ) );
+    transform = translate( transform, mCenter );
 
-    mPosition = transform * glm::vec4( 0, 0, mRadius, 0 );
+    mPosition = transform * vec4( 0, 0, mRadius, 0 );
 
     // Basis
-    mFront = glm::normalize( mCenter - mPosition );
-    mRight = glm::normalize( glm::cross( mFront, mWorldUp ) );
-    mUp = glm::normalize( glm::cross( mRight, mFront ) );
+    mFront = normalize( mCenter - mPosition );
+    mRight = normalize( cross( mFront, mWorldUp ) );
+    mUp = normalize( cross( mRight, mFront ) );
 }
 
 }

@@ -2,7 +2,7 @@
 #include <map>
 #include <vector>
 #include <string>
-#include "engine/utils/pointers.hpp"
+#include "engine/utils/types.hpp"
 #include "ieditor_interface.hpp"
 
 namespace bubble
@@ -13,12 +13,13 @@ public:
     EditorInterfaces();
     ~EditorInterfaces();
 
+    void AddInterface( Ref<IEditorInterface> interface );
     void LoadInterfaces();
 
     void OnUpdate( DeltaTime dt );
     void OnDraw();
 
 private:
-    std::map<std::string, Ref<IEditorInterface>> mInterfaces;
+    std::map<string, Ref<IEditorInterface>> mInterfaces;
 };
 }

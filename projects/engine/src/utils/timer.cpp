@@ -6,17 +6,17 @@ namespace bubble
 std::time_point Timer::mGlobalStartTime = Now();
 
 
-TimePoint::TimePoint( float time )
+TimePoint::TimePoint( f32 time )
     : mTime( time )
 {
 }
 
-float TimePoint::GetSeconds()
+f32 TimePoint::GetSeconds()
 {
     return mTime;
 }
 
-float TimePoint::GetMilliseconds()
+f32 TimePoint::GetMilliseconds()
 {
     return mTime * 1000.0f;
 }
@@ -26,7 +26,7 @@ float TimePoint::GetMilliseconds()
 void Timer::OnUpdate()
 {
     std::time_point now = Now();
-    std::duration<float> time_dif = duration_cast<std::duration<float>>( now - mLastTime );
+    std::duration<f32> time_dif = duration_cast<std::duration<f32>>( now - mLastTime );
     mDeltatime = DeltaTime( time_dif.count() );
     mLastTime = now;
 }
@@ -43,7 +43,7 @@ std::time_point Timer::Now()
 
 TimePoint Timer::GetGlobalTime()
 {
-    return TimePoint( std::duration_cast<std::duration<float>>( 
+    return TimePoint( std::duration_cast<std::duration<f32>>( 
                             std::system_clock::now().time_since_epoch() ).count() );
 }
 

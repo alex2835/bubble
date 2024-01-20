@@ -1,6 +1,7 @@
 #pragma once 
 #include <GL/glew.h>
 #include "engine/log/log.hpp"
+#include "engine/utils/types.hpp"
 #include <cstdlib>
 #include <iostream>
 
@@ -13,7 +14,7 @@ inline void GLClearError()
     while( glGetError() != GL_NO_ERROR );
 }
 
-inline void PrintOpenGLErrors( char const* const Function, char const* const File, int const Line )
+inline void PrintOpenGLErrors( char const* const Function, char const* const File, i32 const Line )
 {
     bool Succeeded = true;
     GLenum Error = glGetError();

@@ -6,10 +6,10 @@
 namespace bubble
 {
 
-Ref<Shader> Loader::LoadShader( const std::path& path )
+Ref<Shader> Loader::LoadShader( const path& path )
 {
 	Ref<Shader> shader = CreateRef<Shader>();
-	std::string vertexSource, fragmentSource, geometry;
+	string vertexSource, fragmentSource, geometry;
 
 	shader->mName = path.filename().string();
 	ParseShaders( path, vertexSource, fragmentSource, geometry );
@@ -31,10 +31,10 @@ Ref<Shader> Loader::LoadShader( const std::string_view name,
 }
 
 
-void Loader::ParseShaders( const std::path& path,
-						   std::string& vertex,
-						   std::string& fragment,
-						   std::string& geometry )
+void Loader::ParseShaders( const path& path,
+						   string& vertex,
+						   string& fragment,
+						   string& geometry )
 {
 	enum ShaderType
 	{
@@ -46,18 +46,18 @@ void Loader::ParseShaders( const std::path& path,
 	if ( !stream.is_open() )
 		throw std::runtime_error( std::format( "Incorrect shader file path: {}", path.string() ) );
 
-	std::string line;
+	string line;
 	std::stringstream shaders[3];
 
 	while ( std::getline( stream, line ) )
 	{
-		if ( line.find( "#shader" ) != std::string::npos )
+		if ( line.find( "#shader" ) != string::npos )
 		{
-			if ( line.find( "vertex" ) != std::string::npos )
+			if ( line.find( "vertex" ) != string::npos )
 				type = VERTEX;
-			else if ( line.find( "fragment" ) != std::string::npos )
+			else if ( line.find( "fragment" ) != string::npos )
 				type = FRAGMENT;
-			else if ( line.find( "geometry" ) != std::string::npos )
+			else if ( line.find( "geometry" ) != string::npos )
 				type = GEOMETRY;
 		}
 		else if ( type == NONE )
@@ -89,7 +89,7 @@ void Loader::CompileShaders( Shader& shader,
 			GLint max_length = 0;
 			glGetShaderiv( vertex_shader, GL_INFO_LOG_LENGTH, &max_length );
 
-			std::string log;
+			string log;
 			log.resize( max_length );
 			glGetShaderInfoLog( vertex_shader, max_length, &max_length, (GLchar*)log.data() );
 			glDeleteShader( vertex_shader );
@@ -113,7 +113,7 @@ void Loader::CompileShaders( Shader& shader,
 		if ( success != GL_TRUE )
 		{
 			GLint max_length = 0;
-			std::string log;
+			string log;
 
 			glGetShaderiv( fragment_shader, GL_INFO_LOG_LENGTH, &max_length );
 			log.resize( max_length );
@@ -143,7 +143,7 @@ void Loader::CompileShaders( Shader& shader,
 			if ( success != GL_TRUE )
 			{
 				GLint max_length = 0;
-				std::string log;
+				string log;
 
 				glGetShaderiv( geometry_shader, GL_INFO_LOG_LENGTH, &max_length );
 				log.resize( max_length );
@@ -176,7 +176,7 @@ void Loader::CompileShaders( Shader& shader,
 		if ( success != GL_TRUE )
 		{
 			GLint max_length = 0;
-			std::string log;
+			string log;
 
 			glGetShaderiv( shader.mShaderID, GL_INFO_LOG_LENGTH, &max_length );
 			log.resize( max_length );

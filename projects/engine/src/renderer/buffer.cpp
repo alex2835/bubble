@@ -5,7 +5,7 @@
 namespace bubble
 {
 
-uint32_t GLSLDataTypeSize( GLSLDataType type )
+u32 GLSLDataTypeSize( GLSLDataType type )
 {
     switch ( type )
     {
@@ -36,7 +36,7 @@ uint32_t GLSLDataTypeSize( GLSLDataType type )
     return 0;
 }
 
-uint32_t GLSLDataComponentCount( GLSLDataType type )
+u32 GLSLDataComponentCount( GLSLDataType type )
 {
     switch ( type )
     {
@@ -99,7 +99,7 @@ GLenum GLSLDataTypeToOpenGLBasemType( GLSLDataType mType )
 }
 
 
-uint32_t Std140DataTypeSize( GLSLDataType type )
+u32 Std140DataTypeSize( GLSLDataType type )
 {
     switch ( type )
     {
@@ -131,7 +131,7 @@ uint32_t Std140DataTypeSize( GLSLDataType type )
 }
 
 
-uint32_t Std140DataTypePadding( GLSLDataType type )
+u32 Std140DataTypePadding( GLSLDataType type )
 {
     switch ( type )
     {
@@ -166,7 +166,7 @@ uint32_t Std140DataTypePadding( GLSLDataType type )
 
 //// BufferElement
 //BufferElement::BufferElement( GLSLDataType type,
-//                              const std::string& name,
+//                              const string& name,
 //                              size_t count,
 //                              bool normalized )
 //    : mName( name ),
@@ -199,24 +199,24 @@ size_t BufferLayout::Size() const
     return mElements.size();
 }
 
-const std::vector<BufferElement>& BufferLayout::GetElements() const
+const vector<BufferElement>& BufferLayout::GetElements() const
 {
     return mElements;
 }
 
-std::vector<BufferElement>::iterator BufferLayout::begin()
+vector<BufferElement>::iterator BufferLayout::begin()
 {
     return mElements.begin();
 }
-std::vector<BufferElement>::iterator BufferLayout::end()
+vector<BufferElement>::iterator BufferLayout::end()
 {
     return mElements.end();
 }
-std::vector<BufferElement>::const_iterator BufferLayout::begin() const
+vector<BufferElement>::const_iterator BufferLayout::begin() const
 {
     return mElements.begin();
 }
-std::vector<BufferElement>::const_iterator BufferLayout::end() const
+vector<BufferElement>::const_iterator BufferLayout::end() const
 {
     return mElements.end();
 }
@@ -229,7 +229,7 @@ void BufferLayout::CalculateOffsetsAndStride()
         element.mOffset = offset;
         element.mSize = GLSLDataTypeSize( element.mType );
         offset += element.mSize * element.mCount;
-        mStride += uint32_t( element.mSize );
+        mStride += u32( element.mSize );
     }
     // If count more then one, it means that
     // attributes goes one after another (1111 2222 3333)
@@ -294,7 +294,7 @@ void VertexBuffer::Unbind() const
     glcall( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
 }
 
-void VertexBuffer::SetData( const void* data, uint32_t size )
+void VertexBuffer::SetData( const void* data, u32 size )
 {
     glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
     glcall( glBufferSubData( GL_ARRAY_BUFFER, 0, size, data ) );
@@ -317,12 +317,12 @@ size_t VertexBuffer::GetSize()
 
 
 // Index buffer
-IndexBuffer::IndexBuffer( uint32_t* indices, size_t count )
+IndexBuffer::IndexBuffer( u32* indices, size_t count )
     : mCount( count )
 {
     glcall( glGenBuffers( 1, &mRendererID ) );
     glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ELEMENT_ARRAY_BUFFER, count * sizeof( uint32_t ), indices, GL_STATIC_DRAW ) );
+    glcall( glBufferData( GL_ELEMENT_ARRAY_BUFFER, count * sizeof( u32 ), indices, GL_STATIC_DRAW ) );
 }
 
 IndexBuffer::IndexBuffer( IndexBuffer&& other ) noexcept
@@ -446,8 +446,8 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
         case GLSLDataType::Mat3:
         case GLSLDataType::Mat4:
         {
-            uint32_t count = GLSLDataComponentCount( element.mType );
-            for ( uint32_t i = 0; i < count; i++ )
+            u32 count = GLSLDataComponentCount( element.mType );
+            for ( u32 i = 0; i < count; i++ )
             {
                 glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
                 glcall( glVertexAttribPointer( mVertexBufferIndex,
@@ -455,7 +455,7 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
                         GLSLDataTypeToOpenGLBasemType( element.mType ),
                         element.mNormalized ? GL_TRUE : GL_FALSE,
                         GLsizei( layout.GetStride() ? layout.GetStride() : element.mSize ),
-                        (const void*)( sizeof( float ) * count * i ) ) );
+                        (const void*)( sizeof( f32 ) * count * i ) ) );
                 glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
                 VertexBufferIndex( mVertexBufferIndex + 1 );
             }
@@ -478,12 +478,12 @@ void VertexArray::SetIndexBuffer( IndexBuffer&& indexBuffer )
     Unbind();
 }
 
-uint32_t VertexArray::GetRendererID() const
+u32 VertexArray::GetRendererID() const
 {
     return mRendererID;
 }
 
-std::vector<VertexBuffer>& VertexArray::GetVertexBuffers()
+vector<VertexBuffer>& VertexArray::GetVertexBuffers()
 {
     return mVertexBuffers;
 }
@@ -493,17 +493,17 @@ IndexBuffer& VertexArray::GetIndexBuffer()
     return mIndexBuffer;
 }
 
-void VertexArray::VertexBufferIndex( uint32_t val )
+void VertexArray::VertexBufferIndex( u32 val )
 {
     mVertexBufferIndex = val;
 }
 
 
 // UniformBuffer 
-UniformBuffer::UniformBuffer( int index,
+UniformBuffer::UniformBuffer( i32 index,
                               const BufferLayout& layout,
-                              uint32_t size,
-                              uint32_t additional_size )
+                              u32 size,
+                              u32 additional_size )
     : mLayout( layout ),
       mIndex( index ),
       mSize( size )
@@ -552,15 +552,15 @@ UniformBuffer::~UniformBuffer()
     glDeleteBuffers( 1, &mRendererID );
 }
 
-void UniformBuffer::SetData( const void* data, uint32_t size, uint32_t offset )
+void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
 {
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, offset, size, data );
 }
 
-UniformArrayElemnt UniformBuffer::operator[]( int index )
+UniformArrayElemnt UniformBuffer::operator[]( i32 index )
 {
-    BUBBLE_ASSERT( *(uint32_t*)&index < mSize, "Buffer acess valiation" );
+    BUBBLE_ASSERT( *(u32*)&index < mSize, "Buffer acess valiation" );
     return UniformArrayElemnt( *this, index );
 }
 
@@ -603,14 +603,14 @@ size_t UniformBuffer::GetSize()
 };
 
 // UniformArrayElemnt 
-UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, int index )
+UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, i32 index )
     : mLayout( &uniform_buffer.mLayout ),
       mRendererID( uniform_buffer.mRendererID ),
       mArrayIndex( index )
 {
 }
 
-void UniformArrayElemnt::SetData( const void* data, size_t size, uint32_t offset )
+void UniformArrayElemnt::SetData( const void* data, size_t size, u32 offset )
 {
     size_t array_index_offset = mLayout->mStride * mArrayIndex;
     size = size ? size : mLayout->mStride;
@@ -619,49 +619,49 @@ void UniformArrayElemnt::SetData( const void* data, size_t size, uint32_t offset
 }
 
 
-void UniformArrayElemnt::SetInt( const std::string& name, int data )
+void UniformArrayElemnt::SetInt( const string& name, i32 data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Int );
     SetRawData( elem, &data );
 }
 
 
-void UniformArrayElemnt::SetFloat( const std::string& name, float data )
+void UniformArrayElemnt::SetFloat( const string& name, f32 data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float );
     SetRawData( elem, &data );
 }
 
 
-void UniformArrayElemnt::SetFloat2( const std::string& name, const glm::vec2& data )
+void UniformArrayElemnt::SetFloat2( const string& name, const vec2& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float2 );
-    SetRawData( elem, glm::value_ptr( data ) );
+    SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetFloat3( const std::string& name, const glm::vec3& data )
+void UniformArrayElemnt::SetFloat3( const string& name, const vec3& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float3 );
-    SetRawData( elem, glm::value_ptr( data ) );
+    SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetFloat4( const std::string& name, const glm::vec4& data )
+void UniformArrayElemnt::SetFloat4( const string& name, const vec4& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float4 );
-    SetRawData( elem, glm::value_ptr( data ) );
+    SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetMat4( const std::string& name, const glm::mat4& data )
+void UniformArrayElemnt::SetMat4( const string& name, const mat4& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Mat4 );
-    SetRawData( elem, glm::value_ptr( data ) );
+    SetRawData( elem, value_ptr( data ) );
 }
 
 
-const BufferElement& UniformArrayElemnt::FindBufferElement( const std::string& name, GLSLDataType type )
+const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, GLSLDataType type )
 {
     auto elem = std::find_if( mLayout->begin(), mLayout->end(),
                               [&name, &type]( const BufferElement& elem )

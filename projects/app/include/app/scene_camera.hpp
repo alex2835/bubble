@@ -5,7 +5,7 @@ namespace bubble
 {
 struct SceneCamera : public FreeCamera
 {
-    //float  mBoostSpeed = 5.0f;
+    //f32  mBoostSpeed = 5.0f;
 
     SceneCamera()
     {

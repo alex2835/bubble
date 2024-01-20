@@ -2,6 +2,7 @@
 #include <time.h>
 #include <chrono>
 #include "engine/utils/imexp.hpp"
+#include "engine/utils/types.hpp"
 
 namespace std
 {
@@ -16,13 +17,13 @@ class BUBBLE_ENGINE_EXPORT TimePoint
 public:
     TimePoint() = default;
     // Time in seconds
-    explicit TimePoint( float time );
+    explicit TimePoint( f32 time );
 
-    float GetSeconds();
-    float GetMilliseconds();
+    f32 GetSeconds();
+    f32 GetMilliseconds();
 
 private:
-    float mTime = 0.0f;
+    f32 mTime = 0.0f;
 };
 typedef TimePoint DeltaTime;
 

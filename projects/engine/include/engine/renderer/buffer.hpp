@@ -3,9 +3,9 @@
 #include <string>
 #include <string_view>
 #include <cassert>
-#include <glm/glm.hpp>
 #include "engine/utils/imexp.hpp"
 #include "engine/utils/error.hpp"
+#include "engine/utils/types.hpp"
 
 namespace bubble
 {
@@ -29,10 +29,10 @@ enum class GLSLDataType
     Int4,
     Bool
 };
-uint32_t GLSLDataTypeSize( GLSLDataType type );
-uint32_t GLSLDataComponentCount( GLSLDataType type );
-uint32_t Std140DataTypeSize( GLSLDataType type );
-uint32_t Std140DataTypePadding( GLSLDataType type );
+u32 GLSLDataTypeSize( GLSLDataType type );
+u32 GLSLDataComponentCount( GLSLDataType type );
+u32 Std140DataTypeSize( GLSLDataType type );
+u32 Std140DataTypePadding( GLSLDataType type );
 GLenum GLSLDataTypeToOpenGLBasemType( GLSLDataType mType );
 
 
@@ -56,16 +56,16 @@ public:
 
     size_t GetStride() const;
     size_t Size() const;
-    const std::vector<BufferElement>& GetElements() const;
+    const vector<BufferElement>& GetElements() const;
 
-    std::vector<BufferElement>::iterator begin();
-    std::vector<BufferElement>::iterator end();
-    std::vector<BufferElement>::const_iterator begin() const;
-    std::vector<BufferElement>::const_iterator end() const;
+    vector<BufferElement>::iterator begin();
+    vector<BufferElement>::iterator end();
+    vector<BufferElement>::const_iterator begin() const;
+    vector<BufferElement>::const_iterator end() const;
 
 //private:
     void CalculateOffsetsAndStride();
-    std::vector<BufferElement> mElements;
+    vector<BufferElement> mElements;
     size_t mStride = 0;
 };
 
@@ -86,7 +86,7 @@ public:
 
     void Bind() const;
     void Unbind() const;
-    void SetData( const void* data, uint32_t size );
+    void SetData( const void* data, u32 size );
     void SetLayout( const BufferLayout& layout );
     const BufferLayout& GetLayout() const;
     size_t GetSize();
@@ -102,7 +102,7 @@ class BUBBLE_ENGINE_EXPORT IndexBuffer
 {
 public:
     IndexBuffer() = default;
-    IndexBuffer( uint32_t* indices, size_t count );
+    IndexBuffer( u32* indices, size_t count );
 
     IndexBuffer( const IndexBuffer& ) = delete;
     IndexBuffer& operator=( const IndexBuffer& ) = delete;
@@ -140,15 +140,15 @@ public:
     void AddVertexBuffer( VertexBuffer&& vertexBuffer );
     void SetIndexBuffer( IndexBuffer&& indexBuffer );
 
-    uint32_t GetRendererID() const;
-    std::vector<VertexBuffer>& GetVertexBuffers();
+    u32 GetRendererID() const;
+    vector<VertexBuffer>& GetVertexBuffers();
     IndexBuffer& GetIndexBuffer();
-    void VertexBufferIndex( uint32_t val );
+    void VertexBufferIndex( u32 val );
 
 private:
     GLuint mRendererID = 0;
     GLuint mVertexBufferIndex = 0;
-    std::vector<VertexBuffer> mVertexBuffers;
+    vector<VertexBuffer> mVertexBuffers;
     IndexBuffer mIndexBuffer;
 };
 
@@ -159,7 +159,7 @@ class BUBBLE_ENGINE_EXPORT UniformBuffer
 public:
     UniformBuffer() = default;
     // additional size necessary if buffer contain more then one array (for example nLights)
-    UniformBuffer( int index, const BufferLayout& layout, uint32_t size = 1, uint32_t additional_size = 0 );
+    UniformBuffer( i32 index, const BufferLayout& layout, u32 size = 1, u32 additional_size = 0 );
 
     UniformBuffer( const UniformBuffer& ) = delete;
     UniformBuffer& operator=( const UniformBuffer& ) = delete;
@@ -170,10 +170,10 @@ public:
     ~UniformBuffer();
 
     // Raw (Don't forget to observe std140 paddings)
-    void SetData( const void* data, uint32_t size, uint32_t offset = 0 );
+    void SetData( const void* data, u32 size, u32 offset = 0 );
 
     // Save (Use it event only one element in buffer)
-    UniformArrayElemnt operator[] ( int index );
+    UniformArrayElemnt operator[] ( i32 index );
 
     const BufferLayout& GetLayout() const;
     // Return size in bytes
@@ -199,25 +199,25 @@ public:
 */
 struct BUBBLE_ENGINE_EXPORT UniformArrayElemnt
 {
-    uint32_t mRendererID = 0;
-    uint32_t mArrayIndex = 0;
+    u32 mRendererID = 0;
+    u32 mArrayIndex = 0;
     const BufferLayout* mLayout;
 
-    UniformArrayElemnt( const UniformBuffer& uniform_buffer, int index );
+    UniformArrayElemnt( const UniformBuffer& uniform_buffer, i32 index );
 
     // Raw
-    void SetData( const void* data, size_t size = 0, uint32_t offset = 0 );
+    void SetData( const void* data, size_t size = 0, u32 offset = 0 );
 
     // Save
-    void SetInt( const std::string& name, int   data );
-    void SetFloat( const std::string& name, float data );
-    void SetFloat2( const std::string& name, const glm::vec2& data );
-    void SetFloat3( const std::string& name, const glm::vec3& data );
-    void SetFloat4( const std::string& name, const glm::vec4& data );
-    void SetMat4( const std::string& name, const glm::mat4& data );
+    void SetInt( const string& name, i32   data );
+    void SetFloat( const string& name, f32 data );
+    void SetFloat2( const string& name, const vec2& data );
+    void SetFloat3( const string& name, const vec3& data );
+    void SetFloat4( const string& name, const vec4& data );
+    void SetMat4( const string& name, const mat4& data );
 
 private:
-    const BufferElement& FindBufferElement( const std::string& name, GLSLDataType type );
+    const BufferElement& FindBufferElement( const string& name, GLSLDataType type );
     void SetRawData( const BufferElement& elem, const void* data );
 };
 

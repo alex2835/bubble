@@ -1,6 +1,5 @@
 #pragma once
 #include <vector>
-#include "glm/glm.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/texture.hpp"
@@ -10,11 +9,11 @@ namespace bubble
 {
 struct VertexData
 {
-    std::vector<glm::vec3> mPositions;
-    std::vector<glm::vec3> mNormals;
-    std::vector<glm::vec2> mTexCoords;
-    std::vector<glm::vec3> mTangents;
-    std::vector<glm::vec3> mBitangents;
+    vector<vec3> mPositions;
+    vector<vec3> mNormals;
+    vector<vec2> mTexCoords;
+    vector<vec3> mTangents;
+    vector<vec3> mBitangents;
 };
 
 
@@ -22,10 +21,10 @@ class BUBBLE_ENGINE_EXPORT Mesh
 {
 public:
     Mesh() = default;
-    Mesh( const std::string& name,
+    Mesh( const string& name,
           BasicMaterial&& Material,
           VertexData&& vertices,
-          std::vector<uint32_t>&& indices );
+          vector<u32>&& indices );
 
     Mesh( const Mesh& ) = delete;
     Mesh& operator= ( const Mesh& ) = delete;
@@ -37,10 +36,10 @@ public:
     size_t IndiciesSize() const;
 
 private:
-    std::string			  mName;
+    string			  mName;
     VertexArray           mVertexArray;
     VertexData            mVertices;
-    std::vector<uint32_t> mIndices;
+    vector<u32> mIndices;
     BasicMaterial         mMaterial;
 };
 

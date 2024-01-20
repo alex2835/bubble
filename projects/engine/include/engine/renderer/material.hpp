@@ -1,7 +1,6 @@
 #pragma once
-#include "glm/glm.hpp"
 #include "engine/utils/imexp.hpp"
-#include "engine/utils/pointers.hpp"
+#include "engine/utils/types.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/shader.hpp"
 
@@ -9,15 +8,15 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT ColorMaterial
 {
-    glm::vec3 mAmbient;
-    glm::vec3 mDiffuse;
-    glm::vec3 mSpecular;
-    int mShininess;
+    vec3 mAmbient;
+    vec3 mDiffuse;
+    vec3 mSpecular;
+    i32 mShininess;
 
-    ColorMaterial( const glm::vec3& ambient,
-                   const glm::vec3& diffuse,
-                   const glm::vec3& specular,
-                   int shininess = 32 );
+    ColorMaterial( const vec3& ambient,
+                   const vec3& diffuse,
+                   const vec3& specular,
+                   i32 shininess = 32 );
 
     void Set( const Ref<Shader>& shader );
 };
@@ -28,17 +27,17 @@ struct BUBBLE_ENGINE_EXPORT BasicMaterial
     Ref<Texture2D> mDiffuseMap;
     Ref<Texture2D> mSpecularMap;
     Ref<Texture2D> mNormalMap;
-    glm::vec4 mDiffuseColor = glm::vec4( 1.0f );
-    float mAmbientCoef = 0.1f;
-    float mSpecularCoef = 0.1f;
-    int   mShininess = 32;
-    float mNormalMapStrength = 0.1f;
+    vec4 mDiffuseColor = vec4( 1.0f );
+    f32 mAmbientCoef = 0.1f;
+    f32 mSpecularCoef = 0.1f;
+    i32   mShininess = 32;
+    f32 mNormalMapStrength = 0.1f;
 
     BasicMaterial() = default;
     BasicMaterial( const Ref<Texture2D>& diffuse_map,
                    const Ref<Texture2D>& specular_map,
                    const Ref<Texture2D>& normal_map,
-                   int shininess = 32 );
+                   i32 shininess = 32 );
 
     BasicMaterial( const BasicMaterial& ) = delete;
     BasicMaterial& operator=( const BasicMaterial& ) = delete;
@@ -52,16 +51,16 @@ struct BUBBLE_ENGINE_EXPORT BasicMaterial
 
 struct BUBBLE_ENGINE_EXPORT ExtendedMaterial
 {
-    std::vector<Ref<Texture2D>> mDiffuseMaps;
-    std::vector<Ref<Texture2D>> mSpecularMaps;
-    std::vector<Ref<Texture2D>> mNormalMaps;
-    int mShininess = 32;
+    vector<Ref<Texture2D>> mDiffuseMaps;
+    vector<Ref<Texture2D>> mSpecularMaps;
+    vector<Ref<Texture2D>> mNormalMaps;
+    i32 mShininess = 32;
 
     ExtendedMaterial() = default;
-    ExtendedMaterial( std::vector<Ref<Texture2D>>&& diffuse_maps,
-                      std::vector<Ref<Texture2D>>&& specular_maps,
-                      std::vector<Ref<Texture2D>>&& normal_maps,
-                      int shininess = 32 );
+    ExtendedMaterial( vector<Ref<Texture2D>>&& diffuse_maps,
+                      vector<Ref<Texture2D>>&& specular_maps,
+                      vector<Ref<Texture2D>>&& normal_maps,
+                      i32 shininess = 32 );
 
     ExtendedMaterial( const ExtendedMaterial& ) = delete;
     ExtendedMaterial& operator=( const ExtendedMaterial& ) = delete;

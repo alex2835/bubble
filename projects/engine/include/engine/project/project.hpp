@@ -6,12 +6,12 @@ namespace bubble
 class Project
 {
 public:
-    const std::string& Name();
-    const std::path& Root();
+    const string& Name();
+    const path& Root();
 
 private:
-    std::string mName;
-    std::path mRoot;
+    string mName;
+    path mRoot;
 };
 
 }

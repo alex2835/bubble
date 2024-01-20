@@ -1,7 +1,7 @@
 #include <iostream>
 #include "app/editor_app.hpp"
 
-int main()
+int main( void )
 {
     try
     {

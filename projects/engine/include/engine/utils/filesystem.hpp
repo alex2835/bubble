@@ -1,13 +1,11 @@
 #pragma once 
+#include "engine/utils/types.hpp"
 #include <filesystem>
 using namespace std::string_literals;
-namespace std
-{
-using namespace filesystem;
-}
 
 namespace bubble
 {
+using namespace std::filesystem;
 
 template <typename StringType>
 StringType ReplaceAll( StringType str, const StringType& from, const StringType& to )
@@ -21,17 +19,17 @@ StringType ReplaceAll( StringType str, const StringType& from, const StringType&
 	return str;
 }
 
-inline std::string NormalizePath( const std::string& path )
+inline string NormalizePath( const string& path )
 {
 	return ReplaceAll( path, "\\"s, "/"s );
 }
 
-inline std::string RightPartLastOf( const std::string& str, std::string_view separator )
+inline string RightPartLastOf( const string& str, std::string_view separator )
 {
 	return str.substr( str.find_last_of( separator ) + 1 );
 }
 
-inline std::string MidPartLastOf( const std::string& str, std::string_view separator1, std::string_view separator2 )
+inline string MidPartLastOf( const string& str, std::string_view separator1, std::string_view separator2 )
 {
 	auto start_pos = str.find_last_of( separator1 ) + 1;
 	auto end_pos = str.find_last_of( separator2 );
@@ -40,7 +38,7 @@ inline std::string MidPartLastOf( const std::string& str, std::string_view separ
 	return str.substr( start_pos, end_pos - start_pos );
 }
 
-inline std::string CreateRelPath( const std::string& to, const std::string& from )
+inline string CreateRelPath( const string& to, const string& from )
 {
 	return ReplaceAll( from, to, ""s );
 }

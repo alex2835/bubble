@@ -1,5 +1,5 @@
 
-#include "engine/utils/pointers.hpp"
+#include "engine/utils/types.hpp"
 #include "engine/renderer/skybox.hpp"
 
 namespace bubble
@@ -9,16 +9,16 @@ Skybox::Skybox( Cubemap&& skybox )
 {
 }
 
-void Skybox::Bind( const Ref<VertexArray>& vertex_array, int slot )
+void Skybox::Bind( const Ref<VertexArray>& vertex_array, i32 slot )
 {
     vertex_array->Bind();
     mSkybox.Bind( slot );
 }
 
-glm::mat4 Skybox::GetViewMatrix( glm::mat4 view, float rotation )
+mat4 Skybox::GetViewMatrix( mat4 view, f32 rotation )
 {
-    view = glm::rotate( view, rotation, glm::vec3( 0, 1, 0 ) );
-    view = glm::mat4( glm::mat3( view ) );
+    view = rotate( view, rotation, vec3( 0, 1, 0 ) );
+    view = mat4( mat3( view ) );
     return view;
 }
 

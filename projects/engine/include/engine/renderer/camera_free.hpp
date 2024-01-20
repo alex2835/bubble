@@ -6,23 +6,23 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT FreeCamera : public Camera
 {
-    float mLastMouseX = 0.5f;
-    float mLastMouseY = 0.5f;
+    f32 mLastMouseX = 0.5f;
+    f32 mLastMouseY = 0.5f;
 
     bool mIsMovingX = false;
     bool mIsMovingY = false;
 
-    FreeCamera( const glm::vec3& position = glm::vec3( 0.0f, 0.0f, 0.0f ),
-                float yaw = camera::YAW,
-                float pitch = camera::PITCH,
-                float fov = camera::FOV,
-                const glm::vec3& up = glm::vec3( 0.0f, 1.0f, 0.0f )
+    FreeCamera( const vec3& position = vec3( 0.0f, 0.0f, 0.0f ),
+                f32 yaw = camera::YAW,
+                f32 pitch = camera::PITCH,
+                f32 fov = camera::FOV,
+                const vec3& up = vec3( 0.0f, 1.0f, 0.0f )
     );
 
     void ProcessMovement( CameraMovement direction );
-    void ProcessMouseMovement( float xMousePos, float yMousePos );
-    void ProcessMouseMovementOffset( float xoffset, float yoffset );
-    void ProcessMouseScroll( float yoffset );
+    void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
+    void ProcessMouseMovementOffset( f32 xoffset, f32 yoffset );
+    void ProcessMouseScroll( f32 yoffset );
 
     void OnUpdate( DeltaTime dt );
 };

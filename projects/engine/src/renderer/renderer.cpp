@@ -7,7 +7,7 @@ void Renderer::DrawMesh( const Mesh& mesh )
 {
     mesh.BindVertetxArray();
     //mesh.mMaterial.Set( shader );
-    glDrawElements( GL_TRIANGLES, (uint32_t)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
+    glDrawElements( GL_TRIANGLES, (u32)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
 }
 
 void Renderer::DrawModel( const Ref<Model>& model )

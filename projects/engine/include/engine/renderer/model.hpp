@@ -7,12 +7,12 @@ namespace bubble
 {
 struct MeshNode
 {
-    std::string mName;
-    std::vector<Mesh*> mMeshes;
-    std::vector<Scope<MeshNode>> mChildern;
+    string mName;
+    vector<Mesh*> mMeshes;
+    vector<Scope<MeshNode>> mChildern;
 
     MeshNode() = default;
-    MeshNode( const std::string& name )
+    MeshNode( const string& name )
         : mName( name )
     {
     }
@@ -20,7 +20,7 @@ struct MeshNode
 
 struct BUBBLE_ENGINE_EXPORT Model
 {
-    std::vector<Mesh> mMeshes;
+    vector<Mesh> mMeshes;
     Ref<Shader> mShader;
     //AABB mBoundingBox;
     Scope<MeshNode> mRootNode;

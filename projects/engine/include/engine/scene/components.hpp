@@ -1,8 +1,6 @@
 #pragma once
-#include "glm/glm.hpp"
 #include <string>
 #include <algorithm>
-
 #include "engine/loader/loader.h"
 #include "engine/renderer/light.h"
 
@@ -11,11 +9,11 @@ namespace Bubble
 // ================= Tag Component =================
 struct TagComponent
 {
-    std::string mTag;
+    string mTag;
 
     TagComponent();
     TagComponent( const TagComponent& ) = default;
-    TagComponent( const std::string& tag );
+    TagComponent( const string& tag );
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
@@ -24,10 +22,10 @@ struct TagComponent
 // ================= Position Component =================
 struct PositionComponent
 {
-    glm::vec3 mPosition;
+    vec3 mPosition;
 
     PositionComponent() = default;
-    PositionComponent( const glm::vec3& mPosition );
+    PositionComponent( const vec3& mPosition );
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
@@ -36,10 +34,10 @@ struct PositionComponent
 // ================= Rotation Component =================
 struct RotationComponent
 {
-    glm::vec3 mRotation;
+    vec3 mRotation;
 
     RotationComponent() = default;
-    RotationComponent( const glm::vec3& rotation );
+    RotationComponent( const vec3& rotation );
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
@@ -48,10 +46,10 @@ struct RotationComponent
 // ================= ScaleComponent =================
 struct ScaleComponent
 {
-    glm::vec3 mScale = glm::vec3( 1.0f );
+    vec3 mScale = vec3( 1.0f );
 
     ScaleComponent() = default;
-    ScaleComponent( const glm::vec3& scale );
+    ScaleComponent( const vec3& scale );
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
@@ -60,14 +58,14 @@ struct ScaleComponent
 // ================= Transform Component =================
 struct TransformComponent
 {
-    glm::mat4 mTransform = glm::mat4( 1.0f );
+    mat4 mTransform = mat4( 1.0f );
 
     TransformComponent() = default;
     TransformComponent( const TransformComponent& ) = default;
-    TransformComponent( glm::mat4 transform );
+    TransformComponent( mat4 transform );
 
-    operator glm::mat4& ( );
-    operator const glm::mat4& ( ) const;
+    operator mat4& ( );
+    operator const mat4& ( ) const;
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );

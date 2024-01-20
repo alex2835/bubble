@@ -3,10 +3,10 @@
 
 namespace bubble
 {
-ColorMaterial::ColorMaterial( const glm::vec3& ambient,
-                              const glm::vec3& diffuse,
-                              const glm::vec3& specular,
-                              int shininess )
+ColorMaterial::ColorMaterial( const vec3& ambient,
+                              const vec3& diffuse,
+                              const vec3& specular,
+                              i32 shininess )
     : mAmbient( ambient ),
       mDiffuse( diffuse ),
       mSpecular( specular ),
@@ -23,7 +23,7 @@ void ColorMaterial::Set( const Ref<Shader>& shader )
 BasicMaterial::BasicMaterial( const Ref<Texture2D>& diffuse_map,
                                   const Ref<Texture2D>& specular_map,
                                   const Ref<Texture2D>& normal_map,
-                                  int shininess )
+                                  i32 shininess )
     : mDiffuseMap( diffuse_map ),
       mSpecularMap( specular_map ),
       mNormalMap( normal_map ),
@@ -56,10 +56,10 @@ void BasicMaterial::Set( const Ref<Shader>& shader ) const
 }
 
 
-ExtendedMaterial::ExtendedMaterial( std::vector<Ref<Texture2D>>&& diffuse_maps,
-                                    std::vector<Ref<Texture2D>>&& specular_maps,
-                                    std::vector<Ref<Texture2D>>&& normal_maps,
-                                    int shininess )
+ExtendedMaterial::ExtendedMaterial( vector<Ref<Texture2D>>&& diffuse_maps,
+                                    vector<Ref<Texture2D>>&& specular_maps,
+                                    vector<Ref<Texture2D>>&& normal_maps,
+                                    i32 shininess )
     : mDiffuseMaps( std::move( diffuse_maps ) ),
       mSpecularMaps( std::move( specular_maps ) ),
       mNormalMaps( std::move( normal_maps ) ),
@@ -69,27 +69,27 @@ ExtendedMaterial::ExtendedMaterial( std::vector<Ref<Texture2D>>&& diffuse_maps,
 
 void ExtendedMaterial::Set( const Ref<Shader>& shader ) const
 {
-    int slot = 0;
-    for( int i = 0; i < mDiffuseMaps.size(); i++ )
+    i32 slot = 0;
+    for( i32 i = 0; i < mDiffuseMaps.size(); i++ )
     {
         shader->SetUni1i( "material.diffuse" + std::to_string( i ), slot );
         mDiffuseMaps[i]->Bind( slot++ );
     }
 
-    for( int i = 0; i < mSpecularMaps.size(); i++ )
+    for( i32 i = 0; i < mSpecularMaps.size(); i++ )
     {
         shader->SetUni1i( "material.specular" + std::to_string( i ), slot );
         mSpecularMaps[i]->Bind( slot++ );
     }
 
-    for( int i = 0; i < mNormalMaps.size(); i++ )
+    for( i32 i = 0; i < mNormalMaps.size(); i++ )
     {
         shader->SetUni1i( "material.normal" + std::to_string( i ), slot );
         mNormalMaps[i]->Bind( slot++ );
     }
 
     shader->SetUni1i( "material.shininess", mShininess );
-    shader->SetUni1i( "u_NormalMapping", static_cast<int>( mNormalMaps.size() ) );
+    shader->SetUni1i( "u_NormalMapping", static_cast<i32>( mNormalMaps.size() ) );
 }
 
 }

@@ -1,5 +1,4 @@
 #pragma once
-#include <glm/glm.hpp>
 #include "engine/window/key_map.hpp"
 #include "engine/window/input.hpp"
 
@@ -30,9 +29,9 @@ struct Event
         MouseKey Key = MouseKey::UNKNOWN;
         KeyAction Action = KeyAction::Release;
         KeyMods Mods;
-        glm::vec2 Pos;
-        glm::vec2 Offset;
-        float ZoomOffset;
+        vec2 Pos;
+        vec2 Offset;
+        f32 ZoomOffset;
     } mMouse;
 
     const KeyboardInput* mKeyboardInput;

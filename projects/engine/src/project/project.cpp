@@ -4,13 +4,13 @@
 namespace bubble
 {
 
-const std::string& Project::Name()
+const string& Project::Name()
 {
     return mName;
 }
 
 
-const std::path& Project::Root()
+const path& Project::Root()
 {
     return mRoot;
 }

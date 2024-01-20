@@ -116,12 +116,12 @@ void Framebuffer::BindWindow( Window& window )
     glViewport( 0, 0, window_size.mWidth, window_size.mHeight );
 }
 
-glm::uvec2 Framebuffer::GetSize() const
+uvec2 Framebuffer::GetSize() const
 {
     return { GetWidth(), GetHeight() };
 }
 
-void Framebuffer::Resize( glm::uvec2 size )
+void Framebuffer::Resize( uvec2 size )
 {
     // Prevent framebuffer error
     mSpecification.mWidth = std::max( 1u, size.x );

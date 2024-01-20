@@ -3,11 +3,11 @@
 
 namespace bubble
 {
-Camera::Camera( const glm::vec3& position,
-                float yaw,
-                float pitch,
-                float fov,
-                const glm::vec3& up )
+Camera::Camera( const vec3& position,
+                f32 yaw,
+                f32 pitch,
+                f32 fov,
+                const vec3& up )
     : mPosition( position ),
     mWorldUp( up ),
     mYaw( yaw ),
@@ -17,27 +17,27 @@ Camera::Camera( const glm::vec3& position,
     UpdateCameraVectors();
 }
 
-glm::mat4 Camera::GetLookatMat() const
+mat4 Camera::GetLookatMat() const
 {
-    return glm::lookAt( mPosition, mPosition + mFront, mUp );
+    return lookAt( mPosition, mPosition + mFront, mUp );
 }
 
-glm::mat4 Camera::GetPprojectionMat( int window_width, int window_height ) const
+mat4 Camera::GetPprojectionMat( i32 window_width, i32 window_height ) const
 {
-    float aspect = (float)window_width / window_height;
-    return glm::perspective<float>( mFov, aspect, mNear, mFar );
+    f32 aspect = (f32)window_width / window_height;
+    return perspective<f32>( mFov, aspect, mNear, mFar );
 }
 
 void Camera::UpdateCameraVectors()
 {
-    glm::vec3 front;
+    vec3 front;
 
     front.x = std::cos( mYaw ) * std::cos( mPitch );
     front.y = std::sin( mPitch );
     front.z = std::sin( mYaw ) * std::cos( mPitch );
 
-    mFront = glm::normalize( front );
-    mRight = glm::normalize( glm::cross( mFront, mWorldUp ) );
-    mUp = glm::normalize( glm::cross( mRight, mFront ) );
+    mFront = normalize( front );
+    mRight = normalize( cross( mFront, mWorldUp ) );
+    mUp = normalize( cross( mRight, mFront ) );
 }
 }

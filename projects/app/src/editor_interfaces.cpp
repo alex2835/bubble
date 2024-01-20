@@ -6,13 +6,18 @@ namespace bubble
 {
 EditorInterfaces::EditorInterfaces()
 {
-    auto viewport = Ref<IEditorInterface>( (IEditorInterface*)new EditorViewportInterface() );
-    mInterfaces[viewport->Name()] = viewport;
+
 }
 
 EditorInterfaces::~EditorInterfaces()
 {
 
+}
+
+void EditorInterfaces::AddInterface( Ref<IEditorInterface> interface )
+{
+    interface->OnInit();
+    mInterfaces[interface->Name()] = interface;
 }
 
 void EditorInterfaces::LoadInterfaces()
@@ -22,7 +27,8 @@ void EditorInterfaces::LoadInterfaces()
 
 void EditorInterfaces::OnUpdate( DeltaTime dt )
 {
-
+    for ( auto& [name, interface] : mInterfaces )
+        interface->OnUpdate( dt );
 }
 
 void EditorInterfaces::OnDraw()

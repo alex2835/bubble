@@ -4,12 +4,12 @@
 
 namespace bubble
 {
-Cubemap::Cubemap( int width, int height, const Texture2DSpecification& spec )
+Cubemap::Cubemap( i32 width, i32 height, const Texture2DSpecification& spec )
 {
     glcall( glGenTextures( 1, &mRendererID ) );
     glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );
 
-    for( unsigned int i = 0; i < 6; ++i )
+    for( i32 i = 0; i < 6; ++i )
     {
         glcall( glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, spec.mInternalFormat,
                               width, height, 0, spec.mDataFormat, GL_FLOAT, nullptr ) );
@@ -39,18 +39,18 @@ Cubemap& Cubemap::operator=( Cubemap&& other ) noexcept
 }
 
 
-Cubemap::Cubemap( const std::string& dir, const std::string& ext, const Texture2DSpecification& spec )
+Cubemap::Cubemap( const string& dir, const string& ext, const Texture2DSpecification& spec )
 {
     const char* names[] = { "/right", "/left", "/top", "/bottom", "/front", "/back" };
     glcall( glGenTextures( 1, &mRendererID ) );
     glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );
 
-    int width, height, chanels;
+    i32 width, height, chanels;
     unsigned char* data;
 
     for( GLuint i = 0; i < 6; i++ )
     {
-        std::string path = dir + names[i] + ext;
+        string path = dir + names[i] + ext;
         data = stbi_load( path.c_str(), &width, &height, &chanels, 0 );
 
         if( data )
@@ -97,7 +97,7 @@ Cubemap::~Cubemap()
     glcall( glDeleteTextures( 1, &mRendererID ) );
 }
 
-void Cubemap::Bind( int slot )
+void Cubemap::Bind( i32 slot )
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
     glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );

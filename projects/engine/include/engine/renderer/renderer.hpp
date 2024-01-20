@@ -15,7 +15,7 @@ public:
 
 private:
     Camera mCamera;
-    Framebuffer mFramebuffer;
+    //Framebuffer mFramebuffer;
 };
 
 }

@@ -1,7 +1,6 @@
 #pragma once
 #include <utility>
 #include <algorithm>
-#include "glm/glm.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/shader.hpp"
 
@@ -18,27 +17,27 @@ enum class LightType
 //struct GLSL_Light
 //{
 //    LightType Type = LightType::DirLight;
-//    float __Brightness = 1.0f;
+//    f32 __Brightness = 1.0f;
 //
 //    // Point
-//    float Constant = 1.0f;
-//    float Linear = 0.0f;
-//    float Quadratic = 0.0f;
+//    f32 Constant = 1.0f;
+//    f32 Linear = 0.0f;
+//    f32 Quadratic = 0.0f;
 //
 //    // Spot
-//    float __CutOff = 0.0f;
-//    float __OuterCutOff = 0.0f;
-//    float __pad0 = 0;
+//    f32 __CutOff = 0.0f;
+//    f32 __OuterCutOff = 0.0f;
+//    f32 __pad0 = 0;
 //
-//    glm::vec3 Color = glm::vec3( 1.0f );
-//    float __pad1 = 0;
+//    vec3 Color = vec3( 1.0f );
+//    f32 __pad1 = 0;
 //
 //    // Directional
-//    glm::vec3 Direction = glm::vec3();
-//    float __pad2 = 0;
+//    vec3 Direction = vec3();
+//    f32 __pad2 = 0;
 //
-//    glm::vec3 Position = glm::vec3();
-//    float __pad3 = 0;
+//    vec3 Position = vec3();
+//    f32 __pad3 = 0;
 //};
 
 
@@ -46,34 +45,34 @@ struct BUBBLE_ENGINE_EXPORT Light
 {
     LightType Type = LightType::DirLight;
 
-    float Constant = 1.0f;
-    float Linear = 0.0f;
-    float Quadratic = 0.0f;
+    f32 Constant = 1.0f;
+    f32 Linear = 0.0f;
+    f32 Quadratic = 0.0f;
 
-    float CutOff = 0.0f;
-    float OuterCutOff = 0.0f;
-    float Distance = 0.0f;
-    float Brightness = 1.0f;
+    f32 CutOff = 0.0f;
+    f32 OuterCutOff = 0.0f;
+    f32 Distance = 0.0f;
+    f32 Brightness = 1.0f;
 
-    glm::vec3 Color = glm::vec3( 1.0f );
+    vec3 Color = vec3( 1.0f );
 
-    glm::vec3 Position = glm::vec3();
-    glm::vec3 Direction = glm::vec3();
+    vec3 Position = vec3();
+    vec3 Direction = vec3();
 
-    void SetDistance( float distance );
+    void SetDistance( f32 distance );
     void Update();
 
-    static Light CreateDirLight( const glm::vec3& direction = glm::vec3( -1.0f ), const glm::vec3& color = glm::vec3( 1.0f ) );
+    static Light CreateDirLight( const vec3& direction = vec3( -1.0f ), const vec3& color = vec3( 1.0f ) );
 
     // distance between 0 and 1.0f (where 1.0f is 3250m)
-    static Light CreatePointLight( const glm::vec3& position = glm::vec3(), float distance = 0.5f, const glm::vec3& color = glm::vec3( 1.0f ) );
+    static Light CreatePointLight( const vec3& position = vec3(), f32 distance = 0.5f, const vec3& color = vec3( 1.0f ) );
 
     // distance between 0 and 1.0f (where 1.0f is 3250m)
-    static Light CreateSpotLight( const glm::vec3& position = glm::vec3(),
-                                  const glm::vec3& direction = glm::vec3( 1.0f, 0.0f, 0.0f ),
-                                  float distance = 0.5f,
-                                  float cutoff = 12.5f,		// cutoff and outer_cutoff in degrees
-                                  float outer_cutoff = 17.5f,
-                                  const glm::vec3& color = glm::vec3( 1.0f ) );
+    static Light CreateSpotLight( const vec3& position = vec3(),
+                                  const vec3& direction = vec3( 1.0f, 0.0f, 0.0f ),
+                                  f32 distance = 0.5f,
+                                  f32 cutoff = 12.5f,		// cutoff and outer_cutoff in degrees
+                                  f32 outer_cutoff = 17.5f,
+                                  const vec3& color = vec3( 1.0f ) );
 };
 }

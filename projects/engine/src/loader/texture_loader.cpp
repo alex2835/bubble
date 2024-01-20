@@ -6,7 +6,7 @@
 namespace bubble
 {
 
-//Ref<Texture2D> Loader::LoadAndCacheTexture2D( std::string path, const Texture2DSpecification& spec )
+//Ref<Texture2D> Loader::LoadAndCacheTexture2D( string path, const Texture2DSpecification& spec )
 //{
 //    //if ( !mProject.Valid() )
 //    //    BUBBLE_ASSERT( false, "Try to load and cache texture with not valid project" );
@@ -20,10 +20,10 @@ namespace bubble
 //    return texture;
 //}
 
-Ref<Texture2D> Loader::LoadTexture2D( const std::path& path )
+Ref<Texture2D> Loader::LoadTexture2D( const path& path )
 {
     stbi_uc* data = nullptr;
-    int width, height, channels;
+    i32 width, height, channels;
     stbi_set_flip_vertically_on_load( false );
     data = stbi_load( path.string().c_str(), &width, &height, &channels, 0 );
 
@@ -42,10 +42,10 @@ Ref<Texture2D> Loader::LoadTexture2D( const std::path& path )
 }
 
 //std::tuple<Scope<uint8_t[]>, Texture2DSpecification>
-//Loader::OpenRawImage( const std::path& path )
+//Loader::OpenRawImage( const path& path )
 //{
 //    uint8_t* data = nullptr;
-//    int width, height, channels;
+//    i32 width, height, channels;
 //
 //    stbi_set_flip_vertically_on_load( false );
 //    data = stbi_load( path.string().c_str(), &width, &height, &channels, 0);
@@ -62,7 +62,7 @@ Ref<Texture2D> Loader::LoadTexture2D( const std::path& path )
 //}
 
 // Skysphere texture
-//Ref<Texture2D> Loader::LoadSkysphere( const std::string& path )
+//Ref<Texture2D> Loader::LoadSkysphere( const string& path )
 //{
 //    if ( mLoadedSkyspheres.count( path ) )
 //        return mLoadedSkyspheres[path];

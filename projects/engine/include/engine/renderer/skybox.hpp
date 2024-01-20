@@ -1,5 +1,4 @@
 #pragma once
-#include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/cubemap.hpp"
@@ -21,9 +20,9 @@ struct BUBBLE_ENGINE_EXPORT Skybox
     Skybox( Skybox&& ) = default;
     Skybox& operator=( Skybox&& ) = default;
 
-    void Bind( const Ref<VertexArray>& vertex_array, int slot = 0 );
+    void Bind( const Ref<VertexArray>& vertex_array, i32 slot = 0 );
 
     // Generate matrix for correct skybox rendering
-    static glm::mat4 GetViewMatrix( glm::mat4 view, float rotation = 0 );
+    static mat4 GetViewMatrix( mat4 view, f32 rotation = 0 );
 };
 }

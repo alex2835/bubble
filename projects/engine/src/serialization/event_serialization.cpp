@@ -7,7 +7,7 @@
 namespace bubble
 {
 template <>
-std::string ToString<KeyboardKey>( const KeyboardKey& key )
+string ToString<KeyboardKey>( const KeyboardKey& key )
 {
     switch( key )
     {
@@ -254,12 +254,12 @@ std::string ToString<KeyboardKey>( const KeyboardKey& key )
     case KeyboardKey::MENU:
         return "KEY_MENU";
     default:
-        throw std::runtime_error( "Unknown keyboard key: " + std::to_string( static_cast<int>( key ) ) );
+        throw std::runtime_error( "Unknown keyboard key: " + std::to_string( static_cast<i32>( key ) ) );
     }
 }
 
 template <>
-std::string ToString<KeyAction>( const KeyAction& action )
+string ToString<KeyAction>( const KeyAction& action )
 {
     switch( action )
     {
@@ -270,15 +270,15 @@ std::string ToString<KeyAction>( const KeyAction& action )
     case KeyAction::Repeat:
         return "Repeat";
     default:
-        throw std::runtime_error( "Invalid KeyAction " + std::to_string( static_cast<int>( action ) ) );
+        throw std::runtime_error( "Invalid KeyAction " + std::to_string( static_cast<i32>( action ) ) );
     }
 }
 
 
 template <> 
-std::string ToString<KeyMods>( const KeyMods& mods )
+string ToString<KeyMods>( const KeyMods& mods )
 {
-    std::string res;
+    string res;
     res = res + "SHIFT: " + ( mods.SHIFT ? "true" : "false" );
     res = res + " CONTROL: " + ( mods.CONTROL ? "true" : "false" );
     res = res + " ALT: " + ( mods.ALT ? "true" : "false" );
@@ -289,7 +289,7 @@ std::string ToString<KeyMods>( const KeyMods& mods )
 }
 
 template <>
-std::string ToString<MouseKey>( const MouseKey& key )
+string ToString<MouseKey>( const MouseKey& key )
 {
     switch( key )
     {
@@ -312,14 +312,14 @@ std::string ToString<MouseKey>( const MouseKey& key )
     case MouseKey::BUTTON_8:
         return "MOUSE_BUTTON_8";
     default:
-        throw std::runtime_error( "Unknown mouse key: " + std::to_string( static_cast<int>( key ) ) );
+        throw std::runtime_error( "Unknown mouse key: " + std::to_string( static_cast<i32>( key ) ) );
     }
 }
 
 template <>
-std::string ToString<Event>( const Event& key )
+string ToString<Event>( const Event& key )
 {
-    std::string res;
+    string res;
     if( key.mType == EventType::KeyboardKey )
     {
         res += "Type: KeyboardKey";

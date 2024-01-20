@@ -1,5 +1,4 @@
 #pragma once
-#include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "engine/utils/timer.hpp"
 #include "engine/utils/imexp.hpp"
@@ -21,55 +20,55 @@ enum class CameraMovement
 // Default camera values
 namespace camera
 {
-constexpr float PI = 3.14159265359f;
-constexpr float YAW = -PI / 2;
-constexpr float PITCH = 0;
-constexpr float FOV = PI / 4;
-constexpr float DELTA_FOV = 0.05f;
+constexpr f32 PI = 3.14159265359f;
+constexpr f32 YAW = -PI / 2;
+constexpr f32 PITCH = 0;
+constexpr f32 FOV = PI / 4;
+constexpr f32 DELTA_FOV = 0.05f;
 
-constexpr float MAX_SPEED = 10.0f;
-constexpr float DELTA_SPEED = 5.0f;
-constexpr float SENSITIVTY = 4.25f;
+constexpr f32 MAX_SPEED = 10.0f;
+constexpr f32 DELTA_SPEED = 5.0f;
+constexpr f32 SENSITIVTY = 4.25f;
 }
 
 
 struct BUBBLE_ENGINE_EXPORT Camera
 {
     // Camera Attributes
-    glm::vec3 mPosition = glm::vec3( 0.0f, 0.0f, 0.0f );
-    glm::vec3 mFront    = glm::vec3( 0.0f, 0.0f, -1.0f );
-    glm::vec3 mUp       = glm::vec3( 0 );
-    glm::vec3 mRight    = glm::vec3( 0 );
-    glm::vec3 mWorldUp  = glm::vec3( 0.0f, 1.0f, 0.0f );
+    vec3 mPosition = vec3( 0.0f, 0.0f, 0.0f );
+    vec3 mFront    = vec3( 0.0f, 0.0f, -1.0f );
+    vec3 mUp       = vec3( 0 );
+    vec3 mRight    = vec3( 0 );
+    vec3 mWorldUp  = vec3( 0.0f, 1.0f, 0.0f );
 
-    float mNear = 0.1f;
-    float mFar = 5000.0f;
+    f32 mNear = 0.1f;
+    f32 mFar = 5000.0f;
 
     // Mouse
-    float mMouseSensitivity = camera::SENSITIVTY;
+    f32 mMouseSensitivity = camera::SENSITIVTY;
 
     // Euler Angles
-    float mYaw   = camera::YAW;
-    float mPitch = camera::PITCH;
-    float mFov      = camera::FOV;
-    float mDeltaFov = camera::DELTA_FOV;
+    f32 mYaw   = camera::YAW;
+    f32 mPitch = camera::PITCH;
+    f32 mFov      = camera::FOV;
+    f32 mDeltaFov = camera::DELTA_FOV;
 
     // Speed
-    float mMaxSpeed   = camera::MAX_SPEED;
-    float mDeltaSpeed = camera::DELTA_SPEED;
-    float mSpeedX = 0;
-    float mSpeedY = 0;
+    f32 mMaxSpeed   = camera::MAX_SPEED;
+    f32 mDeltaSpeed = camera::DELTA_SPEED;
+    f32 mSpeedX = 0;
+    f32 mSpeedY = 0;
 
 public:
-    Camera( const glm::vec3& position = glm::vec3( 0.0f, 0.0f, 0.0f ),
-            float yaw   = camera::YAW,
-            float pitch = camera::PITCH,
-            float fov   = camera::FOV,
-            const glm::vec3& up = glm::vec3( 0.0f, 1.0f, 0.0f )
+    Camera( const vec3& position = vec3( 0.0f, 0.0f, 0.0f ),
+            f32 yaw   = camera::YAW,
+            f32 pitch = camera::PITCH,
+            f32 fov   = camera::FOV,
+            const vec3& up = vec3( 0.0f, 1.0f, 0.0f )
     );
 
-    glm::mat4 GetLookatMat() const;
-    glm::mat4 GetPprojectionMat( int window_width, int window_height ) const;
+    mat4 GetLookatMat() const;
+    mat4 GetPprojectionMat( i32 window_width, i32 window_height ) const;
 
     void UpdateCameraVectors();
 };

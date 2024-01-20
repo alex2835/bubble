@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include <glm/glm.hpp>
+#include "engine/utils/types.hpp"
 #include "engine/window/input.hpp"
 
 namespace bubble
@@ -19,12 +19,12 @@ void MouseInput::OnUpdate()
 
 bool MouseInput::IsKeyCliked( MouseKey key ) const
 {
-    return mKeyState[(int)key] == (int)KeyAction::Press;
+    return mKeyState[(i32)key] == (i32)KeyAction::Press;
 }
 
-int MouseInput::IsKeyPressed( MouseKey key ) const 
+i32 MouseInput::IsKeyPressed( MouseKey key ) const 
 {
-    return mKeyState[(int)key] != NO_STATE;
+    return mKeyState[(i32)key] != NO_STATE;
 }
 
 
@@ -42,12 +42,12 @@ void KeyboardInput::OnUpdate()
 
 bool KeyboardInput::IsKeyCliked( KeyboardKey key ) const
 {
-    return mKeyState[(int)key] == (int)KeyAction::Press;
+    return mKeyState[(i32)key] == (i32)KeyAction::Press;
 }
 
-int KeyboardInput::IsKeyPressed( KeyboardKey key ) const
+i32 KeyboardInput::IsKeyPressed( KeyboardKey key ) const
 {
-    return mKeyState[(int)key] != NO_STATE;
+    return mKeyState[(i32)key] != NO_STATE;
 }
 
 

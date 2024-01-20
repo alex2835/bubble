@@ -1,9 +1,9 @@
 #pragma once
-#include "glm/glm.hpp"
 #include <cstdint>
 #include <cassert>
-#include "engine/window/window.hpp"
 #include "engine/utils/imexp.hpp"
+#include "engine/utils/types.hpp"
+#include "engine/window/window.hpp"
 #include "engine/renderer/texture.hpp"
 
 namespace bubble
@@ -19,7 +19,7 @@ struct BUBBLE_ENGINE_EXPORT FramebufferSpecification
 class BUBBLE_ENGINE_EXPORT Framebuffer
 {
 public:
-    Framebuffer() = default;
+    Framebuffer() = delete;
     Framebuffer( const Framebuffer& ) = delete;
     Framebuffer& operator= ( const Framebuffer& ) = delete;
 
@@ -43,8 +43,8 @@ public:
 
     GLsizei GetWidth() const;
     GLsizei GetHeight() const;
-    glm::uvec2 GetSize() const;
-    void Resize( glm::uvec2 size );
+    uvec2 GetSize() const;
+    void Resize( uvec2 size );
 
     GLuint GetColorAttachmentRendererID() const;
     GLuint GetDepthAttachmentRendererID() const;

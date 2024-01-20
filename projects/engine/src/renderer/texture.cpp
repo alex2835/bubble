@@ -5,7 +5,7 @@
 namespace bubble
 {
 
-void Texture2DSpecification::SetTextureSpecChanels( int channels )
+void Texture2DSpecification::SetTextureSpecChanels( i32 channels )
 {
     switch( channels )
     {
@@ -26,9 +26,9 @@ void Texture2DSpecification::SetTextureSpecChanels( int channels )
     }
 }
 
-uint32_t Texture2DSpecification::ExtractTextureSpecChannels() const
+u32 Texture2DSpecification::ExtractTextureSpecChannels() const
 {
-    uint32_t bpp = 0;
+    u32 bpp = 0;
     switch( mDataFormat )
     {
     case GL_RGBA:
@@ -46,18 +46,18 @@ uint32_t Texture2DSpecification::ExtractTextureSpecChannels() const
     return bpp;
 }
 
-uint32_t Texture2DSpecification::GetTextureSize() const
+u32 Texture2DSpecification::GetTextureSize() const
 {
     return mWidth * mHeight * ExtractTextureSpecChannels();
 }
 
 
-Texture2DSpecification Texture2DSpecification::CreateRGBA8( glm::uvec2 size )
+Texture2DSpecification Texture2DSpecification::CreateRGBA8( uvec2 size )
 {
     return Texture2DSpecification( size );
 }
 
-Texture2DSpecification Texture2DSpecification::CreateDepth( glm::uvec2 size )
+Texture2DSpecification Texture2DSpecification::CreateDepth( uvec2 size )
 {
     Texture2DSpecification specification( size );
     specification.mChanelFormat = GL_FLOAT;
@@ -68,12 +68,12 @@ Texture2DSpecification Texture2DSpecification::CreateDepth( glm::uvec2 size )
     return specification;
 }
 
-Texture2DSpecification::Texture2DSpecification( glm::uvec2 size )
+Texture2DSpecification::Texture2DSpecification( uvec2 size )
     : mWidth( size.x ),
       mHeight( size.y )
 {}
 
-//Texture2D::Texture2D( const glm::vec4& color )
+//Texture2D::Texture2D( const vec4& color )
 //{
 //    mSpecification.mWidth = 1;
 //    mSpecification.mHeight = 1;
@@ -94,7 +94,7 @@ Texture2D::Texture2D( const Texture2DSpecification& spec )
     Invalidate();
 }
 
-Texture2D::Texture2D( glm::uvec2 size )
+Texture2D::Texture2D( uvec2 size )
     : mSpecification( Texture2DSpecification::CreateRGBA8( size ) )
 {
     Invalidate();
@@ -135,7 +135,7 @@ Texture2D::~Texture2D()
 void Texture2D::SetData( void* data, size_t size )
 {
     Bind();
-    uint32_t channels = mSpecification.ExtractTextureSpecChannels();
+    u32 channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0,
             mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
@@ -144,12 +144,12 @@ void Texture2D::SetData( void* data, size_t size )
 void Texture2D::GetData( void* data, size_t size ) const
 {
     Bind();
-    uint32_t channels = mSpecification.ExtractTextureSpecChannels();
+    u32 channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glGetTexImage( GL_TEXTURE_2D, 0, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }
 
-void Texture2D::Bind( int slot ) const
+void Texture2D::Bind( i32 slot ) const
 {
     glActiveTexture( GL_TEXTURE0 + slot );
     glBindTexture( GL_TEXTURE_2D, mRendererID );
@@ -160,7 +160,7 @@ void Texture2D::UnbindAll()
     glActiveTexture( GL_TEXTURE0 );
 }
 
-void Texture2D::Resize( const glm::ivec2& new_size )
+void Texture2D::Resize( const ivec2& new_size )
 {
     mSpecification.mWidth = new_size.x;
     mSpecification.mHeight = new_size.y;
@@ -177,7 +177,7 @@ GLsizei Texture2D::GetHeight() const
     return mSpecification.mHeight;
 }
 
-uint32_t Texture2D::GetRendererID() const
+u32 Texture2D::GetRendererID() const
 {
     return mRendererID;
 }
@@ -200,7 +200,7 @@ void Texture2D::Invalidate()
     if( mSpecification.mWrapS == GL_CLAMP_TO_BORDER || 
         mSpecification.mWrapT == GL_CLAMP_TO_BORDER )
     {
-        glcall( glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, (float*)&mSpecification.mBorderColor ) );
+        glcall( glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, (f32*)&mSpecification.mBorderColor ) );
     }
 
     if( mSpecification.mAnisotropicFiltering )

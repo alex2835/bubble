@@ -3,18 +3,18 @@
 
 namespace bubble
 {
-FreeCamera::FreeCamera( const glm::vec3& position,
-                        float yaw,
-                        float pitch,
-                        float mFov,
-                        const glm::vec3& up )
+FreeCamera::FreeCamera( const vec3& position,
+                        f32 yaw,
+                        f32 pitch,
+                        f32 mFov,
+                        const vec3& up )
     : Camera( position, yaw, pitch, mFov, up )
 {
 }
 
 void FreeCamera::ProcessMovement( CameraMovement direction )
 {
-    float max_speed = mMaxSpeed * mDeltaSpeed;
+    f32 max_speed = mMaxSpeed * mDeltaSpeed;
 
     // Speed x
     if( direction == CameraMovement::FORWARD )
@@ -60,10 +60,10 @@ void FreeCamera::ProcessMovement( CameraMovement direction )
 }
 
 
-void FreeCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
+void FreeCamera::ProcessMouseMovement( f32 MousePosX, f32 MousePosY )
 {
-    float xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
-    float yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
+    f32 xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
+    f32 yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
 
     mLastMouseX = MousePosX;
     mLastMouseY = MousePosY;
@@ -78,7 +78,7 @@ void FreeCamera::ProcessMouseMovement( float MousePosX, float MousePosY )
         mPitch = -camera::PI / 2.0f + 0.1f;
 }
 
-void FreeCamera::ProcessMouseMovementOffset( float xoffset, float yoffset )
+void FreeCamera::ProcessMouseMovementOffset( f32 xoffset, f32 yoffset )
 {
     xoffset *= mMouseSensitivity;
     yoffset *= mMouseSensitivity;
@@ -94,7 +94,7 @@ void FreeCamera::ProcessMouseMovementOffset( float xoffset, float yoffset )
 }
 
 
-void FreeCamera::ProcessMouseScroll( float yoffset )
+void FreeCamera::ProcessMouseScroll( f32 yoffset )
 {
     if( mFov >= 0.1f && mFov <= camera::PI / 2.0f )
         mFov += yoffset * mDeltaFov;

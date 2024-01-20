@@ -1,5 +1,4 @@
 #pragma once
-#include <glm/glm.hpp>
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/camera.hpp"
 
@@ -7,25 +6,25 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT ThirdPersonCamera : public Camera
 {
-    glm::vec3 mCenter;
-    float mRadius = 20.0f;
+    vec3 mCenter;
+    f32 mRadius = 20.0f;
 
-    float mLastMouseX = 0.5f;
-    float mLastMouseY = 0.5f;
+    f32 mLastMouseX = 0.5f;
+    f32 mLastMouseY = 0.5f;
 
     bool mIsRotatingX = false;
     bool mIsRotatingY = false;
 
-    ThirdPersonCamera( float yaw = camera::YAW, 
-                       float pitch = camera::PITCH );
+    ThirdPersonCamera( f32 yaw = camera::YAW, 
+                       f32 pitch = camera::PITCH );
 
     /*
         Directions: UP, DOWN, LEFT, RIGHT
     */
     void ProcessRotation( CameraMovement direction );
-    void ProcessMouseMovement( float xMousePos, float yMousePos );
-    void ProcessMouseMovementOffset( float xoffset, float yoffset );
-    void ProcessMouseScroll( float yoffset );
+    void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
+    void ProcessMouseMovementOffset( f32 xoffset, f32 yoffset );
+    void ProcessMouseScroll( f32 yoffset );
     void OnUpdate( DeltaTime dt );
 };
 

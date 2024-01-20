@@ -4,23 +4,23 @@
 //
 //namespace Bubble
 //{
-//inline nlohmann::json to_json( const glm::vec3& vec )
+//inline nlohmann::json to_json( const vec3& vec )
 //{
 //    return nlohmann::json{ vec.r, vec.g, vec.b };
 //}
-//inline glm::vec3 from_json_vec3( const nlohmann::json& j )
+//inline vec3 from_json_vec3( const nlohmann::json& j )
 //{
-//    return glm::vec3( j[0], j[1], j[2] );
+//    return vec3( j[0], j[1], j[2] );
 //}
-//static inline nlohmann::json to_json( const glm::vec4& vec )
+//static inline nlohmann::json to_json( const vec4& vec )
 //{
 //    return nlohmann::json{ vec.r, vec.g, vec.b, vec.a };
 //}
-//static inline glm::vec4 from_json_vec4( const nlohmann::json& j )
+//static inline vec4 from_json_vec4( const nlohmann::json& j )
 //{
-//    return glm::vec4( j[0], j[1], j[2], j[3] );
+//    return vec4( j[0], j[1], j[2], j[3] );
 //}
-//static inline bool json_exists( const nlohmann::json& j, const std::string& key )
+//static inline bool json_exists( const nlohmann::json& j, const string& key )
 //{
 //    return j.find( key ) != j.end();
 //}
@@ -35,7 +35,7 @@
 //    j["Tag"] = mTag;
 //}
 //
-//TagComponent::TagComponent( const std::string& tag )
+//TagComponent::TagComponent( const string& tag )
 //    : mTag( tag )
 //{
 //    mTag.reserve( 256 );
@@ -46,7 +46,7 @@
 //    mTag.reserve( 256 );
 //}
 //
-//PositionComponent::PositionComponent( const glm::vec3& mPosition )
+//PositionComponent::PositionComponent( const vec3& mPosition )
 //    : mPosition( mPosition )
 //{
 //}
@@ -61,7 +61,7 @@
 //    mPosition = from_json_vec3( j["Position"] );
 //}
 //
-//RotationComponent::RotationComponent( const glm::vec3& rotation )
+//RotationComponent::RotationComponent( const vec3& rotation )
 //    : mRotation( rotation )
 //{
 //}
@@ -76,7 +76,7 @@
 //    mRotation = from_json_vec3( j["Rotation"] );
 //}
 //
-//ScaleComponent::ScaleComponent( const glm::vec3& scale )
+//ScaleComponent::ScaleComponent( const vec3& scale )
 //    : mScale( scale )
 //{
 //}
@@ -91,17 +91,17 @@
 //    mScale = from_json_vec3( j["Scale"] );
 //}
 //
-//TransformComponent::TransformComponent( glm::mat4 transform )
+//TransformComponent::TransformComponent( mat4 transform )
 //    : mTransform( transform )
 //{
 //}
 //
 //void TransformComponent::Serialize( const Loader& loader, nlohmann::json& j ) const
 //{
-//    std::vector<float> temp;
-//    for ( int i = 0; i < 4; i++ )
+//    vector<f32> temp;
+//    for ( i32 i = 0; i < 4; i++ )
 //    {
-//        for ( int j = 0; j < 4; j++ )
+//        for ( i32 j = 0; j < 4; j++ )
 //        {
 //            temp.push_back( mTransform[i][j] );
 //        }
@@ -111,22 +111,22 @@
 //
 //void TransformComponent::Deserialize( const nlohmann::json& j, Loader& loader )
 //{
-//    std::vector<float> temp = j["Transform"];
-//    for ( int i = 0; i < 4; i++ )
+//    vector<f32> temp = j["Transform"];
+//    for ( i32 i = 0; i < 4; i++ )
 //    {
-//        for ( int j = 0; j < 4; j++ )
+//        for ( i32 j = 0; j < 4; j++ )
 //        {
 //            mTransform[i][j] = temp[i * 4 + j];
 //        }
 //    }
 //}
 //
-//TransformComponent::operator const glm::mat4& ( ) const
+//TransformComponent::operator const mat4& ( ) const
 //{
 //    return mTransform;
 //}
 //
-//TransformComponent::operator glm::mat4& ( )
+//TransformComponent::operator mat4& ( )
 //{
 //    return mTransform;
 //}
@@ -190,7 +190,7 @@
 //        return path_model.second == *this;
 //    } );
 //
-//    const std::string& path = iterator->first;
+//    const string& path = iterator->first;
 //    j["Model"] = path;
 //}
 //

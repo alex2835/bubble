@@ -31,13 +31,13 @@ void Shader::Unbind() const
     glcall( glUseProgram( 0 ) );
 }
 
-int Shader::GetUni( const std::string& uniformname ) const
+i32 Shader::GetUni( const string& uniformname ) const
 {
     glcall( glUseProgram( mShaderID ) );
     if( mUniformCache.count( uniformname ) )
         return mUniformCache[uniformname];
 
-    int unifromid = glGetUniformLocation( mShaderID, uniformname.c_str() );
+    i32 unifromid = glGetUniformLocation( mShaderID, uniformname.c_str() );
     if( unifromid == -1 )
         LogError( "Shader: {0} doesn't have uniform: {1}", mName, uniformname );
 
@@ -45,60 +45,60 @@ int Shader::GetUni( const std::string& uniformname ) const
     return unifromid;
 }
 
-// lone int 
-void Shader::SetUni1i( const std::string& mName, const int& val ) const
+// lone i32 
+void Shader::SetUni1i( const string& mName, const i32& val ) const
 {
     glcall( glUniform1i( GetUni( mName ), val ) );
 }
 
-// float vec
-void Shader::SetUni1f( const std::string& mName, const float& val ) const
+// f32 vec
+void Shader::SetUni1f( const string& mName, const f32& val ) const
 {
     glcall( glUniform1f( GetUni( mName ), val ) );
 }
 
-void Shader::SetUni2f( const std::string& mName, const glm::vec2& val ) const
+void Shader::SetUni2f( const string& mName, const vec2& val ) const
 {
     glcall( glUniform2f( GetUni( mName ), val.x, val.y ) );
 }
 
-void Shader::SetUni3f( const std::string& mName, const glm::vec3& val ) const
+void Shader::SetUni3f( const string& mName, const vec3& val ) const
 {
     glcall( glUniform3f( GetUni( mName ), val.x, val.y, val.z ) );
 }
 
-void Shader::SetUni4f( const std::string& mName, const glm::vec4& val ) const
+void Shader::SetUni4f( const string& mName, const vec4& val ) const
 {
     glcall( glUniform4f( GetUni( mName ), val.x, val.y, val.z, val.w ) );
 }
 
-// float matrices
-void Shader::SetUniMat3( const std::string& mName, const glm::mat3& val ) const
+// f32 matrices
+void Shader::SetUniMat3( const string& mName, const mat3& val ) const
 {
-    glcall( glUniformMatrix3fv( GetUni( mName ), 1, GL_FALSE, glm::value_ptr( val ) ) );
+    glcall( glUniformMatrix3fv( GetUni( mName ), 1, GL_FALSE, value_ptr( val ) ) );
 }
 
-void Shader::SetUniMat4( const std::string& mName, const glm::mat4& val ) const
+void Shader::SetUniMat4( const string& mName, const mat4& val ) const
 {
-    glcall( glUniformMatrix4fv( GetUni( mName ), 1, GL_FALSE, glm::value_ptr( val ) ) );
+    glcall( glUniformMatrix4fv( GetUni( mName ), 1, GL_FALSE, value_ptr( val ) ) );
 }
 
 // Texture
-void Shader::SetTexture2D( const std::string& name, int tex_id, int slot ) const
+void Shader::SetTexture2D( const string& name, i32 tex_id, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
     glcall( glBindTexture( GL_TEXTURE_2D, tex_id ) );
     SetUni1i( name, slot );
 }
 
-void Shader::SetTexture2D( const std::string& name, const Texture2D& texture, int slot ) const
+void Shader::SetTexture2D( const string& name, const Texture2D& texture, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
     glcall( glBindTexture( GL_TEXTURE_2D, texture.GetRendererID() ) );
     SetUni1i( name, slot );
 }
 
-void Shader::SetTexture2D( const std::string& name, const Ref<Texture2D>& texture, int slot ) const
+void Shader::SetTexture2D( const string& name, const Ref<Texture2D>& texture, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
     glcall( glBindTexture( GL_TEXTURE_2D, texture->GetRendererID() ) );

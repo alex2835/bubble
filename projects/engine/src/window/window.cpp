@@ -4,12 +4,12 @@
 namespace bubble
 {
 
-void Window::ErrorCallback( int error, const char* description )
+void Window::ErrorCallback( i32 error, const char* description )
 {
     LogError( "Error: {} \nDescription: {}", error, description );
 }
 
-void Window::KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods )
+void Window::KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
 
@@ -29,7 +29,7 @@ void Window::KeyCallback( GLFWwindow* window, int key, int scancode, int action,
     win->mKeyboardInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
-void Window::MouseButtonCallback( GLFWwindow* window, int key, int action, int mods )
+void Window::MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mMouseInput.mKeyState[key] = action;
@@ -41,11 +41,11 @@ void Window::MouseButtonCallback( GLFWwindow* window, int key, int action, int m
     win->mMouseInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
-void Window::MouseCallback( GLFWwindow* window, double xpos, double ypos )
+void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     auto window_size = win->GetSize();
-    auto mouse_pos = glm::vec2( xpos, window_size.mHeight - ypos );
+    auto mouse_pos = vec2( xpos, window_size.mHeight - ypos );
     win->mMouseInput.mMouseOffset = mouse_pos - win->mMouseInput.mMousePos;
     win->mMouseInput.mMousePos = mouse_pos;
 
@@ -56,23 +56,23 @@ void Window::MouseCallback( GLFWwindow* window, double xpos, double ypos )
     win->mEvents.push_back( event );
 }
 
-void Window::ScrollCallback( GLFWwindow* window, double xoffset, double yoffset )
+void Window::ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     Event event = win->CreateEvent();
     event.mType = EventType::MouseZoom;
-    event.mMouse.ZoomOffset -= static_cast<float>( yoffset );
+    event.mMouse.ZoomOffset -= static_cast<f32>( yoffset );
     win->mEvents.push_back( event );
 }
 
-void Window::WindowSizeCallback( GLFWwindow* window, int width, int height )
+void Window::WindowSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
     glfwSetWindowSize( win->mWindow, width, height );
 }
 
-void Window::FramebufferSizeCallback( GLFWwindow* window, int width, int height )
+void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
@@ -87,7 +87,7 @@ void Window::FillKeyboardEvents()
             continue;
 
         auto action = mKeyboardInput.mKeyState[key];
-        if ( mKeyboardInput.mKeyState[key] == (int)KeyAction::Release )
+        if ( mKeyboardInput.mKeyState[key] == (i32)KeyAction::Release )
             mKeyboardInput.mKeyState[key] = NO_STATE;
 
         Event event = CreateEvent();
@@ -107,7 +107,7 @@ void Window::FillMouseEvents()
             continue;
 
         auto action = mMouseInput.mKeyState[key];
-        if ( mMouseInput.mKeyState[key] == (int)KeyAction::Release )
+        if ( mMouseInput.mKeyState[key] == (i32)KeyAction::Release )
             mMouseInput.mKeyState[key] = NO_STATE;
 
         Event event= CreateEvent();
@@ -129,7 +129,7 @@ bubble::Event Window::CreateEvent() const
 
 
 
-Window::Window( const std::string& name, WindowSize size )
+Window::Window( const string& name, WindowSize size )
     : mWindowSize( size )
 {
     glfwSetErrorCallback( ErrorCallback );
@@ -229,7 +229,7 @@ bool Window::ShouldClose() const
     return mShouldClose;
 }
 
-const std::vector<Event>& Window::PollEvents()
+const vector<Event>& Window::PollEvents()
 {
     mEvents.clear();
     glfwPollEvents();

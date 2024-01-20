@@ -3,7 +3,7 @@
 
 namespace bubble
 {
-constexpr std::pair<float, float>
+constexpr std::pair<f32, f32>
 AttenuationLookup[] = {		   // Distance in Meters
         { 0.7f    ,1.8f      }, // 7	
         { 0.35f   ,0.44f     }, // 13	
@@ -21,14 +21,14 @@ AttenuationLookup[] = {		   // Distance in Meters
 
 
 // Take distance between 0 and 1.0f (where 0 = 7m and 1.0f = 3250m)
-std::pair<float, float> GetAttenuationConstans( float distance )
+std::pair<f32, f32> GetAttenuationConstans( f32 distance )
 {
-    float index = distance * 11.0f; // 11 is an array size
-    float hight_coef = index - floor( index );
-    float lower_coef = 1.0f - ( index - floor( index ) );
+    f32 index = distance * 11.0f; // 11 is an array size
+    f32 hight_coef = index - floor( index );
+    f32 lower_coef = 1.0f - ( index - floor( index ) );
 
     // linear interpolation
-    int nIndex = static_cast<int>( index );
+    i32 nIndex = static_cast<i32>( index );
     auto first = AttenuationLookup[std::min( nIndex, 11 )];
     auto second = AttenuationLookup[std::min( ( nIndex + 1 ), 11 )];
 
@@ -36,7 +36,7 @@ std::pair<float, float> GetAttenuationConstans( float distance )
             first.second * lower_coef + second.second * hight_coef };
 }
 
-void Light::SetDistance( float distance )
+void Light::SetDistance( f32 distance )
 {
     auto [linear, quadratic] = GetAttenuationConstans( distance );
     Distance = distance;
@@ -49,8 +49,8 @@ void Light::Update()
     auto [linear, quadratic] = GetAttenuationConstans( Distance );
     Linear = linear;
     Quadratic = quadratic;
-    //__CutOff = cosf( glm::radians( CutOff ) );
-    //__OuterCutOff = cosf( glm::radians( OuterCutOff ) );
+    //__CutOff = cosf( radians( CutOff ) );
+    //__OuterCutOff = cosf( radians( OuterCutOff ) );
 
     // Brightens compensation
     if ( Type == LightType::PointLight || Type == LightType::SpotLight )
@@ -63,16 +63,16 @@ void Light::Update()
     }
 }
 
-Light Light::CreateDirLight( const glm::vec3& direction, const glm::vec3& color )
+Light Light::CreateDirLight( const vec3& direction, const vec3& color )
 {
     Light light;
     light.Type = LightType::DirLight;
-    light.Direction = glm::normalize( direction );
+    light.Direction = normalize( direction );
     light.Color = color;
     return light;
 }
 
-Light Light::CreatePointLight( const glm::vec3& position, float distance, const glm::vec3& color )
+Light Light::CreatePointLight( const vec3& position, f32 distance, const vec3& color )
 {
     Light light;
     light.Position = position;
@@ -83,17 +83,17 @@ Light Light::CreatePointLight( const glm::vec3& position, float distance, const 
     return light;
 }
 
-Light Light::CreateSpotLight( const glm::vec3& position,
-                              const glm::vec3& direction,
-                              float distance,
-                              float cutoff,
-                              float outer_cutoff,
-                              const glm::vec3& color )
+Light Light::CreateSpotLight( const vec3& position,
+                              const vec3& direction,
+                              f32 distance,
+                              f32 cutoff,
+                              f32 outer_cutoff,
+                              const vec3& color )
 {
     Light light;
     light.Type = LightType::SpotLight;
     light.Position = position;
-    light.Direction = glm::normalize( direction );
+    light.Direction = normalize( direction );
     light.Distance = distance;
     light.CutOff = cutoff;
     light.OuterCutOff = outer_cutoff;

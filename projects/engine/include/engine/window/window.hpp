@@ -20,26 +20,27 @@
 #include "engine/utils/imexp.hpp"
 #include "engine/window/event.hpp"
 #include "engine/window/input.hpp"
+#include "engine/utils/types.hpp"
 
 namespace bubble
 {
 struct WindowSize
 {
-    uint32_t mWidth = 0;
-    uint32_t mHeight = 0;
+    u32 mWidth = 0;
+    u32 mHeight = 0;
 };
 
  
 class BUBBLE_ENGINE_EXPORT Window
 {
 public:
-    Window( const std::string& name, WindowSize size );
+    Window( const string& name, WindowSize size );
     ~Window();
 
     WindowSize GetSize() const;
     bool ShouldClose() const;
 
-    const std::vector<Event>& PollEvents();
+    const vector<Event>& PollEvents();
     void OnUpdate();
 
     void SetVSync( bool vsync );
@@ -54,13 +55,13 @@ private:
     Event CreateEvent() const;
     void FillKeyboardEvents();
     void FillMouseEvents();
-    static void ErrorCallback( int error, const char* description );
-    static void KeyCallback( GLFWwindow* window, int key, int scancode, int action, int mods );
-    static void MouseButtonCallback( GLFWwindow* window, int key, int action, int mods );
-    static void MouseCallback( GLFWwindow* window, double xpos, double ypos );
-    static void ScrollCallback( GLFWwindow* window, double xoffset, double yoffset );
-    static void WindowSizeCallback( GLFWwindow* window, int width, int height );
-    static void FramebufferSizeCallback( GLFWwindow* window, int width, int height );
+    static void ErrorCallback( i32 error, const char* description );
+    static void KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods );
+    static void MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 mods );
+    static void MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos );
+    static void ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset );
+    static void WindowSizeCallback( GLFWwindow* window, i32 width, i32 height );
+    static void FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height );
 
     GLFWwindow* mWindow;
     ImGuiContext* mImGuiContext;
@@ -69,7 +70,7 @@ private:
     bool mShouldClose = false;
     MouseInput mMouseInput;
     KeyboardInput mKeyboardInput;
-    std::vector<Event> mEvents;
+    vector<Event> mEvents;
 };
 
 }
