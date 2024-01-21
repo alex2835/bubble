@@ -2,8 +2,10 @@
 #include "engine/utils/pointers.hpp"
 #include <glm/glm.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <array>
+#include <map>
 
 namespace bubble
 {
@@ -11,8 +13,12 @@ namespace bubble
 using namespace glm;
 
 using string = std::string;
+using string_view = std::string_view;
+
 template <typename T>
 using vector = std::vector<T>;
+template <typename K, typename V>
+using map = std::map<K, V>;
 template <typename T, size_t SIZE>
 using array = std::array<T, SIZE>;
 

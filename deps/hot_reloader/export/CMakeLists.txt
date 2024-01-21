@@ -3,7 +3,6 @@ project(hot_reloader_export VERSION 0.1.0)
 
 SET(SOURCE
    "src/function_registry.cpp"
-   "src/export.cpp"
 )
 
 add_library(hot_reloader_export STATIC ${SOURCE})

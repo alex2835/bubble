@@ -13,7 +13,6 @@
 
 namespace hr
 {
-
 template< typename Ret, typename ...Args>
 class Registrator
 {
@@ -23,8 +22,9 @@ public:
       FunctionRegistry::Get().Registrate<Ret, Args...>( function_name );
    }
 };
-
 }
+DYNALO_EXPORT const LibraryMeta& DYNALO_CALL HR_GetModuleInfo();
+
 
 #ifdef _MSC_VER // Microsoft compilers
 #   define __GET_ARG_COUNT(...)  INTERNAL_EXPAND_ARGS_PRIVATE(INTERNAL_ARGS_AUGMENTER(__VA_ARGS__))
@@ -87,7 +87,7 @@ public:
 
 
 
-#define HR_REGISTER_FUNC(ret, name, ...)                             \
+#define HR_REGISTER_FUNC(ret, name, ...)                               \
     DYNALO_EXPORT ret DYNALO_CALL BOOST_PP_CAT( HR_, name )(           \
         BOOST_PP_IF(                                                   \
              __GET_ARG_COUNT(__VA_ARGS__)                              \

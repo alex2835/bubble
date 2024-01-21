@@ -34,14 +34,15 @@ constexpr std::string_view frag_shader = R"shader(
 )shader";
 
 
-BubbleEditor::BubbleEditor() 
-    : mWindow( "Bubble", WindowSize{ 1200, 720 } )
+BubbleEditor::BubbleEditor()
+    : mWindow( "Bubble", WindowSize{ 1200, 720 } ),
+      mSceneViewport( { 640, 800 } )
 {
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
-
-    //auto editorViewportInterface = Ref<IEditorInterface>(
-    //    (IEditorInterface*)new EditorViewportInterface( mSceneViewport ) );
-    //mInterfaces.AddInterface( editorViewportInterface );
+    auto editorViewportInterface = Ref<IEditorInterface>(
+        (IEditorInterface*)new EditorViewportInterface( mSceneViewport ) );
+    mInterfaces.AddInterface( editorViewportInterface );
+    mInterfaces.LoadInterfaces();
 }
 
 void BubbleEditor::Run()
@@ -51,13 +52,13 @@ void BubbleEditor::Run()
     //auto shader = mEngine.mLoader.LoadShader( "test_shader", vert_shader, frag_shader );
     //model->mShader = shader;
 
-    glewInit();
-    FramebufferSpecification spec{ 640, 640 };
-    Framebuffer mSceneViewport( spec );
+    //glewInit();
+    //FramebufferSpecification spec{ 640, 640 };
+    //Framebuffer mSceneViewport( spec );
 
-    auto editorViewportInterface = Ref<IEditorInterface>(
-        ( IEditorInterface* )new EditorViewportInterface( mSceneViewport ) );
-    mInterfaces.AddInterface( editorViewportInterface );
+    //auto editorViewportInterface = Ref<IEditorInterface>(
+    //    ( IEditorInterface* )new EditorViewportInterface( mSceneViewport ) );
+    //mInterfaces.AddInterface( editorViewportInterface );
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
@@ -78,21 +79,22 @@ void BubbleEditor::Run()
         mSceneCamera.OnUpdate( dt );
 
         // Draw 
-        mSceneViewport.Bind();
-        glClearColor( 0.2f, 0.3f, 0.3f, 1.0f );
-        glClear( GL_COLOR_BUFFER_BIT );
-        Framebuffer::BindWindow( mWindow );
+        //mSceneViewport.Bind();
+        //glClearColor( 0.2f, 0.3f, 0.3f, 1.0f );
+        //glClear( GL_COLOR_BUFFER_BIT );
 
-        //auto size = window.GetSize();
+        //auto size = mWindow.GetSize();
         //shader->SetUniMat4( "uProjection", mSceneCamera.GetPprojectionMat( size.mWidth, size.mHeight ) );
         //shader->SetUniMat4( "uView", mSceneCamera.GetLookatMat() );
         //shader->SetUniMat4( "uModel", mat4( 1.0f ) );
-        //mRenderer.DrawModel( model );
+        //mEngine.mRenderer.DrawModel( model );
 
+        Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();
-        //ImGui::ShowDemoWindow();
+        ImGui::ShowDemoWindow();
         mInterfaces.OnDraw();
         mWindow.ImGuiEnd();
+
         mWindow.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__

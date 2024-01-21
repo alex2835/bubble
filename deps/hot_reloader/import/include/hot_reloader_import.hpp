@@ -19,7 +19,7 @@ typedef void (*FunctionPointer)(void);
 typedef std::unordered_map<std::string, FunctionPointer> FunctionsCache;
 
 
-const fs::path CACHE_DIR = "./HR_CACHE/";
+const fs::path CACHE_DIR = "HR_CACHE";
 const auto RELOAD_DELAY = 100ms;
 
 class HotReloader
@@ -75,7 +75,7 @@ public:
     * @throw If no function with such signature
     */
    template <typename FunctionSignature>
-   Function<FunctionSignature> GetFunction( const std::string& name )
+   Function<FunctionSignature> GetFunction( std::string name )
    {
       return Function<FunctionSignature>( GetFunctionRaw<FunctionSignature>( name ), GetLibraryVersion() );
    }
@@ -98,7 +98,7 @@ private:
    fs::path GetCacheDir();
    int GetLibraryVersion();
    dynalo::library& GetActiveLibrary();
-   LibraryMeta ExtractLibraryMeta( dynalo::library& lib );
+   const LibraryMeta& ExtractLibraryMeta( dynalo::library& lib );
    void UpdateMeta( dynalo::library& lib );
 
    fs::file_time_type mLastUpdateTime;

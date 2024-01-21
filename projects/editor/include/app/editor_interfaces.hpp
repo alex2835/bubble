@@ -3,7 +3,12 @@
 #include <vector>
 #include <string>
 #include "engine/utils/types.hpp"
-#include "ieditor_interface.hpp"
+#include "interface/ieditor_interface.hpp"
+
+namespace hr
+{
+class HotReloader;
+}
 
 namespace bubble
 {
@@ -20,6 +25,7 @@ public:
     void OnDraw();
 
 private:
-    std::map<string, Ref<IEditorInterface>> mInterfaces;
+    Ref<hr::HotReloader> mHotReloader;
+    map<string_view, Ref<IEditorInterface>> mInterfaces;
 };
 }

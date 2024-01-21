@@ -9,17 +9,21 @@ public:
     EditorViewportInterface( Framebuffer& viewport )
         : mViewport( viewport )
     {
-    }
-    ~EditorViewportInterface() override = default;
 
-    const string& Name() override
+    }
+
+    ~EditorViewportInterface() override
     {
-        return mName;
+
+    }
+
+    string_view Name() override
+    {
+        return "Viewport";
     }
 
     void OnInit() override
     {
-        mName = "Viewport";
         mNewSize = { 640, 640 };
     }
 
@@ -32,7 +36,7 @@ public:
     void OnDraw() override
     {
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
-        ImGui::Begin( mName.c_str(), &mOpen, ImGuiWindowFlags_NoCollapse |
+        ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse |
                                              ImGuiWindowFlags_NoTitleBar );
         {
             vec2 viewportSize = mViewport.GetSize();

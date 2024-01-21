@@ -27,6 +27,7 @@
 
 #if !defined(DYNALO_DEMANGLE)
     #if defined(__cplusplus)
+          //#define DYNALO_DEMANGLE
         #define DYNALO_DEMANGLE extern "C"
     #else
         #define DYNALO_DEMANGLE

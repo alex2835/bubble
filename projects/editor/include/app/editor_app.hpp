@@ -2,7 +2,7 @@
 #include "engine/engine.hpp"
 #include "engine/serialization/event_serialization.hpp"
 #include "scene_camera.hpp"
-#include "interface/editor_interfaces.hpp"
+#include "editor_interfaces.hpp"
 
 namespace bubble
 {
@@ -13,7 +13,7 @@ public:
     void Run();
 private:
     Window mWindow;
-    //Framebuffer mSceneViewport;
+    Framebuffer mSceneViewport;
     SceneCamera mSceneCamera;
     Engine mEngine;
     EditorInterfaces mInterfaces;
