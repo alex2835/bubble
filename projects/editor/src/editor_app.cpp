@@ -36,13 +36,14 @@ constexpr std::string_view frag_shader = R"shader(
 
 BubbleEditor::BubbleEditor()
     : mWindow( "Bubble", WindowSize{ 1200, 720 } ),
-      mSceneViewport( { 640, 800 } )
+      mSceneViewport( { 640, 800 } ),
+      mInterfaceLoader( mWindow.GetImGuiContext() )
 {
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
-    auto editorViewportInterface = Ref<IEditorInterface>(
-        (IEditorInterface*)new EditorViewportInterface( mSceneViewport ) );
-    mInterfaces.AddInterface( editorViewportInterface );
-    mInterfaces.LoadInterfaces();
+    
+    auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );
+    mInterfaceLoader.AddInterface( editorViewportInterface );
+    mInterfaceLoader.LoadInterfaces();
 }
 
 void BubbleEditor::Run()
@@ -75,7 +76,7 @@ void BubbleEditor::Run()
         mEngine.OnUpdate();
         auto dt = mEngine.mTimer.GetDeltaTime();
 
-        mInterfaces.OnUpdate( dt );
+        mInterfaceLoader.OnUpdate( dt );
         mSceneCamera.OnUpdate( dt );
 
         // Draw 
@@ -92,7 +93,7 @@ void BubbleEditor::Run()
         Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();
         ImGui::ShowDemoWindow();
-        mInterfaces.OnDraw();
+        mInterfaceLoader.OnDraw();
         mWindow.ImGuiEnd();
 
         mWindow.OnUpdate();

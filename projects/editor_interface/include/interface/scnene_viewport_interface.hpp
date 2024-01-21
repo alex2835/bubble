@@ -1,18 +1,21 @@
 #pragma once
-#include "interface/ieditor_interface.hpp"
+#include "imgui.h"
+#include "engine/utils/ieditor_interface.hpp"
+#include "engine/renderer/framebuffer.hpp"
 
 namespace bubble
 {
-class EditorViewportInterface : public IEditorInterface
+class SceneViewportInterface : public IEditorInterface
 {
 public:
-    EditorViewportInterface( Framebuffer& viewport )
-        : mViewport( viewport )
+    SceneViewportInterface( Framebuffer& viewport )
+        : mNewSize( 640, 640 ),
+          mViewport( viewport )
     {
 
     }
 
-    ~EditorViewportInterface() override
+    ~SceneViewportInterface() override
     {
 
     }
@@ -24,7 +27,7 @@ public:
 
     void OnInit() override
     {
-        mNewSize = { 640, 640 };
+
     }
 
     void OnUpdate( DeltaTime ) override

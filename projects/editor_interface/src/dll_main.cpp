@@ -1,16 +1,27 @@
 
+#include "GL/glew.h"
+#include "imgui.h"
 #include "hot_reloader_export.hpp"
+#include "engine/utils/ieditor_interface.hpp"
+#include "engine/utils/types.hpp"
 
-int mul( int a, int b )
+#include "interface/editor_window_test.hpp"
+
+using namespace bubble;
+
+void ImGuiContextInit( ImGuiContext* context )
 {
-    return a * b + 1;
+    glewInit();
+    ImGui::SetCurrentContext( context );
 }
-HR_REGISTER_FUNC( int, mul, int, int )
+HR_REGISTER_FUNC( void, ImGuiContextInit, ImGuiContext* );
 
 
-void plus( std::string& out, const std::string& a, const std::string& b )
+void LoadEditorInterface( std::vector<Ref<IEditorInterface>>& out )
 {
-    out = a + b;
-}
-HR_REGISTER_FUNC( void, plus, std::string&, const std::string&, const std::string& )
+    auto testInterface = Ref<IEditorInterface>(
+            ( IEditorInterface* ) new TestInterface() );
 
+    out.push_back( testInterface );
+}
+HR_REGISTER_FUNC( void, LoadEditorInterface, std::vector<Ref<IEditorInterface>>& );

@@ -101,4 +101,4 @@ DYNALO_EXPORT const LibraryMeta& DYNALO_CALL HR_GetModuleInfo();
             ,__GEN_EMPTY_ARGS                                          \
         )(BOOST_PP_TUPLE_TO_SEQ((__VA_ARGS__))) );                     \
     }                                                                  \
-hr::Registrator<ret, __VA_ARGS__> BOOST_PP_CAT( registrator_, name )( std::string_view( BOOST_PP_CAT( "HR_", #name ) ) );
+hr::Registrator<ret, __VA_ARGS__> BOOST_PP_CAT( registrator_, name )( std::string_view( BOOST_PP_CAT( "HR_", #name ) ) )

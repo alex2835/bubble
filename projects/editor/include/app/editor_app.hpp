@@ -1,8 +1,7 @@
 #pragma once
 #include "engine/engine.hpp"
-#include "engine/serialization/event_serialization.hpp"
 #include "scene_camera.hpp"
-#include "editor_interfaces.hpp"
+#include "editor_interface_loader.hpp"
 
 namespace bubble
 {
@@ -16,7 +15,7 @@ private:
     Framebuffer mSceneViewport;
     SceneCamera mSceneCamera;
     Engine mEngine;
-    EditorInterfaces mInterfaces;
+    EditorInterfaceLoader mInterfaceLoader;
 };
 
 }

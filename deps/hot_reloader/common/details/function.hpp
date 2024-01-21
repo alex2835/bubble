@@ -14,7 +14,7 @@ class Function<Ret(Args...)>
 using FunctionType = Ret(Args...);
 
 public:
-   Ret operator() ( Args&&... args )
+   Ret operator() ( Args&... args )
    {
       return mFunction( std::forward<Args>( args )... );
    }
