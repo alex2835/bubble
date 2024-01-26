@@ -11,8 +11,8 @@ void Engine::OnUpdate()
 void Engine::DrawScene( const Camera& camera, const Framebuffer& framebuffer )
 {
     // Uniform buffer
-    auto vertexBufferElement = mRenderer.mVertexUniformBuffer->GetElement( 0 );
-    auto size = framebuffer.GetSize();
+    auto vertexBufferElement = mRenderer.mVertexUniformBuffer->Element( 0 );
+    auto size = framebuffer.Size();
 
     vertexBufferElement.SetMat4( "uProjection", camera.GetPprojectionMat( size.x, size.y ) );
     vertexBufferElement.SetMat4( "uView", camera.GetLookatMat() );

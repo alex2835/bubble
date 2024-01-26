@@ -14,7 +14,7 @@ struct BUBBLE_ENGINE_EXPORT FramebufferSpecification
     GLsizei mHeight = 0;
     GLsizei mSamples = 1;
 
-    uvec2 GetSize() const
+    uvec2 Size() const
     {
         return { mWidth, mHeight };
     }
@@ -48,7 +48,7 @@ public:
 
     GLsizei GetWidth() const;
     GLsizei GetHeight() const;
-    uvec2 GetSize() const;
+    uvec2 Size() const;
     void Resize( uvec2 size );
 
     GLuint GetColorAttachmentRendererID() const;

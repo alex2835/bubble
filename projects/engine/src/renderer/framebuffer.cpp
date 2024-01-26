@@ -6,8 +6,8 @@ namespace bubble
 {
 Framebuffer::Framebuffer( const FramebufferSpecification& spec )
     : mSpecification( spec ),
-      mColorAttachment( Texture2DSpecification::CreateRGBA8( spec.GetSize() ) ),
-      mDepthAttachment( Texture2DSpecification::CreateDepth( spec.GetSize() ) )
+      mColorAttachment( Texture2DSpecification::CreateRGBA8( spec.Size() ) ),
+      mDepthAttachment( Texture2DSpecification::CreateDepth( spec.Size() ) )
 {
     Invalidate();
 }
@@ -112,11 +112,11 @@ void Framebuffer::Unbind() const
 void Framebuffer::BindWindow( Window& window )
 {
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
-    WindowSize window_size = window.GetSize();
+    WindowSize window_size = window.Size();
     glViewport( 0, 0, window_size.mWidth, window_size.mHeight );
 }
 
-uvec2 Framebuffer::GetSize() const
+uvec2 Framebuffer::Size() const
 {
     return { GetWidth(), GetHeight() };
 }

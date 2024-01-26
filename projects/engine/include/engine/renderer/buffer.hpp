@@ -54,16 +54,17 @@ public:
     BufferLayout( const std::initializer_list<BufferElement>& elements );
     ~BufferLayout();
 
-    u64 GetStride() const;
+    void SetStride( u64 stride );
+    u64 Stride() const;
     u64 Size() const;
-    const vector<BufferElement>& GetElements() const;
+    const vector<BufferElement>& Elements() const;
 
     vector<BufferElement>::iterator begin();
     vector<BufferElement>::iterator end();
     vector<BufferElement>::const_iterator begin() const;
     vector<BufferElement>::const_iterator end() const;
 
-//private:
+private:
     void CalculateOffsetsAndStride();
     vector<BufferElement> mElements;
     u64 mStride = 0;
@@ -88,8 +89,8 @@ public:
     void Unbind() const;
     void SetData( const void* data, u32 size );
     void SetLayout( const BufferLayout& layout );
-    const BufferLayout& GetLayout() const;
-    u64 GetSize();
+    const BufferLayout& Layout() const;
+    u64 Size();
 
 //private:
     GLuint mRendererID = 0;
@@ -165,22 +166,21 @@ public:
     UniformBuffer& operator=( UniformBuffer&& ) noexcept;
     ~UniformBuffer();
 
-    GLint RendererID() const;
-    const string& Name() const;
-    u64 Index() const;
-    const BufferLayout& Layout() const;
-
     // Raw (Don't forget to fallow std140 paddings)
     void SetData( const void* data, u32 size, u32 offset = 0 );
 
-    UniformArrayElemnt operator[] ( u64 index );
-    UniformArrayElemnt GetElement ( u64 index );
+    GLint RendererID() const;
+    const string& Name() const;
+    u64 Index() const;
 
-    const BufferLayout& GetLayout() const;
+    UniformArrayElemnt operator[] ( u64 index );
+    UniformArrayElemnt Element ( u64 index );
+
+    const BufferLayout& Layout() const;
     // Return size in bytes
-    u64 GetBufferSize();
+    u64 BufferSize();
     // Return size of elements
-    u64 GetSize();
+    u64 Size();
 
 private:
     // Recalculate size and offset of elements for std140

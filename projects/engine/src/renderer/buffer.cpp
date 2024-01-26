@@ -174,7 +174,12 @@ BufferLayout::~BufferLayout()
 {
 }
 
-u64 BufferLayout::GetStride() const
+void BufferLayout::SetStride( u64 stride )
+{
+    mStride = stride;
+}
+
+u64 BufferLayout::Stride() const
 {
     return mStride;
 }
@@ -184,7 +189,7 @@ u64 BufferLayout::Size() const
     return mElements.size();
 }
 
-const vector<BufferElement>& BufferLayout::GetElements() const
+const vector<BufferElement>& BufferLayout::Elements() const
 {
     return mElements;
 }
@@ -285,7 +290,7 @@ void VertexBuffer::SetData( const void* data, u32 size )
     glcall( glBufferSubData( GL_ARRAY_BUFFER, 0, size, data ) );
 }
 
-const BufferLayout& VertexBuffer::GetLayout() const
+const BufferLayout& VertexBuffer::Layout() const
 {
     return mLayout;
 }
@@ -295,7 +300,7 @@ void VertexBuffer::SetLayout( const BufferLayout& layout )
     mLayout = layout;
 }
 
-u64 VertexBuffer::GetSize()
+u64 VertexBuffer::Size()
 {
     return mSize;
 }
@@ -399,12 +404,12 @@ void VertexArray::Unbind() const
 
 void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
 {
-    BUBBLE_ASSERT( vertexBuffer.GetLayout().Size(), "VertexBuffer has no layout!" );
+    BUBBLE_ASSERT( vertexBuffer.Layout().Size(), "VertexBuffer has no layout!" );
 
     Bind();
     vertexBuffer.Bind();
 
-    const auto& layout = vertexBuffer.GetLayout();
+    const auto& layout = vertexBuffer.Layout();
     for ( const auto& element : layout )
     {
         switch ( element.mType )
@@ -424,7 +429,7 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
                     GLSLDataComponentCount( element.mType ),
                     GLSLDataTypeToOpenGLBasemType( element.mType ),
                     element.mNormalized ? GL_TRUE : GL_FALSE,
-                    GLsizei( layout.GetStride() ? layout.GetStride() : element.mSize ),
+                    GLsizei( layout.Stride() ? layout.Stride() : element.mSize ),
                     (const void*)element.mOffset ) );
             VertexBufferIndex( mVertexBufferIndex + 1 );
         }break;
@@ -439,7 +444,7 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
                         count,
                         GLSLDataTypeToOpenGLBasemType( element.mType ),
                         element.mNormalized ? GL_TRUE : GL_FALSE,
-                        GLsizei( layout.GetStride() ? layout.GetStride() : element.mSize ),
+                        GLsizei( layout.Stride() ? layout.Stride() : element.mSize ),
                         (const void*)( sizeof( f32 ) * count * i ) ) );
                 glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
                 VertexBufferIndex( mVertexBufferIndex + 1 );
@@ -496,7 +501,7 @@ UniformBuffer::UniformBuffer( string name,
       mSize( size )
 {
     CalculateOffsetsAndStride();
-    mBufferSize = mLayout.mStride * size + additional_size;
+    mBufferSize = mLayout.Stride() * size + additional_size;
 
     glGenBuffers( 1, &mRendererID );
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
@@ -554,11 +559,6 @@ u64 UniformBuffer::Index() const
     return mIndex;
 }
 
-const BufferLayout& UniformBuffer::Layout() const
-{
-    return mLayout;
-}
-
 void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
 {
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
@@ -567,10 +567,10 @@ void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
 
 UniformArrayElemnt UniformBuffer::operator[]( u64 index )
 {
-    return GetElement( index );
+    return Element( index );
 }
 
-bubble::UniformArrayElemnt UniformBuffer::GetElement( u64 index )
+bubble::UniformArrayElemnt UniformBuffer::Element( u64 index )
 {
     BUBBLE_ASSERT( index < mSize, "Buffer access valiation" );
     return UniformArrayElemnt( *this, index );
@@ -600,19 +600,19 @@ void UniformBuffer::CalculateOffsetsAndStride()
     if( notFilledSpace )
         offset += vec4Size - notFilledSpace;
 
-    mLayout.mStride = offset;
+    mLayout.SetStride( offset );
 }
 
-const BufferLayout& UniformBuffer::GetLayout() const
+const BufferLayout& UniformBuffer::Layout() const
 {
     return mLayout;
 };
 
-u64 UniformBuffer::GetBufferSize()
+u64 UniformBuffer::BufferSize()
 {
     return mBufferSize;
 }
-u64 UniformBuffer::GetSize()
+u64 UniformBuffer::Size()
 {
     return mSize;
 };
@@ -627,8 +627,8 @@ UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64
 
 void UniformArrayElemnt::SetData( const void* data, u64 size, u64 offset )
 {
-    u64 array_index_offset = mLayout.mStride * mArrayIndex;
-    size = size ? size : mLayout.mStride;
+    u64 array_index_offset = mLayout.Stride() * mArrayIndex;
+    size = size ? size : mLayout.Stride();
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset + offset, size, data );
 }
@@ -688,7 +688,7 @@ const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, 
 
 void UniformArrayElemnt::SetRawData( const BufferElement& elem, const void* data )
 {
-    u64 array_index_offset = mLayout.mStride * mArrayIndex + elem.mOffset;
+    u64 array_index_offset = mLayout.Stride() * mArrayIndex + elem.mOffset;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem.mSize, data );
     glBindBuffer( GL_UNIFORM_BUFFER, 0 );

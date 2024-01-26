@@ -44,7 +44,7 @@ void Window::MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 m
 void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    auto window_size = win->GetSize();
+    auto window_size = win->Size();
     auto mouse_pos = vec2( xpos, window_size.mHeight - ypos );
     win->mMouseInput.mMouseOffset = mouse_pos - win->mMouseInput.mMousePos;
     win->mMouseInput.mMousePos = mouse_pos;
@@ -219,7 +219,7 @@ Window::~Window()
     glfwTerminate();
 }
 
-WindowSize Window::GetSize() const 
+WindowSize Window::Size() const 
 {
     return mWindowSize;
 }

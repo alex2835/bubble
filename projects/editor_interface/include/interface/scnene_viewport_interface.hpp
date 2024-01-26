@@ -32,7 +32,7 @@ public:
 
     void OnUpdate( DeltaTime ) override
     {
-        if ( mNewSize != mViewport.GetSize() )
+        if ( mNewSize != mViewport.Size() )
             mViewport.Resize( mNewSize );
     }
 
@@ -42,7 +42,7 @@ public:
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse |
                                              ImGuiWindowFlags_NoTitleBar );
         {
-            vec2 viewportSize = mViewport.GetSize();
+            vec2 viewportSize = mViewport.Size();
             ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
 
             u64 textureId = mViewport.GetColorAttachmentRendererID();

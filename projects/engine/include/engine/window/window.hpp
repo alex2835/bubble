@@ -37,7 +37,7 @@ public:
     Window( const string& name, WindowSize size );
     ~Window();
 
-    WindowSize GetSize() const;
+    WindowSize Size() const;
     bool ShouldClose() const;
 
     const vector<Event>& PollEvents();
