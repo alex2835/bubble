@@ -121,10 +121,10 @@ void Shader::SetTexture2D( const string& name, const Ref<Texture2D>& texture, i3
 
 void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
 {
-    auto shaderBufferIndex = GetUniformBuffer( ub->mName );
+    auto shaderBufferIndex = GetUniformBuffer( ub->Name() );
     if ( shaderBufferIndex != GL_INVALID_INDEX )
     {
-        glcall( glUniformBlockBinding( mShaderID, shaderBufferIndex, (GLint)ub->mIndex ) );
+        glcall( glUniformBlockBinding( mShaderID, shaderBufferIndex, (GLint)ub->Index() ) );
     }
 }
 

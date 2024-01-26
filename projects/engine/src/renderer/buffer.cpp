@@ -539,6 +539,26 @@ UniformBuffer::~UniformBuffer()
     glDeleteBuffers( 1, &mRendererID );
 }
 
+GLint UniformBuffer::RendererID() const
+{
+    return mRendererID;
+}
+
+const string& UniformBuffer::Name() const
+{
+    return mName;
+}
+
+u64 UniformBuffer::Index() const
+{
+    return mIndex;
+}
+
+const BufferLayout& UniformBuffer::Layout() const
+{
+    return mLayout;
+}
+
 void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
 {
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
@@ -599,16 +619,16 @@ u64 UniformBuffer::GetSize()
 
 // UniformArrayElemnt 
 UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64 index )
-    : mLayout( &uniform_buffer.mLayout ),
-      mRendererID( uniform_buffer.mRendererID ),
+    : mLayout( uniform_buffer.Layout() ),
+      mRendererID( uniform_buffer.RendererID() ),
       mArrayIndex( index )
 {
 }
 
 void UniformArrayElemnt::SetData( const void* data, u64 size, u64 offset )
 {
-    u64 array_index_offset = mLayout->mStride * mArrayIndex;
-    size = size ? size : mLayout->mStride;
+    u64 array_index_offset = mLayout.mStride * mArrayIndex;
+    size = size ? size : mLayout.mStride;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset + offset, size, data );
 }
@@ -657,18 +677,18 @@ void UniformArrayElemnt::SetMat4( const string& name, const mat4& data )
 
 const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, GLSLDataType type )
 {
-    auto elem = std::find_if( mLayout->begin(), mLayout->end(),
+    auto elem = std::find_if( mLayout.begin(), mLayout.end(),
                               [&name, &type]( const BufferElement& elem )
     {
         return elem.mName == name && elem.mType == type;
     } );
-    BUBBLE_ASSERT( elem != mLayout->end(), "Uniform buffer element not founded" );
+    BUBBLE_ASSERT( elem != mLayout.end(), "Uniform buffer element not founded" );
     return *elem;
 }
 
 void UniformArrayElemnt::SetRawData( const BufferElement& elem, const void* data )
 {
-    u64 array_index_offset = mLayout->mStride * mArrayIndex + elem.mOffset;
+    u64 array_index_offset = mLayout.mStride * mArrayIndex + elem.mOffset;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem.mSize, data );
     glBindBuffer( GL_UNIFORM_BUFFER, 0 );

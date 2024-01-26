@@ -157,17 +157,18 @@ private:
 class BUBBLE_ENGINE_EXPORT UniformBuffer
 {
 public:
-    //UniformBuffer() = default;
     // additional size necessary if buffer contain more then one array (for example nLights)
     UniformBuffer( string name, i32 index, const BufferLayout& layout, u32 size = 1, u32 additional_size = 0 );
-
     UniformBuffer( const UniformBuffer& ) = delete;
     UniformBuffer& operator=( const UniformBuffer& ) = delete;
-
     UniformBuffer( UniformBuffer&& ) noexcept;
     UniformBuffer& operator=( UniformBuffer&& ) noexcept;
-
     ~UniformBuffer();
+
+    GLint RendererID() const;
+    const string& Name() const;
+    u64 Index() const;
+    const BufferLayout& Layout() const;
 
     // Raw (Don't forget to fallow std140 paddings)
     void SetData( const void* data, u32 size, u32 offset = 0 );
@@ -181,8 +182,7 @@ public:
     // Return size of elements
     u64 GetSize();
 
-
-//private:
+private:
     // Recalculate size and offset of elements for std140
     void CalculateOffsetsAndStride();
 
@@ -203,7 +203,7 @@ struct BUBBLE_ENGINE_EXPORT UniformArrayElemnt
 {
     GLuint mRendererID = 0;
     u64 mArrayIndex = 0;
-    const BufferLayout* mLayout;
+    const BufferLayout& mLayout;
 
     UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64 index );
 
