@@ -8,6 +8,7 @@
 #include "engine/utils/types.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/texture.hpp"
+#include "engine/renderer/buffer.hpp"
 
 namespace bubble
 {
@@ -22,7 +23,8 @@ public:
     Shader( Shader&& ) noexcept;
     Shader& operator= ( Shader&& ) noexcept;
 
-    i32 GetUni( const string& name ) const;
+    i32 GetUniform( const string& name ) const;
+    i32 GetUniformBuffer( const string& name ) const;
 
     void Bind() const;
     void Unbind() const;
@@ -44,6 +46,9 @@ public:
     void SetTexture2D( const string& name, i32 tex_id, i32 slot = 0 ) const;
     void SetTexture2D( const string& name, const Texture2D& texture, i32 slot = 0 ) const;
     void SetTexture2D( const string& name, const Ref<Texture2D>& texture, i32 slot = 0 ) const;
+
+    // Uniform buffer
+    void SetUniformBuffer( const Ref<UniformBuffer>& ub );
 
 //private:
     string mName;

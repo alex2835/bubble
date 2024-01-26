@@ -9,7 +9,7 @@ int main( void )
         application.Run();
     }
     catch ( const std::exception& e )
-    {
+    { 
         std::cout << e.what() << std::endl;
         return 1;
     }

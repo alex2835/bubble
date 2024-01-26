@@ -10,7 +10,7 @@ using namespace std::filesystem;
 template <typename StringType>
 StringType ReplaceAll( StringType str, const StringType& from, const StringType& to )
 {
-	size_t start_pos = 0;
+	u64 start_pos = 0;
 	while ( ( start_pos = str.find( from, start_pos ) ) != StringType::npos )
 	{
 		str.replace( start_pos, from.length(), to );

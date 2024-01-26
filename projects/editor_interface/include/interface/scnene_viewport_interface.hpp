@@ -49,7 +49,7 @@ public:
             ImVec2 textureSize = ImVec2( (float)mViewport.GetWidth(),
                                          (float)mViewport.GetHeight() );
             ImGui::Image( (ImTextureID)textureId, textureSize,
-                          ImVec2( 1, 1 ), ImVec2( 0, 0 ) );
+                          ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
             mNewSize = { imguiViewportSize.x, imguiViewportSize.y };
 
             //if ( ImGui::IsItemHovered() )

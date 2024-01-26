@@ -32,6 +32,8 @@ inline void PrintOpenGLErrors( char const* const Function, char const* const Fil
 
 #ifdef _DEBUG
 #define glcall(x) GLClearError(); x; bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__);
+#define glclear() GLClearError()
+#define glcheck(s) bubble::PrintOpenGLErrors(s, __FILE__, __LINE__)
 #else
 #define glcall(x) (x)
 #endif

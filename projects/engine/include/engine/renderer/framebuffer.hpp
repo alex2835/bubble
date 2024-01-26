@@ -13,6 +13,11 @@ struct BUBBLE_ENGINE_EXPORT FramebufferSpecification
     GLsizei mWidth = 0;
     GLsizei mHeight = 0;
     GLsizei mSamples = 1;
+
+    uvec2 GetSize() const
+    {
+        return { mWidth, mHeight };
+    }
 };
 
 
@@ -27,7 +32,7 @@ public:
     Framebuffer& operator = ( Framebuffer&& other ) noexcept;
 
     Framebuffer( const FramebufferSpecification& spec );
-    Framebuffer( Texture2D&& color, Texture2D&& depth = Texture2D() );
+    Framebuffer( Texture2D&& color, Texture2D&& depth );
 
     void SetColorAttachment( Texture2D&& texture );
     void SetDepthAttachment( Texture2D&& texture );

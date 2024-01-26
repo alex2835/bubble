@@ -131,7 +131,7 @@ u32 Std140DataTypeSize( GLSLDataType type )
 }
 
 
-u32 Std140DataTypePadding( GLSLDataType type )
+u32 Std140DataTypeAligment( GLSLDataType type )
 {
     switch ( type )
     {
@@ -163,22 +163,7 @@ u32 Std140DataTypePadding( GLSLDataType type )
 }
 
 
-
-//// BufferElement
-//BufferElement::BufferElement( GLSLDataType type,
-//                              const string& name,
-//                              size_t count,
-//                              bool normalized )
-//    : mName( name ),
-//      mType( type ),
-//      mSize( GLSLDataTypeSize( type ) ),
-//      mOffset( 0 ),
-//      mCount( count ),
-//      mNormalized( normalized )
-//{
-//}
-
-// BufferLayout
+// Buffer layout
 BufferLayout::BufferLayout( const std::initializer_list<BufferElement>& elements )
     : mElements( elements )
 {
@@ -189,12 +174,12 @@ BufferLayout::~BufferLayout()
 {
 }
 
-size_t BufferLayout::GetStride() const
+u64 BufferLayout::GetStride() const
 {
     return mStride;
 }
 
-size_t BufferLayout::Size() const
+u64 BufferLayout::Size() const
 {
     return mElements.size();
 }
@@ -223,7 +208,7 @@ vector<BufferElement>::const_iterator BufferLayout::end() const
 
 void BufferLayout::CalculateOffsetsAndStride()
 {
-    size_t offset = 0;
+    u64 offset = 0;
     for ( auto& element : mElements )
     {
         element.mOffset = offset;
@@ -240,7 +225,7 @@ void BufferLayout::CalculateOffsetsAndStride()
 
 
 // Vertex buffer 
-VertexBuffer::VertexBuffer( const BufferLayout& layout, size_t size )
+VertexBuffer::VertexBuffer( const BufferLayout& layout, u64 size )
     : mLayout( layout ), 
       mSize( size )
 {
@@ -249,7 +234,7 @@ VertexBuffer::VertexBuffer( const BufferLayout& layout, size_t size )
     glcall( glBufferData( GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW ) );
 }
 
-VertexBuffer::VertexBuffer( const BufferLayout& layout, void* vertices, size_t size )
+VertexBuffer::VertexBuffer( const BufferLayout& layout, void* vertices, u64 size )
     : mLayout( layout ),
       mSize( size )
 {
@@ -310,14 +295,14 @@ void VertexBuffer::SetLayout( const BufferLayout& layout )
     mLayout = layout;
 }
 
-size_t VertexBuffer::GetSize()
+u64 VertexBuffer::GetSize()
 {
     return mSize;
 }
 
 
 // Index buffer
-IndexBuffer::IndexBuffer( u32* indices, size_t count )
+IndexBuffer::IndexBuffer( u32* indices, u64 count )
     : mCount( count )
 {
     glcall( glGenBuffers( 1, &mRendererID ) );
@@ -360,7 +345,7 @@ void IndexBuffer::Unbind() const
     glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 ) );
 }
 
-size_t IndexBuffer::GetCount() const
+u64 IndexBuffer::GetCount() const
 {
     return mCount;
 }
@@ -500,11 +485,13 @@ void VertexArray::VertexBufferIndex( u32 val )
 
 
 // UniformBuffer 
-UniformBuffer::UniformBuffer( i32 index,
+UniformBuffer::UniformBuffer( string name,
+                              i32 index,
                               const BufferLayout& layout,
                               u32 size,
                               u32 additional_size )
-    : mLayout( layout ),
+    : mName( std::move( name ) ),
+      mLayout( layout ),
       mIndex( index ),
       mSize( size )
 {
@@ -513,17 +500,17 @@ UniformBuffer::UniformBuffer( i32 index,
 
     glGenBuffers( 1, &mRendererID );
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferData( GL_UNIFORM_BUFFER, mBufferSize, NULL, GL_STATIC_DRAW );
+    glBufferData( GL_UNIFORM_BUFFER, mBufferSize, NULL, GL_DYNAMIC_DRAW );
 
     glBindBufferRange( GL_UNIFORM_BUFFER, index, mRendererID, 0, mBufferSize );
 }
 
 UniformBuffer::UniformBuffer( UniformBuffer&& other ) noexcept
     : mRendererID( other.mRendererID ),
-    mBufferSize( other.mBufferSize ),
-    mLayout( std::move( other.mLayout ) ),
-    mIndex( other.mIndex ),
-    mSize( other.mSize )
+      mBufferSize( other.mBufferSize ),
+      mLayout( std::move( other.mLayout ) ),
+      mIndex( other.mIndex ),
+      mSize( other.mSize )
 {
     other.mRendererID = 0;
     other.mSize = 0;
@@ -558,32 +545,40 @@ void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
     glBufferSubData( GL_UNIFORM_BUFFER, offset, size, data );
 }
 
-UniformArrayElemnt UniformBuffer::operator[]( i32 index )
+UniformArrayElemnt UniformBuffer::operator[]( u64 index )
 {
-    BUBBLE_ASSERT( *(u32*)&index < mSize, "Buffer acess valiation" );
+    return GetElement( index );
+}
+
+bubble::UniformArrayElemnt UniformBuffer::GetElement( u64 index )
+{
+    BUBBLE_ASSERT( index < mSize, "Buffer access valiation" );
     return UniformArrayElemnt( *this, index );
 }
 
 void UniformBuffer::CalculateOffsetsAndStride()
 {
-    size_t offset = 0;
-    size_t pad = 0;  // padding in std140
+    u64 offset = 0;
+    u64 additionalAlignment = 0; // std140 aligment
 
     for ( BufferElement& elemnt : mLayout )
     {
-        size_t std140_pad = Std140DataTypePadding( elemnt.mType );
+        u64 std140Aligment = Std140DataTypeAligment( elemnt.mType );
         elemnt.mSize = Std140DataTypeSize( elemnt.mType );
 
-        pad = offset % std140_pad;
-        pad = pad > 0 ? std140_pad - pad : 0;
+        auto notFilledSpace = offset % std140Aligment;
+        if( notFilledSpace )
+            additionalAlignment = std140Aligment - notFilledSpace;
 
-        elemnt.mOffset = offset + pad;
-        offset += elemnt.mSize + pad;
+        elemnt.mOffset = offset + additionalAlignment;
+        offset += elemnt.mSize + additionalAlignment;
     }
     // Align by vec4 size
-    size_t vec4_size = Std140DataTypeSize( GLSLDataType::Float4 );
-    pad = offset % vec4_size;
-    offset += pad > 0 ? vec4_size - pad : 0;
+    u64 vec4Size = Std140DataTypeSize( GLSLDataType::Float4 );
+    
+    auto notFilledSpace = offset % vec4Size;
+    if( notFilledSpace )
+        offset += vec4Size - notFilledSpace;
 
     mLayout.mStride = offset;
 }
@@ -593,31 +588,30 @@ const BufferLayout& UniformBuffer::GetLayout() const
     return mLayout;
 };
 
-size_t UniformBuffer::GetBufferSize()
+u64 UniformBuffer::GetBufferSize()
 {
     return mBufferSize;
 }
-size_t UniformBuffer::GetSize()
+u64 UniformBuffer::GetSize()
 {
     return mSize;
 };
 
 // UniformArrayElemnt 
-UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, i32 index )
+UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64 index )
     : mLayout( &uniform_buffer.mLayout ),
       mRendererID( uniform_buffer.mRendererID ),
       mArrayIndex( index )
 {
 }
 
-void UniformArrayElemnt::SetData( const void* data, size_t size, u32 offset )
+void UniformArrayElemnt::SetData( const void* data, u64 size, u64 offset )
 {
-    size_t array_index_offset = mLayout->mStride * mArrayIndex;
+    u64 array_index_offset = mLayout->mStride * mArrayIndex;
     size = size ? size : mLayout->mStride;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset + offset, size, data );
 }
-
 
 void UniformArrayElemnt::SetInt( const string& name, i32 data )
 {
@@ -674,7 +668,7 @@ const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, 
 
 void UniformArrayElemnt::SetRawData( const BufferElement& elem, const void* data )
 {
-    size_t array_index_offset = mLayout->mStride * mArrayIndex + elem.mOffset;
+    u64 array_index_offset = mLayout->mStride * mArrayIndex + elem.mOffset;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem.mSize, data );
     glBindBuffer( GL_UNIFORM_BUFFER, 0 );

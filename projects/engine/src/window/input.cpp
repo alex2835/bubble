@@ -8,7 +8,7 @@ namespace bubble
 
 MouseInput::MouseInput()
 {
-    for ( size_t key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
+    for ( u64 key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
         mKeyState[key] = NO_STATE;
 }   
 
@@ -31,7 +31,7 @@ i32 MouseInput::IsKeyPressed( MouseKey key ) const
 
 KeyboardInput::KeyboardInput()
 {
-    for ( size_t key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
+    for ( u64 key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
         mKeyState[key] = NO_STATE;
 }
 

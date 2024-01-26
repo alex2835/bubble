@@ -9,7 +9,6 @@
 
 namespace bubble
 {
-
 using namespace glm;
 
 using string = std::string;
@@ -19,7 +18,7 @@ template <typename T>
 using vector = std::vector<T>;
 template <typename K, typename V>
 using map = std::map<K, V>;
-template <typename T, size_t SIZE>
+template <typename T, u64 SIZE>
 using array = std::array<T, SIZE>;
 
 using i8 = std::int8_t;

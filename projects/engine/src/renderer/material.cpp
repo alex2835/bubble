@@ -3,36 +3,11 @@
 
 namespace bubble
 {
-ColorMaterial::ColorMaterial( const vec3& ambient,
-                              const vec3& diffuse,
-                              const vec3& specular,
-                              i32 shininess )
-    : mAmbient( ambient ),
-      mDiffuse( diffuse ),
-      mSpecular( specular ),
-      mShininess( shininess )
+
+
+void BasicMaterial::Apply( const Ref<Shader>& shader ) const
 {
-}
-
-void ColorMaterial::Set( const Ref<Shader>& shader )
-{
-
-}
-
-
-BasicMaterial::BasicMaterial( const Ref<Texture2D>& diffuse_map,
-                                  const Ref<Texture2D>& specular_map,
-                                  const Ref<Texture2D>& normal_map,
-                                  i32 shininess )
-    : mDiffuseMap( diffuse_map ),
-      mSpecularMap( specular_map ),
-      mNormalMap( normal_map ),
-      mShininess( shininess )
-{
-}
-
-void BasicMaterial::Set( const Ref<Shader>& shader ) const
-{
+    shader->Bind();
     shader->SetUni4f( "material.diffuse_color", mDiffuseColor );
     shader->SetUni1f( "material.specular_coef", mSpecularCoef );
     shader->SetUni1f( "material.ambient_coef", mAmbientCoef );
@@ -41,8 +16,11 @@ void BasicMaterial::Set( const Ref<Shader>& shader ) const
     shader->SetUni1i( "material.diffuse_map", 0 );
     mDiffuseMap->Bind( 0 );
 
-    shader->SetUni1i( "material.specular_map", 1 );
-    mSpecularMap->Bind( 1 );
+    if ( mSpecularMap )
+    {
+        shader->SetUni1i( "material.specular_map", 1 );
+        mSpecularMap->Bind( 1 );
+    }
 
     if( mNormalMap )
     {

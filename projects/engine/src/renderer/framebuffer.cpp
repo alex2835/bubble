@@ -6,8 +6,8 @@ namespace bubble
 {
 Framebuffer::Framebuffer( const FramebufferSpecification& spec )
     : mSpecification( spec ),
-      mColorAttachment( Texture2DSpecification::CreateRGBA8() ),
-      mDepthAttachment( Texture2DSpecification::CreateDepth() )
+      mColorAttachment( Texture2DSpecification::CreateRGBA8( spec.GetSize() ) ),
+      mDepthAttachment( Texture2DSpecification::CreateDepth( spec.GetSize() ) )
 {
     Invalidate();
 }
@@ -21,11 +21,11 @@ Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
 }
 
 Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
+     :  mColorAttachment( std::move( other.mColorAttachment ) ),
+        mDepthAttachment( std::move( other.mDepthAttachment ) )
 {
     mRendererID = other.mRendererID;
     mSpecification = other.mSpecification;
-    mColorAttachment = std::move( other.mColorAttachment );
-    mDepthAttachment = std::move( other.mDepthAttachment );
     other.mRendererID = 0;
 }
 

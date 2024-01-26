@@ -81,7 +81,7 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height 
 
 void Window::FillKeyboardEvents()
 {
-    for ( size_t key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
+    for ( u64 key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
     {
         if ( mKeyboardInput.mKeyState[key] == NO_STATE )
             continue;
@@ -101,7 +101,7 @@ void Window::FillKeyboardEvents()
 
 void Window::FillMouseEvents()
 {
-    for ( size_t key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
+    for ( u64 key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
     {
         if ( mMouseInput.mKeyState[key] == NO_STATE )
             continue;

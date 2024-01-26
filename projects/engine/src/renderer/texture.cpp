@@ -73,21 +73,6 @@ Texture2DSpecification::Texture2DSpecification( uvec2 size )
       mHeight( size.y )
 {}
 
-//Texture2D::Texture2D( const vec4& color )
-//{
-//    mSpecification.mWidth = 1;
-//    mSpecification.mHeight = 1;
-//    mSpecification.mInternalFormat = GL_RGBA8;
-//    mSpecification.mDataFormat = GL_RGBA;
-//    mSpecification.mChanelFormat = GL_FLOAT;
-//    mSpecification.mMinFiler = GL_NEAREST;
-//    mSpecification.mMagFilter = GL_NEAREST;
-//    mSpecification.mWrapS = GL_REPEAT;
-//    mSpecification.mWrapT = GL_REPEAT;
-//    Invalidate();
-//    SetData( (void*)&color, 4 );
-//}
-
 Texture2D::Texture2D( const Texture2DSpecification& spec )
     : mSpecification( spec )
 {
@@ -109,10 +94,6 @@ Texture2D::Texture2D( Texture2D&& other ) noexcept
     other.mRendererID = 0;
 }
 
-Texture2D::Texture2D()
-    : mSpecification( Texture2DSpecification::CreateRGBA8() )
-{}
-
 Texture2D& Texture2D::operator=( Texture2D&& other ) noexcept
 {
     if( this != &other )
@@ -132,7 +113,7 @@ Texture2D::~Texture2D()
     glDeleteTextures( 1, &mRendererID );
 }
 
-void Texture2D::SetData( void* data, size_t size )
+void Texture2D::SetData( void* data, u64 size )
 {
     Bind();
     u32 channels = mSpecification.ExtractTextureSpecChannels();
@@ -141,7 +122,7 @@ void Texture2D::SetData( void* data, size_t size )
             mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }
 
-void Texture2D::GetData( void* data, size_t size ) const
+void Texture2D::GetData( void* data, u64 size ) const
 {
     Bind();
     u32 channels = mSpecification.ExtractTextureSpecChannels();

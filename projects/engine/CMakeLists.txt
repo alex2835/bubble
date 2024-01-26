@@ -29,7 +29,7 @@ if(EMSCRIPTEN)
 	)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 	target_compile_options(${TARGET_NAME} PUBLIC
-	  # C4251 suppress stl dll warnings
+	  # C4251 suppress stl dll export warnings
 	  /wd4251 /WX
 	)
 endif()

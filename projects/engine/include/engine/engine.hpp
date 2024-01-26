@@ -16,5 +16,6 @@ struct BUBBLE_ENGINE_EXPORT Engine
     Renderer mRenderer;
 
     void OnUpdate();
+    void DrawScene( const Camera& mCamera, const Framebuffer& mFramebuffer );
 };
 }

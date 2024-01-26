@@ -1,5 +1,6 @@
 #pragma once
 #include "recs/registry.hpp"
+#include "components.hpp"
 
 namespace bubble
 {

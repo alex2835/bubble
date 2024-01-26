@@ -30,12 +30,11 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& path )
     if ( data == nullptr )
         throw std::runtime_error( std::format( "Failed to load image: {}", path.string() ) );
 
-    Ref<Texture2D> texture = CreateRef<Texture2D>();
-    texture->mSpecification.mWidth = width;
-    texture->mSpecification.mHeight = height;
-    texture->mSpecification.SetTextureSpecChanels( channels );
-    texture->mSpecification.mAnisotropicFiltering = true;
-    texture->Invalidate();
+    auto spec = Texture2DSpecification::CreateRGBA8( { width, height } );
+    spec.SetTextureSpecChanels( channels );
+    spec.mAnisotropicFiltering = true;
+
+    Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
     texture->SetData( data, width * height * channels );
     stbi_image_free( data );
     return texture;

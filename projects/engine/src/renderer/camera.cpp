@@ -9,10 +9,10 @@ Camera::Camera( const vec3& position,
                 f32 fov,
                 const vec3& up )
     : mPosition( position ),
-    mWorldUp( up ),
-    mYaw( yaw ),
-    mPitch( pitch ),
-    mFov( fov )
+      mWorldUp( up ),
+      mYaw( yaw ),
+      mPitch( pitch ),
+      mFov( fov )
 {
     UpdateCameraVectors();
 }

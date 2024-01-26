@@ -8,25 +8,30 @@ namespace bubble
 {
 
 constexpr std::string_view vert_shader = R"shader(
-    #version 420 core
-    layout(location = 0) in vec3 a_Position;
+    #version 330 core
+    layout(location = 0) in vec3 aPosition;
     
-    uniform mat4 uProjection;
-    uniform mat4 uView;
+    layout(std140) uniform VertexUniformBuffer
+    {
+        mat4 uProjection;
+        mat4 uView;
+    };
+    //uniform mat4 uProjection;
+    //uniform mat4 uView;
+
     uniform mat4 uModel;
 
     void main()
     {
-        gl_Position = uProjection * uView * uModel * vec4(a_Position, 1.0);
+        gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
     }
 )shader";
 
 constexpr std::string_view frag_shader = R"shader(
-    #version 420 core
+    #version 330 core
     out vec4 FragColor;
     
-    uniform vec4 u_Color;
-    
+    uniform vec4 uColor;
     void main()
     {
         FragColor = vec4(1. );
@@ -39,8 +44,9 @@ BubbleEditor::BubbleEditor()
       mSceneViewport( { 640, 800 } ),
       mInterfaceLoader( mWindow.GetImGuiContext() )
 {
+    glewInit();
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
-    
+
     auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );
     mInterfaceLoader.AddInterface( editorViewportInterface );
     mInterfaceLoader.LoadInterfaces();
@@ -48,18 +54,15 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    //path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
-    //auto model = mEngine.mLoader.LoadModel( model_path );
-    //auto shader = mEngine.mLoader.LoadShader( "test_shader", vert_shader, frag_shader );
-    //model->mShader = shader;
+    path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
+    auto model = mEngine.mLoader.LoadModel( model_path );
+    auto shader = mEngine.mLoader.LoadShader( "test_shader", vert_shader, frag_shader );
+    model->mShader = shader;
 
-    //glewInit();
-    //FramebufferSpecification spec{ 640, 640 };
-    //Framebuffer mSceneViewport( spec );
+    Entity entity = mEngine.mScene.CreateEntity();
+    entity.AddComponet<ModelComponent>( model )
+          .AddComponet<TransformComponent>( mat4( 1.0f ) );
 
-    //auto editorViewportInterface = Ref<IEditorInterface>(
-    //    ( IEditorInterface* )new EditorViewportInterface( mSceneViewport ) );
-    //mInterfaces.AddInterface( editorViewportInterface );
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
@@ -80,15 +83,8 @@ void BubbleEditor::Run()
         mSceneCamera.OnUpdate( dt );
 
         // Draw 
-        //mSceneViewport.Bind();
-        //glClearColor( 0.2f, 0.3f, 0.3f, 1.0f );
-        //glClear( GL_COLOR_BUFFER_BIT );
+        mEngine.DrawScene( mSceneCamera, mSceneViewport );
 
-        //auto size = mWindow.GetSize();
-        //shader->SetUniMat4( "uProjection", mSceneCamera.GetPprojectionMat( size.mWidth, size.mHeight ) );
-        //shader->SetUniMat4( "uView", mSceneCamera.GetLookatMat() );
-        //shader->SetUniMat4( "uModel", mat4( 1.0f ) );
-        //mEngine.mRenderer.DrawModel( model );
 
         Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();
