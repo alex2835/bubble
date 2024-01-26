@@ -559,7 +559,7 @@ bubble::UniformArrayElemnt UniformBuffer::GetElement( u64 index )
 void UniformBuffer::CalculateOffsetsAndStride()
 {
     u64 offset = 0;
-    u64 additionalAlignment = 0; // std140 aligment
+    u64 additionalAlignment = 0; // std140 alignment
 
     for ( BufferElement& elemnt : mLayout )
     {
