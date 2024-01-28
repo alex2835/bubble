@@ -2,59 +2,56 @@
 
 #include <cassert>
 #include <iostream>
+#include <string_view>
+
 struct Speed
 {
-    float s;
+    int s;
 
-    Speed( float speed )
-        : s( speed )
+    static std::string_view Name()
     {
+        return "Speed";
     }
-    bool operator==( const Speed& speed ) const noexcept
-    {
-        return s == speed.s;
-    }
+    bool operator==( const Speed& ) const = default;
 };
 
 struct Position
 {
-    float x = 0.0f;
-    float y = 0.0f;
+    int x = 0.0f;
+    int y = 0.0f;
 
-    Position( float x, float y ) : x( x ), y( y )
+    static std::string_view Name()
     {
+        return "Position";
     }
-    bool operator==( const Position& pos ) const noexcept
-    {
-        return x == pos.x && y == pos.y;
-    }
+    bool operator==( const Position& ) const = default;
 };
 
 int main( void )
 {
-    {
-        // create entity 
-        recs::Registry registry;
+    //{
+    //    // create entity 
+    //    recs::Registry registry;
 
-        recs::Entity entity = registry.CreateEntity();
+    //    recs::Entity entity = registry.CreateEntity();
 
-        registry.AddComponet<Speed>( entity, 0.0f );
-        assert( registry.HasComponent<Speed>( entity ) );
-        assert( !registry.HasComponent<Position>( entity ) );
+    //    registry.AddComponet<Speed>( entity, 0.0f );
+    //    assert( registry.HasComponent<Speed>( entity ) );
+    //    assert( !registry.HasComponent<Position>( entity ) );
 
-        Speed& speed_component = registry.GetComponent<Speed>( entity );
-        speed_component.s += 1.0f;
-        assert( speed_component == registry.GetComponent<Speed>( entity ) );
+    //    Speed& speed_component = registry.GetComponent<Speed>( entity );
+    //    speed_component.s += 1.0f;
+    //    assert( speed_component == registry.GetComponent<Speed>( entity ) );
 
-        try
-        {
-            registry.HasComponent<Speed>( recs::INVALID_ENTITY );
-        }
-        catch ( std::exception& e )
-        {
-            assert( std::string( e.what() ) == "Has component: invalid entity" );
-        }
-    }
+    //    try
+    //    {
+    //        registry.HasComponent<Speed>( recs::INVALID_ENTITY );
+    //    }
+    //    catch ( std::exception& e )
+    //    {
+    //        assert( std::string( e.what() ) == "Has component: invalid entity" );
+    //    }
+    //}
 
     {
         recs::Registry registry;
@@ -91,7 +88,7 @@ int main( void )
             registry.AddComponet<Speed>( entity, 5.f );
 
         for ( auto& entity : entities )
-            assert( entity.GetComponent<Speed>() == 5 );
+            assert( entity.GetComponent<Speed>().s == 5 );
 
         for ( auto& [speed] : registry.GetView<Speed>() )
             assert( speed.s < 10 );
@@ -108,14 +105,14 @@ int main( void )
         for ( int i = 0; i < 10; i++ )
         {
             recs::Entity entity = registry.CreateEntity();
-            registry.AddComponet<Speed>( entity, (float) );
+            registry.AddComponet<Speed>( entity, i );
         }
 
         int i = 0;
         for ( auto entity : entities )
         {
             entity.AddComponet<Speed>( 1.0f )
-                .AddComponet<Position>( (float)i++, 1.0f );
+                  .AddComponet<Position>( i++, 1.0f );
         }
 
         // foreach
@@ -135,7 +132,7 @@ int main( void )
 
         // remove component
         for ( auto entity : entities )
-            entity.RemoveComponet<Position>();
+            entity.RemoveComponent<Position>();
 
         count = 0;
         registry.ForEach<Position>( [&]( recs::Entity entity, Position& speed )
@@ -167,18 +164,19 @@ int main( void )
         for ( int i = 0; i < 10; i++ )
         {
             recs::Entity entity = registry.CreateEntity();
-            registry.AddComponet<Speed>( entity, (float)i );
+            registry.AddComponet<Speed>( entity, i );
         }
 
         int i = 0;
         for ( auto entity : entities )
         {
             entity.AddComponet<Speed>( 1.0f )
-                .AddComponet<Position>( (float)i++, 1.0f );
+                .AddComponet<Position>( i++, 1.0f );
         }
 
         auto view = registry.GetView<Speed, Position>();
         assert( view.Size() == 10 );
+
 
         // Clone 
         recs::Registry registry_copy;

@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <string_view>
 #include <algorithm>
 #include "engine/utils/types.hpp"
 #include "engine/loader/loader.hpp"
@@ -8,14 +9,12 @@
 namespace bubble
 {
 // ================= Tag Component =================
-struct TagComponent
+struct TagComponent : string
 {
-    string mTag;
-
-    TagComponent();
-    TagComponent( const TagComponent& ) = default;
-    TagComponent( const string& tag );
-
+    static string_view Name()
+    {
+        return "TagComponent";
+    }
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
@@ -59,6 +58,10 @@ struct TagComponent
 // ================= Transform Component =================
 struct TransformComponent : mat4
 {
+    static string_view Name()
+    {
+        return "TransformComponent";
+    }
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
@@ -74,6 +77,11 @@ struct LightComponent : Light
 // ================= Model Component =================
 struct ModelComponent : Ref<Model>
 {
+    static string_view Name()
+    {
+        return "ModelComponent";
+    }
+
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };

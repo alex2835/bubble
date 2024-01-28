@@ -5,20 +5,21 @@
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
-#include "utils.hpp"
-#include "entity.hpp"
+#include "recs/impex.hpp"
+#include "recs/utils.hpp"
+#include "recs/entity.hpp"
 
 namespace recs
 {
 /**
  * @brief Store sorted components data
  */
-class Pool
+class RECS_EXPORT Pool
 {
 public:
     Pool() = default;
 
-    template <typename T>
+    template <ComponentType T>
     static Pool MakePool()
     {
         auto delete_func = []( void* component )
@@ -38,15 +39,15 @@ public:
     Pool& operator=( Pool&& ) = default;
     ~Pool();
 
-    template <typename T, typename ...Args>
+    template <ComponentType T, typename ...Args>
     T& Push( Entity entity, Args&& ...args );
 
     void Remove( Entity entity );
 
-    template <typename T>
+    template <ComponentType T>
     T& Get( Entity entity );
 
-    template <typename T>
+    template <ComponentType T>
     T& Get( size_t index );
 
     size_t Size() const noexcept
@@ -83,7 +84,7 @@ private:
 
 // Implementation
 
-template <typename T, typename ...Args>
+template <ComponentType T, typename ...Args>
 T& Pool::Push( Entity entity, Args&& ...args )
 {
     if ( mCapacity <= mSize + 1 )
@@ -102,7 +103,7 @@ T& Pool::Push( Entity entity, Args&& ...args )
     return a;
 }
 
-template <typename T>
+template <ComponentType T>
 T& Pool::Get( Entity entity )
 {
     void* raw_data = GetRaw( entity );
@@ -111,7 +112,7 @@ T& Pool::Get( Entity entity )
     throw std::runtime_error( "Entity has component, but pool doesn't (Incorrent working)" );
 }
 
-template <typename T>
+template <ComponentType T>
 T& Pool::Get( size_t index )
 {
     if ( index < Size() )

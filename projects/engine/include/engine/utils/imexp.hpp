@@ -10,6 +10,6 @@
 #       define BUBBLE_ENGINE_EXPORT __declspec(dllimport)
 #    endif
 #  else
-#    define FEATURE_CACHE_IMPEXP __attribute__((visibility("default")))
+#    define BUBBLE_ENGINE_EXPORT __attribute__((visibility("default")))
 #  endif
 #endif

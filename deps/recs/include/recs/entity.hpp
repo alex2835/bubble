@@ -3,6 +3,8 @@
 #include <string_view>
 #include <functional>
 
+#include "recs/impex.hpp"
+
 namespace recs
 {
 class Registry;
@@ -11,7 +13,7 @@ class Registry;
  * @brief Entity is a reference to
  * components that stored in pools
  */
-class Entity
+class RECS_EXPORT Entity
 {
 public:
     Entity() = default;
@@ -33,23 +35,23 @@ public:
         return mID;
     }
 
-    template <typename T, typename ...Args>
+    template <ComponentType T, typename ...Args>
     Entity AddComponet( Args&& ...args );
 
-    template <typename T>
+    template <ComponentType T>
     T& GetComponent();
 
-    template <typename T>
+    template <ComponentType T>
     bool HasComponent();
 
-    template <typename ...Components>
+    template <ComponentType ...Components>
     bool HasComponents();
 
-    template <typename ...Components>
+    template <ComponentType ...Components>
     std::tuple<Components&...> GetComponents();
 
-    template <typename T>
-    Entity RemoveComponet();
+    template <ComponentType T>
+    Entity RemoveComponent();
 
     operator size_t() const
     {
@@ -59,14 +61,12 @@ public:
 private:
     Entity( size_t id, Registry* registry )
         : mID( id ),
-        mRegistry( registry )
-    {
-    }
+          mRegistry( registry )
+    {}
 
 private:
     size_t mID = 0u;
     Registry* mRegistry = nullptr;
-    friend class RegistryMeta;
     friend class Registry;
 };
 

@@ -48,22 +48,22 @@ struct BUBBLE_ENGINE_EXPORT Camera
     f32 mMouseSensitivity = camera::SENSITIVTY;
 
     // Euler Angles
-    f32 mYaw   = camera::YAW;
+    f32 mYaw = camera::YAW;
     f32 mPitch = camera::PITCH;
-    f32 mFov      = camera::FOV;
+    f32 mFov = camera::FOV;
     f32 mDeltaFov = camera::DELTA_FOV;
 
     // Speed
-    f32 mMaxSpeed   = camera::MAX_SPEED;
+    f32 mMaxSpeed = camera::MAX_SPEED;
     f32 mDeltaSpeed = camera::DELTA_SPEED;
     f32 mSpeedX = 0;
     f32 mSpeedY = 0;
 
 public:
     Camera( const vec3& position = vec3( 0.0f, 0.0f, 0.0f ),
-            f32 yaw   = camera::YAW,
+            f32 yaw = camera::YAW,
             f32 pitch = camera::PITCH,
-            f32 fov   = camera::FOV,
+            f32 fov = camera::FOV,
             const vec3& up = vec3( 0.0f, 1.0f, 0.0f )
     );
 

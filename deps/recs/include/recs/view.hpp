@@ -1,18 +1,19 @@
 #pragma once
-#include "entity.hpp"
-#include "utils.hpp"
 #include <stdexcept>
+#include "recs/impex.hpp"
+#include "recs/utils.hpp"
+#include "recs/entity.hpp"
 
 namespace recs
 {
-template<typename ...Components>
-class View
+template<ComponentType ...Components>
+class RECS_EXPORT View
 {
 public:
     View( std::vector<Entity>&& entities,
           std::vector<std::tuple<Components&...>>&& components )
         : mEntities( std::move( entities ) ),
-        mComponents( std::move( components ) )
+          mComponents( std::move( components ) )
     {
     }
 

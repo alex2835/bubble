@@ -5,9 +5,12 @@
 #include "engine/utils/ieditor_interface.hpp"
 #include "engine/utils/types.hpp"
 
-#include "interface/editor_window_test.hpp"
+#include "interface/entities_interface.hpp"
+#include "interface/properties_interface.hpp"
 
-using namespace bubble;
+
+namespace bubble
+{
 
 void ImGuiContextInit( ImGuiContext* context )
 {
@@ -19,9 +22,15 @@ HR_REGISTER_FUNC( void, ImGuiContextInit, ImGuiContext* );
 
 void LoadEditorInterface( std::vector<Ref<IEditorInterface>>& out )
 {
-    auto testInterface = Ref<IEditorInterface>(
-            ( IEditorInterface* ) new TestInterface() );
+    auto entitiesInterface = Ref<IEditorInterface>(
+        ( IEditorInterface* ) new EntitiesInterface );
+    out.push_back( entitiesInterface );
 
-    out.push_back( testInterface );
+    //auto propertiesInterface = Ref<IEditorInterface>(
+    //    ( IEditorInterface* ) new PropertiesInterface );
+    //out.push_back( propertiesInterface );
+
 }
 HR_REGISTER_FUNC( void, LoadEditorInterface, std::vector<Ref<IEditorInterface>>& );
+
+}

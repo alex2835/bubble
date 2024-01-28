@@ -39,10 +39,10 @@ void EditorInterfaceLoader::OnUpdate( DeltaTime dt )
         window->OnUpdate( dt );
 }
 
-void EditorInterfaceLoader::OnDraw()
+void EditorInterfaceLoader::OnDraw( Engine& engine )
 {
     for ( auto& [name, window] : mInterfaces )
-        window->OnDraw();
+        window->OnDraw( engine );
 }
 
 }

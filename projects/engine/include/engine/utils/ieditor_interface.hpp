@@ -5,6 +5,8 @@
 
 namespace bubble
 {
+struct Engine;
+
 class IEditorInterface
 {
 public:
@@ -12,7 +14,7 @@ public:
     virtual string_view Name() = 0;
     virtual void OnInit() = 0;
     virtual void OnUpdate( DeltaTime dt ) = 0;
-    virtual void OnDraw() = 0;
+    virtual void OnDraw( Engine& engine ) = 0;
 protected:
     bool mOpen = true;
 };

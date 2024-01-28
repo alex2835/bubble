@@ -4,22 +4,22 @@
 
 namespace bubble
 {
-class TestInterface : public IEditorInterface
+class PropertiesInterface : public IEditorInterface
 {
 public:
-    TestInterface()
+    PropertiesInterface()
     {
 
     }
 
-    ~TestInterface() override
+    ~PropertiesInterface() override
     {
 
     }
 
     string_view Name() override
     {
-        return "Test window";
+        return "Properties";
     }
 
     void OnInit() override
@@ -31,7 +31,7 @@ public:
     {
     }
 
-    void OnDraw() override
+    void OnDraw( Engine& ) override
     {
         ImGui::Begin( Name().data(), &mOpen );
         {

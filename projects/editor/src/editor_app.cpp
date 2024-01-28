@@ -16,9 +16,6 @@ constexpr std::string_view vert_shader = R"shader(
         mat4 uProjection;
         mat4 uView;
     };
-    //uniform mat4 uProjection;
-    //uniform mat4 uView;
-
     uniform mat4 uModel;
 
     void main()
@@ -60,7 +57,8 @@ void BubbleEditor::Run()
     model->mShader = shader;
 
     Entity entity = mEngine.mScene.CreateEntity();
-    entity.AddComponet<ModelComponent>( model )
+    entity.AddComponet<TagComponent>( "test"s )
+          .AddComponet<ModelComponent>( model )
           .AddComponet<TransformComponent>( mat4( 1.0f ) );
 
 
@@ -78,7 +76,6 @@ void BubbleEditor::Run()
         // Update
         mEngine.OnUpdate();
         auto dt = mEngine.mTimer.GetDeltaTime();
-
         mInterfaceLoader.OnUpdate( dt );
         mSceneCamera.OnUpdate( dt );
 
@@ -89,7 +86,7 @@ void BubbleEditor::Run()
         Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();
         ImGui::ShowDemoWindow();
-        mInterfaceLoader.OnDraw();
+        mInterfaceLoader.OnDraw( mEngine );
         mWindow.ImGuiEnd();
 
         mWindow.OnUpdate();

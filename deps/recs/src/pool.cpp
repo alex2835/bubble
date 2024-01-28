@@ -1,5 +1,6 @@
 
 #include "recs/pool.hpp"
+#include <cassert>
 
 namespace recs
 {
@@ -42,8 +43,9 @@ Pool::~Pool()
 void Pool::Remove( Entity entity )
 {
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
-    int position = iterator != mEntities.end() ? iterator - mEntities.begin() : mSize;
+    assert( iterator != mEntities.end() );
 
+    auto position = std::distance( mEntities.begin(), iterator );
     mEntities.erase( iterator );
     mDoDelete( GetElemAddress( position ) );
     std::memmove( GetElemAddress( position ), GetElemAddress( position + 1 ), mComponentSize * ( mSize - position - 1 ) );

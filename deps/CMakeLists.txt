@@ -6,6 +6,7 @@ if(NOT EMSCRIPTEN)
 
 	#GIT_REPOSITORY "https://github.com/glfw/glfw.git"
 	#GIT_TAG 3.3.8
+    option(GLFW_BUILD_EXAMPLES "" OFF)
 	option(GLFW_BUILD_TESTS "" OFF)
 	option(GLFW_BUILD_DOCS "" OFF)
 	add_subdirectory(glfw)

@@ -36,7 +36,7 @@ public:
             mViewport.Resize( mNewSize );
     }
 
-    void OnDraw() override
+    void OnDraw( Engine& ) override
     {
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse |

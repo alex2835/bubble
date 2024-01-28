@@ -6,6 +6,7 @@ file(GLOB_RECURSE SRCS *.cpp)
 file(GLOB_RECURSE HDRS *.h)
 add_library(${TARGET_NAME} SHARED ${SRCS} ${HDRS})
 add_definitions(-DBUILDING_BUBBLE_ENGINE)
+add_definitions(-DBUILDING_RECS)
 
 target_include_directories(${TARGET_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include

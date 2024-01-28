@@ -23,7 +23,7 @@ public:
     void LoadInterfaces();
 
     void OnUpdate( DeltaTime dt );
-    void OnDraw();
+    void OnDraw( Engine& engine );
 
 private:
     ImGuiContext* mImGuiContext;
