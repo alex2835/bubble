@@ -61,8 +61,9 @@ public:
     Pool Clone() const;
 
 private:
-    //Pool() = default;
-    Pool( size_t component_size, void( *delete_func )( void* ), void( *copy_func )( const void*, void* ) );
+    Pool( size_t component_size, 
+          void( *delete_func )( void* ),
+          void( *copy_func )( const void*, void* ) );
 
     void Realloc( size_t new_capacity );
     void* GetElemAddress( size_t size );

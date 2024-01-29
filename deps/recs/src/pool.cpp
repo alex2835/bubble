@@ -4,12 +4,12 @@
 
 namespace recs
 {
-Pool::Pool( size_t component_size, void( *delete_func )( void* ), void( *copy_func )( const void*, void* ) )
-    : mSize( 0 ),
-    mCapacity( 0 ),
-    mComponentSize( component_size ),
-    mDoDelete( delete_func ),
-    mDoCopy( copy_func )
+Pool::Pool( size_t component_size, 
+            void( *delete_func )( void* ), 
+            void( *copy_func )( const void*, void* ) )
+    : mComponentSize( component_size ),
+      mDoDelete( delete_func ),
+      mDoCopy( copy_func )
 {
     Realloc( 10 );
 }
@@ -57,7 +57,7 @@ void* Pool::GetRaw( Entity entity )
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
     if ( iterator != mEntities.end() )
     {
-        int position = iterator - mEntities.begin();
+        auto position = std::distance( mEntities.begin(), iterator );
         return GetElemAddress( position );
     }
     return nullptr;

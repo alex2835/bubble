@@ -14,8 +14,7 @@ public:
           std::vector<std::tuple<Components&...>>&& components )
         : mEntities( std::move( entities ) ),
           mComponents( std::move( components ) )
-    {
-    }
+    {}
 
     template <typename F>
     void ForEach( F&& func )
@@ -46,6 +45,7 @@ public:
     {
         return mEntities;
     }
+
     auto& GetComponets()
     {
         return mComponents;
