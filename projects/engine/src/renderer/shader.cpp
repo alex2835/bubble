@@ -39,7 +39,7 @@ i32 Shader::GetUniform( const string& uniformname ) const
 
     i32 unifromid = glGetUniformLocation( mShaderID, uniformname.c_str() );
     if( unifromid == GL_INVALID_INDEX )
-        LogError( "Shader: {0} doesn't have uniform: {1}", mName, uniformname );
+        LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformname );
 
     mUniformCache[uniformname] = unifromid;
     return unifromid;
@@ -53,7 +53,7 @@ i32 Shader::GetUniformBuffer( const string& uniformname ) const
 
     i32 unifromid = glGetUniformBlockIndex( mShaderID, uniformname.c_str() );
     if ( unifromid == GL_INVALID_INDEX )
-        LogError( "Shader: {0} doesn't have uniform buffer: {1}", mName, uniformname );
+        LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformname );
 
     mUniformCache[uniformname] = unifromid;
     return unifromid;

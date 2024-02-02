@@ -57,7 +57,7 @@ void BubbleEditor::Run()
     model->mShader = shader;
 
     Entity entity = mEngine.mScene.CreateEntity();
-    entity.AddComponet<TagComponent>( "test"s )
+    entity.AddComponet<TagComponent>( "test" )
           .AddComponet<ModelComponent>( model )
           .AddComponet<TransformComponent>( mat4( 1.0f ) );
 

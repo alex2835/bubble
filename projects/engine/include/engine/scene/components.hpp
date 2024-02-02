@@ -8,79 +8,65 @@
 
 namespace bubble
 {
-// ================= Tag Component =================
-struct TagComponent : string
+typedef void ( *OnComponentDrawFunc )( void* rawData );
+struct Component
+{
+    OnComponentDrawFunc mOnDrawFunc = nullptr;
+};
+
+
+struct TagComponent : public Component,
+                      public string
 {
     static string_view Name()
     {
         return "TagComponent";
     }
+
+    TagComponent( string tag )
+        : string( std::move( tag ) )
+    {}
+
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
 
-//// ================= Position Component =================
-//struct PositionComponent
-//{
-//    vec3 mPosition;
-//
-//    PositionComponent() = default;
-//    PositionComponent( const vec3& mPosition );
-//
-//    //void Serialize( const Loader& loader, nlohmann::json& out ) const;
-//    //void Deserialize( const nlohmann::json& j, Loader& loader );
-//};
-//
-//// ================= Rotation Component =================
-//struct RotationComponent
-//{
-//    vec3 mRotation;
-//
-//    RotationComponent() = default;
-//    RotationComponent( const vec3& rotation );
-//
-//    //void Serialize( const Loader& loader, nlohmann::json& out ) const;
-//    //void Deserialize( const nlohmann::json& j, Loader& loader );
-//};
-//
-//// ================= ScaleComponent =================
-//struct ScaleComponent
-//{
-//    vec3 mScale = vec3( 1.0f );
-//
-//    ScaleComponent() = default;
-//    ScaleComponent( const vec3& scale );
-//
-//    //void Serialize( const Loader& loader, nlohmann::json& out ) const;
-//    //void Deserialize( const nlohmann::json& j, Loader& loader );
-//};
 
-// ================= Transform Component =================
-struct TransformComponent : mat4
+struct TransformComponent : public Component,
+                            public mat4
 {
     static string_view Name()
     {
         return "TransformComponent";
     }
 
+    TransformComponent( const mat4& transform )
+        : mat4( transform )
+    {}
+
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
 
-// ================= Light Component =================
-struct LightComponent : Light
+struct LightComponent : public Component,
+                        public Light
 {
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
 
-// ================= Model Component =================
-struct ModelComponent : Ref<Model>
+struct ModelComponent : public Component, 
+                        public Ref<Model>
 {
     static string_view Name()
     {
         return "ModelComponent";
     }
+
+    ModelComponent( const Ref<Model>& model )
+        : Ref<Model>( model )
+    {}
+    
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );

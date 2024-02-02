@@ -1,4 +1,7 @@
 #pragma once
+#include "engine/utils/types.hpp"
+#include "engine/log/log.hpp"
+
 #include "window/window.hpp"
 #include "loader/loader.hpp"
 #include "renderer/renderer.hpp"

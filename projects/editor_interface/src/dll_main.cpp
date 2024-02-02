@@ -6,7 +6,6 @@
 #include "engine/utils/types.hpp"
 
 #include "interface/entities_interface.hpp"
-#include "interface/properties_interface.hpp"
 
 
 namespace bubble
@@ -26,9 +25,6 @@ void LoadEditorInterface( std::vector<Ref<IEditorInterface>>& out )
         ( IEditorInterface* ) new EntitiesInterface );
     out.push_back( entitiesInterface );
 
-    //auto propertiesInterface = Ref<IEditorInterface>(
-    //    ( IEditorInterface* ) new PropertiesInterface );
-    //out.push_back( propertiesInterface );
 
 }
 HR_REGISTER_FUNC( void, LoadEditorInterface, std::vector<Ref<IEditorInterface>>& );

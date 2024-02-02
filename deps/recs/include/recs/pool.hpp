@@ -20,7 +20,7 @@ public:
     Pool() = default;
 
     template <ComponentType T>
-    static Pool MakePool()
+    static Pool CreatePool()
     {
         auto delete_func = []( void* component )
         {

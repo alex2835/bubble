@@ -48,8 +48,14 @@ public:
     template <ComponentType ...Components, typename F>
     void ForEach( F&& func );
 
+    template <typename F>
+    void ForEachEntity( F&& func );
+
     template <ComponentType ...Components>
     View<Components...> GetView();
+
+    template <typename F>
+    void ForEachEntityComponentRaw( Entity entity, F&& func );
 
     void CloneInto( Registry& );
 
@@ -160,7 +166,7 @@ void Registry::AddComponet( Entity entity, Args&& ...args )
     if ( componentType == INVALID_COMPONENT_TYPE )
     {
         componentType = AddComponentTypeId<Component>();
-        mPools.emplace( componentType, Pool::MakePool<Component>() );
+        mPools.emplace( componentType, Pool::CreatePool<Component>() );
     }
     if ( EntityHasComponent( entity, componentType ) )
     {
@@ -254,6 +260,23 @@ View<Components...> Registry::GetView()
     return View<Components...>( std::move( entities ), std::move( components ) );
 }
 
+template <typename F>
+void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
+{
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "ForEachEntityComponentRaw: Invalid entity" );
+
+    const auto& components = mEntitysComponentIds[entity];
+    for ( const auto& [name, id] : mComponents )
+    {
+        if ( components.count( id ) )
+        {
+            Pool& pool = mPools[id];
+            func( name, pool.GetRaw( entity ) );
+        }
+    }
+}
+
 template <ComponentType ...Components, typename F>
 void Registry::ForEach( F&& func )
 {
@@ -261,6 +284,13 @@ void Registry::ForEach( F&& func )
     {
         std::apply( std::forward<F>( func ), std::tuple_cat( std::make_tuple( entity ), components ) );
     } );
+}
+
+template <typename F>
+void Registry::ForEachEntity( F&& func )
+{
+    for ( const auto& [entity, _] : mEntitysComponentIds )
+        func( entity );
 }
 
 template <ComponentType ...Components, typename F>
