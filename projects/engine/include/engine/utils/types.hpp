@@ -68,5 +68,8 @@ struct string_hash
 };
 using strunoset = std::unordered_set<string, string_hash, std::equal_to<>>;
 
+template <typename V>
+using strunomap = std::unordered_map<string, V, string_hash, std::equal_to<>>;
+
 }
 

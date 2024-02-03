@@ -1,9 +1,28 @@
-//
-//#include "scene/components.h"
-//#include <ranges>
-//
-//namespace Bubble
-//{
+
+#include "engine/scene/components.hpp"
+
+namespace bubble
+{
+
+bubble::OnComponentDrawFuncStorage& OnComponentDrawFuncStorage::Instance()
+{
+    static OnComponentDrawFuncStorage storage;
+    return storage;
+}
+
+void OnComponentDrawFuncStorage::Add( string componentName, OnComponentDrawFunc drawFunc )
+{
+    mOnDrawFuncCache.emplace( std::move( componentName ), drawFunc );
+}
+
+bubble::OnComponentDrawFunc OnComponentDrawFuncStorage::Get( string_view componentName )
+{
+    auto iter = mOnDrawFuncCache.find( componentName );
+    if ( iter != mOnDrawFuncCache.end() )
+        return iter->second;
+    return nullptr;
+}
+
 //inline nlohmann::json to_json( const vec3& vec )
 //{
 //    return nlohmann::json{ vec.r, vec.g, vec.b };
@@ -198,5 +217,5 @@
 //{
 //    *this = loader.LoadAndCacheModel( j["Model"] );
 //}
-//
-//}
+
+}

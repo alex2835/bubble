@@ -44,6 +44,11 @@ BubbleEditor::BubbleEditor()
     glewInit();
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
+    // Components draw
+    auto& onDrawStorage = OnComponentDrawFuncStorage::Instance();
+    onDrawStorage.Add<TagComponent>();
+
+    // Editor interface
     auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );
     mInterfaceLoader.AddInterface( editorViewportInterface );
     mInterfaceLoader.LoadInterfaces();

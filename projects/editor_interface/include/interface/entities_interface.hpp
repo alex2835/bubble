@@ -35,7 +35,7 @@ public:
 
     void DrawEntities( Engine& engine )
     {
-        ImGui::Begin( Name().data(), &mOpen );
+        ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
         {
             if ( ImGui::Button( "Create Entity", ImVec2( 100, 25 ) ) )
                 engine.mScene.CreateEntity();
@@ -57,7 +57,7 @@ public:
                     mSelectedEntity = entity;
             } );
         }
-        ImGui::End();
+        ImGui::EndChild();
     }
 
     void DrawSelectedEntityProperties( Engine& engine )
@@ -65,23 +65,30 @@ public:
         if ( mSelectedEntity == INVALID_ENTITY )
             return;
 
-        ImGui::Begin( "Components" );
+        ImGui::BeginChild( "Components" );
         engine.mScene.ForEachEntityComponentRaw( mSelectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
-            auto* component = (Component*)componentRaw;
-            if ( component->mOnDrawFunc )
-                component->mOnDrawFunc( componentRaw );
+            auto& onDrawStorage = OnComponentDrawFuncStorage::Instance();
+            auto onDrawFunc = onDrawStorage.Get( componentName );
+            if ( onDrawFunc )
+                onDrawFunc( componentRaw );
             else
-                ImGui::Text( format( "component {} not drawable", componentName ).c_str() );
+                ImGui::Text( format( "Component {} not drawable", componentName ).c_str() );
+            ImGui::Separator();
         });
-        ImGui::End();
+        ImGui::EndChild();
     }
 
     void OnDraw( Engine& engine ) override
     {
-        DrawEntities( engine );
-        DrawSelectedEntityProperties( engine );
+        ImGui::Begin( Name().data(), &mOpen );
+        {
+            DrawEntities( engine );
+            ImGui::Separator();
+            DrawSelectedEntityProperties( engine );
+        }
+        ImGui::End();
     }
 
 private:
