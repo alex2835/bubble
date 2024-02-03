@@ -4,24 +4,28 @@
 namespace bubble
 {
 
-bubble::OnComponentDrawFuncStorage& OnComponentDrawFuncStorage::Instance()
+bubble::ComponentsOnDrawStorage& ComponentsOnDrawStorage::Instance()
 {
-    static OnComponentDrawFuncStorage storage;
+    static ComponentsOnDrawStorage storage;
     return storage;
 }
 
-void OnComponentDrawFuncStorage::Add( string componentName, OnComponentDrawFunc drawFunc )
+void ComponentsOnDrawStorage::Add( string componentName, OnComponentDrawFunc drawFunc )
 {
-    mOnDrawFuncCache.emplace( std::move( componentName ), drawFunc );
+    auto& storage = Instance();
+    storage.mOnDrawFuncCache.emplace( std::move( componentName ), drawFunc );
 }
 
-bubble::OnComponentDrawFunc OnComponentDrawFuncStorage::Get( string_view componentName )
+bubble::OnComponentDrawFunc ComponentsOnDrawStorage::Get( string_view componentName )
 {
-    auto iter = mOnDrawFuncCache.find( componentName );
-    if ( iter != mOnDrawFuncCache.end() )
+    auto& storage = Instance();
+    auto iter = storage.mOnDrawFuncCache.find( componentName );
+    if ( iter != storage.mOnDrawFuncCache.end() )
         return iter->second;
     return nullptr;
 }
+
+
 
 //inline nlohmann::json to_json( const vec3& vec )
 //{

@@ -24,7 +24,7 @@ void Engine::DrawScene( const Camera& camera, const Framebuffer& framebuffer )
                                                              ModelComponent& model,
                                                              TransformComponent& transform )
     {
-        mRenderer.DrawModel( model, transform );
+        mRenderer.DrawModel( model, transform.Transform() );
     } );
 }
 

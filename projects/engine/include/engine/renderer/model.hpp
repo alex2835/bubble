@@ -55,16 +55,16 @@ struct MeshNode
     MeshNode() = default;
     MeshNode( const string& name )
         : mName( name )
-    {
-    }
+    {}
 };
 
 struct BUBBLE_ENGINE_EXPORT Model
 {
+    string mName;
     vector<Mesh> mMeshes;
     Ref<Shader> mShader;
     //AABB mBoundingBox;
-    Scope<MeshNode> mRootNode;
+    Scope<MeshNode> mRootMeshNode;
 
     Model();
     Model( const Model& ) = delete;
@@ -72,7 +72,7 @@ struct BUBBLE_ENGINE_EXPORT Model
     Model( Model&& ) = default;
     Model& operator= ( Model&& ) = default;
 
-    void CreateBoundingBox();
+    //void CreateBoundingBox();
 };
 
 }

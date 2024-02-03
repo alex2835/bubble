@@ -69,8 +69,7 @@ public:
         engine.mScene.ForEachEntityComponentRaw( mSelectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
-            auto& onDrawStorage = OnComponentDrawFuncStorage::Instance();
-            auto onDrawFunc = onDrawStorage.Get( componentName );
+            auto onDrawFunc = ComponentsOnDrawStorage::Get( componentName );
             if ( onDrawFunc )
                 onDrawFunc( componentRaw );
             else

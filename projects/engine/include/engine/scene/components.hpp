@@ -1,5 +1,8 @@
 #pragma once
 #include <imgui.h>
+#include <glm/gtx/matrix_decompose.hpp>
+#include "glm/gtx/transform.hpp"
+#include "glm/gtx/euler_angles.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/renderer/light.hpp"
@@ -19,21 +22,28 @@ concept DrawableCompnentType = requires( T comp, void* raw )
     { T::OnComponentDraw( raw ) } -> std::same_as<void>;
 };
 
-class BUBBLE_ENGINE_EXPORT OnComponentDrawFuncStorage
+class BUBBLE_ENGINE_EXPORT ComponentsOnDrawStorage
 {
 public:
-    static OnComponentDrawFuncStorage& Instance();
-
     template <DrawableCompnentType Component> 
-    void Add()
+    static void Add()
     {
-        Add( string( Component::Name() ), Component::OnComponentDraw );
+        ComponentsOnDrawStorage::Add( string( Component::Name() ), Component::OnComponentDraw );;
     }
-    void Add( string componentName, OnComponentDrawFunc drawFunc );
-    OnComponentDrawFunc Get( string_view componentName );
+
+    template <DrawableCompnentType Component>
+    static void Get()
+    {
+        return ComponentsOnDrawStorage::Get( Component::Name() );
+    }
+
+    static void Add( string componentName, OnComponentDrawFunc drawFunc );
+    static OnComponentDrawFunc Get( string_view componentName );
 
 private:
-    OnComponentDrawFuncStorage() = default;
+    ComponentsOnDrawStorage() = default;
+    static ComponentsOnDrawStorage& Instance();
+
     strunomap<OnComponentDrawFunc> mOnDrawFuncCache;
 };
 
@@ -52,9 +62,7 @@ struct TagComponent : public string
         auto& tag = *(TagComponent*)raw;
         char buffer[64] = { 0 };
         tag.copy( buffer, sizeof( buffer ) );
-        ImGui::Text( "Tag: " );
-        ImGui::SameLine();
-        ImGui::InputText( "##Tag", buffer, sizeof( buffer ) );
+        ImGui::InputText( "Tag", buffer, sizeof( buffer ) );
         tag.assign( buffer );
     }
 
@@ -63,7 +71,7 @@ struct TagComponent : public string
 };
 
 
-struct TransformComponent : public mat4
+struct TransformComponent
 {
     static string_view Name()
     {
@@ -72,9 +80,24 @@ struct TransformComponent : public mat4
     static void OnComponentDraw( void* raw )
     {
         auto& component = *(TransformComponent*)raw;
-
+        ImGui::DragFloat3( "Scale", (float*)&component.mScale, 0.01f, 0.01f );
+        ImGui::DragFloat3( "Rotation", (float*)&component.mRotation, 0.01f );
+        ImGui::DragFloat3( "Position", (float*)&component.mPosition, 0.1f );
     }
 
+    mat4 Transform()
+    {
+        auto transform = mat4( 1.0f );
+        transform = glm::translate( transform, mPosition );
+        transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
+        transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+        transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
+        transform = glm::scale( transform, mScale );
+        return transform;
+    }
+    vec3 mPosition = vec3( 0 );
+    vec3 mRotation = vec3( 0 );
+    vec3 mScale = vec3( 1 );
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );

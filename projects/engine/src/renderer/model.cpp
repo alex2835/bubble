@@ -72,16 +72,16 @@ Model::Model()
 {
 }
 
-void Model::CreateBoundingBox()
-{
-    //for( const auto& mesh : mMeshes )
-    //{
-    //    const auto& vertices = mesh.mVertices;
-    //    for( i32 i = 0; i < vertices.mPositions.size(); i++ )
-    //    {
-    //        mBoundingBox.extend( vertices.mPositions[i] );
-    //    }
-    //}
-}
+//void Model::CreateBoundingBox()
+//{
+//    for( const auto& mesh : mMeshes )
+//    {
+//        const auto& vertices = mesh.mVertices;
+//        for( i32 i = 0; i < vertices.mPositions.size(); i++ )
+//        {
+//            mBoundingBox.extend( vertices.mPositions[i] );
+//        }
+//    }
+//}
 
 }

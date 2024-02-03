@@ -44,11 +44,10 @@ BubbleEditor::BubbleEditor()
     glewInit();
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
-    // Components draw
-    auto& onDrawStorage = OnComponentDrawFuncStorage::Instance();
-    onDrawStorage.Add<TagComponent>();
-    onDrawStorage.Add<TransformComponent>();
-    onDrawStorage.Add<ModelComponent>();
+    // Components on draw
+    ComponentsOnDrawStorage::Add<TagComponent>();
+    ComponentsOnDrawStorage::Add<TransformComponent>();
+    ComponentsOnDrawStorage::Add<ModelComponent>();
 
     // Editor interface
     auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );
@@ -66,7 +65,7 @@ void BubbleEditor::Run()
     Entity entity = mEngine.mScene.CreateEntity();
     entity.AddComponet<TagComponent>( "test" )
           .AddComponet<ModelComponent>( model )
-          .AddComponet<TransformComponent>( mat4( 1.0f ) );
+          .AddComponet<TransformComponent>();
 
 
 #ifdef __EMSCRIPTEN__
