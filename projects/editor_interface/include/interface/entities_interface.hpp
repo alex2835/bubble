@@ -86,6 +86,8 @@ public:
         {
             DrawEntities( engine );
             ImGui::Separator();
+            ImGui::Text( "Entity components" );
+            ImGui::Separator();
             DrawSelectedEntityProperties( engine );
         }
         ImGui::End();

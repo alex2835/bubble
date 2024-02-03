@@ -47,6 +47,8 @@ BubbleEditor::BubbleEditor()
     // Components draw
     auto& onDrawStorage = OnComponentDrawFuncStorage::Instance();
     onDrawStorage.Add<TagComponent>();
+    onDrawStorage.Add<TransformComponent>();
+    onDrawStorage.Add<ModelComponent>();
 
     // Editor interface
     auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );

@@ -49,8 +49,13 @@ struct TagComponent : public string
     }
     static void OnComponentDraw( void* raw )
     {
-        auto& component = *(TagComponent*)raw;
-        ImGui::Text( "I'm drawable" );
+        auto& tag = *(TagComponent*)raw;
+        char buffer[64] = { 0 };
+        tag.copy( buffer, sizeof( buffer ) );
+        ImGui::Text( "Tag: " );
+        ImGui::SameLine();
+        ImGui::InputText( "##Tag", buffer, sizeof( buffer ) );
+        tag.assign( buffer );
     }
 
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
