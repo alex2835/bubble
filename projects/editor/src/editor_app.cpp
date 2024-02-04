@@ -41,7 +41,7 @@ BubbleEditor::BubbleEditor()
       mSceneViewport( { 640, 800 } ),
       mInterfaceLoader( mWindow.GetImGuiContext() )
 {
-    glewInit();
+    //glewInit();
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Components on draw
@@ -49,8 +49,9 @@ BubbleEditor::BubbleEditor()
     ComponentsOnDrawStorage::Add<TransformComponent>();
     ComponentsOnDrawStorage::Add<ModelComponent>();
 
-    // Editor interface
-    auto editorViewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( mSceneViewport ) );
+    // Editor's viewport interface
+    auto editorViewportInterface = Ref<IEditorInterface>( 
+        ( IEditorInterface* ) new SceneViewportInterface( mWindow, mSceneViewport, mSceneCamera ) );
     mInterfaceLoader.AddInterface( editorViewportInterface );
     mInterfaceLoader.LoadInterfaces();
 }

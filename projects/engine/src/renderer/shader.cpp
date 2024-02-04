@@ -5,25 +5,25 @@
 namespace bubble
 {
 Shader::Shader( Shader&& other ) noexcept
-    : mShaderID( other.mShaderID ),
+    : mShaderId( other.mShaderId ),
       mName( std::move( other.mName ) ),
       mUniformCache( std::move( mUniformCache ) )
 {
-    other.mShaderID = 0;
+    other.mShaderId = 0;
 }
 
 Shader& Shader::operator=( Shader&& other ) noexcept
 {
-    mShaderID = other.mShaderID;
+    mShaderId = other.mShaderId;
     mName = std::move( other.mName );
     mUniformCache = std::move( mUniformCache );
-    other.mShaderID = 0;
+    other.mShaderId = 0;
     return *this;
 }
 
 void Shader::Bind() const
 {
-    glcall( glUseProgram( mShaderID ) );
+    glcall( glUseProgram( mShaderId ) );
 }
 
 void Shader::Unbind() const
@@ -33,11 +33,11 @@ void Shader::Unbind() const
 
 i32 Shader::GetUniform( const string& uniformname ) const
 {
-    glcall( glUseProgram( mShaderID ) );
+    glcall( glUseProgram( mShaderId ) );
     if( mUniformCache.count( uniformname ) )
         return mUniformCache[uniformname];
 
-    i32 unifromid = glGetUniformLocation( mShaderID, uniformname.c_str() );
+    i32 unifromid = glGetUniformLocation( mShaderId, uniformname.c_str() );
     if( unifromid == GL_INVALID_INDEX )
         LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformname );
 
@@ -47,11 +47,11 @@ i32 Shader::GetUniform( const string& uniformname ) const
 
 i32 Shader::GetUniformBuffer( const string& uniformname ) const
 {
-    glcall( glUseProgram( mShaderID ) );
+    glcall( glUseProgram( mShaderId ) );
     if ( mUniformCache.count( uniformname ) )
         return mUniformCache[uniformname];
 
-    i32 unifromid = glGetUniformBlockIndex( mShaderID, uniformname.c_str() );
+    i32 unifromid = glGetUniformBlockIndex( mShaderId, uniformname.c_str() );
     if ( unifromid == GL_INVALID_INDEX )
         LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformname );
 
@@ -124,7 +124,7 @@ void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
     auto shaderBufferIndex = GetUniformBuffer( ub->Name() );
     if ( shaderBufferIndex != GL_INVALID_INDEX )
     {
-        glcall( glUniformBlockBinding( mShaderID, shaderBufferIndex, (GLint)ub->Index() ) );
+        glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (GLint)ub->Index() ) );
     }
 }
 

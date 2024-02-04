@@ -9,22 +9,21 @@ namespace bubble
 Ref<Shader> Loader::LoadShader( const path& path )
 {
 	Ref<Shader> shader = CreateRef<Shader>();
+    shader->mName = path.filename().string();
 	string vertexSource, fragmentSource, geometry;
-
-	shader->mName = path.filename().string();
 	ParseShaders( path, vertexSource, fragmentSource, geometry );
 	CompileShaders( *shader, vertexSource, fragmentSource, geometry );
 	return shader;
 }
 
 
-Ref<Shader> Loader::LoadShader( const std::string_view name,
-                                const std::string_view vertex,
-                                const std::string_view fragment,
-                                const std::string_view geometry )
+Ref<Shader> Loader::LoadShader( string name,
+                                string_view vertex,
+                                string_view fragment,
+                                string_view geometry )
 {
 	Ref<Shader> shader = CreateRef<Shader>();
-	shader->mName = name;
+	shader->mName = std::move( name );
 	CompileShaders( *shader, vertex, fragment, geometry );
 	mShaders.emplace( name, shader );
 	return shader;
@@ -160,33 +159,33 @@ void Loader::CompileShaders( Shader& shader,
 		}
 	}
 	// Shader program
-	shader.mShaderID = glCreateProgram();
+	shader.mShaderId = glCreateProgram();
 	// Link shaders
-	glcall( glAttachShader( shader.mShaderID, vertex_shader ) );
-	glcall( glAttachShader( shader.mShaderID, fragment_shader ) );
+	glcall( glAttachShader( shader.mShaderId, vertex_shader ) );
+	glcall( glAttachShader( shader.mShaderId, fragment_shader ) );
 	if ( geometry_source.size() )
 	{
-		glcall( glAttachShader( shader.mShaderID, geometry_shader ) );
+		glcall( glAttachShader( shader.mShaderId, geometry_shader ) );
 	}
-	glcall( glLinkProgram( shader.mShaderID ) );
+	glcall( glLinkProgram( shader.mShaderId ) );
 
 	{
 		GLint success;
-		glGetProgramiv( shader.mShaderID, GL_LINK_STATUS, &success );
+		glGetProgramiv( shader.mShaderId, GL_LINK_STATUS, &success );
 		if ( success != GL_TRUE )
 		{
 			GLint max_length = 0;
 			string log;
 
-			glGetShaderiv( shader.mShaderID, GL_INFO_LOG_LENGTH, &max_length );
+			glGetShaderiv( shader.mShaderId, GL_INFO_LOG_LENGTH, &max_length );
 			log.resize( max_length );
-			glGetProgramInfoLog( shader.mShaderID, max_length, NULL, (GLchar*)log.data() );
+			glGetProgramInfoLog( shader.mShaderId, max_length, NULL, (GLchar*)log.data() );
 
 			// free resources
 			//glDeleteShader(geometry_shader);
 			glDeleteShader( vertex_shader );
 			glDeleteShader( fragment_shader );
-			glDeleteProgram( shader.mShaderID );
+			glDeleteProgram( shader.mShaderId );
 
 			LogError( "LINKING SHADER ERROR: {} \n {}", shader.mName, log );
 			throw std::runtime_error( "Shader compilation failed" );

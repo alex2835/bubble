@@ -115,7 +115,7 @@ Mesh Loader::ProcessMesh( const aiMesh* mesh,
 			indices.push_back( face.mIndices[j] );
 	}
 
-	// Process materials
+	// Material
 	aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
 	BasicMaterial material = LoadMaterialTextures( assimp_material, path );
 
@@ -132,11 +132,8 @@ BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const path& p
 												aiTextureType_SPECULAR, 
 												aiTextureType_HEIGHT, 
 												aiTextureType_NORMALS };
-
-	// retrieve the directory path from filepath
-	auto directory = path.parent_path();
-
-    BasicMaterial material;
+	BasicMaterial material;
+    auto directory = path.parent_path();
     for ( u32 i = 0; i < textureTypes; i++ )
     {
 		auto texturesCount = mat->GetTextureCount( types[i] );

@@ -21,24 +21,24 @@ void Window::KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action,
         win->mEvents.push_back( event );
     }
     win->mKeyboardInput.mKeyState[key] = action;
-    win->mKeyboardInput.mKeyMods.SHIFT |= bool(mods & GLFW_MOD_SHIFT);
-    win->mKeyboardInput.mKeyMods.CONTROL |= bool(mods & GLFW_MOD_CONTROL);
-    win->mKeyboardInput.mKeyMods.ALT |= bool(mods & GLFW_MOD_ALT);
-    win->mKeyboardInput.mKeyMods.SUPER |= bool(mods & GLFW_MOD_SUPER);
-    win->mKeyboardInput.mKeyMods.CAPS_LOCK |= bool(mods & GLFW_MOD_CAPS_LOCK);
-    win->mKeyboardInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
+    win->mKeyboardInput.mKeyMods.SHIFT = bool(mods & GLFW_MOD_SHIFT);
+    win->mKeyboardInput.mKeyMods.CONTROL = bool(mods & GLFW_MOD_CONTROL);
+    win->mKeyboardInput.mKeyMods.ALT = bool(mods & GLFW_MOD_ALT);
+    win->mKeyboardInput.mKeyMods.SUPER = bool(mods & GLFW_MOD_SUPER);
+    win->mKeyboardInput.mKeyMods.CAPS_LOCK = bool(mods & GLFW_MOD_CAPS_LOCK);
+    win->mKeyboardInput.mKeyMods.NUM_LOCK = bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
 void Window::MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mMouseInput.mKeyState[key] = action;
-    win->mMouseInput.mKeyMods.SHIFT |= bool(mods & GLFW_MOD_SHIFT);
-    win->mMouseInput.mKeyMods.CONTROL |= bool(mods & GLFW_MOD_CONTROL);
-    win->mMouseInput.mKeyMods.ALT |= bool(mods & GLFW_MOD_ALT);
-    win->mMouseInput.mKeyMods.SUPER |= bool(mods & GLFW_MOD_SUPER);
-    win->mMouseInput.mKeyMods.CAPS_LOCK |= bool(mods & GLFW_MOD_CAPS_LOCK);
-    win->mMouseInput.mKeyMods.NUM_LOCK |= bool(mods & GLFW_MOD_NUM_LOCK);
+    win->mMouseInput.mKeyMods.SHIFT = bool(mods & GLFW_MOD_SHIFT);
+    win->mMouseInput.mKeyMods.CONTROL = bool(mods & GLFW_MOD_CONTROL);
+    win->mMouseInput.mKeyMods.ALT = bool(mods & GLFW_MOD_ALT);
+    win->mMouseInput.mKeyMods.SUPER = bool(mods & GLFW_MOD_SUPER);
+    win->mMouseInput.mKeyMods.CAPS_LOCK = bool(mods & GLFW_MOD_CAPS_LOCK);
+    win->mMouseInput.mKeyMods.NUM_LOCK = bool(mods & GLFW_MOD_NUM_LOCK);
 }
 
 void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
@@ -193,7 +193,7 @@ Window::Window( const string& name, WindowSize size )
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
     //LoadIniSettingsFromMemory()
     io.IniFilename = nullptr;
@@ -244,6 +244,22 @@ void Window::OnUpdate()
     glfwSwapBuffers( mWindow );
 }
 
+bool Window::IsKeyPressed( KeyboardKey key )
+{
+    return mKeyboardInput.IsKeyPressed( key );
+}
+
+bool Window::IsKeyPressed( MouseKey key )
+{
+    return mMouseInput.IsKeyPressed( key );
+}
+
+void Window::LockCursor( bool lock )
+{
+    auto option = lock ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
+    glfwSetInputMode( mWindow, GLFW_CURSOR, option );
+}
+
 void Window::SetVSync( bool vsync )
 {
     glfwSwapInterval( vsync );
@@ -281,13 +297,13 @@ void Window::ImGuiEnd()
     ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
 
     // Multi viewports
-    ImGuiIO& io = ImGui::GetIO();
-    if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
-    {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-        glfwMakeContextCurrent( mWindow );
-    }
+    //ImGuiIO& io = ImGui::GetIO();
+    //if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
+    //{
+    //    ImGui::UpdatePlatformWindows();
+    //    ImGui::RenderPlatformWindowsDefault();
+    //    glfwMakeContextCurrent( mWindow );
+    //}
 }
 
 

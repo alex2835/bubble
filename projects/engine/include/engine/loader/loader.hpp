@@ -28,23 +28,23 @@ struct BUBBLE_ENGINE_EXPORT Loader
     std::unordered_map<string, Ref<Skybox>>    mSkyboxes;
     std::unordered_map<string, Ref<Texture2D>> mSkyspheres;
 
-    std::unordered_map<string, Ref<Texture2D>> mDefaultTextures;
-    std::unordered_map<string, Ref<Model>>     mDefaultModels;
-    std::unordered_map<string, Ref<Shader>>    mDefaultShaders;
-    std::unordered_map<string, Ref<Skybox>>    mDefaultSkyboxes;
-    std::unordered_map<string, Ref<Texture2D>> mDefaultSkyspheres;
+    //std::unordered_map<string, Ref<Texture2D>> mDefaultTextures;
+    //std::unordered_map<string, Ref<Model>>     mDefaultModels;
+    //std::unordered_map<string, Ref<Shader>>    mDefaultShaders;
+    //std::unordered_map<string, Ref<Skybox>>    mDefaultSkyboxes;
+    //std::unordered_map<string, Ref<Texture2D>> mDefaultSkyspheres;
 
 
     Ref<Shader> LoadShader( const path& path );
-    Ref<Shader> LoadShader( const std::string_view name,
-                            const std::string_view vertex,
-                            const std::string_view fragment,
-                            const std::string_view geometry = string() );
+    Ref<Shader> LoadShader( string name,
+                            string_view vertex,
+                            string_view fragment,
+                            string_view geometry = {} );
 
     Ref<Model> LoadModel( const path& path );
 
-    //Ref<Texture2D> LoadAndCacheTexture2D( string path );
     Ref<Texture2D> LoadTexture2D( const path& path );
+    //Ref<Texture2D> LoadAndCacheTexture2D( string path );
     //std::tuple<Scope<uint8_t[]>, Texture2DSpecification> OpenRawImage( const path& path );
 
 private:

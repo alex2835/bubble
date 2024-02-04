@@ -29,7 +29,7 @@ public:
     void Bind() const;
     void Unbind() const;
 
-    // lone i32 
+    // lone i32
     void SetUni1i( const string& name, const i32& val ) const;
 
     // f32 vec
@@ -50,9 +50,9 @@ public:
     // Uniform buffer
     void SetUniformBuffer( const Ref<UniformBuffer>& ub );
 
-//private:
     string mName;
-    GLuint  mShaderID;
+    GLuint  mShaderId;
+private:
     mutable std::unordered_map<string, i32> mUniformCache;
 };
 

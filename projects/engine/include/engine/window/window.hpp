@@ -43,6 +43,10 @@ public:
     const vector<Event>& PollEvents();
     void OnUpdate();
 
+    bool IsKeyPressed( KeyboardKey key );
+    bool IsKeyPressed( MouseKey key );
+
+    void LockCursor( bool lock );
     void SetVSync( bool vsync );
 
     GLFWwindow* GetHandle() const;

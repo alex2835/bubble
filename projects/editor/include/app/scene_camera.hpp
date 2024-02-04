@@ -5,7 +5,9 @@ namespace bubble
 {
 struct SceneCamera : public FreeCamera
 {
-    //f32  mBoostSpeed = 5.0f;
+    f32  mBoostSpeed = 20.0f;
+    f32  mDefaultSpeed = 10.0f;
+    bool mIsActive = false;
 
     SceneCamera()
     {
@@ -14,10 +16,24 @@ struct SceneCamera : public FreeCamera
 
     void OnEvent( const Event& event )
     {
+        if ( !mIsActive )
+            return;
+
         switch ( event.mType )
         {
         case bubble::EventType::KeyboardKey:
         {
+            if ( event.mKeyboard.Mods.SHIFT )
+            {
+                mMaxSpeed = mBoostSpeed;
+                mDeltaSpeed = mBoostSpeed / 2;
+            }
+            else
+            {
+                mMaxSpeed = mDefaultSpeed;
+                mDeltaSpeed = mDefaultSpeed / 2;
+            }
+
             switch ( event.mKeyboard.Action )
             {
             case KeyAction::Press:

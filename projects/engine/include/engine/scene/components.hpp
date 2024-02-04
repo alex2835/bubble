@@ -62,7 +62,8 @@ struct TagComponent : public string
         auto& tag = *(TagComponent*)raw;
         char buffer[64] = { 0 };
         tag.copy( buffer, sizeof( buffer ) );
-        ImGui::InputText( "Tag", buffer, sizeof( buffer ) );
+        ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "TagComponent" );
+        ImGui::InputText( "##Tag", buffer, sizeof( buffer ) );
         tag.assign( buffer );
     }
 
@@ -80,6 +81,7 @@ struct TransformComponent
     static void OnComponentDraw( void* raw )
     {
         auto& component = *(TransformComponent*)raw;
+        ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "TransformComponent" );
         ImGui::DragFloat3( "Scale", (float*)&component.mScale, 0.01f, 0.01f );
         ImGui::DragFloat3( "Rotation", (float*)&component.mRotation, 0.01f );
         ImGui::DragFloat3( "Position", (float*)&component.mPosition, 0.1f );
@@ -95,10 +97,10 @@ struct TransformComponent
         transform = glm::scale( transform, mScale );
         return transform;
     }
+
     vec3 mPosition = vec3( 0 );
     vec3 mRotation = vec3( 0 );
     vec3 mScale = vec3( 1 );
-
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
@@ -112,9 +114,9 @@ struct LightComponent : public Light
     static void OnComponentDraw( void* raw )
     {
         auto& component = *(LightComponent*)raw;
+        ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "LightComponent" );
 
     }
-
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
@@ -128,9 +130,9 @@ struct ModelComponent : public Ref<Model>
     static void OnComponentDraw( void* raw )
     {
         auto& component = *(ModelComponent*)raw;
-
+        ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "ModelComponent" );
+        ImGui::Text( component->mName.c_str() );
     }
-
     //void Serialize( const Loader& loader, nlohmann::json& out ) const;
     //void Deserialize( const nlohmann::json& j, Loader& loader );
 };
