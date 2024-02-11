@@ -27,6 +27,7 @@ add_subdirectory(assimp)
 #GIT_TAG 0.9.9.8
 add_subdirectory(glm)
 
+add_subdirectory(imgui_gizmo)
 add_subdirectory(glm-aabb)
 add_subdirectory(stb_image)
 add_subdirectory(recs)

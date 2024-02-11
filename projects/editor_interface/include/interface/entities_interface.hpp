@@ -1,17 +1,15 @@
 #pragma once
 #include "imgui.h"
-#include "engine/utils/ieditor_interface.hpp"
-#include "engine/engine.hpp"
+#include "ieditor_interface.hpp"
+#include "editor_app.hpp"
+
 
 namespace bubble
 {
 class EntitiesInterface : public IEditorInterface
 {
 public:
-    EntitiesInterface()
-    {
-
-    }
+    using IEditorInterface::IEditorInterface;
 
     ~EntitiesInterface() override
     {
@@ -33,40 +31,40 @@ public:
     }
 
 
-    void DrawEntities( Engine& engine )
+    void DrawEntities()
     {
         ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
         {
             if ( ImGui::Button( "Create Entity", ImVec2( 100, 25 ) ) )
-                engine.mScene.CreateEntity();
+                mEngine.mScene.CreateEntity();
 
             ImGui::SameLine();
             if ( ImGui::Button( "Delete Entity", ImVec2( 100, 25 ) ) )
             {
-                if ( mSelectedEntity )
-                    engine.mScene.RemoveEntity( mSelectedEntity );
-                mSelectedEntity = Entity();
+                if ( mEditorState.selectedEntity )
+                    mEngine.mScene.RemoveEntity( mEditorState.selectedEntity );
+                mEditorState.selectedEntity = Entity();
             }
 
-            engine.mScene.ForEachEntity( [&]( Entity entity )
+            mEngine.mScene.ForEachEntity( [&]( Entity entity )
             {
                 auto& tag = entity.GetComponent<TagComponent>();
-                ImGui::Selectable( tag.c_str(), entity == mSelectedEntity );
+                ImGui::Selectable( tag.c_str(), entity == mEditorState.selectedEntity );
 
                 if ( ImGui::IsItemClicked() )
-                    mSelectedEntity = entity;
+                    mEditorState.selectedEntity = entity;
             } );
         }
         ImGui::EndChild();
     }
 
-    void DrawSelectedEntityProperties( Engine& engine )
+    void DrawSelectedEntityProperties()
     {
-        if ( mSelectedEntity == INVALID_ENTITY )
+        if ( mEditorState.selectedEntity == INVALID_ENTITY )
             return;
 
         ImGui::BeginChild( "Components" );
-        engine.mScene.ForEachEntityComponentRaw( mSelectedEntity,
+        mEngine.mScene.ForEachEntityComponentRaw( mEditorState.selectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
             auto onDrawFunc = ComponentsOnDrawStorage::Get( componentName );
@@ -79,22 +77,21 @@ public:
         ImGui::EndChild();
     }
 
-    void OnDraw( Engine& engine ) override
+    void OnDraw( DeltaTime ) override
     {
         ImGui::Begin( Name().data(), &mOpen );
         {
-            DrawEntities( engine );
+            DrawEntities();
             ImGui::Separator();
             ImGui::Text( "Entity components" );
             ImGui::Separator();
-            DrawSelectedEntityProperties( engine );
+            DrawSelectedEntityProperties();
         }
         ImGui::End();
     }
 
 private:
     strunoset mNoCompDrawFuncWarnings;
-    Entity mSelectedEntity;
 };
 
 }

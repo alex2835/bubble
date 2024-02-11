@@ -17,6 +17,7 @@ add_library(imgui STATIC
   ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.h
   ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
 )
+
 target_include_directories(imgui PUBLIC 
 	${imgui_SOURCE_DIR}
 	${imgui_SOURCE_DIR}/backends

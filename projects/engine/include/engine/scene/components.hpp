@@ -91,9 +91,9 @@ struct TransformComponent
     {
         auto transform = mat4( 1.0f );
         transform = glm::translate( transform, mPosition );
-        transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-        transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
-        transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
+        transform = glm::rotate( transform, glm::radians( mRotation.x ), vec3( 1, 0, 0 ) );
+        transform = glm::rotate( transform, glm::radians( mRotation.y ), vec3( 0, 1, 0 ) );
+        transform = glm::rotate( transform, glm::radians( mRotation.z ), vec3( 0, 0, 1 ) );
         transform = glm::scale( transform, mScale );
         return transform;
     }

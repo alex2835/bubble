@@ -1,7 +1,6 @@
 
-#include "app/editor_app.hpp"
+#include "editor_app.hpp"
 #include "engine/utils/emscripten_main_loop.hpp"
-#include "interface/scnene_viewport_interface.hpp"
 #include <functional>
 
 namespace bubble
@@ -37,24 +36,22 @@ constexpr std::string_view frag_shader = R"shader(
 
 
 BubbleEditor::BubbleEditor()
-    : mWindow( "Bubble", WindowSize{ 1200, 720 } ),
-      mSceneViewport( { 640, 800 } ),
-      mInterfaceLoader( mWindow.GetImGuiContext() )
+    : mState{ Window( "Bubble", WindowSize{ 1200, 720 } ),
+              Framebuffer( { 640, 800 } ),
+              SceneCamera( vec3( 0, 15, 70 ) ) },
+      mInterfaceLoader( mState, mEngine, mState.window.GetImGuiContext() )
 {
-    //glewInit();
-    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
+    ImGui::SetCurrentContext( mState.window.GetImGuiContext() );
 
-    // Components on draw
+    // Components draw ability
     ComponentsOnDrawStorage::Add<TagComponent>();
     ComponentsOnDrawStorage::Add<TransformComponent>();
     ComponentsOnDrawStorage::Add<ModelComponent>();
 
     // Editor's viewport interface
-    auto editorViewportInterface = Ref<IEditorInterface>( 
-        ( IEditorInterface* ) new SceneViewportInterface( mWindow, mSceneViewport, mSceneCamera ) );
-    mInterfaceLoader.AddInterface( editorViewportInterface );
     mInterfaceLoader.LoadInterfaces();
 }
+
 
 void BubbleEditor::Run()
 {
@@ -67,36 +64,37 @@ void BubbleEditor::Run()
     entity.AddComponet<TagComponent>( "test" )
           .AddComponet<ModelComponent>( model )
           .AddComponet<TransformComponent>();
+    mState.selectedEntity = entity;
 
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
-    while ( !mWindow.ShouldClose() )
+    while ( !mState.window.ShouldClose() )
 #endif
     {
         // Events
-        const auto& events = mWindow.PollEvents();
+        const auto& events = mState.window.PollEvents();
         for ( const auto& event : events )
-            mSceneCamera.OnEvent( event );
+            mState.sceneCamera.OnEvent( event );
 
         // Update
         mEngine.OnUpdate();
         auto dt = mEngine.mTimer.GetDeltaTime();
+        mState.sceneCamera.OnUpdate( dt );
         mInterfaceLoader.OnUpdate( dt );
-        mSceneCamera.OnUpdate( dt );
 
         // Draw 
-        mEngine.DrawScene( mSceneCamera, mSceneViewport );
+        mEngine.DrawScene( mState.sceneCamera, mState.sceneViewport );
 
 
-        Framebuffer::BindWindow( mWindow );
-        mWindow.ImGuiBegin();
-        ImGui::ShowDemoWindow();
-        mInterfaceLoader.OnDraw( mEngine );
-        mWindow.ImGuiEnd();
+        Framebuffer::BindWindow( mState.window );
+        mState.window.ImGuiBegin();
+        //ImGui::ShowDemoWindow();
+        mInterfaceLoader.OnDraw( dt );
+        mState.window.ImGuiEnd();
 
-        mWindow.OnUpdate();
+        mState.window.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;

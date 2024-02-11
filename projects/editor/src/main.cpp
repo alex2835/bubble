@@ -1,5 +1,5 @@
 #include <iostream>
-#include "app/editor_app.hpp"
+#include "editor_app.hpp"
 
 int main( void )
 {

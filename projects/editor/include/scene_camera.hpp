@@ -9,10 +9,12 @@ struct SceneCamera : public FreeCamera
     f32  mDefaultSpeed = 10.0f;
     bool mIsActive = false;
 
-    SceneCamera()
+    SceneCamera( vec3 pos = vec3(0) )
     {
+        mPosition = pos;
         mMouseSensitivity = 0.001f;
     }
+
 
     void OnEvent( const Event& event )
     {

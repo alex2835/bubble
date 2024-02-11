@@ -1,23 +1,14 @@
 #pragma once
 #include "imgui.h"
-#include "engine/utils/ieditor_interface.hpp"
-#include "engine/renderer/framebuffer.hpp"
+#include "ieditor_interface.hpp"
+#include "editor_app.hpp"
 
 namespace bubble
 {
 class SceneViewportInterface : public IEditorInterface
 {
 public:
-    SceneViewportInterface( Window& window,
-                            Framebuffer& viewport,
-                            SceneCamera& camera )
-        : mNewSize( 640, 640 ),
-          mWindow( window ),
-          mSceneViewport( viewport ),
-          mSceneCamera( camera )
-    {
-    
-    }
+    using IEditorInterface::IEditorInterface;
 
     ~SceneViewportInterface() override
     {
@@ -31,35 +22,95 @@ public:
 
     void OnInit() override
     {
-
+        mNewSize = mEditorState.sceneViewport.Size();
     }
 
     void OnUpdate( DeltaTime ) override
     {
-        if ( mNewSize != mSceneViewport.Size() )
-            mSceneViewport.Resize( mNewSize );
+        if ( mNewSize != mEditorState.sceneViewport.Size() )
+            mEditorState.sceneViewport.Resize( mNewSize );
     }
 
-    void OnDraw( Engine& ) override
+    ImVec2 CaptureWidnowMousePos()
+    {
+        auto windowSize = ImGui::GetWindowSize();
+        auto windowPos = ImGui::GetCursorScreenPos();
+        auto mousePos = ImGui::GetMousePos();
+        auto mouseInWindowPos = ImVec2{ mousePos.x - windowPos.x, windowPos.y - mousePos.y };
+        auto mouseInWindowPosRel = mouseInWindowPos / windowSize;
+        std::cout << mouseInWindowPosRel.x << " " << mouseInWindowPosRel.y << std::endl;
+        return mouseInWindowPosRel;
+    }
+
+
+    void DrawViewport()
+    {
+        vec2 viewportSize = mEditorState.sceneViewport.Size();
+        ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
+
+        u64 textureId = mEditorState.sceneViewport.GetColorAttachmentRendererID();
+        ImVec2 textureSize = ImVec2( (float)mEditorState.sceneViewport.GetWidth(),
+                                     (float)mEditorState.sceneViewport.GetHeight() );
+
+        ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+        mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
+
+        if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
+            auto pos = CaptureWidnowMousePos();
+
+        if ( ImGui::IsItemHovered() )
+        {
+            auto middleButton = mEditorState.window.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
+            mEditorState.sceneCamera.mIsActive = middleButton;
+            mEditorState.window.LockCursor( middleButton );
+        }
+    }
+
+    void DrawGizmo()
+    {
+        if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
+            mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+        if ( ImGui::IsKeyPressed( ImGuiKey_E ) )
+            mCurrentGizmoOperation = ImGuizmo::ROTATE;
+        if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
+            mCurrentGizmoOperation = ImGuizmo::SCALE;
+
+
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect( ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
+                           (float)mNewSize.x, (float)mNewSize.y );
+
+        auto lookAt = mEditorState.sceneCamera.GetLookatMat();
+        auto projection = mEditorState.sceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+
+
+        mat4 matrix;
+        auto& entityTransform = mEditorState.selectedEntity.GetComponent<TransformComponent>();
+
+        ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
+                                                 glm::value_ptr( entityTransform.mRotation ),
+                                                 glm::value_ptr( entityTransform.mScale ),
+                                                 glm::value_ptr( matrix ) );
+
+        ImGuizmo::Manipulate( glm::value_ptr( lookAt ), 
+                              glm::value_ptr( projection ),
+                              mCurrentGizmoOperation, 
+                              mCurrentGizmoMode,
+                              glm::value_ptr( matrix ) );
+
+        ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( matrix ),
+                                               glm::value_ptr( entityTransform.mPosition ),
+                                               glm::value_ptr( entityTransform.mRotation ),
+                                               glm::value_ptr( entityTransform.mScale ) );
+    }
+
+    void OnDraw( DeltaTime ) override
     {
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
-        ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse |
-                                             ImGuiWindowFlags_NoTitleBar );
+        ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
         {
-            vec2 viewportSize = mSceneViewport.Size();
-            ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
-
-            u64 textureId = mSceneViewport.GetColorAttachmentRendererID();
-            ImVec2 textureSize = ImVec2( (float)mSceneViewport.GetWidth(),
-                                         (float)mSceneViewport.GetHeight() );
-            ImGui::Image( (ImTextureID)textureId, textureSize,
-                          ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
-            mNewSize = { imguiViewportSize.x, imguiViewportSize.y };
-
-            // Process if hovered
-            auto middleButton = mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
-            mSceneCamera.mIsActive = middleButton;
-            mWindow.LockCursor( middleButton );
+            DrawViewport();
+            DrawGizmo();
         }
         ImGui::End();
         ImGui::PopStyleVar();
@@ -67,9 +118,9 @@ public:
 
 private:
     uvec2 mNewSize;
-    Window& mWindow;
-    Framebuffer& mSceneViewport;
-    SceneCamera& mSceneCamera;
+
+    ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+    ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
 };
 
 }

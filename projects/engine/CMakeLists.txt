@@ -15,6 +15,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
 )
 
 target_link_libraries(${TARGET_NAME} PUBLIC imgui)
+target_link_libraries(${TARGET_NAME} PUBLIC imgui_gizmo)
 target_link_libraries(${TARGET_NAME} PUBLIC glm::glm)
 target_link_libraries(${TARGET_NAME} PUBLIC glm_aabb)
 target_link_libraries(${TARGET_NAME} PUBLIC stb_image)

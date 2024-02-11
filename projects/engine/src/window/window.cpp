@@ -196,7 +196,7 @@ Window::Window( const string& name, WindowSize size )
     //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
     //LoadIniSettingsFromMemory()
-    io.IniFilename = nullptr;
+    //io.IniFilename = nullptr;
 
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();
