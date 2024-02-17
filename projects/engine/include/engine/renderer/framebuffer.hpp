@@ -27,39 +27,37 @@ public:
     Framebuffer() = delete;
     Framebuffer( const Framebuffer& ) = delete;
     Framebuffer& operator= ( const Framebuffer& ) = delete;
-
     Framebuffer( Framebuffer&& other ) noexcept;
     Framebuffer& operator = ( Framebuffer&& other ) noexcept;
-
-    Framebuffer( const FramebufferSpecification& spec );
     Framebuffer( Texture2D&& color, Texture2D&& depth );
+    virtual ~Framebuffer();
 
     void SetColorAttachment( Texture2D&& texture );
     void SetDepthAttachment( Texture2D&& texture );
-    Texture2D GetColorAttachment();
-    Texture2D GetDepthAttachment();
+    void SetStencilAttachment( Texture2D&& texture );
+    Texture2D& ColorAttachment();
+    Texture2D& DepthAttachment();
+    opt<Texture2D>& StencilAttachment();
 
-    virtual ~Framebuffer();
-
+    
+    
     void Bind() const;
     void Unbind() const;
     static void BindWindow( Window& window );
     void Invalidate();
 
-    GLsizei GetWidth() const;
-    GLsizei GetHeight() const;
+    GLsizei Width() const;
+    GLsizei Height() const;
     uvec2 Size() const;
     void Resize( uvec2 size );
 
-    GLuint GetColorAttachmentRendererID() const;
-    GLuint GetDepthAttachmentRendererID() const;
-    FramebufferSpecification GetSpecification() const;
-
+    FramebufferSpecification Specification() const;
 
 private:
     GLuint mRendererID = 0;
     Texture2D mColorAttachment;
     Texture2D mDepthAttachment;
+    opt<Texture2D> mStencilAttachment;
     FramebufferSpecification mSpecification;
 };
 }

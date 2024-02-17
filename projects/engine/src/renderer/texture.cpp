@@ -57,12 +57,34 @@ Texture2DSpecification Texture2DSpecification::CreateRGBA8( uvec2 size )
     return Texture2DSpecification( size );
 }
 
+bubble::Texture2DSpecification Texture2DSpecification::CreateRGBA32( uvec2 size )
+{
+    Texture2DSpecification specification( size );
+    specification.mChanelFormat = GL_UNSIGNED_INT;
+    specification.mDataFormat = GL_RGBA_INTEGER;
+    specification.mInternalFormat = GL_RGBA32I;
+    return specification;
+}
+
+Texture2DSpecification Texture2DSpecification::CreateObjectId( uvec2 size )
+{
+    Texture2DSpecification specification( size );
+    specification.mChanelFormat = GL_UNSIGNED_INT;
+    specification.mDataFormat = GL_RED_INTEGER;
+    specification.mInternalFormat = GL_R32UI;
+    specification.mMinFiler = GL_NEAREST;
+    specification.mMagFilter = GL_NEAREST;
+    specification.mWrapS = GL_CLAMP_TO_BORDER;
+    specification.mWrapT = GL_CLAMP_TO_BORDER;
+    return specification;
+}
+
 Texture2DSpecification Texture2DSpecification::CreateDepth( uvec2 size )
 {
     Texture2DSpecification specification( size );
     specification.mChanelFormat = GL_FLOAT;
     specification.mDataFormat = GL_DEPTH_COMPONENT;
-    specification.mInternalFormat = GL_DEPTH_COMPONENT;
+    specification.mInternalFormat = GL_DEPTH_COMPONENT32F;
     specification.mWrapS = GL_CLAMP_TO_BORDER;
     specification.mWrapT = GL_CLAMP_TO_BORDER;
     return specification;
@@ -75,12 +97,6 @@ Texture2DSpecification::Texture2DSpecification( uvec2 size )
 
 Texture2D::Texture2D( const Texture2DSpecification& spec )
     : mSpecification( spec )
-{
-    Invalidate();
-}
-
-Texture2D::Texture2D( uvec2 size )
-    : mSpecification( Texture2DSpecification::CreateRGBA8( size ) )
 {
     Invalidate();
 }
@@ -113,7 +129,7 @@ Texture2D::~Texture2D()
     glDeleteTextures( 1, &mRendererID );
 }
 
-void Texture2D::SetData( void* data, u64 size )
+void Texture2D::SetData( void* data, u32 size )
 {
     Bind();
     u32 channels = mSpecification.ExtractTextureSpecChannels();
@@ -122,7 +138,7 @@ void Texture2D::SetData( void* data, u64 size )
             mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }
 
-void Texture2D::GetData( void* data, u64 size ) const
+void Texture2D::GetData( void* data, u32 size ) const
 {
     Bind();
     u32 channels = mSpecification.ExtractTextureSpecChannels();
@@ -148,17 +164,17 @@ void Texture2D::Resize( const ivec2& new_size )
     Invalidate();
 }
 
-GLsizei Texture2D::GetWidth()  const
+GLsizei Texture2D::Width() const
 {
     return mSpecification.mWidth;
 }
 
-GLsizei Texture2D::GetHeight() const
+GLsizei Texture2D::Height() const
 {
     return mSpecification.mHeight;
 }
 
-u32 Texture2D::GetRendererID() const
+GLuint Texture2D::RendererID() const
 {
     return mRendererID;
 }

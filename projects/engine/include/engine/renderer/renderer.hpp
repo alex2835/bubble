@@ -11,11 +11,11 @@ namespace bubble
 class BUBBLE_ENGINE_EXPORT Renderer
 {
 public:
-    void ClearScreen( vec4 color );
-    void DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, const mat4& transform );
-    void DrawModel( const Ref<Model>& model, const mat4& transform );
-
     Renderer();
+    void ClearScreen( vec4 color );
+    void ClearScreenUint( uvec4 color );
+    void DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, const mat4& transform );
+    void DrawModel( const Ref<Model>& model, const mat4& transform, const Ref<Shader>& shader = {} );
 
 //private:
     Ref<UniformBuffer> mVertexUniformBuffer;    

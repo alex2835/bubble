@@ -11,6 +11,14 @@ Entity Registry::CreateEntity()
     return entity;
 }
 
+Entity Registry::EntityById( size_t id )
+{
+    auto iter = mEntitysComponentIds.find( Entity( id, this ) );
+    if ( iter == mEntitysComponentIds.end() )
+        return INVALID_ENTITY;
+    return iter->first;
+}
+
 void Registry::RemoveEntity( Entity& entity )
 {
     auto components = GetEntityComponentsIds( entity );

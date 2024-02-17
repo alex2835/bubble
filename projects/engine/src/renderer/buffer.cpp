@@ -468,7 +468,7 @@ void VertexArray::SetIndexBuffer( IndexBuffer&& indexBuffer )
     Unbind();
 }
 
-u32 VertexArray::GetRendererID() const
+u32 VertexArray::RendererID() const
 {
     return mRendererID;
 }

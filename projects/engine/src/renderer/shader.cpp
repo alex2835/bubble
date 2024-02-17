@@ -31,91 +31,98 @@ void Shader::Unbind() const
     glcall( glUseProgram( 0 ) );
 }
 
-i32 Shader::GetUniform( const string& uniformname ) const
+i32 Shader::GetUniform( string_view uniformname ) const
 {
     glcall( glUseProgram( mShaderId ) );
-    if( mUniformCache.count( uniformname ) )
-        return mUniformCache[uniformname];
+    auto iter = mUniformCache.find( uniformname );
+    if( iter != mUniformCache.end() )
+        return iter->second;
 
-    i32 unifromid = glGetUniformLocation( mShaderId, uniformname.c_str() );
+    i32 unifromid = glGetUniformLocation( mShaderId, uniformname.data() );
     if( unifromid == GL_INVALID_INDEX )
         LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformname );
 
-    mUniformCache[uniformname] = unifromid;
+    mUniformCache.emplace( uniformname, unifromid );
     return unifromid;
 }
 
-i32 Shader::GetUniformBuffer( const string& uniformname ) const
+i32 Shader::GetUniformBuffer( string_view uniformname ) const
 {
     glcall( glUseProgram( mShaderId ) );
-    if ( mUniformCache.count( uniformname ) )
-        return mUniformCache[uniformname];
+    auto iter = mUniformCache.find( uniformname );
+    if ( iter != mUniformCache.end() )
+        return iter->second;
 
-    i32 unifromid = glGetUniformBlockIndex( mShaderId, uniformname.c_str() );
+    i32 unifromid = glGetUniformBlockIndex( mShaderId, uniformname.data() );
     if ( unifromid == GL_INVALID_INDEX )
         LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformname );
 
-    mUniformCache[uniformname] = unifromid;
+    mUniformCache.emplace( uniformname, unifromid );
     return unifromid;
 }
 
 // lone i32 
-void Shader::SetUni1i( const string& mName, const i32& val ) const
+void Shader::SetUni1i( string_view name, const i32& val ) const
 {
-    glcall( glUniform1i( GetUniform( mName ), val ) );
+    glcall( glUniform1i( GetUniform( name ), val ) );
+}
+
+void Shader::SetUni1ui( string_view name, const u32& val ) const
+{
+    glcall( glUniform1ui( GetUniform( name ), val ) );
 }
 
 // f32 vec
-void Shader::SetUni1f( const string& mName, const f32& val ) const
+void Shader::SetUni1f( string_view name, const f32& val ) const
 {
-    glcall( glUniform1f( GetUniform( mName ), val ) );
+    glcall( glUniform1f( GetUniform( name ), val ) );
 }
 
-void Shader::SetUni2f( const string& mName, const vec2& val ) const
+void Shader::SetUni2f( string_view name, const vec2& val ) const
 {
-    glcall( glUniform2f( GetUniform( mName ), val.x, val.y ) );
+    glcall( glUniform2f( GetUniform( name ), val.x, val.y ) );
 }
 
-void Shader::SetUni3f( const string& mName, const vec3& val ) const
+void Shader::SetUni3f( string_view name, const vec3& val ) const
 {
-    glcall( glUniform3f( GetUniform( mName ), val.x, val.y, val.z ) );
+    glcall( glUniform3f( GetUniform( name ), val.x, val.y, val.z ) );
 }
 
-void Shader::SetUni4f( const string& mName, const vec4& val ) const
+void Shader::SetUni4f( string_view name, const vec4& val ) const
 {
-    glcall( glUniform4f( GetUniform( mName ), val.x, val.y, val.z, val.w ) );
+    glcall( glUniform4f( GetUniform( name ), val.x, val.y, val.z, val.w ) );
 }
 
 // f32 matrices
-void Shader::SetUniMat3( const string& mName, const mat3& val ) const
+void Shader::SetUniMat3( string_view name, const mat3& val ) const
 {
-    glcall( glUniformMatrix3fv( GetUniform( mName ), 1, GL_FALSE, value_ptr( val ) ) );
+    glcall( glUniformMatrix3fv( GetUniform( name ), 1, GL_FALSE, value_ptr( val ) ) );
 }
 
-void Shader::SetUniMat4( const string& mName, const mat4& val ) const
+void Shader::SetUniMat4( string_view name, const mat4& val ) const
 {
-    glcall( glUniformMatrix4fv( GetUniform( mName ), 1, GL_FALSE, value_ptr( val ) ) );
+    glcall( glUniformMatrix4fv( GetUniform( name ), 1, GL_FALSE, value_ptr( val ) ) );
 }
 
 // Texture
-void Shader::SetTexture2D( const string& name, i32 tex_id, i32 slot ) const
+void Shader::SetTexture2D( string_view name, i32 tex_id, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
     glcall( glBindTexture( GL_TEXTURE_2D, tex_id ) );
     SetUni1i( name, slot );
 }
 
-void Shader::SetTexture2D( const string& name, const Texture2D& texture, i32 slot ) const
+void Shader::SetTexture2D( string_view name, const Texture2D& texture, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
-    glcall( glBindTexture( GL_TEXTURE_2D, texture.GetRendererID() ) );
+    glcall( glBindTexture( GL_TEXTURE_2D, texture.RendererID() ) );
     SetUni1i( name, slot );
 }
 
-void Shader::SetTexture2D( const string& name, const Ref<Texture2D>& texture, i32 slot ) const
+void Shader::SetTexture2D( string_view name, const Ref<Texture2D>& texture, i32 slot ) const
 {
     glcall( glActiveTexture( GL_TEXTURE0 + slot ) );
-    glcall( glBindTexture( GL_TEXTURE_2D, texture->GetRendererID() ) );
+    glcall( glBindTexture( GL_TEXTURE_2D, texture->RendererID() ) );
     SetUni1i( name, slot );
 }
 
@@ -123,9 +130,7 @@ void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
 {
     auto shaderBufferIndex = GetUniformBuffer( ub->Name() );
     if ( shaderBufferIndex != GL_INVALID_INDEX )
-    {
         glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (GLint)ub->Index() ) );
-    }
 }
 
 }

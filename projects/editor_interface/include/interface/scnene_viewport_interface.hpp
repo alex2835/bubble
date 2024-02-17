@@ -22,47 +22,57 @@ public:
 
     void OnInit() override
     {
-        mNewSize = mEditorState.sceneViewport.Size();
+        mNewSize = mEditorState.mSceneViewport.Size();
     }
 
     void OnUpdate( DeltaTime ) override
     {
-        if ( mNewSize != mEditorState.sceneViewport.Size() )
-            mEditorState.sceneViewport.Resize( mNewSize );
+        if ( mNewSize != mEditorState.mSceneViewport.Size() )
+        {
+            mEditorState.mObjectIdViewport.Resize( mNewSize );
+            mEditorState.mSceneViewport.Resize( mNewSize );
+        }
     }
 
-    ImVec2 CaptureWidnowMousePos()
+    void ReadScreenSelectedEntity( uvec2 pos )
+    {
+        mEditorState.mObjectIdViewport.Bind();
+        glcall( glReadBuffer( GL_COLOR_ATTACHMENT0 ) );
+        u32 id = 0;
+        glcall( glReadPixels( pos.x, pos.y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id ) );
+        glcall( glReadBuffer( GL_NONE ) );
+        glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+        mEditorState.mSelectedEntity = mEngine.mScene.EntityById( id );
+    }
+
+    uvec2 CaptureWidnowMousePos()
     {
         auto windowSize = ImGui::GetWindowSize();
         auto windowPos = ImGui::GetCursorScreenPos();
         auto mousePos = ImGui::GetMousePos();
-        auto mouseInWindowPos = ImVec2{ mousePos.x - windowPos.x, windowPos.y - mousePos.y };
-        auto mouseInWindowPosRel = mouseInWindowPos / windowSize;
-        std::cout << mouseInWindowPosRel.x << " " << mouseInWindowPosRel.y << std::endl;
-        return mouseInWindowPosRel;
+        auto mouseInWindowPos = uvec2{ mousePos.x - windowPos.x, windowPos.y - mousePos.y };
+        return mouseInWindowPos;
     }
 
 
     void DrawViewport()
     {
-        vec2 viewportSize = mEditorState.sceneViewport.Size();
+        vec2 viewportSize = mEditorState.mSceneViewport.Size();
         ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
 
-        u64 textureId = mEditorState.sceneViewport.GetColorAttachmentRendererID();
-        ImVec2 textureSize = ImVec2( (float)mEditorState.sceneViewport.GetWidth(),
-                                     (float)mEditorState.sceneViewport.GetHeight() );
+        u64 textureId = mEditorState.mSceneViewport.ColorAttachment().RendererID();
+        ImVec2 textureSize = ImVec2( (float)mEditorState.mSceneViewport.Width(),
+                                     (float)mEditorState.mSceneViewport.Height() );
 
         ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
         mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
-        if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
-            auto pos = CaptureWidnowMousePos();
 
         if ( ImGui::IsItemHovered() )
         {
-            auto middleButton = mEditorState.window.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
-            mEditorState.sceneCamera.mIsActive = middleButton;
-            mEditorState.window.LockCursor( middleButton );
+            auto middleButton = mEditorState.mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
+            mEditorState.mSceneCamera.mIsActive = middleButton;
+            mEditorState.mWindow.LockCursor( middleButton );
         }
     }
 
@@ -75,17 +85,14 @@ public:
         if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
             mCurrentGizmoOperation = ImGuizmo::SCALE;
 
-
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect( ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
                            (float)mNewSize.x, (float)mNewSize.y );
 
-        auto lookAt = mEditorState.sceneCamera.GetLookatMat();
-        auto projection = mEditorState.sceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
-
-
         mat4 matrix;
-        auto& entityTransform = mEditorState.selectedEntity.GetComponent<TransformComponent>();
+        auto& entityTransform = mEditorState.mSelectedEntity.GetComponent<TransformComponent>();
+        auto lookAt = mEditorState.mSceneCamera.GetLookatMat();
+        auto projection = mEditorState.mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
         ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
                                                  glm::value_ptr( entityTransform.mRotation ),
@@ -110,7 +117,16 @@ public:
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
         {
             DrawViewport();
-            DrawGizmo();
+            if ( mEditorState.mSelectedEntity != INVALID_ENTITY )
+                DrawGizmo();
+
+            // Select entity on click
+            if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) &&
+                 !ImGuizmo::IsUsing() )
+            {
+                auto clickPos = CaptureWidnowMousePos();
+                ReadScreenSelectedEntity( clickPos );
+            }
         }
         ImGui::End();
         ImGui::PopStyleVar();

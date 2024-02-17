@@ -20,5 +20,6 @@ struct BUBBLE_ENGINE_EXPORT Engine
 
     void OnUpdate();
     void DrawScene( const Camera& mCamera, const Framebuffer& mFramebuffer );
+    void DrawSceneObjectId( const Camera& mCamera, const Framebuffer& mFramebuffer, const Ref<Shader>& shader );
 };
 }

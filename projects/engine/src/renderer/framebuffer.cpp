@@ -4,25 +4,23 @@
 
 namespace bubble
 {
-Framebuffer::Framebuffer( const FramebufferSpecification& spec )
-    : mSpecification( spec ),
-      mColorAttachment( Texture2DSpecification::CreateRGBA8( spec.Size() ) ),
-      mDepthAttachment( Texture2DSpecification::CreateDepth( spec.Size() ) )
+void ResizeAttachment( Texture2D& attachment, uvec2 size )
 {
-    Invalidate();
+    if ( attachment.Width() != size.x || attachment.Height() != size.y )
+        attachment.Resize( size );
 }
 
 Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
     : mColorAttachment( std::move( color ) ),
-      mDepthAttachment( std::move( depth ) )
+    mDepthAttachment( std::move( depth ) )
 {
-    mSpecification = { mColorAttachment.GetWidth(), mColorAttachment.GetHeight() };
+    mSpecification = { mColorAttachment.Width(), mColorAttachment.Height() };
     Invalidate();
 }
 
 Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
-     :  mColorAttachment( std::move( other.mColorAttachment ) ),
-        mDepthAttachment( std::move( other.mDepthAttachment ) )
+    : mColorAttachment( std::move( other.mColorAttachment ) ),
+    mDepthAttachment( std::move( other.mDepthAttachment ) )
 {
     mRendererID = other.mRendererID;
     mSpecification = other.mSpecification;
@@ -31,7 +29,7 @@ Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
 
 Framebuffer& Framebuffer::operator= ( Framebuffer&& other ) noexcept
 {
-    if( this != &other )
+    if ( this != &other )
     {
         glcall( glDeleteFramebuffers( 1, &mRendererID ) );
         mRendererID = other.mRendererID;
@@ -53,14 +51,19 @@ void Framebuffer::SetDepthAttachment( Texture2D&& texture )
     mDepthAttachment = std::move( texture );
 }
 
-Texture2D Framebuffer::GetColorAttachment()
+Texture2D& Framebuffer::ColorAttachment()
 {
-    return std::move( mColorAttachment );
+    return mColorAttachment;
 }
 
-Texture2D Framebuffer::GetDepthAttachment()
+Texture2D& Framebuffer::DepthAttachment()
 {
-    return std::move( mDepthAttachment );
+    return mDepthAttachment;
+}
+
+opt<Texture2D>& Framebuffer::StencilAttachment()
+{
+    return mStencilAttachment;
 }
 
 Framebuffer::~Framebuffer()
@@ -74,26 +77,28 @@ void Framebuffer::Invalidate()
     glcall( glGenFramebuffers( 1, &mRendererID ) );
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, mRendererID ) );
 
-    if( mColorAttachment.GetWidth() != mSpecification.mWidth ||
-        mColorAttachment.GetHeight() != mSpecification.mHeight )
-    {
-        mColorAttachment.Resize( { mSpecification.mWidth, mSpecification.mHeight } );
-        mDepthAttachment.Resize( { mSpecification.mWidth, mSpecification.mHeight } );
-    }
 
-    glcall( glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, GetColorAttachmentRendererID(), 0 ) );
-    glcall( glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, GetDepthAttachmentRendererID(), 0 ) );
+    auto size = uvec2( mSpecification.mWidth, mSpecification.mHeight );
+    ResizeAttachment( mColorAttachment, size );
+    ResizeAttachment( mDepthAttachment, size );
+    if ( mStencilAttachment )
+        ResizeAttachment( *mStencilAttachment, size );
+
+    glcall( glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mColorAttachment.RendererID(), 0 ) );
+    glcall( glFramebufferTexture2D( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, mDepthAttachment.RendererID(), 0 ) );
+    if ( mStencilAttachment )
+        glcall( glFramebufferTexture2D( GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, mStencilAttachment->RendererID(), 0 ) );
 
     BUBBLE_ASSERT( glCheckFramebufferStatus( GL_FRAMEBUFFER ) == GL_FRAMEBUFFER_COMPLETE, "Framebuffer is incomplete!" );
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
 }
 
-GLsizei Framebuffer::GetWidth() const
+GLsizei Framebuffer::Width() const
 {
     return mSpecification.mWidth;
 }
 
-GLsizei Framebuffer::GetHeight() const
+GLsizei Framebuffer::Height() const
 {
     return mSpecification.mHeight;
 }
@@ -101,7 +106,7 @@ GLsizei Framebuffer::GetHeight() const
 void Framebuffer::Bind() const
 {
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, mRendererID ) );
-    glViewport( 0, 0, GetWidth(), GetHeight() );
+    glViewport( 0, 0, Width(), Height() );
 }
 
 void Framebuffer::Unbind() const
@@ -118,7 +123,7 @@ void Framebuffer::BindWindow( Window& window )
 
 uvec2 Framebuffer::Size() const
 {
-    return { GetWidth(), GetHeight() };
+    return { Width(), Height() };
 }
 
 void Framebuffer::Resize( uvec2 size )
@@ -129,20 +134,9 @@ void Framebuffer::Resize( uvec2 size )
     Invalidate();
 }
 
-FramebufferSpecification Framebuffer::GetSpecification() const
+FramebufferSpecification Framebuffer::Specification() const
 {
     return mSpecification;
 }
 
-GLuint Framebuffer::GetColorAttachmentRendererID() const
-{
-    return mColorAttachment.GetRendererID();
 }
-
-GLuint Framebuffer::GetDepthAttachmentRendererID() const
-{
-    return mDepthAttachment.GetRendererID();
-}
-
-}
-

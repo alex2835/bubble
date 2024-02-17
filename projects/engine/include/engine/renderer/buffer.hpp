@@ -141,7 +141,7 @@ public:
     void AddVertexBuffer( VertexBuffer&& vertexBuffer );
     void SetIndexBuffer( IndexBuffer&& indexBuffer );
 
-    u32 GetRendererID() const;
+    u32 RendererID() const;
     vector<VertexBuffer>& GetVertexBuffers();
     IndexBuffer& GetIndexBuffer();
     void VertexBufferIndex( u32 val );

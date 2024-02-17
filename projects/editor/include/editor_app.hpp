@@ -7,10 +7,11 @@ namespace bubble
 {
 struct EditorState
 {
-    Window window;
-    Framebuffer sceneViewport;
-    SceneCamera sceneCamera;
-    Entity selectedEntity;
+    Window mWindow;
+    Framebuffer mSceneViewport;
+    Framebuffer mObjectIdViewport;
+    SceneCamera mSceneCamera;
+    Entity mSelectedEntity;
 };
 
 

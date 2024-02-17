@@ -118,7 +118,7 @@ void Loader::CompileShaders( Shader& shader,
 			log.resize( max_length );
 			glGetShaderInfoLog( fragment_shader, max_length, &max_length, (GLchar*)log.data() );
 			glDeleteShader( fragment_shader );
-
+	
 			// free resources
 			glDeleteShader( vertex_shader );
 			glDeleteShader( fragment_shader );
@@ -158,17 +158,17 @@ void Loader::CompileShaders( Shader& shader,
 			}
 		}
 	}
+
 	// Shader program
 	shader.mShaderId = glCreateProgram();
+	
 	// Link shaders
 	glcall( glAttachShader( shader.mShaderId, vertex_shader ) );
 	glcall( glAttachShader( shader.mShaderId, fragment_shader ) );
 	if ( geometry_source.size() )
-	{
 		glcall( glAttachShader( shader.mShaderId, geometry_shader ) );
-	}
+	
 	glcall( glLinkProgram( shader.mShaderId ) );
-
 	{
 		GLint success;
 		glGetProgramiv( shader.mShaderId, GL_LINK_STATUS, &success );
@@ -182,18 +182,18 @@ void Loader::CompileShaders( Shader& shader,
 			glGetProgramInfoLog( shader.mShaderId, max_length, NULL, (GLchar*)log.data() );
 
 			// free resources
-			//glDeleteShader(geometry_shader);
 			glDeleteShader( vertex_shader );
 			glDeleteShader( fragment_shader );
+			glDeleteShader( geometry_shader );
 			glDeleteProgram( shader.mShaderId );
 
 			LogError( "LINKING SHADER ERROR: {} \n {}", shader.mName, log );
 			throw std::runtime_error( "Shader compilation failed" );
 		}
 	}
-	//glDeleteShader(geometry_shader);
-	glDeleteShader( vertex_shader );
+    glDeleteShader( vertex_shader );
 	glDeleteShader( fragment_shader );
+    glDeleteShader( geometry_shader );
 }
 
 }

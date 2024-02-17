@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <array>
 #include <map>
+#include <optional>
 
 namespace bubble
 {
@@ -34,6 +35,8 @@ template <typename T>
 using unoset = std::unordered_set<T>;
 template <typename T, u64 SIZE>
 using array = std::array<T, SIZE>;
+template <typename T>
+using opt = std::optional<T>;
 
 using i8 = std::int8_t;
 using u8 = std::uint8_t;

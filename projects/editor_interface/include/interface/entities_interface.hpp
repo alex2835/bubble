@@ -41,18 +41,18 @@ public:
             ImGui::SameLine();
             if ( ImGui::Button( "Delete Entity", ImVec2( 100, 25 ) ) )
             {
-                if ( mEditorState.selectedEntity )
-                    mEngine.mScene.RemoveEntity( mEditorState.selectedEntity );
-                mEditorState.selectedEntity = Entity();
+                if ( mEditorState.mSelectedEntity )
+                    mEngine.mScene.RemoveEntity( mEditorState.mSelectedEntity );
+                mEditorState.mSelectedEntity = Entity();
             }
 
             mEngine.mScene.ForEachEntity( [&]( Entity entity )
             {
                 auto& tag = entity.GetComponent<TagComponent>();
-                ImGui::Selectable( tag.c_str(), entity == mEditorState.selectedEntity );
+                ImGui::Selectable( tag.c_str(), entity == mEditorState.mSelectedEntity );
 
                 if ( ImGui::IsItemClicked() )
-                    mEditorState.selectedEntity = entity;
+                    mEditorState.mSelectedEntity = entity;
             } );
         }
         ImGui::EndChild();
@@ -60,11 +60,11 @@ public:
 
     void DrawSelectedEntityProperties()
     {
-        if ( mEditorState.selectedEntity == INVALID_ENTITY )
+        if ( mEditorState.mSelectedEntity == INVALID_ENTITY )
             return;
 
         ImGui::BeginChild( "Components" );
-        mEngine.mScene.ForEachEntityComponentRaw( mEditorState.selectedEntity,
+        mEngine.mScene.ForEachEntityComponentRaw( mEditorState.mSelectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
             auto onDrawFunc = ComponentsOnDrawStorage::Get( componentName );
