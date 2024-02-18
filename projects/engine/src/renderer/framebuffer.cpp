@@ -66,6 +66,17 @@ opt<Texture2D>& Framebuffer::StencilAttachment()
     return mStencilAttachment;
 }
 
+glm::u32 Framebuffer::ReadColorAttachmentPixelRedUint( uvec2 pos )
+{
+    Bind();
+    glcall( glReadBuffer( GL_COLOR_ATTACHMENT0 ) );
+    u32 pixel = 0;
+    glcall( glReadPixels( pos.x, pos.y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &pixel ) );
+    glcall( glReadBuffer( GL_NONE ) );
+    glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+    return pixel;
+}
+
 Framebuffer::~Framebuffer()
 {
     glcall( glDeleteFramebuffers( 1, &mRendererID ) );

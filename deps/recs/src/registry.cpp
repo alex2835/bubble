@@ -11,7 +11,7 @@ Entity Registry::CreateEntity()
     return entity;
 }
 
-Entity Registry::EntityById( size_t id )
+Entity Registry::GetEntityById( size_t id )
 {
     auto iter = mEntitysComponentIds.find( Entity( id, this ) );
     if ( iter == mEntitysComponentIds.end() )

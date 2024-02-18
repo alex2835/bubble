@@ -25,7 +25,7 @@ public:
     Registry& operator=( Registry&& ) = delete;
 
     Entity CreateEntity();
-    Entity EntityById( size_t id );
+    Entity GetEntityById( size_t id );
     void RemoveEntity( Entity& entity );
 
     template <ComponentType Component, typename ...Args>

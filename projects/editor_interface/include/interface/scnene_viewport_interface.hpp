@@ -34,17 +34,6 @@ public:
         }
     }
 
-    void ReadScreenSelectedEntity( uvec2 pos )
-    {
-        mEditorState.mObjectIdViewport.Bind();
-        glcall( glReadBuffer( GL_COLOR_ATTACHMENT0 ) );
-        u32 id = 0;
-        glcall( glReadPixels( pos.x, pos.y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &id ) );
-        glcall( glReadBuffer( GL_NONE ) );
-        glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
-        mEditorState.mSelectedEntity = mEngine.mScene.EntityById( id );
-    }
-
     uvec2 CaptureWidnowMousePos()
     {
         auto windowSize = ImGui::GetWindowSize();
@@ -54,6 +43,17 @@ public:
         return mouseInWindowPos;
     }
 
+    void ProcessScreenSelectedEntity()
+    {
+        if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
+        {
+            auto clickPos = CaptureWidnowMousePos();
+            auto pixel = mEditorState.
+                         mObjectIdViewport.
+                         ReadColorAttachmentPixelRedUint( clickPos );
+            mEditorState.mSelectedEntity = mEngine.mScene.GetEntityById( pixel );
+        }
+    }
 
     void DrawViewport()
     {
@@ -119,14 +119,9 @@ public:
             DrawViewport();
             if ( mEditorState.mSelectedEntity != INVALID_ENTITY )
                 DrawGizmo();
-
-            // Select entity on click
-            if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) &&
-                 !ImGuizmo::IsUsing() )
-            {
-                auto clickPos = CaptureWidnowMousePos();
-                ReadScreenSelectedEntity( clickPos );
-            }
+            // Select entity on click by pixel
+            if ( !ImGuizmo::IsUsing() )
+                ProcessScreenSelectedEntity();
         }
         ImGui::End();
         ImGui::PopStyleVar();

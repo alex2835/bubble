@@ -60,17 +60,17 @@ constexpr std::string_view cPickingFragShader = R"shader(
     }
 )shader";
 
-
-constexpr WindowSize cWindowSize{ 1200, 720 };
-constexpr uvec2 cViewportSize{ 800, 640 };
+constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
+constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : mState{ Window( "Bubble", cWindowSize ),
-              Framebuffer( Texture2DSpecification::CreateRGBA8( cViewportSize ),
-                           Texture2DSpecification::CreateDepth( cViewportSize ) ),
-              Framebuffer( Texture2DSpecification::CreateObjectId( cViewportSize ),
-                           //Texture2DSpecification::CreateRGBA32( cViewportSize ),
-                           Texture2DSpecification::CreateDepth( cViewportSize ) ),
+    : mState{ Window( "Bubble", WINDOW_SIZE ),
+              // Main viewport
+              Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+              // Object selecting viewport
+              Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
               SceneCamera( vec3( 0, 15, 70 ) ) },
       mInterfaceLoader( mState, mEngine, mState.mWindow.GetImGuiContext() )
 {
@@ -80,8 +80,6 @@ BubbleEditor::BubbleEditor()
     ComponentsOnDrawStorage::Add<TagComponent>();
     ComponentsOnDrawStorage::Add<TransformComponent>();
     ComponentsOnDrawStorage::Add<ModelComponent>();
-
-    // For object selecting
 
     // Editor's viewport interface
     mInterfaceLoader.LoadInterfaces();
@@ -101,9 +99,7 @@ void BubbleEditor::Run()
           .AddComponet<TransformComponent>();
     mState.mSelectedEntity = entity;
 
-
     auto pickingShader = mEngine.mLoader.LoadShader( "picking_shader", cPickingVertShader, cPickingFragShader );
-
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN

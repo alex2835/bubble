@@ -39,7 +39,7 @@ public:
     Texture2D& DepthAttachment();
     opt<Texture2D>& StencilAttachment();
 
-    
+    u32 ReadColorAttachmentPixelRedUint( uvec2 pos );
     
     void Bind() const;
     void Unbind() const;
