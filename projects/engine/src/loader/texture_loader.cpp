@@ -5,28 +5,12 @@
 
 namespace bubble
 {
-
-//Ref<Texture2D> Loader::LoadAndCacheTexture2D( string path, const Texture2DSpecification& spec )
-//{
-//    //if ( !mProject.Valid() )
-//    //    BUBBLE_ASSERT( false, "Try to load and cache texture with not valid project" );
-//
-//    auto rel_path = CreateRelPath( mProject.GetPath(), path );
-//    if ( mLoadedTextures.count( rel_path ) )
-//        return mLoadedTextures[rel_path];
-//
-//    Ref<Texture2D> texture = LoadTexture2D( path, spec );
-//    mLoadedTextures.emplace( rel_path, texture );
-//    return texture;
-//}
-
-Ref<Texture2D> Loader::LoadTexture2D( const path& path )
+Ref<Texture2D> Loader::JustLoadTexture2D( const path& path )
 {
     stbi_uc* data = nullptr;
     i32 width, height, channels;
     stbi_set_flip_vertically_on_load( false );
     data = stbi_load( path.string().c_str(), &width, &height, &channels, 0 );
-
     if ( data == nullptr )
         throw std::runtime_error( std::format( "Failed to load image: {}", path.string() ) );
 
@@ -37,6 +21,17 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& path )
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
     texture->SetData( data, width * height * channels );
     stbi_image_free( data );
+    return texture;
+}
+
+Ref<Texture2D> Loader::LoadTexture2D( const path& path )
+{
+    auto iter = mTextures.find( path );
+    if ( iter != mTextures.end() )
+        return iter->second;
+
+    auto texture = JustLoadTexture2D( path );
+    mTextures.emplace( path, texture );
     return texture;
 }
 

@@ -570,7 +570,7 @@ UniformArrayElemnt UniformBuffer::operator[]( u64 index )
     return Element( index );
 }
 
-bubble::UniformArrayElemnt UniformBuffer::Element( u64 index )
+UniformArrayElemnt UniformBuffer::Element( u64 index )
 {
     BUBBLE_ASSERT( index < mSize, "Buffer access valiation" );
     return UniformArrayElemnt( *this, index );

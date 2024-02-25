@@ -1,7 +1,7 @@
 #pragma once
 #include "imgui.h"
 #include "ieditor_interface.hpp"
-#include "editor_app.hpp"
+#include "editor_application.hpp"
 
 
 namespace bubble
@@ -9,7 +9,13 @@ namespace bubble
 class EntitiesInterface : public IEditorInterface
 {
 public:
-    using IEditorInterface::IEditorInterface;
+    EntitiesInterface( EditorState& editorState,
+                       Engine& engine )
+        : IEditorInterface( editorState, engine ),
+          mScene( engine.mProject.Scene() )
+    {
+
+    }
 
     ~EntitiesInterface() override
     {
@@ -18,7 +24,7 @@ public:
 
     string_view Name() override
     {
-        return "Entities";
+        return "Entities"sv;
     }
 
     void OnInit() override
@@ -36,17 +42,17 @@ public:
         ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
         {
             if ( ImGui::Button( "Create Entity", ImVec2( 100, 25 ) ) )
-                mEngine.mScene.CreateEntity();
+                mScene.CreateEntity();
 
             ImGui::SameLine();
             if ( ImGui::Button( "Delete Entity", ImVec2( 100, 25 ) ) )
             {
                 if ( mEditorState.mSelectedEntity )
-                    mEngine.mScene.RemoveEntity( mEditorState.mSelectedEntity );
+                    mScene.RemoveEntity( mEditorState.mSelectedEntity );
                 mEditorState.mSelectedEntity = Entity();
             }
 
-            mEngine.mScene.ForEachEntity( [&]( Entity entity )
+            mScene.ForEachEntity( [&]( Entity entity )
             {
                 auto& tag = entity.GetComponent<TagComponent>();
                 ImGui::Selectable( tag.c_str(), entity == mEditorState.mSelectedEntity );
@@ -64,10 +70,10 @@ public:
             return;
 
         ImGui::BeginChild( "Components" );
-        mEngine.mScene.ForEachEntityComponentRaw( mEditorState.mSelectedEntity,
+        mScene.ForEachEntityComponentRaw( mEditorState.mSelectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
-            auto onDrawFunc = ComponentsOnDrawStorage::Get( componentName );
+            auto onDrawFunc = mEngine.mComponentManager.GetOnDraw( componentName );
             if ( onDrawFunc )
                 onDrawFunc( componentRaw );
             else
@@ -91,6 +97,7 @@ public:
     }
 
 private:
+    Scene& mScene;
     strunoset mNoCompDrawFuncWarnings;
 };
 

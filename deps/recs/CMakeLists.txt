@@ -9,7 +9,7 @@ SET(SOURCE
 add_library(recs STATIC ${SOURCE})
 add_definitions(-DBUILDING_RECS)
 
-target_include_directories( recs PUBLIC
+target_include_directories(recs PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 

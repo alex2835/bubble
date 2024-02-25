@@ -14,12 +14,11 @@ struct BUBBLE_ENGINE_EXPORT Engine
 {
     Timer mTimer;
     Project mProject;
-    Loader mLoader;
-    Scene mScene;
+    ComponentManager mComponentManager;
+    Scene mRunningScene;
     Renderer mRenderer;
 
     void OnUpdate();
     void DrawScene( const Camera& mCamera, const Framebuffer& mFramebuffer );
-    void DrawSceneObjectId( const Camera& mCamera, const Framebuffer& mFramebuffer, const Ref<Shader>& shader );
 };
 }

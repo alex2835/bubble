@@ -1,11 +1,6 @@
 #pragma once
-#include <unordered_map>
-#include <exception>
-#include <tuple>
-#include <format>
-#include <string_view>
-#include "engine/log/log.hpp"
 #include "engine/utils/imexp.hpp"
+#include "engine/log/log.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/utils/filesystem.hpp"
 #include "engine/renderer/texture.hpp"
@@ -22,45 +17,38 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT Loader
 {
-    std::unordered_map<string, Ref<Texture2D>> mTextures;
-    std::unordered_map<string, Ref<Model>>     mModels;
-    std::unordered_map<string, Ref<Shader>>    mShaders;
-    std::unordered_map<string, Ref<Skybox>>    mSkyboxes;
-    std::unordered_map<string, Ref<Texture2D>> mSkyspheres;
+    unomap<path, Ref<Texture2D>> mTextures;
+    unomap<path, Ref<Model>>     mModels;
+    unomap<path, Ref<Shader>>    mShaders;
+    unomap<path, Ref<Skybox>>    mSkyboxes;
+    //unomap<path, Ref<Texture2D>> mSkyspheres;
 
-    //std::unordered_map<string, Ref<Texture2D>> mDefaultTextures;
-    //std::unordered_map<string, Ref<Model>>     mDefaultModels;
-    //std::unordered_map<string, Ref<Shader>>    mDefaultShaders;
-    //std::unordered_map<string, Ref<Skybox>>    mDefaultSkyboxes;
-    //std::unordered_map<string, Ref<Texture2D>> mDefaultSkyspheres;
-
-
+    static Ref<Shader> JustLoadShader( string name, string_view vertex, string_view fragment, string_view geometry = {} );
+    static Ref<Shader> JustLoadShader( const path& path );
     Ref<Shader> LoadShader( const path& path );
-    Ref<Shader> LoadShader( string name,
-                            string_view vertex,
-                            string_view fragment,
-                            string_view geometry = {} );
 
+    static Ref<Texture2D> JustLoadTexture2D( const path& path );
+    Ref<Texture2D> LoadTexture2D( const path& path );
+
+    static Ref<Model> JustLoadModel( const path& path );
     Ref<Model> LoadModel( const path& path );
 
-    Ref<Texture2D> LoadTexture2D( const path& path );
-    //Ref<Texture2D> LoadAndCacheTexture2D( string path );
-    //std::tuple<Scope<uint8_t[]>, Texture2DSpecification> OpenRawImage( const path& path );
-
 private:
-    Scope<MeshNode> ProcessNode( Model& model, const aiNode* node, const aiScene* scene, const path& path );
-    Mesh ProcessMesh( const aiMesh* mesh, const aiScene* scene, const path& path );
-    BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path );
+    // Shader
+    static void ParseShaders( const path& path,
+                              string& vertex,
+                              string& fragment,
+                              string& geometry );
 
-    void ParseShaders( const path& path,
-                       string& vertex,
-                       string& fragment,
-                       string& geometry );
+    static void CompileShaders( Shader& shader,
+                                string_view vertex_source,
+                                string_view fragment_source,
+                                string_view geometry_source );
 
-    void CompileShaders( Shader& shader,
-                         const std::string_view vertex_source,
-                         const std::string_view fragment_source,
-                         const std::string_view geometry_source );
+    // Model
+    static Scope<MeshNode> ProcessNode( Model& model, const aiNode* node, const aiScene* scene, const path& path );
+    static Mesh ProcessMesh( const aiMesh* mesh, const aiScene* scene, const path& path );
+    static BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path );
 };
 
 }

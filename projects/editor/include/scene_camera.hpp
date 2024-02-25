@@ -15,7 +15,6 @@ struct SceneCamera : public FreeCamera
         mMouseSensitivity = 0.001f;
     }
 
-
     void OnEvent( const Event& event )
     {
         if ( !mIsActive )

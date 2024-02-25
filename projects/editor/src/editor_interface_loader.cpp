@@ -1,6 +1,6 @@
 
 #include <iostream>
-#include "editor_app.hpp"
+#include "editor_application.hpp"
 #undef APIENTRY
 #include "ieditor_interface.hpp"
 #include "editor_interface_loader.hpp"

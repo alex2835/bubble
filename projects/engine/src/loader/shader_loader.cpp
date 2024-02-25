@@ -5,40 +5,44 @@
 
 namespace bubble
 {
+Ref<Shader> Loader::JustLoadShader( string name,
+                                    string_view vertex,
+                                    string_view fragment,
+                                    string_view geometry )
+{
+    Ref<Shader> shader = CreateRef<Shader>();
+    shader->mName = std::move( name );
+    CompileShaders( *shader, vertex, fragment, geometry );
+    return shader;
+}
+
+Ref<Shader> Loader::JustLoadShader( const path& path )
+{
+    Ref<Shader> shader = CreateRef<Shader>();
+    shader->mName = path.filename().string();
+    string vertexSource, fragmentSource, geometry;
+    ParseShaders( path, vertexSource, fragmentSource, geometry );
+    CompileShaders( *shader, vertexSource, fragmentSource, geometry );
+	return shader;
+}
 
 Ref<Shader> Loader::LoadShader( const path& path )
 {
-	Ref<Shader> shader = CreateRef<Shader>();
-    shader->mName = path.filename().string();
-	string vertexSource, fragmentSource, geometry;
-	ParseShaders( path, vertexSource, fragmentSource, geometry );
-	CompileShaders( *shader, vertexSource, fragmentSource, geometry );
+    auto iter = mShaders.find( path );
+    if ( iter != mShaders.end() )
+        return iter->second;
+
+	auto shader = JustLoadShader( path );
+    mShaders.emplace( path, shader );
 	return shader;
 }
-
-
-Ref<Shader> Loader::LoadShader( string name,
-                                string_view vertex,
-                                string_view fragment,
-                                string_view geometry )
-{
-	Ref<Shader> shader = CreateRef<Shader>();
-	shader->mName = std::move( name );
-	CompileShaders( *shader, vertex, fragment, geometry );
-	mShaders.emplace( name, shader );
-	return shader;
-}
-
 
 void Loader::ParseShaders( const path& path,
 						   string& vertex,
 						   string& fragment,
 						   string& geometry )
 {
-	enum ShaderType
-	{
-		NONE = -1, VERTEX = 0, FRAGMENT = 1, GEOMETRY = 2
-	};
+	enum ShaderType{ NONE = -1, VERTEX = 0, FRAGMENT = 1, GEOMETRY = 2 };
 	ShaderType type = NONE;
 
 	std::ifstream stream( path );
@@ -71,9 +75,9 @@ void Loader::ParseShaders( const path& path,
 
 
 void Loader::CompileShaders( Shader& shader,
-							 const std::string_view vertex_source,
-							 const std::string_view fragment_source,
-                             const std::string_view geometry_source )
+							 string_view vertex_source,
+							 string_view fragment_source,
+                             string_view geometry_source )
 {
 	// Vertex shaders
 	GLint vertex_shader = glCreateShader( GL_VERTEX_SHADER );

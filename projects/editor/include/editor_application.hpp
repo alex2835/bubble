@@ -14,19 +14,25 @@ struct EditorState
     Entity mSelectedEntity;
 };
 
-
 class BubbleEditor
 {
+    enum class EditorMode
+    {
+        Edit,
+        Run
+    };
+
 public:
     BubbleEditor();
     void Run();
 
-    void EditTransform( float* cameraView,
-                        float* cameraProjection,
-                        float* matrix,
-                        bool editTransformDecomposition );
-
+    void SetUniformBuffer();
+    void DrawProjectScene();
+    void DrawSceneObjectId();
 private:
+    EditorMode mEditorMode;
+    Ref<Shader> mObjectIdShader;
+
     EditorState mState;
     Engine mEngine;
     EditorInterfaceLoader mInterfaceLoader;

@@ -19,34 +19,14 @@ void Engine::DrawScene( const Camera& camera,
     
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-    mScene.ForEach<ModelComponent, TransformComponent>( [&]( Entity entity,
-                                                             ModelComponent& model,
-                                                             TransformComponent& transform )
+    mRunningScene.ForEach<ModelComponent, TransformComponent>(
+    [&]( Entity entity,
+         ModelComponent& model,
+         TransformComponent& transform )
     {
         mRenderer.DrawModel( model, transform.Transform(), model->mShader );
     } );
 }
 
-
-void Engine::DrawSceneObjectId( const Camera& camera,
-                                const Framebuffer& framebuffer,
-                                const Ref<Shader>& shader )
-{
-    // Uniform buffer
-    auto vertexBufferElement = mRenderer.mVertexUniformBuffer->Element( 0 );
-    auto size = framebuffer.Size();
-    vertexBufferElement.SetMat4( "uProjection", camera.GetPprojectionMat( size.x, size.y ) );
-    vertexBufferElement.SetMat4( "uView", camera.GetLookatMat() );
-
-    framebuffer.Bind();
-    mRenderer.ClearScreenUint( uvec4(0) );
-    mScene.ForEach<ModelComponent, TransformComponent>( [&]( Entity entity,
-                                                             ModelComponent& model,
-                                                             TransformComponent& transform )
-    {
-        shader->SetUni1ui( "uObjectId", (u32)entity );
-        mRenderer.DrawModel( model, transform.Transform(), shader );
-    } );
-}
 
 }

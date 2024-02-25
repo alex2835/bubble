@@ -1,7 +1,8 @@
 #pragma once
 #include "engine/utils/pointers.hpp"
 #include <glm/glm.hpp>
-#include "glm/gtc/type_ptr.hpp"
+#include <glm/gtc/type_ptr.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -11,17 +12,20 @@
 #include <array>
 #include <map>
 #include <optional>
+#include <exception>
+#include <tuple>
+#include <format>
 
 namespace bubble
 {
 using namespace glm;
+using namespace nlohmann;
 
 using string = std::string;
 using string_view = std::string_view;
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
-
 
 template <typename T>
 using vector = std::vector<T>;
@@ -70,10 +74,9 @@ struct string_hash
         return std::hash<std::string>{}( txt );
     }
 };
-using strunoset = std::unordered_set<string, string_hash, std::equal_to<>>;
-
 template <typename V>
 using strunomap = std::unordered_map<string, V, string_hash, std::equal_to<>>;
+using strunoset = std::unordered_set<string, string_hash, std::equal_to<>>;
 
 }
 

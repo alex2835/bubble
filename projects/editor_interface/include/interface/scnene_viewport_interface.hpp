@@ -1,7 +1,7 @@
 #pragma once
 #include "imgui.h"
 #include "ieditor_interface.hpp"
-#include "editor_app.hpp"
+#include "editor_application.hpp"
 
 namespace bubble
 {
@@ -17,7 +17,7 @@ public:
 
     string_view Name() override
     {
-        return "Viewport";
+        return "Viewport"sv;
     }
 
     void OnInit() override
@@ -51,7 +51,7 @@ public:
             auto pixel = mEditorState.
                          mObjectIdViewport.
                          ReadColorAttachmentPixelRedUint( clickPos );
-            mEditorState.mSelectedEntity = mEngine.mScene.GetEntityById( pixel );
+            mEditorState.mSelectedEntity = mEngine.mProject.Scene().GetEntityById( pixel );
         }
     }
 
@@ -67,12 +67,10 @@ public:
         ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
         mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
-
         if ( ImGui::IsItemHovered() )
         {
             auto middleButton = mEditorState.mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
             mEditorState.mSceneCamera.mIsActive = middleButton;
-            mEditorState.mWindow.LockCursor( middleButton );
         }
     }
 

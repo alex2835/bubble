@@ -1,12 +1,12 @@
 #include <iostream>
-#include "editor_app.hpp"
+#include "editor_application.hpp"
 
 int main( void )
 {
     try
     {
-        bubble::BubbleEditor application;
-        application.Run();
+        bubble::BubbleEditor editorApplication;
+        editorApplication.Run();
     }
     catch ( const std::exception& e )
     { 

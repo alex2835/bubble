@@ -8,51 +8,34 @@
 
 namespace bubble
 {
-
-//Ref<Model> Loader::LoadAndCacheModel( string path )
-//{
-//	if ( mModels.count( path ) )
-//		return mModels[path];
-//
-//	auto model = LoadModel( path );
-//	mModels.emplace( path, model );
-//	return model;
-//}
-
-//void Loader::LoadSystemModel( string path )
-//{
-//	auto model = LoadModel( path );
-//	mSystemModels.emplace( GetModelName( path ), model );
-//}
-//
-//Ref<Model> Loader::GetSystemModel( string name )
-//{
-//	if ( !mSystemModels.count( name ) )
-//		BUBBLE_ASSERT( false, "System model is not found: " + name );
-//	return mSystemModels[name];
-//}
-
-Ref<Model> Loader::LoadModel( const path& path )
+Ref<Model> Loader::JustLoadModel( const path& path )
 {
-	auto model = CreateRef<Model>();
-
-	Assimp::Exporter exporter;
-
-	Assimp::Importer importer;
+    auto model = CreateRef<Model>();
+    Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile( path.string(), 0 );
-	if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
-		throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer.GetErrorString() ) );
-	importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
+    if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
+        throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer.GetErrorString() ) );
+    importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
-	auto fullname = path.filename().string();
-	model->mName = fullname.substr( 0, fullname.find( '.' ) );
-	model->mMeshes.reserve( scene->mNumMeshes );
-	model->mRootMeshNode = ProcessNode( *model, scene->mRootNode, scene, path );
-	//model->CreateBoundingBox();
-	//model->mShader = GetSystemShader( "Phong shader" );
+    auto fullname = path.filename().string();
+    model->mName = fullname.substr( 0, fullname.find( '.' ) );
+    model->mMeshes.reserve( scene->mNumMeshes );
+    model->mRootMeshNode = ProcessNode( *model, scene->mRootNode, scene, path );
+    //model->CreateBoundingBox();
+    //model->mShader = GetSystemShader( "Phong shader" );
 	return model;
 }
 
+Ref<Model> Loader::LoadModel( const path& path )
+{
+	auto iter = mModels.find( path );
+    if ( iter != mModels.end() )
+        return iter->second;
+
+	auto model = JustLoadModel( path );
+	mModels.emplace( path, model );
+    return model;
+}
 
 Scope<MeshNode> Loader::ProcessNode( Model& model,
                                      const aiNode* node,
@@ -145,15 +128,15 @@ BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const path& p
             switch ( types[i] )
             {
             case aiTextureType_DIFFUSE:
-                material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
+                material.mDiffuseMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
 
             case aiTextureType_SPECULAR:
-                material.mSpecularMap = LoadTexture2D( directory / str.C_Str() );
+                material.mSpecularMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
 
             case aiTextureType_NORMALS:
-                material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
+                material.mNormalMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
 
             //case aiTextureType_HEIGHT:

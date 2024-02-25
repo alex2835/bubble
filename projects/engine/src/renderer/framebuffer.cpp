@@ -12,7 +12,7 @@ void ResizeAttachment( Texture2D& attachment, uvec2 size )
 
 Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
     : mColorAttachment( std::move( color ) ),
-    mDepthAttachment( std::move( depth ) )
+      mDepthAttachment( std::move( depth ) )
 {
     mSpecification = { mColorAttachment.Width(), mColorAttachment.Height() };
     Invalidate();
@@ -20,7 +20,7 @@ Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
 
 Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
     : mColorAttachment( std::move( other.mColorAttachment ) ),
-    mDepthAttachment( std::move( other.mDepthAttachment ) )
+      mDepthAttachment( std::move( other.mDepthAttachment ) )
 {
     mRendererID = other.mRendererID;
     mSpecification = other.mSpecification;
