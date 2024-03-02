@@ -11,10 +11,12 @@ struct EditorState
     Framebuffer mSceneViewport;
     Framebuffer mObjectIdViewport;
     SceneCamera mSceneCamera;
+
+    Project mProject;
     Entity mSelectedEntity;
 };
 
-class BubbleEditor
+class BubbleEditor : EditorState
 {
     enum class EditorMode
     {
@@ -33,7 +35,6 @@ private:
     EditorMode mEditorMode;
     Ref<Shader> mObjectIdShader;
 
-    EditorState mState;
     Engine mEngine;
     EditorInterfaceLoader mInterfaceLoader;
 };

@@ -36,19 +36,20 @@ constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : mEditorMode( EditorMode::Edit ),
-      mState{ Window( "Bubble", WINDOW_SIZE ),
-              // Main viewport
-              Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
-                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-              // Object selecting viewport
-              Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-              SceneCamera( vec3( 0, 15, 70 ) ) },
-      mInterfaceLoader( mState, mEngine, mState.mWindow.GetImGuiContext() )
+    : EditorState{ Window( "Bubble", WINDOW_SIZE ),
+                   // Main viewport
+                   Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                                Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+                   // Object selecting viewport
+                   Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                                Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+                   SceneCamera( vec3( 0, 15, 70 ) ) 
+    },
+      mEditorMode( EditorMode::Edit ),
+      mInterfaceLoader( *this, mEngine )
 {
     // ImGui
-    ImGui::SetCurrentContext( mState.mWindow.GetImGuiContext() );
+    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Add components functions
     mEngine.mComponentManager.Add<TagComponent>();
@@ -71,27 +72,27 @@ void BubbleEditor::Run()
     auto shader = Loader::JustLoadShader( "test_shader", vert_shader, frag_shader );
     model->mShader = shader;
     
-    Entity entity = mEngine.mProject.Scene().CreateEntity();
+    Entity entity = mProject.mScene.CreateEntity();
     entity.AddComponet<TagComponent>( "test" )
           .AddComponet<ModelComponent>( model )
           .AddComponet<TransformComponent>();
-    mState.mSelectedEntity = entity;
+    mSelectedEntity = entity;
 
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
-    while ( !mState.mWindow.ShouldClose() )
+    while ( !mWindow.ShouldClose() )
 #endif
     {
         // Poll events
-        const auto& events = mState.mWindow.PollEvents();
+        const auto& events = mWindow.PollEvents();
         for ( const auto& event : events )
-            mState.mSceneCamera.OnEvent( event );
+            mSceneCamera.OnEvent( event );
 
         // Update engine
         mEngine.OnUpdate();
         auto dt = mEngine.mTimer.GetDeltaTime();
-        mState.mSceneCamera.OnUpdate( dt );
+        mSceneCamera.OnUpdate( dt );
         mInterfaceLoader.OnUpdate( dt );
 
         // Draw scene
@@ -107,13 +108,13 @@ void BubbleEditor::Run()
         }
         
         // ImGui interface
-        Framebuffer::BindWindow( mState.mWindow );
-        mState.mWindow.ImGuiBegin();
+        Framebuffer::BindWindow( mWindow );
+        mWindow.ImGuiBegin();
         mInterfaceLoader.OnDraw( dt );
-        mState.mWindow.ImGuiEnd();
+        mWindow.ImGuiEnd();
 
         // Render window
-        mState.mWindow.OnUpdate();
+        mWindow.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
@@ -123,8 +124,8 @@ void BubbleEditor::Run()
 
 void BubbleEditor::SetUniformBuffer()
 {
-    const auto& camera = mState.mSceneCamera;
-    auto size = mState.mSceneViewport.Size();
+    const auto& camera = mSceneCamera;
+    auto size = mSceneViewport.Size();
 
     auto vertexBufferElement = mEngine.mRenderer.mVertexUniformBuffer->Element( 0 );
     vertexBufferElement.SetMat4( "uProjection", camera.GetPprojectionMat( size.x, size.y ) );
@@ -133,9 +134,9 @@ void BubbleEditor::SetUniformBuffer()
 
 void BubbleEditor::DrawProjectScene()
 {
-    mState.mSceneViewport.Bind();
+    mSceneViewport.Bind();
     mEngine.mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-    mEngine.mProject.Scene().ForEach<ModelComponent, TransformComponent>(
+    mProject.mScene.ForEach<ModelComponent, TransformComponent>(
     [&]( Entity entity,
          ModelComponent& model,
          TransformComponent& transform )
@@ -146,9 +147,9 @@ void BubbleEditor::DrawProjectScene()
 
 void BubbleEditor::DrawSceneObjectId()
 {
-    mState.mObjectIdViewport.Bind();
+    mObjectIdViewport.Bind();
     mEngine.mRenderer.ClearScreenUint( uvec4( 0 ) );
-    mEngine.mProject.Scene().ForEach<ModelComponent, TransformComponent>( 
+    mProject.mScene.ForEach<ModelComponent, TransformComponent>( 
     [&]( Entity entity,
          ModelComponent& model,
          TransformComponent& transform )

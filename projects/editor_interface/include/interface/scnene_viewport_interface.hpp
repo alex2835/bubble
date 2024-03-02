@@ -51,7 +51,7 @@ public:
             auto pixel = mEditorState.
                          mObjectIdViewport.
                          ReadColorAttachmentPixelRedUint( clickPos );
-            mEditorState.mSelectedEntity = mEngine.mProject.Scene().GetEntityById( pixel );
+            mEditorState.mSelectedEntity = mEditorState.mProject.mScene.GetEntityById( pixel );
         }
     }
 

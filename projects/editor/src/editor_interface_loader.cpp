@@ -9,9 +9,8 @@
 namespace bubble
 {
 EditorInterfaceLoader::EditorInterfaceLoader( EditorState& editorState,
-                                              Engine& engine,
-                                              ImGuiContext* context )
-    : mImGuiContext( context ),
+                                              Engine& engine )
+    : mImGuiContext( editorState.mWindow.GetImGuiContext() ),
       mEditorState( editorState ),
       mEngine( engine ),
       mHotReloader( CreateRef<hr::HotReloader>( "bubble_interface" ) )

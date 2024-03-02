@@ -13,7 +13,6 @@ namespace bubble
 struct BUBBLE_ENGINE_EXPORT Engine
 {
     Timer mTimer;
-    Project mProject;
     ComponentManager mComponentManager;
     Scene mRunningScene;
     Renderer mRenderer;

@@ -12,7 +12,7 @@ public:
     EntitiesInterface( EditorState& editorState,
                        Engine& engine )
         : IEditorInterface( editorState, engine ),
-          mScene( engine.mProject.Scene() )
+          mScene( editorState.mProject.mScene )
     {
 
     }

@@ -7,17 +7,12 @@ namespace bubble
 class BUBBLE_ENGINE_EXPORT Project
 {
 public:
-    const string& Name();
-    const path& Root();
-    Scene& Scene();
-
     void Open( const path& rootPath );
     void Save();
 
-private:
     string mName;
     path mRoot;
-    bubble::Scene mScene;
+    Scene mScene;
     Loader mLoader;
 };
 

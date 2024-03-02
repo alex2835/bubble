@@ -16,8 +16,7 @@ class EditorInterfaceLoader
 {
 public:
     EditorInterfaceLoader( EditorState& editorState,
-                           Engine& engine,
-                           ImGuiContext* context );
+                           Engine& engine );
     ~EditorInterfaceLoader();
 
     void AddInterface( Ref<IEditorInterface> );
