@@ -52,9 +52,9 @@ BubbleEditor::BubbleEditor()
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Add components functions
-    mEngine.mComponentManager.Add<TagComponent>();
-    mEngine.mComponentManager.Add<TransformComponent>();
-    mEngine.mComponentManager.Add<ModelComponent>();
+    ComponentManager::Add<TagComponent>();
+    ComponentManager::Add<TransformComponent>();
+    ComponentManager::Add<ModelComponent>();
 
     // Selecting objects
     mObjectIdShader = Loader::JustLoadShader( "Picking shader", PICKING_VERTEX_SHADER, PICKING_FRAGMENT_SHADER );

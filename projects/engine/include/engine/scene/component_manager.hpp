@@ -30,25 +30,26 @@ struct ComponentFunctions
 class BUBBLE_ENGINE_EXPORT ComponentManager
 {
 public:
-    ComponentManager() = default;
-    
+    static ComponentManager& Instance();
+
     template <CompnentType Component>
-    void Add()
+    static void Add()
     {
-        AddOnDraw( string( Component::Name() ), Component::OnComponentDraw );
-        AddToJson( string( Component::Name() ), Component::ToJson );
-        AddFromJson( string( Component::Name() ), Component::FromJson );
+        AddOnDraw( Component::Name(), Component::OnComponentDraw );
+        AddToJson( Component::Name(), Component::ToJson );
+        AddFromJson( Component::Name(), Component::FromJson );
     }
 
-    void AddOnDraw( const string& componentName, OnComponentDrawFunc drawFunc );
-    OnComponentDrawFunc GetOnDraw( string_view componentName );
+    static void AddOnDraw( string_view componentName, OnComponentDrawFunc drawFunc );
+    static OnComponentDrawFunc GetOnDraw( string_view componentName );
 
-    void AddFromJson( const string& componentName, ComponentFromJson drawFunc );
-    ComponentFromJson GetFromJson( string_view componentName );
+    static void AddFromJson( string_view componentName, ComponentFromJson drawFunc );
+    static ComponentFromJson GetFromJson( string_view componentName );
 
-    void AddToJson( const string& componentName, ComponentToJson drawFunc );
-    ComponentToJson GetToJson( string_view componentName );
+    static void AddToJson( string_view componentName, ComponentToJson drawFunc );
+    static ComponentToJson GetToJson( string_view componentName );
 private:
+    ComponentManager() = default;
     strunomap<ComponentFunctions> mComponentFunctions;
 };
 

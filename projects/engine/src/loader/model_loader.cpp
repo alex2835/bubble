@@ -10,17 +10,16 @@ namespace bubble
 {
 Ref<Model> Loader::JustLoadModel( const path& path )
 {
-    auto model = CreateRef<Model>();
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile( path.string(), 0 );
     if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
         throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer.GetErrorString() ) );
     importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
-    auto fullname = path.filename().string();
-    model->mName = fullname.substr( 0, fullname.find( '.' ) );
+	auto model = CreateRef<Model>();
+    model->mName = path.stem().string();
     model->mMeshes.reserve( scene->mNumMeshes );
-    model->mRootMeshNode = ProcessNode( *model, scene->mRootNode, scene, path );
+    model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, path );
     //model->CreateBoundingBox();
     //model->mShader = GetSystemShader( "Phong shader" );
 	return model;
@@ -37,20 +36,19 @@ Ref<Model> Loader::LoadModel( const path& path )
     return model;
 }
 
-Scope<MeshNode> Loader::ProcessNode( Model& model,
-                                     const aiNode* node,
-                                     const aiScene* scene,
-                                     const path& path )
+Scope<MeshTreeViewNode> Loader::ProcessNode( Model& model,
+                                             const aiNode* node,
+                                             const aiScene* scene,
+                                             const path& path )
 {
-	Scope<MeshNode> mesh_node = CreateScope<MeshNode>( node->mName.C_Str() );
+	auto mesh_node = CreateScope<MeshTreeViewNode>( node->mName.C_Str() );
 
 	for ( u32 i = 0; i < node->mNumMeshes; i++ )
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		model.mMeshes.emplace_back( ProcessMesh( mesh, scene, path ) );
+		model.mMeshes.push_back( ProcessMesh( mesh, scene, path ) );
 		mesh_node->mMeshes.push_back( &model.mMeshes.back() );
 	}
-
 	for ( u32 i = 0; i < node->mNumChildren; i++ )
 		mesh_node->mChildern.push_back( ProcessNode( model, node->mChildren[i], scene, path ) );
 
@@ -148,21 +146,20 @@ BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const path& p
             }
         }
     }
-	// Load material basic variables
-	aiColor4D diffuse;
-	ai_real specular[3];
-	ai_real ambient[3];
-	ai_real shininess;
-	
+	// Load material basic variables	
+    aiColor4D diffuse;
 	if ( AI_SUCCESS == aiGetMaterialColor( mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse ) )
 		material.mDiffuseColor = vec4( diffuse.r, diffuse.g, diffuse.b, diffuse.a );
-	
+
+    ai_real specular[3];
 	if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_COLOR_SPECULAR, specular ) )
 		material.mSpecularCoef = vec3( specular[0], specular[1], specular[2] );
-	
+
+    ai_real ambient[3];
 	if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_COLOR_AMBIENT, ambient ) )
 		material.mAmbientCoef = vec3( ambient[0], ambient[1], ambient[2] );
 	
+    ai_real shininess;
 	if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_SHININESS, &shininess ) )
 		if ( shininess )
 			material.mShininess = static_cast<i32>( shininess );

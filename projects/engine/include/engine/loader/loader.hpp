@@ -21,7 +21,6 @@ struct BUBBLE_ENGINE_EXPORT Loader
     unomap<path, Ref<Model>>     mModels;
     unomap<path, Ref<Shader>>    mShaders;
     unomap<path, Ref<Skybox>>    mSkyboxes;
-    //unomap<path, Ref<Texture2D>> mSkyspheres;
 
     static Ref<Shader> JustLoadShader( string name, string_view vertex, string_view fragment, string_view geometry = {} );
     static Ref<Shader> JustLoadShader( const path& path );
@@ -46,7 +45,7 @@ private:
                                 string_view geometry_source );
 
     // Model
-    static Scope<MeshNode> ProcessNode( Model& model, const aiNode* node, const aiScene* scene, const path& path );
+    static Scope<MeshTreeViewNode> ProcessNode( Model& model, const aiNode* node, const aiScene* scene, const path& path );
     static Mesh ProcessMesh( const aiMesh* mesh, const aiScene* scene, const path& path );
     static BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path );
 };

@@ -73,7 +73,7 @@ public:
         mScene.ForEachEntityComponentRaw( mEditorState.mSelectedEntity,
         [&]( std::string_view componentName, void* componentRaw )
         {
-            auto onDrawFunc = mEngine.mComponentManager.GetOnDraw( componentName );
+            auto onDrawFunc = ComponentManager::GetOnDraw( componentName );
             if ( onDrawFunc )
                 onDrawFunc( componentRaw );
             else

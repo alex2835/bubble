@@ -3,42 +3,62 @@
 
 namespace bubble
 {
-
-void ComponentManager::AddOnDraw( const string& componentName, OnComponentDrawFunc drawFunc )
+ComponentManager& ComponentManager::Instance()
 {
-    mComponentFunctions[componentName].mOnDraw = drawFunc;
+    static ComponentManager componentManager;
+    return componentManager;
+}
+
+void ComponentManager::AddOnDraw( string_view componentName, OnComponentDrawFunc drawFunc )
+{
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter == storage.mComponentFunctions.end() )
+        iter = storage.mComponentFunctions.emplace( componentName, ComponentFunctions{} ).first;
+    iter->second.mOnDraw = drawFunc;
 }
 
 OnComponentDrawFunc ComponentManager::GetOnDraw( string_view componentName )
 {
-    auto iter = mComponentFunctions.find( componentName );
-    if ( iter != mComponentFunctions.end() )
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter != storage.mComponentFunctions.end() )
         return iter->second.mOnDraw;
     return nullptr;
 }
 
-void ComponentManager::AddFromJson( const string& componentName, ComponentFromJson fromJson )
+void ComponentManager::AddFromJson( string_view componentName, ComponentFromJson fromJson )
 {
-    mComponentFunctions[componentName].mFromJson = fromJson;
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter == storage.mComponentFunctions.end() )
+        iter = storage.mComponentFunctions.emplace( componentName, ComponentFunctions{} ).first;
+    iter->second.mFromJson = fromJson;
 }
 
 ComponentFromJson ComponentManager::GetFromJson( string_view componentName )
 {
-    auto iter = mComponentFunctions.find( componentName );
-    if ( iter != mComponentFunctions.end() )
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter != storage.mComponentFunctions.end() )
         return iter->second.mFromJson;
     return nullptr;
 }
 
-void ComponentManager::AddToJson( const string& componentName, ComponentToJson toJson )
+void ComponentManager::AddToJson( string_view componentName, ComponentToJson toJson )
 {
-    mComponentFunctions[componentName].mToJson = toJson;
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter == storage.mComponentFunctions.end() )
+        iter = storage.mComponentFunctions.emplace( componentName, ComponentFunctions{} ).first;
+    iter->second.mToJson = toJson;
 }
 
 ComponentToJson ComponentManager::GetToJson( string_view componentName )
 {
-    auto iter = mComponentFunctions.find( componentName );
-    if ( iter != mComponentFunctions.end() )
+    auto& storage = Instance();
+    auto iter = storage.mComponentFunctions.find( componentName );
+    if ( iter != storage.mComponentFunctions.end() )
         return iter->second.mToJson;
     return nullptr;
 }

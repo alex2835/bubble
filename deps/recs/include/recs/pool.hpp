@@ -41,6 +41,7 @@ public:
 
     template <ComponentType T, typename ...Args>
     T& Push( Entity entity, Args&& ...args );
+    void* PushEmpty( Entity entity );
 
     void Remove( Entity entity );
 
@@ -50,13 +51,13 @@ public:
     template <ComponentType T>
     T& Get( size_t index );
 
-    size_t Size() const noexcept
-    {
-        return mSize;
-    }
+    size_t Size() const noexcept;
 
     void* GetRaw( Entity entity );
     void* GetRaw( size_t index );
+
+    const void* GetRaw( Entity entity ) const;
+    const void* GetRaw( size_t index ) const;
 
     Pool Clone() const;
 
@@ -69,7 +70,7 @@ private:
     void* GetElemAddress( size_t size );
     const void* GetElemAddressConst( size_t size ) const;
 
-private:
+public:
     size_t mSize = 0;
     size_t mCapacity = 0;
     size_t mComponentSize = 0;
@@ -79,7 +80,7 @@ private:
     void( *mDoDelete )( void* component ) = nullptr;
     void( *mDoCopy )( const void* from, void* to ) = nullptr;
 
-    friend class Registry;;
+    friend class Registry;
 };
 
 

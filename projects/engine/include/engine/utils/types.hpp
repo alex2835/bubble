@@ -2,6 +2,7 @@
 #include "engine/utils/pointers.hpp"
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm-aabb/AABB.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
@@ -19,13 +20,13 @@
 namespace bubble
 {
 using namespace glm;
+using namespace CPM_GLM_AABB_NS;
 using namespace nlohmann;
+using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 using string = std::string;
 using string_view = std::string_view;
-
-using namespace std::string_literals;
-using namespace std::string_view_literals;
 
 template <typename T>
 using vector = std::vector<T>;

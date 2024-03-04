@@ -23,16 +23,16 @@ public:
 
     bool operator == ( Entity other ) const
     {
-        return mID == other.mID;
+        return mId == other.mId;
     }
     bool operator <  ( Entity other ) const
     {
-        return mID < other.mID;
+        return mId < other.mId;
     }
 
     bool IsValid()
     {
-        return mID;
+        return mId && mRegistry;
     }
 
     template <ComponentType T, typename ...Args>
@@ -55,17 +55,17 @@ public:
 
     operator size_t() const
     {
-        return mID;
+        return mId;
     };
 
 private:
     Entity( size_t id, Registry* registry )
-        : mID( id ),
+        : mId( id ),
           mRegistry( registry )
     {}
 
 private:
-    size_t mID = 0u;
+    size_t mId = 0u;
     Registry* mRegistry = nullptr;
     friend class Registry;
 };
@@ -83,3 +83,4 @@ struct std::hash<recs::Entity>
         return (size_t)entity;
     }
 };
+

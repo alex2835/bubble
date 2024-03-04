@@ -58,6 +58,7 @@ public:
     template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
 
+    void UpdateEntityReferences();
     void CloneInto( Registry& );
 
 private:
@@ -96,11 +97,11 @@ private:
     }
     Pool& GetComponentPool( ComponentIdType id );
 
-private:
+public:
     size_t mEntityCounter = 1;
     size_t mComponentCounter = 1;
     std::unordered_map<std::string, ComponentIdType, string_hash, std::equal_to<>> mComponents;
-    std::unordered_map<Entity, std::unordered_set<ComponentIdType>> mEntitysComponentIds;
+    std::unordered_map<Entity, std::unordered_set<ComponentIdType>> mEntitiesComponentIds;
     std::unordered_map<ComponentIdType, Pool> mPools;
 };
 
@@ -267,7 +268,7 @@ void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "ForEachEntityComponentRaw: Invalid entity" );
 
-    const auto& components = mEntitysComponentIds[entity];
+    const auto& components = mEntitiesComponentIds[entity];
     for ( const auto& [name, id] : mComponents )
     {
         if ( components.count( id ) )
@@ -290,7 +291,7 @@ void Registry::ForEach( F&& func )
 template <typename F>
 void Registry::ForEachEntity( F&& func )
 {
-    for ( const auto& [entity, _] : mEntitysComponentIds )
+    for ( const auto& [entity, _] : mEntitiesComponentIds )
         func( entity );
 }
 
@@ -299,7 +300,7 @@ void Registry::ForEachTuple( F&& func )
 {
     if ( !HasComponentsTypeId<Components...>() )
         throw std::runtime_error( "No such components set: " +
-                                  ( ( std::string(Components::Name()) + ", " ) + ... ) );
+              ( ( std::string( Components::Name() ) + ", " ) + ... ) );
 
     const auto size = sizeof...( Components );
     Pool* pools[size];
@@ -318,16 +319,16 @@ void Registry::ForEachTuple( F&& func )
             if ( indicies[i] >= pools[i]->Size() )
                 return;
 
-            if ( max_id < pools[i]->mEntities[indicies[i]].mID )
-                max_id = pools[i]->mEntities[indicies[i]].mID;
+            if ( max_id < pools[i]->mEntities[indicies[i]].mId )
+                max_id = pools[i]->mEntities[indicies[i]].mId;
         }
 
         bool next = false;
         for ( int i = 0; i < size; i++ )
         {
-            while ( pools[i]->mEntities[indicies[i]].mID < max_id )
+            while ( pools[i]->mEntities[indicies[i]].mId < max_id )
             {
-                if ( pools[i]->mEntities[indicies[i]].mID > max_id )
+                if ( pools[i]->mEntities[indicies[i]].mId > max_id )
                 {
                     next = true;
                     break;

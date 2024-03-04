@@ -40,6 +40,21 @@ Pool::~Pool()
         mDoDelete( GetElemAddress( i ) );
 }
 
+void* Pool::PushEmpty( Entity entity )
+{
+    if ( mCapacity <= mSize + 1 )
+        Realloc( 2 * mSize + 1 );
+    mSize++;
+
+    auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
+    size_t position = iterator != mEntities.end() ? iterator - mEntities.begin() : mSize;
+
+    mEntities.insert( iterator, entity );
+    std::memmove( GetElemAddress( position + 1 ), GetElemAddress( position ), mComponentSize * ( mSize - position ) );
+    void* new_elem_address = GetElemAddress( position );
+    return new_elem_address;
+}
+
 void Pool::Remove( Entity entity )
 {
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
@@ -52,6 +67,11 @@ void Pool::Remove( Entity entity )
     mSize--;
 }
 
+size_t Pool::Size() const noexcept
+{
+    return mSize;
+}
+
 void* Pool::GetRaw( Entity entity )
 {
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
@@ -61,6 +81,23 @@ void* Pool::GetRaw( Entity entity )
         return GetElemAddress( position );
     }
     return nullptr;
+}
+
+void* Pool::GetRaw( size_t index )
+{
+    if ( index < mSize )
+        return GetElemAddress( index );
+    return nullptr;
+}
+
+const void* Pool::GetRaw( Entity entity ) const
+{
+    return const_cast<Pool&>( *this ).GetRaw( entity );
+}
+
+const void* Pool::GetRaw( size_t index ) const
+{
+    return const_cast<Pool&>( *this ).GetRaw( index );
 }
 
 void Pool::Realloc( size_t new_capacity )

@@ -1,9 +1,10 @@
 #pragma once
-#include <vector>
 #include "engine/utils/imexp.hpp"
+#include "engine/utils/types.hpp"
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/material.hpp"
+#include <vector>
 
 namespace bubble
 {
@@ -15,7 +16,6 @@ struct VertexData
     vector<vec3> mTangents;
     vector<vec3> mBitangents;
 };
-
 
 class BUBBLE_ENGINE_EXPORT Mesh
 {
@@ -43,17 +43,18 @@ private:
     VertexData mVertices;
     vector<u32> mIndices;
     BasicMaterial mMaterial;
+    AABB mBoundingBox;
 };
 
 
-struct MeshNode
+struct MeshTreeViewNode
 {
     string mName;
     vector<Mesh*> mMeshes;
-    vector<Scope<MeshNode>> mChildern;
+    vector<Scope<MeshTreeViewNode>> mChildern;
 
-    MeshNode() = default;
-    MeshNode( const string& name )
+    MeshTreeViewNode() = default;
+    MeshTreeViewNode( const string& name )
         : mName( name )
     {}
 };
@@ -62,17 +63,15 @@ struct BUBBLE_ENGINE_EXPORT Model
 {
     string mName;
     vector<Mesh> mMeshes;
+    Scope<MeshTreeViewNode> mRootMeshTreeView;
     Ref<Shader> mShader;
-    //AABB mBoundingBox;
-    Scope<MeshNode> mRootMeshNode;
+    AABB mBoundingBox;
 
     Model();
     Model( const Model& ) = delete;
     Model& operator= ( const Model& ) = delete;
     Model( Model&& ) = default;
     Model& operator= ( Model&& ) = default;
-
-    //void CreateBoundingBox();
 };
 
 }
