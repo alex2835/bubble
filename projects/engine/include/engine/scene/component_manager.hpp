@@ -50,7 +50,7 @@ public:
     static ComponentToJson GetToJson( string_view componentName );
 private:
     ComponentManager() = default;
-    strunomap<ComponentFunctions> mComponentFunctions;
+    str_unomap<ComponentFunctions> mComponentFunctions;
 };
 
 

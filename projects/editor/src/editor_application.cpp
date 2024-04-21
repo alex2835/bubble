@@ -36,14 +36,12 @@ constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : EditorState{ Window( "Bubble", WINDOW_SIZE ),
-                   // Main viewport
-                   Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
-                                Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-                   // Object selecting viewport
-                   Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-                   SceneCamera( vec3( 0, 15, 70 ) ) 
+    : EditorState{ .mWindow = Window( "Bubble", WINDOW_SIZE ),
+                   .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                                                  Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+                   .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                                                     Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+                   .mSceneCamera = SceneCamera( vec3( 0, 15, 70 ) ) 
     },
       mEditorMode( EditorMode::Edit ),
       mInterfaceLoader( *this, mEngine )

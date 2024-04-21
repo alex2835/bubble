@@ -2,7 +2,7 @@
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
 
-namespace bubble
+namespace glm
 {
 void to_json( json& j, const uvec2& v ) { j = json{ v[0], v[1] }; }
 void from_json( const json& j, uvec2& v ) { v = uvec2( j[0], j[1] ); }

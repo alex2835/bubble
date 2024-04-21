@@ -1,19 +1,23 @@
 #pragma once
+#include <imgui.h>
+#undef APIENTRY
+#include <imfilebrowser.h>
+#undef min
+#undef max
+
 #include <string>
-#include "engine/utils/types.hpp"
-#include "engine/utils/timer.hpp"
+#include "editor_state.hpp"
+#include "engine/engine.hpp"
 
 namespace bubble
 {
 struct Engine;
-struct EditorState;
 
-class IEditorInterface
+class IEditorInterface : public EditorStateRef
 {
 public:
-    IEditorInterface( EditorState& editorState,
-                      Engine& engine )
-        : mEditorState( editorState ),
+    IEditorInterface( EditorState& editorState, Engine& engine )
+        : EditorStateRef( editorState ),
           mEngine( engine )
     {}
     virtual ~IEditorInterface()
@@ -24,8 +28,7 @@ public:
     virtual void OnUpdate( DeltaTime dt ) = 0;
     virtual void OnDraw( DeltaTime dt ) = 0;
 protected:
-    EditorState& mEditorState;
-    Engine& mEngine;
     bool mOpen = true;
+    Engine& mEngine;
 };
 }

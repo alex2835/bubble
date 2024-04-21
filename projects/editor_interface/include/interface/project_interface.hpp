@@ -1,5 +1,4 @@
 #pragma once
-#include "imgui.h"
 #include "ieditor_interface.hpp"
 #include "editor_application.hpp"
 
@@ -9,11 +8,7 @@ class ProjectInterface : public IEditorInterface
 {
 public:
     using IEditorInterface::IEditorInterface;
-
-    ~ProjectInterface() override
-    {
-
-    }
+    ~ProjectInterface() override = default;
 
     string_view Name() override
     {

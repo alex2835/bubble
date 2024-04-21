@@ -9,17 +9,21 @@ void Window::ErrorCallback( i32 error, const char* description )
     LogError( "Error: {} \nDescription: {}", error, description );
 }
 
-void Window::KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods )
+void Window::KeyCallback( GLFWwindow* window,
+                          i32 key, 
+                          i32 scancode, 
+                          i32 action, 
+                          i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
 
-    if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
-    {
-        glfwSetWindowShouldClose( window, GL_TRUE );
-        Event event = win->CreateEvent();
-        event.mType = EventType::ShouldClose;
-        win->mEvents.push_back( event );
-    }
+    //if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
+    //{
+    //    glfwSetWindowShouldClose( window, GL_TRUE );
+    //    Event event = win->CreateEvent();
+    //    event.mType = EventType::ShouldClose;
+    //    win->mEvents.push_back( event );
+    //}
     win->mKeyboardInput.mKeyState[key] = action;
     win->mKeyboardInput.mKeyMods.SHIFT = bool(mods & GLFW_MOD_SHIFT);
     win->mKeyboardInput.mKeyMods.CONTROL = bool(mods & GLFW_MOD_CONTROL);
@@ -193,7 +197,8 @@ Window::Window( const string& name, WindowSize size )
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
+    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
 
     //LoadIniSettingsFromMemory()
     //io.IniFilename = nullptr;

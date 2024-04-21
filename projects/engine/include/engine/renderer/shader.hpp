@@ -54,7 +54,7 @@ public:
     string mName;
     GLuint  mShaderId;
 private:
-    mutable strunomap<i32> mUniformCache;
+    mutable str_unomap<i32> mUniformCache;
 };
 
 }

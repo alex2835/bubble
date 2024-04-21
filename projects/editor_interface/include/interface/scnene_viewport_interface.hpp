@@ -1,5 +1,4 @@
 #pragma once
-#include "imgui.h"
 #include "ieditor_interface.hpp"
 #include "editor_application.hpp"
 
@@ -22,15 +21,15 @@ public:
 
     void OnInit() override
     {
-        mNewSize = mEditorState.mSceneViewport.Size();
+        mNewSize = mSceneViewport.Size();
     }
 
     void OnUpdate( DeltaTime ) override
     {
-        if ( mNewSize != mEditorState.mSceneViewport.Size() )
+        if ( mNewSize != mSceneViewport.Size() )
         {
-            mEditorState.mObjectIdViewport.Resize( mNewSize );
-            mEditorState.mSceneViewport.Resize( mNewSize );
+            mObjectIdViewport.Resize( mNewSize );
+            mSceneViewport.Resize( mNewSize );
         }
     }
 
@@ -48,29 +47,29 @@ public:
         if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
         {
             auto clickPos = CaptureWidnowMousePos();
-            auto pixel = mEditorState.
+            auto pixel = 
                          mObjectIdViewport.
                          ReadColorAttachmentPixelRedUint( clickPos );
-            mEditorState.mSelectedEntity = mEditorState.mProject.mScene.GetEntityById( pixel );
+            mSelectedEntity = mProject.mScene.GetEntityById( pixel );
         }
     }
 
     void DrawViewport()
     {
-        vec2 viewportSize = mEditorState.mSceneViewport.Size();
+        vec2 viewportSize = mSceneViewport.Size();
         ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
 
-        u64 textureId = mEditorState.mSceneViewport.ColorAttachment().RendererID();
-        ImVec2 textureSize = ImVec2( (float)mEditorState.mSceneViewport.Width(),
-                                     (float)mEditorState.mSceneViewport.Height() );
+        u64 textureId = mSceneViewport.ColorAttachment().RendererID();
+        ImVec2 textureSize = ImVec2( (float)mSceneViewport.Width(),
+                                     (float)mSceneViewport.Height() );
 
         ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
         mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
         if ( ImGui::IsItemHovered() )
         {
-            auto middleButton = mEditorState.mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
-            mEditorState.mSceneCamera.mIsActive = middleButton;
+            auto middleButton = mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
+            mSceneCamera.mIsActive = middleButton;
         }
     }
 
@@ -88,9 +87,9 @@ public:
                            (float)mNewSize.x, (float)mNewSize.y );
 
         mat4 matrix;
-        auto& entityTransform = mEditorState.mSelectedEntity.GetComponent<TransformComponent>();
-        auto lookAt = mEditorState.mSceneCamera.GetLookatMat();
-        auto projection = mEditorState.mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+        auto& entityTransform = mSelectedEntity.GetComponent<TransformComponent>();
+        auto lookAt = mSceneCamera.GetLookatMat();
+        auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
         ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
                                                  glm::value_ptr( entityTransform.mRotation ),
@@ -115,10 +114,10 @@ public:
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
         {
             DrawViewport();
-            if ( mEditorState.mSelectedEntity != INVALID_ENTITY )
+            if ( mSelectedEntity && mSelectedEntity.HasComponent<TransformComponent>() )
                 DrawGizmo();
             // Select entity on click by pixel
-            if ( !ImGuizmo::IsUsing() )
+            if ( !ImGuizmo::IsUsing() && ImGui::IsWindowHovered() )
                 ProcessScreenSelectedEntity();
         }
         ImGui::End();

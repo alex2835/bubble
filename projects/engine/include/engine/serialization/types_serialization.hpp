@@ -1,8 +1,10 @@
 #pragma once
 #include "engine/utils/types.hpp"
 
-namespace bubble
+namespace glm
 {
+using namespace bubble;
+
 void to_json( json& j, const uvec2& v );
 void from_json( const json& j, uvec2& v );
 void to_json( json& j, const uvec3& v );
