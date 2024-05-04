@@ -18,6 +18,7 @@ Ref<Model> Loader::JustLoadModel( const path& path )
 
 	auto model = CreateRef<Model>();
     model->mName = path.stem().string();
+	model->mPath = path;
     model->mMeshes.reserve( scene->mNumMeshes );
     model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, path );
     //model->CreateBoundingBox();

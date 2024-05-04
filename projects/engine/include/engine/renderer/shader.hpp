@@ -6,6 +6,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include "engine/utils/error.hpp"
 #include "engine/utils/types.hpp"
+#include "engine/utils/filesystem.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/buffer.hpp"
@@ -52,9 +53,10 @@ public:
     void SetUniformBuffer( const Ref<UniformBuffer>& ub );
 
     string mName;
+    path mPath;
     GLuint  mShaderId;
 private:
-    mutable str_unomap<i32> mUniformCache;
+    mutable str_hash_map<i32> mUniformCache;
 };
 
 }

@@ -3,23 +3,28 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
-#include "engine/utils/types.hpp"
 #include "engine/utils/imexp.hpp"
+#include "engine/utils/types.hpp"
+#include "engine/loader/loader.hpp"
 
 namespace bubble
 {
-template <typename T>
-concept CompnentType = requires( T comp, json& j, void* raw )
+template <typename ComponentType>
+concept ComponentConcept = requires( ComponentType component,
+                                     Loader& loader,
+                                     json& json,
+                                     void* rawComponent )
 {
-    { T::Name() } -> std::same_as<string_view>;
-    { T::OnComponentDraw( raw ) } -> std::same_as<void>;
-    { T::ToJson( j, raw ) } -> std::same_as<void>;
-    { T::FromJson( j, raw ) } -> std::same_as<void>;
+    { ComponentType::Name() } -> std::same_as<string_view>;
+    { ComponentType::OnComponentDraw( loader, rawComponent ) } -> std::same_as<void>;
+    { ComponentType::ToJson( loader, json, rawComponent ) } -> std::same_as<void>;
+    { ComponentType::FromJson( loader, json, rawComponent ) } -> std::same_as<void>;
 };
 
-typedef void ( *OnComponentDrawFunc )( void* rawData );
-typedef void ( *ComponentFromJson )( const json& j, void* rawData );
-typedef void ( *ComponentToJson )( json& j, const void* rawData );
+typedef void ( *OnComponentDrawFunc )( const Loader& loader, void* rawData );
+typedef void ( *ComponentToJson )( const Loader& loader, json& json, const void* rawData );
+typedef void ( *ComponentFromJson )( Loader& loader, const json& json, void* rawData );
+
 struct ComponentFunctions
 {
     OnComponentDrawFunc mOnDraw;
@@ -27,12 +32,13 @@ struct ComponentFunctions
     ComponentToJson mToJson;
 };
 
+
 class BUBBLE_ENGINE_EXPORT ComponentManager
 {
 public:
     static ComponentManager& Instance();
 
-    template <CompnentType Component>
+    template <ComponentConcept Component>
     static void Add()
     {
         AddOnDraw( Component::Name(), Component::OnComponentDraw );
@@ -50,7 +56,7 @@ public:
     static ComponentToJson GetToJson( string_view componentName );
 private:
     ComponentManager() = default;
-    str_unomap<ComponentFunctions> mComponentFunctions;
+    str_hash_map<ComponentFunctions> mComponentFunctions;
 };
 
 

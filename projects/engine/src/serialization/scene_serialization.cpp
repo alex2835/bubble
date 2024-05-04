@@ -7,24 +7,16 @@ namespace recs
 {
 using namespace nlohmann;
 using namespace bubble;
-void to_json( json& j, const Entity& entity )
-{
-    j = (size_t)entity;
-}
 
-void from_json( const json& j, Entity& entity )
-{
-    // We need to update entity refs after this
-    auto entityId = size_t( j );
-    entity = *(Entity*)&entityId;
-}
-
-void to_json( json& j, const Scene& scene )
+void SceneToJson( const Loader& loader, json& j, const Scene& scene )
 {
     j["Entity counter"] = scene.mEntityCounter;
     j["Component counter"] = scene.mComponentCounter;
     j["Components"] = scene.mComponents;
-    j["Entity components"] = scene.mEntitiesComponentIds;
+    // Entity components
+    auto& entityComponentsJson = j["Entity components"];
+    for ( const auto& [entity, components] : scene.mEntitiesComponentIds )
+        entityComponentsJson[std::to_string( entity )] = components;
 
     json& poolsJson = j["Component pools"];
     for ( const auto& [componentName, componentId] : scene.mComponents )
@@ -38,20 +30,33 @@ void to_json( json& j, const Scene& scene )
         const auto& componentToJson = ComponentManager::GetToJson( componentName );
 
         for ( size_t i = 0; i < pool.mEntities.size(); i++ )
-            componentToJson( poolJson[pool.mEntities[i]], pool.GetRaw( i ) );
+        {
+            auto entityStr = std::to_string( pool.mEntities[i] );
+            componentToJson( loader, poolJson[entityStr], pool.GetRaw( i ) );
+        }
     }
 }
 
-void from_json( const json& j, Scene& scene )
+void SceneFromJson( Loader& loader, const json& j, Scene& scene )
 {
     scene.mEntityCounter = j["Entity counter"];
     scene.mComponentCounter = j["Component counter"];
     scene.mComponents = j["Components"];
-    scene.mEntitiesComponentIds = j["Entity components"];
+    // Entity components
+    const json& entityCompnentsJson = j["Entity components"];
+    for ( const auto& [entityStr, componetsJson] : entityCompnentsJson.items() )
+    {
+        hash_set<ComponentIdType> components;
+        for ( ComponentIdType component : componetsJson )
+            components.insert( component );
+
+        u64 entityId = std::atoi( entityStr.c_str() );
+        Entity entity = *(Entity*)&entityId;
+        scene.mEntitiesComponentIds[entity] = components;
+    }
     scene.UpdateEntityReferences();
 
-    const json& poolsJson = j["Component pools"];
-    for ( const string& componentName : poolsJson )
+    for ( const auto& [componentName, poolJson] : j["Component pools"].items() )
     {
         auto componentsIter = scene.mComponents.find( componentName );
         if ( componentsIter == scene.mComponents.end() )
@@ -63,11 +68,13 @@ void from_json( const json& j, Scene& scene )
             throw std::runtime_error( "scene from_json failed. No such pool: " + componentName );
 
         Pool& pool = poolsIter->second;
-        const json& poolJson = poolsJson[componentName];
         const auto& componentFromJson = ComponentManager::GetFromJson( componentName );
 
-        for ( size_t entityId : poolJson )
-            componentFromJson( poolJson[entityId], pool.PushEmpty( scene.GetEntityById( entityId ) ) );
+        for ( const auto& [entityIdStr, componentJson] : poolJson.items() )
+        {
+            u64 entityId = std::atoi( entityIdStr.c_str() );
+            componentFromJson( loader, componentJson, pool.PushEmpty( scene.GetEntityById( entityId ) ) );
+        }
     }
 }
 

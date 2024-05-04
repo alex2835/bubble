@@ -6,43 +6,18 @@
 
 namespace bubble
 {
-constexpr std::string_view vert_shader = R"shader(
-    #version 330 core
-    layout(location = 0) in vec3 aPosition;
-    
-    layout(std140) uniform VertexUniformBuffer
-    {
-        mat4 uProjection;
-        mat4 uView;
-    };
-    uniform mat4 uModel;
-
-    void main()
-    {
-        gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
-    }
-)shader";
-
-constexpr std::string_view frag_shader = R"shader(
-    #version 330 core
-    out vec4 FragColor;
-    void main()
-    {
-        FragColor = vec4(1. );
-    }
-)shader";
-
 constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : EditorState{ .mWindow = Window( "Bubble", WINDOW_SIZE ),
-                   .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
-                                                  Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-                   .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                                     Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-                   .mSceneCamera = SceneCamera( vec3( 0, 15, 70 ) ) 
-    },
+    : EditorState{ 
+        .mWindow = Window( "Bubble", WINDOW_SIZE ),
+        .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+        .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+        .mSceneCamera = SceneCamera( vec3( 0, 15, 70 ) ) 
+      },
       mEditorMode( EditorMode::Edit ),
       mInterfaceLoader( *this, mEngine )
 {
@@ -66,9 +41,9 @@ void BubbleEditor::Run()
 {
     // Temp test
     path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
-    auto model = Loader::JustLoadModel( model_path );
-    auto shader = Loader::JustLoadShader( "test_shader", vert_shader, frag_shader );
-    model->mShader = shader;
+    auto model = mProject.mLoader.LoadModel( model_path );
+    model->mShader = mProject.mLoader.LoadShader( "./resources/shaders/white.shader" );
+    
     
     Entity entity = mProject.mScene.CreateEntity();
     entity.AddComponet<TagComponent>( "test" )

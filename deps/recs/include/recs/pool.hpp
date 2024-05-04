@@ -101,8 +101,7 @@ T& Pool::Push( Entity entity, Args&& ...args )
     new( new_elem_mem ) T( std::forward<Args>( args )... );
 
     mSize++;
-    auto& a = *static_cast<T*>( new_elem_mem );
-    return a;
+    return *static_cast<T*>( new_elem_mem );
 }
 
 template <ComponentType T>

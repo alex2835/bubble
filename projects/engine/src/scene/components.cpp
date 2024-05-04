@@ -1,34 +1,36 @@
 
 #include "engine/scene/components.hpp"
+#include "engine/utils/imgui_utils.hpp"
+#include "engine/serialization/types_serialization.hpp"
+#include <nlohmann/json.hpp>
 
 namespace bubble
 {
+constexpr auto COLOR_YELLOW = ImVec4( 1, 1, 0, 1 );
+
 // TagComponent
-void TagComponent::OnComponentDraw( void* raw )
+void TagComponent::OnComponentDraw( const Loader& loader, void* raw )
 {
     auto& tag = *(TagComponent*)raw;
-    char buffer[64] = { 0 };
-    tag.copy( buffer, sizeof( buffer ) );
-    ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "TagComponent" );
-    ImGui::InputText( "##Tag", buffer, sizeof( buffer ) );
-    tag.assign( buffer );
+    ImGui::TextColored( COLOR_YELLOW, "TagComponent" );
+    ImGui::InputText( tag );
 }
 
-void TagComponent::ToJson( json& j, const void* raw )
+void TagComponent::ToJson( const Loader& loader, json& json, const void* raw )
 {
-
+    json = *(const TagComponent*)raw;
 }
 
-void TagComponent::FromJson( const json& j, void* raw )
+void TagComponent::FromJson( Loader& loader, const json& json, void* raw )
 {
-
+    *(TagComponent*)raw = json;
 }
 
 // TransformComponent
-void TransformComponent::OnComponentDraw( void* raw )
+void TransformComponent::OnComponentDraw( const Loader& loader, void* raw )
 {
     auto& component = *(TransformComponent*)raw;
-    ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "TransformComponent" );
+    ImGui::TextColored( COLOR_YELLOW, "TransformComponent" );
     ImGui::DragFloat3( "Scale", (float*)&component.mScale, 0.01f, 0.01f );
     ImGui::DragFloat3( "Rotation", (float*)&component.mRotation, 0.01f );
     ImGui::DragFloat3( "Position", (float*)&component.mPosition, 0.1f );
@@ -45,49 +47,68 @@ mat4 TransformComponent::Transform()
     return transform;
 }
 
-void TransformComponent::ToJson( json& j, const void* raw )
+void TransformComponent::ToJson( const Loader& loader, json& json, const void* raw )
 {
-
+    const auto& transform = *(const TransformComponent*)raw;
+    json["Position"] = transform.mPosition;
+    json["Rotation"] = transform.mRotation;
+    json["Scale"] = transform.mScale;
 }
 
-void TransformComponent::FromJson( const json& j, void* raw )
+void TransformComponent::FromJson( Loader& loader, const json& json, void* raw )
 {
-
+    auto& transform = *(TransformComponent*)raw;
+    transform.mPosition = json["Position"];
+    transform.mRotation = json["Rotation"];
+    transform.mScale = json["Scale"];
 }
 
 // LightComponent
-void LightComponent::OnComponentDraw( void* raw )
+void LightComponent::OnComponentDraw( const Loader& loader, void* raw )
 {
     auto& component = *(LightComponent*)raw;
-    ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "LightComponent" );
+    ImGui::TextColored( COLOR_YELLOW, "LightComponent" );
 }
 
-void LightComponent::ToJson( json& j, const void* raw )
+void LightComponent::ToJson( const Loader& loader, json& json, const void* raw )
 {
-
+    const auto& light = *(const LightComponent*)raw;
 }
 
-void LightComponent::FromJson( const json& j, void* raw )
+void LightComponent::FromJson( Loader& loader, const json& json, void* raw )
 {
-
+    auto& light = *(LightComponent*)raw;
 }
 
 // ModelComponent
-void ModelComponent::OnComponentDraw( void* raw )
+void ModelComponent::OnComponentDraw( const Loader& loader, void* raw )
 {
-    auto& component = *(ModelComponent*)raw;
-    ImGui::TextColored( ImVec4( 1, 1, 0, 1 ), "ModelComponent" );
-    ImGui::Text( component->mName.c_str() );
+    auto& modelComponent = *(ModelComponent*)raw;
+    ImGui::TextColored( COLOR_YELLOW, "ModelComponent" );
+    if ( ImGui::BeginCombo( "models", modelComponent->mName.c_str() ) )
+    {
+        for ( const auto& [modelPath, model] : loader.mModels )
+        {
+            auto modelName = modelPath.stem().string();
+            if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponent->mName ) )
+                modelComponent = model;
+        }
+        ImGui::EndCombo();
+    }
 }
 
-void ModelComponent::ToJson( json& j, const void* raw )
+void ModelComponent::ToJson( const Loader& loader, json& json, const void* raw )
 {
-
+    const auto& model = *(const ModelComponent*)raw;
+    json["Path"] = model->mPath;
+    json["Shader"] = model->mShader->mPath;
 }
 
-void ModelComponent::FromJson( const json& j, void* raw )
+void ModelComponent::FromJson( Loader& loader, const json& json, void* raw )
 {
-
+    auto& model = *(ModelComponent*)raw;
+    model = loader.LoadModel( json["Path"] );
+    model->mShader = loader.LoadShader( json["Shader"] );
 }
 
 }

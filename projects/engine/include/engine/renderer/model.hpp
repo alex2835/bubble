@@ -62,6 +62,7 @@ struct MeshTreeViewNode
 struct BUBBLE_ENGINE_EXPORT Model
 {
     string mName;
+    path mPath;
     vector<Mesh> mMeshes;
     Scope<MeshTreeViewNode> mRootMeshTreeView;
     Ref<Shader> mShader;

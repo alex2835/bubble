@@ -1,9 +1,19 @@
 #pragma once
 #include "ieditor_interface.hpp"
 #include "editor_application.hpp"
+#include "engine/utils/imgui_utils.hpp"
 
 namespace bubble
 {
+auto cFileDialogChooseFileFlags = ImGuiFileBrowserFlags_CloseOnEsc |
+                                  ImGuiFileBrowserFlags_ConfirmOnEnter;
+
+auto cFileDialogChooseDirFlags = ImGuiFileBrowserFlags_SelectDirectory |
+                                 ImGuiFileBrowserFlags_CloseOnEsc |
+                                 ImGuiFileBrowserFlags_CreateNewDir |
+                                 ImGuiFileBrowserFlags_ConfirmOnEnter |
+                                 ImGuiFileBrowserFlags_HideRegularFiles;
+
 class Menubar : public IEditorInterface
 {
 public:
@@ -17,7 +27,7 @@ public:
 
     void OnInit() override
     {
-
+        mCreateProjectName = "project name"s;
     }
 
     void OnUpdate( DeltaTime dt ) override
@@ -25,45 +35,74 @@ public:
 
     }
 
-    void CreateProjectModal()
+    void ModalCreateProject()
     {
         if ( !ImGui::IsPopupOpen( "Create project" ) )
             ImGui::OpenPopup( "Create project" );
 
         if ( ImGui::BeginPopupModal( "Create project", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
         {
+            ImGui::InputText( mCreateProjectName );
+
             if ( ImGui::Button( "Browse", ImVec2( 100, 30 ) ) )
             {
-                mFileDialog = ImGui::FileBrowser( ImGuiFileBrowserFlags_SelectDirectory |
-                                                  ImGuiFileBrowserFlags_CloseOnEsc | 
-                                                  ImGuiFileBrowserFlags_CreateNewDir | 
-                                                  ImGuiFileBrowserFlags_ConfirmOnEnter |
-                                                  ImGuiFileBrowserFlags_HideRegularFiles );
+                mFileDialog = ImGui::FileBrowser( cFileDialogChooseDirFlags );
                 mFileDialog.SetTitle( "Choose directory" );
                 mFileDialog.Open();
             }
             ImGui::SameLine();
+
             ImGui::Text( mCreateProjectSelectedPath.string().c_str() );
 
+            if ( ImGui::Button( "Create", ImVec2( 100, 30 ) ) )
+            {
+                mProject.Create( mCreateProjectSelectedPath, mCreateProjectName );
+                ImGui::CloseCurrentPopup();
+                mCreateProjectModal = false;
+            }
+            ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
+
+            if ( ImGui::Button( "Close", ImVec2( 100, 30 ) ) )
+            {
+                ImGui::CloseCurrentPopup();
+                mCreateProjectModal = false;
+            }
+
+            // File dialog
             mFileDialog.Display();
             if ( mFileDialog.HasSelected() )
             {
                 mCreateProjectSelectedPath = mFileDialog.GetSelected();
                 mFileDialog.ClearSelected();
             }
-
-            if ( ImGui::Button( "Create", ImVec2( 100, 30 ) ) )
-            {
-                ImGui::CloseCurrentPopup();
-                mCreateProjectModal = false;
-            }
-            ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
-            if ( ImGui::Button( "Close", ImVec2( 100, 30 ) ) )
-            {
-                ImGui::CloseCurrentPopup();
-                mCreateProjectModal = false;
-            }
             ImGui::EndPopup();
+        }
+    }
+
+    void ModalOpenProject()
+    {
+        if ( !mFileDialog.IsOpened() )
+        {
+            mFileDialog = ImGui::FileBrowser( cFileDialogChooseFileFlags );
+            mFileDialog.SetTypeFilters( { ".bubble" } );
+            mFileDialog.Open();
+        }
+
+        // File dialog
+        mFileDialog.Display();
+        if ( mFileDialog.HasSelected() )
+        {
+            try
+            {
+                auto projectPath = mFileDialog.GetSelected();
+                mFileDialog.ClearSelected();
+                mOpenProjectModal = false;
+                mProject.Open( projectPath );
+            }
+            catch ( const std::exception& e )
+            {
+                LogError( e.what() );
+            }
         }
     }
 
@@ -77,21 +116,10 @@ public:
                     mCreateProjectModal = true;
 
                 if ( ImGui::MenuItem( "Open" ) )
-                {
-                    try
-                    {
-                        path projectPath;
-                        mProject.Open( projectPath );
-                    }
-                    catch ( const std::exception& e )
-                    {
-                        LogError( e.what() );
-                    }
-                }
+                    mOpenProjectModal = true;
 
                 if ( ImGui::MenuItem( "Save" ) )
-                {
-                }
+                    mProject.Save();
 
                 ImGui::EndMenu();
             }
@@ -124,12 +152,16 @@ public:
         DrawMenubar();
 
         if ( mCreateProjectModal )
-            CreateProjectModal();
+            ModalCreateProject();
+
+        if ( mOpenProjectModal )
+            ModalOpenProject();
     }
 
 private:
     ImGui::FileBrowser mFileDialog;
     path mCreateProjectSelectedPath;
+    string mCreateProjectName;
 
     bool mCreateProjectModal = false;
     bool mOpenProjectModal = false;

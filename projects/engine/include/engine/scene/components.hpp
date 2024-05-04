@@ -1,9 +1,9 @@
 #pragma once
-#include "engine/utils/types.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/renderer/light.hpp"
-#include "component_manager.hpp"
 #include "engine/utils/imexp.hpp"
+#include "engine/utils/types.hpp"
+#include "components_manager.hpp"
 
 
 // Basic components
@@ -15,9 +15,9 @@ struct TagComponent : public string
     {
         return "TagComponent"sv;
     }
-    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( void* raw );
-    BUBBLE_ENGINE_EXPORT static void ToJson( json& j, const void* raw );
-    BUBBLE_ENGINE_EXPORT static void FromJson( const json& j, void* raw );
+    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
+    BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );
+    BUBBLE_ENGINE_EXPORT static void FromJson( Loader& loader, const json& json, void* raw );
 };
 
 struct TransformComponent
@@ -26,9 +26,9 @@ struct TransformComponent
     {
         return "TransformComponent"sv;
     }
-    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( void* raw );
-    BUBBLE_ENGINE_EXPORT static void ToJson( json& j, const void* raw );
-    BUBBLE_ENGINE_EXPORT static void FromJson( const json& j, void* raw );
+    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
+    BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );
+    BUBBLE_ENGINE_EXPORT static void FromJson( Loader& loader, const json& json, void* raw );
 
     BUBBLE_ENGINE_EXPORT mat4 Transform();
     vec3 mPosition = vec3( 0 );
@@ -43,20 +43,22 @@ struct LightComponent : public Light
     {
         return "LightComponent"sv;
     }
-    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( void* raw );
-    BUBBLE_ENGINE_EXPORT static void ToJson( json& j, const void* raw );
-    BUBBLE_ENGINE_EXPORT static void FromJson( const json& j, void* raw );
+    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
+    BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );
+    BUBBLE_ENGINE_EXPORT static void FromJson( Loader& loader, const json& json, void* raw );
 };
 
 struct ModelComponent : public Ref<Model>
 {
+    using Ref<Model>::operator=;
+
     static string_view Name()
     {
         return "ModelComponent"sv;
     }
-    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( void* raw );
-    BUBBLE_ENGINE_EXPORT static void ToJson( json& j, const void* raw );
-    BUBBLE_ENGINE_EXPORT static void FromJson( const json& j, void* raw );
+    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
+    BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );
+    BUBBLE_ENGINE_EXPORT static void FromJson( Loader& loader, const json& json, void* raw );
 };
 
 }

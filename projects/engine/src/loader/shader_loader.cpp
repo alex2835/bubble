@@ -20,6 +20,7 @@ Ref<Shader> Loader::JustLoadShader( const path& path )
 {
     Ref<Shader> shader = CreateRef<Shader>();
     shader->mName = path.filename().string();
+	shader->mPath = path;
     string vertexSource, fragmentSource, geometry;
     ParseShaders( path, vertexSource, fragmentSource, geometry );
     CompileShaders( *shader, vertexSource, fragmentSource, geometry );

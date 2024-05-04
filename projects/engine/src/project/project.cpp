@@ -7,7 +7,7 @@
 
 namespace bubble
 {
-constexpr string_view ROOT_FILE_EXT = "bubble"sv;
+constexpr string_view ROOT_FILE_EXT = ".bubble"sv;
 
 void Project::Create( const path& rootDir, const string& projectName )
 {
@@ -26,19 +26,20 @@ void Project::Open( const path& rootFile )
         throw std::runtime_error( "Invalid project path: " + rootFile.string() );
     
     mRootFile = rootFile;
-    json rootFileJson( rootFile );
-    rootFileJson["Loader"] = mLoader;
-    rootFileJson["Scene"] = mScene;
+    std::ifstream stream( mRootFile );
+    json projectJson = json::parse( stream );
+    projectJson["Loader"] = mLoader;
+    SceneFromJson( mLoader, projectJson["Scene"], mScene );
 }
 
 void Project::Save()
 {
-    json projectStarterJson;
-    from_json( projectStarterJson["Loader"], mLoader );
-    from_json( projectStarterJson["Scene"], mScene );
+    json projectJson;
+    projectJson["Loader"] = mLoader;
+    SceneToJson( mLoader, projectJson["Scene"], mScene );
 
     std::ofstream projectFile( mRootFile );
-    projectFile << projectStarterJson.dump();
+    projectFile << projectJson.dump( 1 );
 }
 
 }

@@ -1,5 +1,5 @@
 
-#include "engine/scene/component_manager.hpp"
+#include "engine/scene/components_manager.hpp"
 
 namespace bubble
 {

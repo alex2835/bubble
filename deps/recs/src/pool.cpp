@@ -44,7 +44,6 @@ void* Pool::PushEmpty( Entity entity )
 {
     if ( mCapacity <= mSize + 1 )
         Realloc( 2 * mSize + 1 );
-    mSize++;
 
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
     size_t position = iterator != mEntities.end() ? iterator - mEntities.begin() : mSize;
@@ -52,6 +51,8 @@ void* Pool::PushEmpty( Entity entity )
     mEntities.insert( iterator, entity );
     std::memmove( GetElemAddress( position + 1 ), GetElemAddress( position ), mComponentSize * ( mSize - position ) );
     void* new_elem_address = GetElemAddress( position );
+
+    mSize++;
     return new_elem_address;
 }
 

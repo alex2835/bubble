@@ -25,24 +25,6 @@ using namespace nlohmann;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
 
-using string = std::string;
-using string_view = std::string_view;
-
-template <typename T>
-using vector = std::vector<T>;
-template <typename K, typename V>
-using map = std::map<K, V>;
-template <typename T>
-using set = std::set<T>;
-template <typename K, typename V>
-using unomap = std::unordered_map<K, V>;
-template <typename T>
-using unoset = std::unordered_set<T>;
-template <typename T, u64 SIZE>
-using array = std::array<T, SIZE>;
-template <typename T>
-using opt = std::optional<T>;
-
 using i8 = std::int8_t;
 using u8 = std::uint8_t;
 
@@ -58,6 +40,22 @@ using u64 = std::uint64_t;
 using f32 = std::float_t;
 using f64 = std::double_t;
 
+using string = std::string;
+using string_view = std::string_view;
+template <typename T>
+using vector = std::vector<T>;
+template <typename K, typename V>
+using map = std::map<K, V>;
+template <typename T>
+using set = std::set<T>;
+template <typename K, typename V>
+using hash_map = std::unordered_map<K, V>;
+template <typename T>
+using hash_set = std::unordered_set<T>;
+template <typename T, u64 SIZE>
+using array = std::array<T, SIZE>;
+template <typename T>
+using opt = std::optional<T>;
 
 struct string_hash
 {
@@ -76,8 +74,8 @@ struct string_hash
     }
 };
 template <typename V>
-using str_unomap = std::unordered_map<string, V, string_hash, std::equal_to<>>;
-using str_unoset = std::unordered_set<string, string_hash, std::equal_to<>>;
+using str_hash_map = std::unordered_map<string, V, string_hash, std::equal_to<>>;
+using str_hash_set = std::unordered_set<string, string_hash, std::equal_to<>>;
 
 }
 

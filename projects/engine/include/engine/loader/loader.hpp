@@ -17,10 +17,10 @@ namespace bubble
 {
 struct BUBBLE_ENGINE_EXPORT Loader
 {
-    unomap<path, Ref<Texture2D>> mTextures;
-    unomap<path, Ref<Model>>     mModels;
-    unomap<path, Ref<Shader>>    mShaders;
-    unomap<path, Ref<Skybox>>    mSkyboxes;
+    hash_map<path, Ref<Texture2D>> mTextures;
+    hash_map<path, Ref<Model>>     mModels;
+    hash_map<path, Ref<Shader>>    mShaders;
+    hash_map<path, Ref<Skybox>>    mSkyboxes;
 
     static Ref<Shader> JustLoadShader( string name, string_view vertex, string_view fragment, string_view geometry = {} );
     static Ref<Shader> JustLoadShader( const path& path );

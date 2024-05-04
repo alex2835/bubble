@@ -65,7 +65,7 @@ public:
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentName );
             if ( onDrawFunc )
-                onDrawFunc( componentRaw );
+                onDrawFunc( mProject.mLoader, componentRaw );
             else
                 ImGui::Text( format( "Component {} not drawable", componentName ).c_str() );
             ImGui::Separator();
@@ -87,7 +87,7 @@ public:
     }
 
 private:
-    str_unoset mNoCompDrawFuncWarnings;
+    str_hash_set mNoCompDrawFuncWarnings;
 };
 
 }

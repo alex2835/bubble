@@ -25,17 +25,21 @@ void to_json( json& j, const Loader& loader )
 
 void from_json( const json& j, Loader& loader )
 {
-    for ( const auto& texturePath : j["textures"] )
-        loader.LoadTexture2D( texturePath );
+    if ( j.contains( "textures" ) && !j["textures"].is_null() )
+        for ( const auto& texturePath : j["textures"] )
+            loader.LoadTexture2D( texturePath );
 
-    for ( const auto& modelPath : j["models"] )
-        loader.LoadModel( modelPath );
+    if ( j.contains( "models" ) && !j["models"].is_null() )
+        for ( const auto& modelPath : j["models"] )
+            loader.LoadModel( modelPath );
 
-    for ( const auto& shaderPath : j["shaders"] )
-        loader.LoadShader( shaderPath );
+    if ( j.contains( "shaders" ) && !j["shaders"].is_null() )
+        for ( const auto& shaderPath : j["shaders"] )
+            loader.LoadShader( shaderPath );
 
-    //for ( const auto& skyboxePath : j["skyboxes"] )
-    //    loader.LoadSkybox( skyboxePath );
+    //if ( j.contains( "shaders" ) )
+    //    for ( const auto& skyboxePath : j["skyboxes"] )
+    //        loader.LoadSkybox( skyboxePath );
 }
 
 }
