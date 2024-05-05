@@ -28,8 +28,11 @@ public:
     Entity GetEntityById( size_t id );
     void RemoveEntity( Entity& entity );
 
+    template <ComponentType Component>
+    Registry& AddComponet();
+
     template <ComponentType Component, typename ...Args>
-    void AddComponet( Entity entity, Args&& ...args );
+    Registry& AddComponet( Entity entity, Args&& ...args );
 
     template <ComponentType Component>
     Component& GetComponent( Entity entity );
@@ -158,8 +161,20 @@ Component& Registry::EntityGetComponent( Entity entity, ComponentIdType componen
 
 // Registry
 
+template <ComponentType Component>
+Registry& Registry::AddComponet()
+{
+    ComponentIdType componentType = GetComponentTypeId<Component>();
+    if ( componentType == INVALID_COMPONENT_TYPE )
+    {
+        componentType = AddComponentTypeId<Component>();
+        mPools.emplace( componentType, Pool::CreatePool<Component>() );
+    }
+    return *this;
+}
+
 template <ComponentType Component, typename ...Args>
-void Registry::AddComponet( Entity entity, Args&& ...args )
+Registry& Registry::AddComponet( Entity entity, Args&& ...args )
 {
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "Add component: invalid entity" );
@@ -181,6 +196,7 @@ void Registry::AddComponet( Entity entity, Args&& ...args )
         Pool& pool = mPools[componentType];
         pool.Push<Component>( entity, std::forward<Args>( args )... );
     }
+    return *this;
 }
 
 template <ComponentType Component>

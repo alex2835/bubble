@@ -490,14 +490,14 @@ void VertexArray::VertexBufferIndex( u32 val )
 
 
 // UniformBuffer 
-UniformBuffer::UniformBuffer( string name,
-                              i32 index,
+UniformBuffer::UniformBuffer( i32 index, 
+                              string name,
                               const BufferLayout& layout,
                               u32 size,
                               u32 additional_size )
-    : mName( std::move( name ) ),
+    : mIndex( index ), 
+      mName( std::move( name ) ),
       mLayout( layout ),
-      mIndex( index ),
       mSize( size )
 {
     CalculateOffsetsAndStride();

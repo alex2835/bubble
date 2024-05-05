@@ -8,15 +8,15 @@ Renderer::Renderer()
         { "uProjection", GLSLDataType::Mat4  },
         { "uView", GLSLDataType::Mat4  }
     };
-    mVertexUniformBuffer = CreateRef<UniformBuffer>( "VertexUniformBuffer",
-                                                     0,
+    mVertexUniformBuffer = CreateRef<UniformBuffer>( 0, 
+                                                     "VertexUniformBuffer",
                                                      std::move( vertexUniformBufferLayout ) );
 
     BufferLayout fragmentUniformBufferLayout{
         { "uViewPos", GLSLDataType::Float3 }
     };
-    mFragmentUniformBuffer = CreateRef<UniformBuffer>( "FragmentUniformBuffer",
-                                                       1,
+    mFragmentUniformBuffer = CreateRef<UniformBuffer>( 1, 
+                                                       "FragmentUniformBuffer",
                                                        std::move( fragmentUniformBufferLayout ) );
 
     //BufferLayout layout{

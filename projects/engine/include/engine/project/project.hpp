@@ -7,6 +7,7 @@ namespace bubble
 class BUBBLE_ENGINE_EXPORT Project
 {
 public:
+    Project();
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& filePath );
     void Save();

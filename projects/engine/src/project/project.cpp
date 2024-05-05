@@ -9,6 +9,13 @@ namespace bubble
 {
 constexpr string_view ROOT_FILE_EXT = ".bubble"sv;
 
+Project::Project()
+{
+    mScene.AddComponet<TagComponent>()
+          .AddComponet<TransformComponent>()
+          .AddComponet<ModelComponent>();
+}
+
 void Project::Create( const path& rootDir, const string& projectName )
 {
     auto projectDir = rootDir / projectName;

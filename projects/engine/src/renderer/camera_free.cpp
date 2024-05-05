@@ -60,13 +60,13 @@ void FreeCamera::ProcessMovement( CameraMovement direction )
 }
 
 
-void FreeCamera::ProcessMouseMovement( f32 MousePosX, f32 MousePosY )
+void FreeCamera::ProcessMouseMovement( f32 mousePosX, f32 mousePosY )
 {
-    f32 xoffset = ( mLastMouseX - MousePosX ) * mMouseSensitivity;
-    f32 yoffset = ( mLastMouseY - MousePosY ) * mMouseSensitivity;
+    f32 xoffset = ( mLastMouseX - mousePosX ) * mMouseSensitivity;
+    f32 yoffset = ( mLastMouseY - mousePosY ) * mMouseSensitivity;
 
-    mLastMouseX = MousePosX;
-    mLastMouseY = MousePosY;
+    mLastMouseX = mousePosX;
+    mLastMouseY = mousePosY;
 
     mYaw -= xoffset;
     mPitch -= yoffset;
@@ -94,10 +94,10 @@ void FreeCamera::ProcessMouseMovementOffset( f32 xoffset, f32 yoffset )
 }
 
 
-void FreeCamera::ProcessMouseScroll( f32 yoffset )
+void FreeCamera::ProcessMouseScroll( f32 offset )
 {
     if( mFov >= 0.1f && mFov <= camera::PI / 2.0f )
-        mFov += yoffset * mDeltaFov;
+        mFov += offset * mDeltaFov;
 
     if( mFov < 0.1f )
         mFov = 0.1f;

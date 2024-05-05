@@ -1,8 +1,7 @@
-
-#include <functional>
 #include "engine/utils/emscripten_main_loop.hpp"
 #include "editor_application.hpp"
 #include "editor_shaders.hpp"
+#include <functional>
 
 namespace bubble
 {
@@ -15,19 +14,18 @@ BubbleEditor::BubbleEditor()
         .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
                                        Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
         .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-        .mSceneCamera = SceneCamera( vec3( 0, 15, 70 ) ) 
+                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
       mEditorMode( EditorMode::Edit ),
       mInterfaceLoader( *this, mEngine )
 {
-    // ImGui
-    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
-
     // Add components functions
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<TransformComponent>();
     ComponentManager::Add<ModelComponent>();
+
+    // ImGui
+    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Selecting objects
     mObjectIdShader = Loader::JustLoadShader( "Picking shader", PICKING_VERTEX_SHADER, PICKING_FRAGMENT_SHADER );
@@ -39,18 +37,6 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    // Temp test
-    path model_path = R"(C:\Users\sa007\Desktop\projects\Bubble0.5\test_project\resources\models\crysis\nanosuit.obj)";
-    auto model = mProject.mLoader.LoadModel( model_path );
-    model->mShader = mProject.mLoader.LoadShader( "./resources/shaders/white.shader" );
-    
-    
-    Entity entity = mProject.mScene.CreateEntity();
-    entity.AddComponet<TagComponent>( "test" )
-          .AddComponet<ModelComponent>( model )
-          .AddComponet<TransformComponent>();
-    mSelectedEntity = entity;
-
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else

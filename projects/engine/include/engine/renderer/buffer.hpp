@@ -159,7 +159,7 @@ class BUBBLE_ENGINE_EXPORT UniformBuffer
 {
 public:
     // additional size necessary if buffer contain more then one array (for example nLights)
-    UniformBuffer( string name, i32 index, const BufferLayout& layout, u32 size = 1, u32 additional_size = 0 );
+    UniformBuffer( i32 index, string name, const BufferLayout& layout, u32 size = 1, u32 additional_size = 0 );
     UniformBuffer( const UniformBuffer& ) = delete;
     UniformBuffer& operator=( const UniformBuffer& ) = delete;
     UniformBuffer( UniformBuffer&& ) noexcept;

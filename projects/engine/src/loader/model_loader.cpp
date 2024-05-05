@@ -67,14 +67,16 @@ Mesh Loader::ProcessMesh( const aiMesh* mesh,
 	vertices.mNormals.resize( mesh->mNumVertices );
     memmove( vertices.mPositions.data(), mesh->mVertices, sizeof( vec3 ) * vertices.mPositions.size() );
     memmove( vertices.mNormals.data(), mesh->mNormals, sizeof( vec3 ) * vertices.mNormals.size() );
-
-	if ( mesh->HasTangentsAndBitangents() )
-	{
-		vertices.mTangents.resize( mesh->mNumVertices );
-		vertices.mBitangents.resize( mesh->mNumVertices );
-        memmove( vertices.mTangents.data(), mesh->mTangents, sizeof( vec3 ) * vertices.mTangents.size() );
-        memmove( vertices.mBitangents.data(), mesh->mBitangents, sizeof( vec3 ) * vertices.mBitangents.size() );
-	}
+	
+    // Faces
+    vector<u32> indices;
+    indices.reserve( mesh->mNumFaces );
+    for ( u32 i = 0; i < mesh->mNumFaces; i++ )
+    {
+        aiFace face = mesh->mFaces[i];
+        for ( u32 j = 0; j < face.mNumIndices; j++ )
+            indices.push_back( face.mIndices[j] );
+    }
 
 	// Texture coordinates
     vertices.mTexCoords.resize( mesh->mNumVertices );
@@ -87,15 +89,14 @@ Mesh Loader::ProcessMesh( const aiMesh* mesh,
 		}
 	}
 
-	// Faces
-    vector<u32> indices;
-    indices.reserve( mesh->mNumFaces );
-	for ( u32 i = 0; i < mesh->mNumFaces; i++ )
-	{
-		aiFace face = mesh->mFaces[i];
-		for ( u32 j = 0; j < face.mNumIndices; j++ )
-			indices.push_back( face.mIndices[j] );
-	}
+    // Tangents and Bitangents
+    if ( mesh->HasTangentsAndBitangents() )
+    {
+        vertices.mTangents.resize( mesh->mNumVertices );
+        vertices.mBitangents.resize( mesh->mNumVertices );
+        memmove( vertices.mTangents.data(), mesh->mTangents, sizeof( vec3 ) * vertices.mTangents.size() );
+        memmove( vertices.mBitangents.data(), mesh->mBitangents, sizeof( vec3 ) * vertices.mBitangents.size() );
+    }
 
 	// Material
 	aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
@@ -129,21 +130,17 @@ BasicMaterial Loader::LoadMaterialTextures( const aiMaterial* mat, const path& p
             case aiTextureType_DIFFUSE:
                 material.mDiffuseMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
-
             case aiTextureType_SPECULAR:
                 material.mSpecularMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
-
             case aiTextureType_NORMALS:
                 material.mNormalMap = JustLoadTexture2D( directory / str.C_Str() );
                 break;
-
             //case aiTextureType_HEIGHT:
             //    material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
             //    break;
-
             default:
-                LogError( "Model: {}. Does't use texture: {}", path.string(), str.C_Str() );
+                LogWarning( "Model: {}. Does't use texture: {}", path.string(), str.C_Str() );
             }
         }
     }

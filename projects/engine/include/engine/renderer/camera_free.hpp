@@ -21,8 +21,8 @@ struct BUBBLE_ENGINE_EXPORT FreeCamera : public Camera
 
     void ProcessMovement( CameraMovement direction );
     void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
-    void ProcessMouseMovementOffset( f32 xoffset, f32 yoffset );
-    void ProcessMouseScroll( f32 yoffset );
+    void ProcessMouseMovementOffset( f32 xOffset, f32 yOffset );
+    void ProcessMouseScroll( f32 offset );
 
     void OnUpdate( DeltaTime dt );
 };
