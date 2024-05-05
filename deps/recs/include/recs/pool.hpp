@@ -22,6 +22,10 @@ public:
     template <ComponentType T>
     static Pool CreatePool()
     {
+        auto init_func = []( void* component )
+        {
+            new ( component ) T();
+        };
         auto delete_func = []( void* component )
         {
             static_cast<T*>( component )->~T();
@@ -30,7 +34,7 @@ public:
         {
             new ( to ) T( *static_cast<const T*>( from ) );
         };
-        return Pool( sizeof( T ), delete_func, copy_func );
+        return Pool( sizeof( T ), init_func, delete_func, copy_func );
     }
 
     Pool( const Pool& );
@@ -62,7 +66,8 @@ public:
     Pool Clone() const;
 
 private:
-    Pool( size_t component_size, 
+    Pool( size_t component_size,
+          void( *init_func )( void* ),
           void( *delete_func )( void* ),
           void( *copy_func )( const void*, void* ) );
 
@@ -77,6 +82,7 @@ public:
     std::unique_ptr<char[]> mData;
     std::vector<Entity> mEntities;
 
+    void( *mDoInit )( void* component ) = nullptr;
     void( *mDoDelete )( void* component ) = nullptr;
     void( *mDoCopy )( const void* from, void* to ) = nullptr;
 

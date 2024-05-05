@@ -21,8 +21,8 @@ BubbleEditor::BubbleEditor()
 {
     // Add components functions
     ComponentManager::Add<TagComponent>();
-    ComponentManager::Add<TransformComponent>();
     ComponentManager::Add<ModelComponent>();
+    ComponentManager::Add<TransformComponent>();
 
     // ImGui
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
@@ -37,6 +37,9 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
+
+    mProject.Open( R"(C:\Users\sa007\Desktop\projects\bubble_sand_box\project name\project name.bubble)" );
+
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else

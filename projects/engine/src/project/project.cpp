@@ -11,9 +11,10 @@ constexpr string_view ROOT_FILE_EXT = ".bubble"sv;
 
 Project::Project()
 {
+    // Order is strict
     mScene.AddComponet<TagComponent>()
-          .AddComponet<TransformComponent>()
-          .AddComponet<ModelComponent>();
+          .AddComponet<ModelComponent>()
+          .AddComponet<TransformComponent>();
 }
 
 void Project::Create( const path& rootDir, const string& projectName )
@@ -35,7 +36,7 @@ void Project::Open( const path& rootFile )
     mRootFile = rootFile;
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
-    projectJson["Loader"] = mLoader;
+    mLoader = projectJson["Loader"];
     SceneFromJson( mLoader, projectJson["Scene"], mScene );
 }
 

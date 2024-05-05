@@ -32,49 +32,15 @@ Cubemap& Cubemap::operator=( Cubemap&& other ) noexcept
 {
     if( this != &other )
     {
+        glcall( glDeleteTextures( 1, &mRendererID ) );
         mRendererID = other.mRendererID;
         other.mRendererID = 0;
     }
     return *this;
 }
 
-
-Cubemap::Cubemap( const string& dir, const string& ext, const Texture2DSpecification& spec )
-{
-    const char* names[] = { "/right", "/left", "/top", "/bottom", "/front", "/back" };
-    glcall( glGenTextures( 1, &mRendererID ) );
-    glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );
-
-    i32 width, height, chanels;
-    unsigned char* data;
-
-    for( GLuint i = 0; i < 6; i++ )
-    {
-        string path = dir + names[i] + ext;
-        data = stbi_load( path.c_str(), &width, &height, &chanels, 0 );
-
-        if( data )
-        {
-            glcall( glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB,
-                                  width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data ) );
-            stbi_image_free( data );
-        }
-        else
-        {
-            // Release resource
-            glcall( glDeleteTextures( 1, &mRendererID ) );
-            throw std::runtime_error( "Cubemap loading failed: " + path );
-        }
-    }
-
-    glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, spec.mMagFilter ) );
-    glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, spec.mMinFiler ) );
-    glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE ) );
-    glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE ) );
-    glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE ) );
-}
-
-Cubemap::Cubemap( uint8_t* const data[6], const Texture2DSpecification& spec )
+Cubemap::Cubemap( const std::array<Scope<u8[]>, 6>& data, 
+                  const Texture2DSpecification& spec )
 {
     glcall( glGenTextures( 1, &mRendererID ) );
     glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );
@@ -82,7 +48,7 @@ Cubemap::Cubemap( uint8_t* const data[6], const Texture2DSpecification& spec )
     for( GLuint i = 0; i < 6; i++ )
     {
         glcall( glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, spec.mInternalFormat,
-                              spec.mWidth, spec.mHeight, 0, spec.mDataFormat, GL_UNSIGNED_BYTE, data[i] ) );
+                              spec.mWidth, spec.mHeight, 0, spec.mDataFormat, GL_UNSIGNED_BYTE, data[i].get() ) );
     }
 
     glcall( glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, spec.mMagFilter ) );

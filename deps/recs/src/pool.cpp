@@ -4,10 +4,12 @@
 
 namespace recs
 {
-Pool::Pool( size_t component_size, 
-            void( *delete_func )( void* ), 
+Pool::Pool( size_t component_size,
+            void( *init_func )( void* ),
+            void( *delete_func )( void* ),
             void( *copy_func )( const void*, void* ) )
     : mComponentSize( component_size ),
+      mDoInit( init_func ),
       mDoDelete( delete_func ),
       mDoCopy( copy_func )
 {
@@ -18,6 +20,7 @@ Pool Pool::Clone() const
 {
     Pool pool;
     pool.mEntities = mEntities;
+    pool.mDoInit = mDoInit;
     pool.mDoDelete = mDoDelete;
     pool.mDoCopy = mDoCopy;
 
@@ -51,6 +54,7 @@ void* Pool::PushEmpty( Entity entity )
     mEntities.insert( iterator, entity );
     std::memmove( GetElemAddress( position + 1 ), GetElemAddress( position ), mComponentSize * ( mSize - position ) );
     void* new_elem_address = GetElemAddress( position );
+    mDoInit( new_elem_address );
 
     mSize++;
     return new_elem_address;

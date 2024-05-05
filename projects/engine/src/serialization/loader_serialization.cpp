@@ -10,13 +10,13 @@ void to_json( json& j, const Loader& loader )
     for ( const auto& [path, _] : loader.mTextures )
         jsonTexture.push_back( path );
 
-    auto& jsonModels = j["models"];
-    for ( const auto& [path, _] : loader.mModels )
-        jsonModels.push_back( path );
-
     auto& jsonShaders = j["shaders"];
     for ( const auto& [path, _] : loader.mShaders )
         jsonShaders.push_back( path );
+
+    auto& jsonModels = j["models"];
+    for ( const auto& [path, _] : loader.mModels )
+        jsonModels.push_back( path );
 
     auto& jsonSkyboxes = j["skyboxes"];
     for ( const auto& [path, _] : loader.mSkyboxes )
@@ -37,9 +37,9 @@ void from_json( const json& j, Loader& loader )
         for ( const auto& shaderPath : j["shaders"] )
             loader.LoadShader( shaderPath );
 
-    //if ( j.contains( "shaders" ) )
-    //    for ( const auto& skyboxePath : j["skyboxes"] )
-    //        loader.LoadSkybox( skyboxePath );
+    if ( j.contains( "skyboxes" ) && !j["skyboxes"].is_null() )
+        for ( const auto& skyboxPath : j["skyboxes"] )
+            loader.LoadSkybox( skyboxPath );
 }
 
 }
