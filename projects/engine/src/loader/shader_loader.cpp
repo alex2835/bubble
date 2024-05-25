@@ -5,80 +5,88 @@
 
 namespace bubble
 {
-Ref<Shader> Loader::JustLoadShader( string name,
-                                    string_view vertex,
-                                    string_view fragment,
-                                    string_view geometry )
+enum ShaderType
 {
-    Ref<Shader> shader = CreateRef<Shader>();
-    shader->mName = std::move( name );
-    CompileShaders( *shader, vertex, fragment, geometry );
-    return shader;
-}
+    NONE = -1, 
+	VERTEX = 0, 
+	FRAGMENT = 1,
+	GEOMETRY = 2
+};
 
-Ref<Shader> Loader::JustLoadShader( const path& path )
+struct ParsedShaders
 {
-    Ref<Shader> shader = CreateRef<Shader>();
-    shader->mName = path.filename().string();
-	shader->mPath = path;
-    string vertexSource, fragmentSource, geometry;
-    ParseShaders( path, vertexSource, fragmentSource, geometry );
-    CompileShaders( *shader, vertexSource, fragmentSource, geometry );
-	return shader;
-}
+    string vertex;
+	string fragment;
+	string geometry;
+};
 
-Ref<Shader> Loader::LoadShader( const path& path )
+
+ParsedShaders ParseSingleFile( const path& filepath )
 {
-    auto iter = mShaders.find( path );
-    if ( iter != mShaders.end() )
-        return iter->second;
+	std::ifstream stream( filepath );
+    if ( !stream.is_open() )
+        throw std::runtime_error( std::format( "Incorrect shader file path: {}", filepath.string() ) );
 
-	auto shader = JustLoadShader( path );
-    mShaders.emplace( path, shader );
-	return shader;
-}
+    string line;
+    ShaderType type = NONE;
+    std::stringstream shaders[3];
 
-void Loader::ParseShaders( const path& path,
-						   string& vertex,
-						   string& fragment,
-						   string& geometry )
-{
-	enum ShaderType{ NONE = -1, VERTEX = 0, FRAGMENT = 1, GEOMETRY = 2 };
-	ShaderType type = NONE;
-
-	std::ifstream stream( path );
-	if ( !stream.is_open() )
-		throw std::runtime_error( std::format( "Incorrect shader file path: {}", path.string() ) );
-
-	string line;
-	std::stringstream shaders[3];
-
-	while ( std::getline( stream, line ) )
-	{
-		if ( line.find( "#shader" ) != string::npos )
-		{
-			if ( line.find( "vertex" ) != string::npos )
-				type = VERTEX;
-			else if ( line.find( "fragment" ) != string::npos )
-				type = FRAGMENT;
-			else if ( line.find( "geometry" ) != string::npos )
-				type = GEOMETRY;
-		}
-		else if ( type == NONE )
-			continue;
-		else
-			shaders[type] << line << '\n';
-	}
-	vertex = shaders[VERTEX].str();
-	fragment = shaders[FRAGMENT].str();
-	geometry = shaders[GEOMETRY].str();
+    while ( std::getline( stream, line ) )
+    {
+        if ( line.find( "#shader" ) != string::npos )
+        {
+            if ( line.find( "vertex" ) != string::npos )
+                type = VERTEX;
+            else if ( line.find( "fragment" ) != string::npos )
+                type = FRAGMENT;
+            else if ( line.find( "geometry" ) != string::npos )
+                type = GEOMETRY;
+        }
+        else if ( type == NONE )
+            continue;
+        else
+            shaders[type] << line << '\n';
+    }
+	return { shaders[VERTEX].str(), shaders[FRAGMENT].str(), shaders[GEOMETRY].str() };
 }
 
 
-void Loader::CompileShaders( Shader& shader,
-							 string_view vertex_source,
-							 string_view fragment_source,
-                             string_view geometry_source )
+ParsedShaders ParseMultipleFiles( path filepath )
+{
+	ParsedShaders parsedShaders;
+	filepath.replace_extension( ".vert" );
+	if ( filesystem::exists( filepath ) )
+		parsedShaders.vertex = filesystem::readFile( filepath );
+
+    filepath.replace_extension( ".geom" );
+    if ( filesystem::exists( filepath ) )
+        parsedShaders.geometry = filesystem::readFile( filepath );
+
+    filepath.replace_extension( ".frag" );
+    if ( filesystem::exists( filepath ) )
+        parsedShaders.fragment = filesystem::readFile( filepath );
+
+	return parsedShaders;
+}
+
+
+ParsedShaders ParseShaders( const path& path )
+{
+	auto parsedShaders = path.has_extension() ? 
+							ParseSingleFile( path ) : 
+							ParseMultipleFiles( path );
+
+	if ( parsedShaders.vertex.empty() || parsedShaders.fragment.empty() )
+        throw std::runtime_error( std::format( "{}: Vertex or Fragment shader is empty", path ) );
+
+	return parsedShaders;
+}
+
+
+void CompileShaders( Shader& shader,
+					 string_view vertex_source,
+					 string_view fragment_source,
+					 string_view geometry_source )
 {
 	// Vertex shaders
 	GLint vertex_shader = glCreateShader( GL_VERTEX_SHADER );
@@ -199,6 +207,29 @@ void Loader::CompileShaders( Shader& shader,
     glDeleteShader( vertex_shader );
 	glDeleteShader( fragment_shader );
     glDeleteShader( geometry_shader );
+}
+
+
+Ref<Shader> Loader::JustLoadShader( const path& path )
+{
+    Ref<Shader> shader = CreateRef<Shader>();
+    shader->mName = path.stem().string();
+    shader->mPath = path;
+    auto [vertex, fragment, geometry] = ParseShaders( path );
+    CompileShaders( *shader, vertex, fragment, geometry );
+    return shader;
+}
+
+
+Ref<Shader> Loader::LoadShader( const path& path )
+{
+    auto iter = mShaders.find( path );
+    if ( iter != mShaders.end() )
+        return iter->second;
+
+    auto shader = JustLoadShader( path );
+    mShaders.emplace( path, shader );
+    return shader;
 }
 
 }

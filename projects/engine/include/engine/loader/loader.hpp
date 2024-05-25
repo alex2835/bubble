@@ -15,6 +15,11 @@ struct aiMaterial;
 
 namespace bubble
 {
+constexpr string_view OBJECT_PICKING_SHADER = "./resources/shaders/object_picking"sv;
+constexpr string_view WHITE_SHADER = "./resources/shaders/white"sv;
+constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
+
+
 struct BUBBLE_ENGINE_EXPORT Loader
 {
     hash_map<path, Ref<Texture2D>> mTextures;
@@ -26,7 +31,7 @@ struct BUBBLE_ENGINE_EXPORT Loader
     static Ref<Texture2D> JustLoadTexture2D( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
 
-    static Ref<Shader> JustLoadShader( string name, string_view vertex, string_view fragment, string_view geometry = {} );
+    //static Ref<Shader> JustLoadShader( string name, string_view vertex, string_view fragment, string_view geometry = {} );
     static Ref<Shader> JustLoadShader( const path& path );
     Ref<Shader> LoadShader( const path& path );
 
@@ -35,23 +40,6 @@ struct BUBBLE_ENGINE_EXPORT Loader
 
     static Ref<Skybox> JustLoadSkybox( const path& path );
     Ref<Skybox> LoadSkybox( const path& path );
-
-private:
-    // Shader
-    static void ParseShaders( const path& path,
-                              string& vertex,
-                              string& fragment,
-                              string& geometry );
-
-    static void CompileShaders( Shader& shader,
-                                string_view vertex_source,
-                                string_view fragment_source,
-                                string_view geometry_source );
-
-    // Model
-    static Scope<MeshTreeViewNode> ProcessNode( Model& model, const aiNode* node, const aiScene* scene, const path& path );
-    static Mesh ProcessMesh( const aiMesh* mesh, const aiScene* scene, const path& path );
-    static BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path );
 };
 
 }

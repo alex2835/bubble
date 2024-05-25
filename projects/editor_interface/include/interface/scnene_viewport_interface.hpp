@@ -114,8 +114,11 @@ public:
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
         {
             DrawViewport();
-            if ( mSelectedEntity && mSelectedEntity.HasComponent<TransformComponent>() )
+            if ( ImGui::IsWindowFocused() && 
+                 mSelectedEntity && 
+                 mSelectedEntity.HasComponent<TransformComponent>() )
                 DrawGizmo();
+
             // Select entity on click by pixel
             if ( !ImGuizmo::IsUsing() && ImGui::IsWindowHovered() )
                 ProcessScreenSelectedEntity();

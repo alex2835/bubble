@@ -28,7 +28,7 @@ BubbleEditor::BubbleEditor()
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Selecting objects
-    mObjectIdShader = Loader::JustLoadShader( "Picking shader", PICKING_VERTEX_SHADER, PICKING_FRAGMENT_SHADER );
+    mObjectIdShader = Loader::JustLoadShader( OBJECT_PICKING_SHADER );
 
     // Editor's viewport interface
     mInterfaceLoader.LoadInterfaces();

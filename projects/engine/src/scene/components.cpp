@@ -95,6 +95,18 @@ void ModelComponent::OnComponentDraw( const Loader& loader, void* raw )
         }
         ImGui::EndCombo();
     }
+
+    const auto& currentShader = modelComponent->mShader;
+    if ( ImGui::BeginCombo( "shaders", currentShader->mName.c_str() ) )
+    {
+        for ( const auto& [shaderPath, shader] : loader.mShaders )
+        {
+            auto shaderName = shaderPath.stem().string();
+            if ( ImGui::Selectable( shaderName.c_str(), shaderName == currentShader->mName ) )
+                modelComponent->mShader = shader;
+        }
+        ImGui::EndCombo();
+    }
 }
 
 void ModelComponent::ToJson( const Loader& loader, json& json, const void* raw )

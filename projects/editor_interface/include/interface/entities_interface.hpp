@@ -72,7 +72,7 @@ public:
         });
         ImGui::EndChild();
     }
-
+    
     void OnDraw( DeltaTime ) override
     {
         ImGui::Begin( Name().data(), &mOpen );
