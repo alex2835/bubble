@@ -493,15 +493,14 @@ void VertexArray::VertexBufferIndex( u32 val )
 UniformBuffer::UniformBuffer( i32 index, 
                               string name,
                               const BufferLayout& layout,
-                              u32 size,
-                              u32 additional_size )
+                              u32 size )
     : mIndex( index ), 
       mName( std::move( name ) ),
       mLayout( layout ),
       mSize( size )
 {
     CalculateOffsetsAndStride();
-    mBufferSize = mLayout.Stride() * size + additional_size;
+    mBufferSize = mLayout.Stride() * size;
 
     glGenBuffers( 1, &mRendererID );
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );

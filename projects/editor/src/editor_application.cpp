@@ -92,6 +92,10 @@ void BubbleEditor::SetUniformBuffer()
     auto vertexBufferElement = mEngine.mRenderer.mVertexUniformBuffer->Element( 0 );
     vertexBufferElement.SetMat4( "uProjection", camera.GetPprojectionMat( size.x, size.y ) );
     vertexBufferElement.SetMat4( "uView", camera.GetLookatMat() );
+
+    auto fragmentBufferElement = mEngine.mRenderer.mLightsInfoUniformBuffer->Element( 0 );
+    fragmentBufferElement.SetInt( "uNumLights", 0 );
+    fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
 }
 
 void BubbleEditor::DrawProjectScene()

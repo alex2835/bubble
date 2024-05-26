@@ -17,7 +17,8 @@ namespace bubble
 {
 constexpr string_view OBJECT_PICKING_SHADER = "./resources/shaders/object_picking"sv;
 constexpr string_view WHITE_SHADER = "./resources/shaders/white"sv;
-constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
+//constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
+constexpr string_view PHONG_SHADER = "C:/Users/sa007/Desktop/projects/Bubble/resources/shaders/phong"sv;
 
 
 struct BUBBLE_ENGINE_EXPORT Loader

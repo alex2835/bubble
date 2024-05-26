@@ -31,34 +31,34 @@ void Shader::Unbind() const
     glcall( glUseProgram( 0 ) );
 }
 
-i32 Shader::GetUniform( string_view uniformname ) const
+i32 Shader::GetUniform( string_view uniformName ) const
 {
     glcall( glUseProgram( mShaderId ) );
-    auto iter = mUniformCache.find( uniformname );
+    auto iter = mUniformCache.find( uniformName );
     if( iter != mUniformCache.end() )
         return iter->second;
 
-    i32 unifromid = glGetUniformLocation( mShaderId, uniformname.data() );
-    if( unifromid == GL_INVALID_INDEX )
-        LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformname );
+    i32 uniformId = glGetUniformLocation( mShaderId, uniformName.data() );
+    if( uniformId == GL_INVALID_INDEX )
+        LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformName );
 
-    mUniformCache.emplace( uniformname, unifromid );
-    return unifromid;
+    mUniformCache.emplace( uniformName, uniformId );
+    return uniformId;
 }
 
-i32 Shader::GetUniformBuffer( string_view uniformname ) const
+i32 Shader::GetUniformBuffer( string_view uniformName ) const
 {
     glcall( glUseProgram( mShaderId ) );
-    auto iter = mUniformCache.find( uniformname );
+    auto iter = mUniformCache.find( uniformName );
     if ( iter != mUniformCache.end() )
         return iter->second;
 
-    i32 unifromid = glGetUniformBlockIndex( mShaderId, uniformname.data() );
-    if ( unifromid == GL_INVALID_INDEX )
-        LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformname );
+    i32 uniformId = glGetUniformBlockIndex( mShaderId, uniformName.data() );
+    if ( uniformId == GL_INVALID_INDEX )
+        LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformName );
 
-    mUniformCache.emplace( uniformname, unifromid );
-    return unifromid;
+    mUniformCache.emplace( uniformName, uniformId );
+    return uniformId;
 }
 
 // lone i32 

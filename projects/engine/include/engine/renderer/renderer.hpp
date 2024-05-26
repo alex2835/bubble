@@ -19,7 +19,8 @@ public:
 
 //private:
     Ref<UniformBuffer> mVertexUniformBuffer;    
-    Ref<UniformBuffer> mFragmentUniformBuffer;
+    Ref<UniformBuffer> mLightsInfoUniformBuffer;
+    Ref<UniformBuffer> mLightsUniformBuffer;
 };
 
 }

@@ -4,6 +4,11 @@ namespace bubble
 {
 Renderer::Renderer()
 {
+    glDisable( GL_BLEND );
+    glEnable( GL_DEPTH_TEST );
+    glEnable( GL_CULL_FACE );
+
+    // Uniform buffers
     BufferLayout vertexUniformBufferLayout{
         { "uProjection", GLSLDataType::Mat4  },
         { "uView", GLSLDataType::Mat4  }
@@ -12,28 +17,31 @@ Renderer::Renderer()
                                                      "VertexUniformBuffer",
                                                      std::move( vertexUniformBufferLayout ) );
 
-    BufferLayout fragmentUniformBufferLayout{
+    BufferLayout lightsInfoUniformBufferLayout{
+        { "uNumLights", GLSLDataType::Int },
         { "uViewPos", GLSLDataType::Float3 }
     };
-    mFragmentUniformBuffer = CreateRef<UniformBuffer>( 1, 
-                                                       "FragmentUniformBuffer",
-                                                       std::move( fragmentUniformBufferLayout ) );
-
-    //BufferLayout layout{
-    //    { "Type", GLSLDataType::Int },
-    //    { "Brightness", GLSLDataType::Float },
-    //    { "Constant", GLSLDataType::Float },
-    //    { "Linear", GLSLDataType::Float },
-    //    { "Quadratic", GLSLDataType::Float },
-    //    { "CutOff", GLSLDataType::Float },
-    //    { "OuterCutOff", GLSLDataType::Float },
-    //    { "Color", GLSLDataType::Float3 },
-    //    { "Direction", GLSLDataType::Float3 },
-    //    { "Position", GLSLDataType::Float3 },
-    //};
-    //int nLights = 30;
-    //int reserved_data = 16; // for nLights
-    //mUBOLights = CreateRef<UniformBuffer>( 1, layout, nLights, reserved_data );
+    mLightsInfoUniformBuffer = CreateRef<UniformBuffer>( 1,
+                                                       "LightsInfoUniformBuffer",
+                                                       std::move( lightsInfoUniformBufferLayout ) );
+    
+    BufferLayout lightsUniformBufferLayout{
+        { "Type", GLSLDataType::Int },
+        { "Brightness", GLSLDataType::Float },
+        { "Constant", GLSLDataType::Float },    
+        { "Linear", GLSLDataType::Float },
+        { "Quadratic", GLSLDataType::Float },
+        { "CutOff", GLSLDataType::Float },
+        { "OuterCutOff", GLSLDataType::Float },
+        { "Color", GLSLDataType::Float3 },
+        { "Direction", GLSLDataType::Float3 },
+        { "Position", GLSLDataType::Float3 },
+    };
+    int nLights = 30;
+    mLightsUniformBuffer = CreateRef<UniformBuffer>( 2,
+                                                     "LightUniformBuffer",
+                                                     std::move( lightsUniformBufferLayout ),
+                                                     nLights );
 }
 
 void Renderer::ClearScreen( vec4 color )
@@ -69,7 +77,7 @@ void Renderer::DrawModel( const Ref<Model>& model,
                           const Ref<Shader>& shader )
 {
     shader->SetUniformBuffer( mVertexUniformBuffer );
-    shader->SetUniformBuffer( mFragmentUniformBuffer );
+    shader->SetUniformBuffer( mLightsInfoUniformBuffer );
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
         Renderer::DrawMesh( mesh, shader, transform );

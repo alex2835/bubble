@@ -77,7 +77,7 @@ ParsedShaders ParseShaders( const path& path )
 							ParseMultipleFiles( path );
 
 	if ( parsedShaders.vertex.empty() || parsedShaders.fragment.empty() )
-        throw std::runtime_error( std::format( "{}: Vertex or Fragment shader is empty", path ) );
+        throw std::runtime_error( std::format( "{}: Vertex or Fragment shader is empty", path.string() ) );
 
 	return parsedShaders;
 }
