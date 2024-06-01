@@ -47,9 +47,9 @@ public:
         if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
         {
             auto clickPos = CaptureWidnowMousePos();
-            auto pixel = 
-                         mObjectIdViewport.
-                         ReadColorAttachmentPixelRedUint( clickPos );
+            auto pixel =
+                mObjectIdViewport.
+                ReadColorAttachmentPixelRedUint( clickPos );
             mSelectedEntity = mProject.mScene.GetEntityById( pixel );
         }
     }
@@ -75,18 +75,20 @@ public:
 
     void DrawGizmo()
     {
-        if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
-            mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
-        if ( ImGui::IsKeyPressed( ImGuiKey_E ) )
-            mCurrentGizmoOperation = ImGuizmo::ROTATE;
-        if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
-            mCurrentGizmoOperation = ImGuizmo::SCALE;
-
+        if ( ImGui::IsWindowFocused() )
+        {
+            if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
+                mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+            if ( ImGui::IsKeyPressed( ImGuiKey_E ) )
+                mCurrentGizmoOperation = ImGuizmo::ROTATE;
+            if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
+                mCurrentGizmoOperation = ImGuizmo::SCALE;
+        }
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect( ImGui::GetWindowPos().x, ImGui::GetWindowPos().y,
                            (float)mNewSize.x, (float)mNewSize.y );
 
-        mat4 matrix;
+        mat4 transformMat;
         auto& entityTransform = mSelectedEntity.GetComponent<TransformComponent>();
         auto lookAt = mSceneCamera.GetLookatMat();
         auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
@@ -94,15 +96,15 @@ public:
         ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
                                                  glm::value_ptr( entityTransform.mRotation ),
                                                  glm::value_ptr( entityTransform.mScale ),
-                                                 glm::value_ptr( matrix ) );
+                                                 glm::value_ptr( transformMat ) );
 
-        ImGuizmo::Manipulate( glm::value_ptr( lookAt ), 
+        ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                               glm::value_ptr( projection ),
-                              mCurrentGizmoOperation, 
+                              mCurrentGizmoOperation,
                               mCurrentGizmoMode,
-                              glm::value_ptr( matrix ) );
+                              glm::value_ptr( transformMat ) );
 
-        ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( matrix ),
+        ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformMat ),
                                                glm::value_ptr( entityTransform.mPosition ),
                                                glm::value_ptr( entityTransform.mRotation ),
                                                glm::value_ptr( entityTransform.mScale ) );
@@ -114,8 +116,7 @@ public:
         ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
         {
             DrawViewport();
-            if ( ImGui::IsWindowFocused() && 
-                 mSelectedEntity && 
+            if ( mSelectedEntity &&
                  mSelectedEntity.HasComponent<TransformComponent>() )
                 DrawGizmo();
 

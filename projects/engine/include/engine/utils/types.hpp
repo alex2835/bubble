@@ -42,6 +42,8 @@ using f64 = std::double_t;
 
 using string = std::string;
 using string_view = std::string_view;
+template <typename F, typename S>
+using pair = std::pair<F, S>;
 template <typename T>
 using vector = std::vector<T>;
 template <typename K, typename V>

@@ -1,12 +1,11 @@
-
+#pragma once
 
 namespace hr
 {
-
 class HotReloader;
-
 template<typename S>
 class Function;
+
 
 template<typename Ret, typename... Args>
 class Function<Ret(Args...)>

@@ -80,17 +80,17 @@ void Shader::SetUni1f( string_view name, const f32& val ) const
 
 void Shader::SetUni2f( string_view name, const vec2& val ) const
 {
-    glcall( glUniform2f( GetUniform( name ), val.x, val.y ) );
+    glcall( glUniform2fv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
 }
 
 void Shader::SetUni3f( string_view name, const vec3& val ) const
 {
-    glcall( glUniform3f( GetUniform( name ), val.x, val.y, val.z ) );
+    glcall( glUniform3fv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
 }
 
 void Shader::SetUni4f( string_view name, const vec4& val ) const
 {
-    glcall( glUniform4f( GetUniform( name ), val.x, val.y, val.z, val.w ) );
+    glcall( glUniform4fv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
 }
 
 // f32 matrices
@@ -131,6 +131,15 @@ void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
     auto shaderBufferIndex = GetUniformBuffer( ub->Name() );
     if ( shaderBufferIndex != GL_INVALID_INDEX )
         glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (GLint)ub->Index() ) );
+}
+
+
+bubble::ShaderModule ShaderModuleFromString( const string& moduleName )
+{
+    auto value = magic_enum::enum_cast<ShaderModule>( moduleName );
+    if ( not value.has_value() )
+        throw std::runtime_error( "Invalid module name: " + moduleName );
+    return value.value();
 }
 
 }

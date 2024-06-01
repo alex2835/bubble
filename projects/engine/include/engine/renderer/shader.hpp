@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <exception>
 #include <glm/gtc/type_ptr.hpp>
+#include <magic_enum/magic_enum.hpp>
+#include <magic_enum/magic_enum_containers.hpp>
 #include "engine/utils/error.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/utils/filesystem.hpp"
@@ -13,6 +15,14 @@
 
 namespace bubble
 {
+enum class ShaderModule
+{
+    material,
+    light,
+};
+using ShaderModules = magic_enum::containers::bitset<ShaderModule>;
+
+
 class BUBBLE_ENGINE_EXPORT Shader
 {
 public:
@@ -54,9 +64,12 @@ public:
 
     string mName;
     path mPath;
-    GLuint  mShaderId;
+    ShaderModules mModules;
+    GLuint mShaderId = 0;
 private:
     mutable str_hash_map<i32> mUniformCache;
 };
+
+ShaderModule ShaderModuleFromString( const string& moduleName );
 
 }

@@ -1,7 +1,6 @@
 
 #include "engine/loader/loader.hpp"
-#include <sstream>
-#include <fstream>
+#include "engine/utils/string.hpp"
 
 namespace bubble
 {
@@ -18,64 +17,93 @@ struct ParsedShaders
     string vertex;
 	string fragment;
 	string geometry;
+	ShaderModules modules;
 };
 
 
-ParsedShaders ParseSingleFile( const path& filepath )
+const map<string, string>& GetModulesList()
 {
-	std::ifstream stream( filepath );
-    if ( !stream.is_open() )
-        throw std::runtime_error( std::format( "Incorrect shader file path: {}", filepath.string() ) );
-
-    string line;
-    ShaderType type = NONE;
-    std::stringstream shaders[3];
-
-    while ( std::getline( stream, line ) )
-    {
-        if ( line.find( "#shader" ) != string::npos )
+    static map<string, string> modules;
+	if ( modules.empty() )
+	{
+        path searchPath = "./resources/shaders";
+        for ( const path& file : filesystem::directory_iterator( searchPath ) )
         {
-            if ( line.find( "vertex" ) != string::npos )
-                type = VERTEX;
-            else if ( line.find( "fragment" ) != string::npos )
-                type = FRAGMENT;
-            else if ( line.find( "geometry" ) != string::npos )
-                type = GEOMETRY;
+			if ( file.extension() == ".glsl" )
+			{
+				auto moduleName = file.stem().string();
+                modules[moduleName] = filesystem::readFile( file );
+			}
         }
-        else if ( type == NONE )
-            continue;
-        else
-            shaders[type] << line << '\n';
-    }
-	return { shaders[VERTEX].str(), shaders[FRAGMENT].str(), shaders[GEOMETRY].str() };
+	}
+	return modules;
 }
 
 
-ParsedShaders ParseMultipleFiles( path filepath )
+pair<string, ShaderModules> ProcessIncludes( const path& shaderPath )
+{
+	std::stringstream shaderSrc;
+	ShaderModules shaderModules;
+    const auto& modules = GetModulesList();
+
+	std::ifstream stream = filesystem::openStream( shaderPath );
+	for ( string line; std::getline( stream, line ); )
+	{
+		if ( line.starts_with( "#include" ) )
+		{
+			auto moduleName = Slice( line, line.find( '<' ) + 1, line.find( '>' ) );
+			auto iter = modules.find( moduleName );
+			if ( iter == modules.end() )
+                throw std::runtime_error( std::format( "No such module name {}", moduleName ) );
+			shaderModules.set( ShaderModuleFromString( moduleName ) );
+			shaderSrc << iter->second << '\n';
+		}
+		else
+			shaderSrc << line << '\n';
+	}
+	return { shaderSrc.str(), std::move( shaderModules ) };
+}
+
+
+pair<string, ShaderModules> ParseShaderFile( const path& shaderPath )
+{
+	return ProcessIncludes( shaderPath );
+}
+
+
+ParsedShaders ParseMultipleFiles( path filePath )
 {
 	ParsedShaders parsedShaders;
-	filepath.replace_extension( ".vert" );
-	if ( filesystem::exists( filepath ) )
-		parsedShaders.vertex = filesystem::readFile( filepath );
+	filePath.replace_extension( ".vert" );
+	if ( filesystem::exists( filePath ) )
+	{
+		auto [src, modules] = ParseShaderFile( filePath );
+		parsedShaders.vertex = src;
+		parsedShaders.modules |= modules;
+	}
 
-    filepath.replace_extension( ".geom" );
-    if ( filesystem::exists( filepath ) )
-        parsedShaders.geometry = filesystem::readFile( filepath );
+    filePath.replace_extension( ".geom" );
+    if ( filesystem::exists( filePath ) )
+    {
+        auto [src, modules] = ParseShaderFile( filePath );
+        parsedShaders.geometry = src;
+		parsedShaders.modules |= modules;
+    }
 
-    filepath.replace_extension( ".frag" );
-    if ( filesystem::exists( filepath ) )
-        parsedShaders.fragment = filesystem::readFile( filepath );
-
+    filePath.replace_extension( ".frag" );
+    if ( filesystem::exists( filePath ) )
+    {
+        auto [src, modules] = ParseShaderFile( filePath );
+        parsedShaders.fragment = src;
+		parsedShaders.modules |= modules;
+    }
 	return parsedShaders;
 }
 
 
 ParsedShaders ParseShaders( const path& path )
 {
-	auto parsedShaders = path.has_extension() ? 
-							ParseSingleFile( path ) : 
-							ParseMultipleFiles( path );
-
+	auto parsedShaders = ParseMultipleFiles( path );
 	if ( parsedShaders.vertex.empty() || parsedShaders.fragment.empty() )
         throw std::runtime_error( std::format( "{}: Vertex or Fragment shader is empty", path.string() ) );
 
@@ -215,8 +243,9 @@ Ref<Shader> Loader::JustLoadShader( const path& path )
     Ref<Shader> shader = CreateRef<Shader>();
     shader->mName = path.stem().string();
     shader->mPath = path;
-    auto [vertex, fragment, geometry] = ParseShaders( path );
+    auto [vertex, fragment, geometry, modules] = ParseShaders( path );
     CompileShaders( *shader, vertex, fragment, geometry );
+    shader->mModules = std::move( modules );
     return shader;
 }
 

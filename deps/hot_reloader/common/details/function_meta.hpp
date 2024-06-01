@@ -5,7 +5,6 @@
 
 namespace hr
 {
-
 struct FunctionMeta
 {
    std::string mReturnType;

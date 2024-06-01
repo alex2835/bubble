@@ -4,7 +4,6 @@
 
 namespace ImGui
 {
-
 void InputText( bubble::string& str )
 {
     char buffer[64] = { 0 };

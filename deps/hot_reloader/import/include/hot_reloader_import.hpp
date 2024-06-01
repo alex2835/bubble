@@ -18,9 +18,9 @@ using namespace std::chrono_literals;
 typedef void (*FunctionPointer)(void);
 typedef std::unordered_map<std::string, FunctionPointer> FunctionsCache;
 
-
 const fs::path CACHE_DIR = "HR_CACHE";
 const auto RELOAD_DELAY = 100ms;
+
 
 class HotReloader
 {
@@ -28,9 +28,8 @@ public:
 
    /*
     *  @brief Path without extension
-    *  @throw In such cases:
-    *             1) If dll can't be loaded
-    *             2) If signature is different to previous version
+    *  @throw 1) If dll can't be loaded
+    *         2) If signature is different to previous version
     */
    HotReloader( fs::path path );
 

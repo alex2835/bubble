@@ -21,9 +21,11 @@ struct BUBBLE_ENGINE_EXPORT BasicMaterial
     Ref<Texture2D> mSpecularMap;
     Ref<Texture2D> mNormalMap;
     vec4 mDiffuseColor = vec4( 1.0f );
-    vec3 mAmbientCoef = vec4( 0.1f );
-    vec3 mSpecularCoef = vec4( 0.1f );
+    vec4 mAmbient = vec4( vec3( 0.1f ), 1.0f );
+    vec4 mSpecular = vec4( vec3( 0.1f ), 1.0f );
+    vec4 mEmission = vec4( 0.0f );
     i32 mShininess = 32;
+    f32 mShininessStrength = 1.0f;
     f32 mNormalMapStrength = 0.1f;
 };
 

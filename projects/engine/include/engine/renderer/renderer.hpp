@@ -14,6 +14,7 @@ public:
     Renderer();
     void ClearScreen( vec4 color );
     void ClearScreenUint( uvec4 color );
+    void SetUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
     void DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, const mat4& transform );
     void DrawModel( const Ref<Model>& model, const mat4& transform, const Ref<Shader>& shader = {} );
 

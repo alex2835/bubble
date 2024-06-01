@@ -2,33 +2,15 @@
 #include <GL/glew.h>
 #include "engine/log/log.hpp"
 #include "engine/utils/types.hpp"
-#include <cstdlib>
-#include <iostream>
 
 namespace bubble
 {
+string_view GLErrorString( GLenum errorCode );
+void GLClearError();
+void PrintOpenGLErrors( string_view function, string_view file, i32 line );
+}
+
 #define BUBBLE_ASSERT( x, str ) assert( x && str );
-
-inline void GLClearError()
-{
-    while( glGetError() != GL_NO_ERROR );
-}
-
-inline void PrintOpenGLErrors( char const* const Function, char const* const File, i32 const Line )
-{
-    bool Succeeded = true;
-    GLenum Error = glGetError();
-    if( Error != GL_NO_ERROR )
-    {
-        char const* ErrorString = (char const*)glewGetErrorString( Error );
-        if( ErrorString )
-            LogError( "OpenGL Error in {} at line {} calling function {}: '{}'", File, Line, Function, ErrorString );
-        else
-            LogError( "OpenGL Error in {} at line {} calling function {}: '{}", File, Line, Function, Error );
-    }
-}
-
-}
 
 #ifdef _DEBUG
 #define glcall(x) { GLClearError(); x; bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__); }

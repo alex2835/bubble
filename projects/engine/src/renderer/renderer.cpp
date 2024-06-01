@@ -44,22 +44,35 @@ Renderer::Renderer()
                                                      nLights );
 }
 
+
+void Renderer::SetUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
+{
+    auto framebufferSize = framebuffer.Size();
+    auto projectionMat = camera.GetPprojectionMat( framebufferSize.x, framebufferSize.y );
+    auto lookAtMat = camera.GetLookatMat();
+
+    auto vertexBufferElement = mVertexUniformBuffer->Element( 0 );
+    vertexBufferElement.SetMat4( "uProjection", projectionMat );
+    vertexBufferElement.SetMat4( "uView", lookAtMat );
+
+    auto fragmentBufferElement = mLightsInfoUniformBuffer->Element( 0 );
+    fragmentBufferElement.SetInt( "uNumLights", 0 );
+    fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
+}
+
+
 void Renderer::ClearScreen( vec4 color )
 {
     glClearColor( color.r, color.g, color.b, color.a );
-    glClear( GL_COLOR_BUFFER_BIT | 
-             GL_DEPTH_BUFFER_BIT |
-             GL_STENCIL_BUFFER_BIT );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
 
 }
+
 
 void Renderer::ClearScreenUint( uvec4 color )
 {
     glClearBufferuiv( GL_COLOR, 0, glm::value_ptr( color ) );
-    glClear( GL_DEPTH_BUFFER_BIT );
-    glClear( GL_DEPTH_BUFFER_BIT |
-             GL_STENCIL_BUFFER_BIT );
-
+    glClear( GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
 }
 
 
@@ -68,20 +81,22 @@ void Renderer::DrawMesh( const Mesh& mesh,
                          const mat4& transform )
 {
     mesh.BindVertetxArray();
-    mesh.ApplyMaterial( shader );
+    if ( shader->mModules.test( ShaderModule::material ) )
+        mesh.ApplyMaterial( shader );
     glDrawElements( GL_TRIANGLES, (GLsizei)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
 }
 
-void Renderer::DrawModel( const Ref<Model>& model, 
+
+void Renderer::DrawModel( const Ref<Model>& model,
                           const mat4& transform,
                           const Ref<Shader>& shader )
 {
     shader->SetUniformBuffer( mVertexUniformBuffer );
-    shader->SetUniformBuffer( mLightsInfoUniformBuffer );
+    if ( shader->mModules.test( ShaderModule::light ) )
+        shader->SetUniformBuffer( mLightsInfoUniformBuffer );
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
         Renderer::DrawMesh( mesh, shader, transform );
 }
-
 
 }

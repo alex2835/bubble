@@ -41,7 +41,7 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
                 //    material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
                 //    break;
             default:
-                LogWarning( "Model: {}. Does't use texture: {}", path.string(), str.C_Str() );
+                LogWarning( "Model: {}. Doesn't use texture: {}", path.string(), str.C_Str() );
             }
         }
     }
@@ -50,18 +50,25 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
     if ( AI_SUCCESS == aiGetMaterialColor( mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse ) )
         material.mDiffuseColor = vec4( diffuse.r, diffuse.g, diffuse.b, diffuse.a );
 
-    ai_real specular[3];
-    if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_COLOR_SPECULAR, specular ) )
-        material.mSpecularCoef = vec3( specular[0], specular[1], specular[2] );
+    aiColor4D specular;
+    if ( AI_SUCCESS == aiGetMaterialColor( mat, AI_MATKEY_COLOR_SPECULAR, &specular ) )
+        material.mSpecular = vec4( specular.r, specular.g, specular.b, specular.a );
 
-    ai_real ambient[3];
-    if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_COLOR_AMBIENT, ambient ) )
-        material.mAmbientCoef = vec3( ambient[0], ambient[1], ambient[2] );
+    aiColor4D ambient;
+    if ( AI_SUCCESS == aiGetMaterialColor( mat, AI_MATKEY_COLOR_AMBIENT, &ambient ) )
+        material.mAmbient = vec4( ambient.r, ambient.g, ambient.b, ambient.a );
 
+    aiColor4D emission;
+    if ( AI_SUCCESS == aiGetMaterialColor( mat, AI_MATKEY_COLOR_EMISSIVE, &emission ) )
+        material.mEmission = vec4( emission.r, emission.g, emission.b, emission.a );
+    
     ai_real shininess;
     if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_SHININESS, &shininess ) )
-        if ( shininess )
-            material.mShininess = static_cast<i32>( shininess );
+        material.mShininess = static_cast<i32>( shininess );
+
+    ai_real strength;
+    if ( AI_SUCCESS == aiGetMaterialFloat( mat, AI_MATKEY_SHININESS_STRENGTH, &strength ) )
+        material.mShininessStrength = strength;
 
     return material;
 }
@@ -165,7 +172,7 @@ Ref<Model> Loader::LoadModel( const path& path )
         return iter->second;
 
 	auto model = JustLoadModel( path );
-    model->mShader = LoadShader( PHONG_SHADER ); // default shader
+    //model->mShader = LoadShader( PHONG_SHADER ); // default shader
 	mModels.emplace( path, model );
     return model;
 }

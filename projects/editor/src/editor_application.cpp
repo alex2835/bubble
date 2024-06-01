@@ -16,7 +16,7 @@ BubbleEditor::BubbleEditor()
         .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
-      mEditorMode( EditorMode::Edit ),
+      mEditorMode( EditorMode::Editing ),
       mInterfaceLoader( *this, mEngine )
 {
     // Add components functions
@@ -37,7 +37,6 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-
     mProject.Open( R"(C:\Users\sa007\Desktop\projects\bubble_sand_box\project name\project name.bubble)" );
 
 #ifdef __EMSCRIPTEN__
@@ -60,12 +59,12 @@ void BubbleEditor::Run()
         // Draw scene
         switch ( mEditorMode )
         {
-        case EditorMode::Edit:
+        case EditorMode::Editing:
             SetUniformBuffer();
             DrawProjectScene();
             DrawSceneObjectId();
             break;
-        case EditorMode::Run:
+        case EditorMode::Runing:
             break;
         }
         
@@ -86,17 +85,9 @@ void BubbleEditor::Run()
 
 void BubbleEditor::SetUniformBuffer()
 {
-    const auto& camera = mSceneCamera;
-    auto size = mSceneViewport.Size();
-
-    auto vertexBufferElement = mEngine.mRenderer.mVertexUniformBuffer->Element( 0 );
-    vertexBufferElement.SetMat4( "uProjection", camera.GetPprojectionMat( size.x, size.y ) );
-    vertexBufferElement.SetMat4( "uView", camera.GetLookatMat() );
-
-    auto fragmentBufferElement = mEngine.mRenderer.mLightsInfoUniformBuffer->Element( 0 );
-    fragmentBufferElement.SetInt( "uNumLights", 0 );
-    fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
+    mEngine.mRenderer.SetUniformBuffers( mSceneCamera, mSceneViewport );
 }
+
 
 void BubbleEditor::DrawProjectScene()
 {
@@ -110,6 +101,7 @@ void BubbleEditor::DrawProjectScene()
         mEngine.mRenderer.DrawModel( model, transform.Transform(), model->mShader );
     } );
 }
+
 
 void BubbleEditor::DrawSceneObjectId()
 {

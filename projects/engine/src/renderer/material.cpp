@@ -3,42 +3,45 @@
 
 namespace bubble
 {
-
 void BasicMaterial::Apply( const Ref<Shader>& shader ) const
 {
     shader->Bind();
-    shader->SetUni4f( "uMaterial.diffuse_color", mDiffuseColor );
-    shader->SetUni3f( "uMaterial.specular_coef", mSpecularCoef );
-    shader->SetUni3f( "uMaterial.ambient_coef", mAmbientCoef );
+    shader->SetUni4f( "uMaterial.diffuseColor", mDiffuseColor );
+    shader->SetUni4f( "uMaterial.specularColor", mSpecular );
+    shader->SetUni4f( "uMaterial.ambientColor", mAmbient );
 
     // Textures
-    shader->SetUni1i( "uMaterial.diffuse_map", 0 );
-    mDiffuseMap->Bind( 0 );
-
+    if ( mDiffuseMap )
+    {
+        shader->SetUni1i( "uMaterial.diffuseMap", 0 );
+        mDiffuseMap->Bind( 0 );
+    }
     if ( mSpecularMap )
     {
-        shader->SetUni1i( "uMaterial.specular_map", 1 );
+        shader->SetUni1i( "uMaterial.specularMap", 1 );
         mSpecularMap->Bind( 1 );
     }
-
     if( mNormalMap )
     {
-        shader->SetUni1i( "uMaterial.normal_map", 2 );
+        shader->SetUni1i( "uMaterial.normalMap", 2 );
         mNormalMap->Bind( 2 );
     }
 
     shader->SetUni1i( "uMaterial.shininess", mShininess );
+    shader->SetUni1f( "uMaterial.shininessStrength", mShininessStrength );
     shader->SetUni1i( "uNormalMapping", (bool)mNormalMap );
     shader->SetUni1f( "uNormalMappingStrength", mNormalMapStrength );
 }
 
-//ExtendedMaterial::ExtendedMaterial( vector<Ref<Texture2D>>&& diffuse_maps,
-//                                    vector<Ref<Texture2D>>&& specular_maps,
-//                                    vector<Ref<Texture2D>>&& normal_maps,
+
+
+//ExtendedMaterial::ExtendedMaterial( vector<Ref<Texture2D>>&& diffuseMaps,
+//                                    vector<Ref<Texture2D>>&& specularMaps,
+//                                    vector<Ref<Texture2D>>&& normalMaps,
 //                                    i32 shininess )
-//    : mDiffuseMaps( std::move( diffuse_maps ) ),
-//      mSpecularMaps( std::move( specular_maps ) ),
-//      mNormalMaps( std::move( normal_maps ) ),
+//    : mDiffuseMaps( std::move( diffuseMaps ) ),
+//      mSpecularMaps( std::move( specularMaps ) ),
+//      mNormalMaps( std::move( normalMaps ) ),
 //      mShininess( shininess )
 //{
 //}

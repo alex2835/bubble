@@ -11,6 +11,7 @@
 
 #include "details/function_registry.hpp"
 
+
 namespace hr
 {
 template< typename Ret, typename ...Args>

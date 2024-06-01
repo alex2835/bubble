@@ -10,8 +10,8 @@ class BubbleEditor : EditorState
 {
     enum class EditorMode
     {
-        Edit,
-        Run
+        Editing,
+        Runing
     };
 
 public:

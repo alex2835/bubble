@@ -24,9 +24,9 @@ constexpr string_view PHONG_SHADER = "C:/Users/sa007/Desktop/projects/Bubble/res
 struct BUBBLE_ENGINE_EXPORT Loader
 {
     hash_map<path, Ref<Texture2D>> mTextures;
-    hash_map<path, Ref<Model>>     mModels;
-    hash_map<path, Ref<Shader>>    mShaders;
-    hash_map<path, Ref<Skybox>>    mSkyboxes;
+    hash_map<path, Ref<Model>> mModels;
+    hash_map<path, Ref<Shader>> mShaders;
+    hash_map<path, Ref<Skybox>> mSkyboxes;
 
     static std::pair<Scope<u8[]>, Texture2DSpecification> OpenImage(const path& path);
     static Ref<Texture2D> JustLoadTexture2D( const path& path );
