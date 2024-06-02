@@ -3,10 +3,10 @@
 #include <hot_reloader_export.hpp>
 #include "engine/engine.hpp"
 #include "editor_application.hpp"
-#include "interface/entities_interface.hpp"
-#include "interface/scnene_viewport_interface.hpp"
-#include "interface/project_interface.hpp"
-#include "interface/menubar.hpp"
+#include "interfaces/entities_interface.hpp"
+#include "interfaces/scnene_viewport_interface.hpp"
+#include "interfaces/project_interface.hpp"
+#include "interfaces/menubar.hpp"
 
 namespace bubble
 {

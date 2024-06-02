@@ -20,18 +20,18 @@ typedef std::unordered_map<std::string, FunctionPointer> FunctionsCache;
 
 const fs::path CACHE_DIR = "HR_CACHE";
 const auto RELOAD_DELAY = 100ms;
+const auto CHECK_DELAY = 1000ms;
 
 
 class HotReloader
 {
 public:
-
    /*
-    *  @brief Path without extension
     *  @throw 1) If dll can't be loaded
-    *         2) If signature is different to previous version
+    *         2) If Ssignature is different to previous version
     */
    HotReloader( fs::path path );
+   ~HotReloader();
 
    /*
     * @brief Check if new version of lib is available and try load it 
@@ -100,7 +100,11 @@ private:
    const LibraryMeta& ExtractLibraryMeta( dynalo::library& lib );
    void UpdateMeta( dynalo::library& lib );
 
+   bool mNeedUpdate = true;
+   bool mStopUpdateChecker = false;
+   std::thread mUpdateChecker;
    fs::file_time_type mLastUpdateTime;
+
    std::vector<dynalo::library> mLibraryVersions;
    std::string mLibraryName;
    fs::path mLibraryPath;
@@ -111,6 +115,5 @@ private:
    FunctionsCache mFunctionCache;
 
 };
-
 
 }

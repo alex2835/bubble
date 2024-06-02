@@ -55,7 +55,9 @@ pair<string, ShaderModules> ProcessIncludes( const path& shaderPath )
 			auto iter = modules.find( moduleName );
 			if ( iter == modules.end() )
                 throw std::runtime_error( std::format( "No such module name {}", moduleName ) );
-			shaderModules.set( ShaderModuleFromString( moduleName ) );
+
+			auto enumValue = magic_enum::enum_cast<ShaderModule>( moduleName, magic_enum::case_insensitive );
+			shaderModules.set( enumValue.value_or( ShaderModule::None ) );
 			shaderSrc << iter->second << '\n';
 		}
 		else

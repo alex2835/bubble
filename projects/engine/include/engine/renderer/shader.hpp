@@ -17,8 +17,9 @@ namespace bubble
 {
 enum class ShaderModule
 {
-    material,
-    light,
+    None,
+    Material,
+    Light,
 };
 using ShaderModules = magic_enum::containers::bitset<ShaderModule>;
 
@@ -69,7 +70,5 @@ public:
 private:
     mutable str_hash_map<i32> mUniformCache;
 };
-
-ShaderModule ShaderModuleFromString( const string& moduleName );
 
 }

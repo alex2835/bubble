@@ -133,13 +133,4 @@ void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
         glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (GLint)ub->Index() ) );
 }
 
-
-bubble::ShaderModule ShaderModuleFromString( const string& moduleName )
-{
-    auto value = magic_enum::enum_cast<ShaderModule>( moduleName );
-    if ( not value.has_value() )
-        throw std::runtime_error( "Invalid module name: " + moduleName );
-    return value.value();
-}
-
 }

@@ -2,47 +2,54 @@
 
 namespace hr
 {
-HotReloader::HotReloader( fs::path path )
-{
-    if ( path.has_root_path() )
-    {
-        mLibraryName = path.filename().string();
-        mLibraryPath = path.parent_path();
-    }
-    else
-    {
-        mLibraryName = path.string();
-        mLibraryPath = fs::current_path();
-    }
-    auto fullpath = GetInputPath();
-    if ( !fs::exists( fullpath ) )
-        throw std::runtime_error( "Invalid library path " + fullpath.string() );
-
-    auto cache_dir = GetCacheDir();
-    if ( std::filesystem::exists( cache_dir ) )
-        fs::remove_all( cache_dir );
-    fs::create_directories( cache_dir );
-
-    TryUpdate();
-}
-
 bool IsClose( fs::file_time_type start, fs::file_time_type end )
 {
     return std::chrono::duration_cast<std::chrono::microseconds>( end - start ) < 1000ms;
 }
 
+
+HotReloader::HotReloader( fs::path path )
+{
+    mLibraryName = path.stem().string();
+    mLibraryPath = fs::absolute(path).parent_path();
+
+    auto fullpath = GetInputPath();
+    if ( !fs::exists( fullpath ) )
+        throw std::runtime_error( "Invalid library path " + fullpath.string() );
+    
+    // Create hot reloader cache dir
+    auto cache_dir = GetCacheDir();
+    if ( std::filesystem::exists( cache_dir ) )
+        fs::remove_all( cache_dir );
+    fs::create_directories( cache_dir );
+
+    // Set update checker
+    mUpdateChecker = std::thread( [&]()
+    {
+        while ( not mStopUpdateChecker )
+        {
+            auto lib_update_time = fs::last_write_time( GetInputPath() );
+            if ( not IsClose( mLastUpdateTime, lib_update_time ) )
+            {
+                mLastUpdateTime = lib_update_time;
+                mNeedUpdate = mNeedUpdate || true;
+            }
+            std::this_thread::sleep_for( CHECK_DELAY );
+        }
+    } );
+    TryUpdate();
+}
+
+
 bool HotReloader::TryUpdate()
 {
-    fs::file_time_type lib_update_time = mLastUpdateTime;
-    lib_update_time = fs::last_write_time( GetInputPath() );
-
-    if ( !IsClose( mLastUpdateTime, lib_update_time ) || mLibraryVersions.empty() )
+    if ( mNeedUpdate )
     {
+        mNeedUpdate = false;
         for ( int i = 0; i < 10; i++ )
         {
             try
             {
-                mLastUpdateTime = lib_update_time;
                 fs::path input_path = GetInputPath();
                 fs::path output_path = GetOutputPath();
                 fs::copy( input_path, output_path, std::filesystem::copy_options::overwrite_existing );
@@ -113,6 +120,12 @@ void HotReloader::UpdateMeta( dynalo::library& lib )
         }
     }
     mLibraryMeta = new_meta;
+}
+
+HotReloader::~HotReloader()
+{
+    mStopUpdateChecker = true;
+    mUpdateChecker.join();
 }
 
 }

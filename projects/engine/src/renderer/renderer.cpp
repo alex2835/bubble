@@ -81,7 +81,7 @@ void Renderer::DrawMesh( const Mesh& mesh,
                          const mat4& transform )
 {
     mesh.BindVertetxArray();
-    if ( shader->mModules.test( ShaderModule::material ) )
+    if ( shader->mModules.test( ShaderModule::Material ) )
         mesh.ApplyMaterial( shader );
     glDrawElements( GL_TRIANGLES, (GLsizei)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
 }
@@ -92,7 +92,7 @@ void Renderer::DrawModel( const Ref<Model>& model,
                           const Ref<Shader>& shader )
 {
     shader->SetUniformBuffer( mVertexUniformBuffer );
-    if ( shader->mModules.test( ShaderModule::light ) )
+    if ( shader->mModules.test( ShaderModule::Light ) )
         shader->SetUniformBuffer( mLightsInfoUniformBuffer );
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
