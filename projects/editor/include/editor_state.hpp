@@ -5,6 +5,7 @@ namespace bubble
 {
 struct EditorState
 {
+    Timer mTimer;
     Window mWindow;
     Framebuffer mSceneViewport;
     Framebuffer mObjectIdViewport;

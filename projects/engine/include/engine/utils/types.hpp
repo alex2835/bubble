@@ -59,21 +59,13 @@ using array = std::array<T, SIZE>;
 template <typename T>
 using opt = std::optional<T>;
 
+
 struct string_hash
 {
     using is_transparent = void;
-    [[nodiscard]] size_t operator()( const char* txt ) const
-    {
-        return std::hash<std::string_view>{}( txt );
-    }
-    [[nodiscard]] size_t operator()( std::string_view txt ) const
-    {
-        return std::hash<std::string_view>{}( txt );
-    }
-    [[nodiscard]] size_t operator()( const std::string& txt ) const
-    {
-        return std::hash<std::string>{}( txt );
-    }
+    size_t operator()( const char* txt ) const { return std::hash<string_view>{}( txt ); }
+    size_t operator()( string_view txt ) const { return std::hash<string_view>{}( txt ); }
+    size_t operator()( const string& txt ) const { return std::hash<string>{}( txt ); }
 };
 template <typename V>
 using str_hash_map = std::unordered_map<string, V, string_hash, std::equal_to<>>;

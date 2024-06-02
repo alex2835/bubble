@@ -2,7 +2,8 @@
 #include "engine/engine.hpp"
 #include "scene_camera.hpp"
 #include "editor_state.hpp"
-#include "editor_interface_loader.hpp"
+#include "editor_interface_hot_reloader.hpp"
+#include "shader_hot_reloader.hpp"
 
 namespace bubble
 {
@@ -17,16 +18,14 @@ class BubbleEditor : EditorState
 public:
     BubbleEditor();
     void Run();
-
-    void SetUniformBuffer();
     void DrawProjectScene();
-    void DrawSceneObjectId();
 private:
     EditorMode mEditorMode;
     Ref<Shader> mObjectIdShader;
 
     Engine mEngine;
-    EditorInterfaceLoader mInterfaceLoader;
+    EditorInterfaceHotReloader mInterfaceHotReloader;
+    ShaderHotReloader mShaderHotReloader;
 };
 
 }

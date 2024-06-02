@@ -4,7 +4,7 @@
 
 namespace bubble
 {
-std::pair<Scope<u8[]>, Texture2DSpecification> Loader::OpenImage(const path& path)
+std::pair<Scope<u8[]>, Texture2DSpecification> OpenImage(const path& path)
 {
     i32 width = 0;
     i32 height = 0;
@@ -20,7 +20,7 @@ std::pair<Scope<u8[]>, Texture2DSpecification> Loader::OpenImage(const path& pat
     return { Scope<u8[]>( data ), spec };
 }
 
-Ref<Texture2D> Loader::JustLoadTexture2D( const path& path )
+Ref<Texture2D> LoadTexture2D( const path& path )
 {
     auto [data, spec] = OpenImage( path );
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
@@ -34,7 +34,7 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& path )
     if ( iter != mTextures.end() )
         return iter->second;
 
-    auto texture = JustLoadTexture2D( path );
+    auto texture = bubble::LoadTexture2D( path );
     mTextures.emplace( path, texture );
     return texture;
 }

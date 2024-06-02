@@ -3,12 +3,12 @@
 #include "editor_application.hpp"
 #undef APIENTRY
 #include "ieditor_interface.hpp"
-#include "editor_interface_loader.hpp"
+#include "editor_interface_hot_reloader.hpp"
 #include "hot_reloader_import.hpp"
 
 namespace bubble
 {
-EditorInterfaceLoader::EditorInterfaceLoader( EditorState& editorState,
+EditorInterfaceHotReloader::EditorInterfaceHotReloader( EditorState& editorState,
                                               Engine& engine )
     : mImGuiContext( editorState.mWindow.GetImGuiContext() ),
       mEditorState( editorState ),
@@ -16,16 +16,16 @@ EditorInterfaceLoader::EditorInterfaceLoader( EditorState& editorState,
       mHotReloader( CreateRef<hr::HotReloader>( "bubble_interface" ) )
 {}
 
-EditorInterfaceLoader::~EditorInterfaceLoader()
+EditorInterfaceHotReloader::~EditorInterfaceHotReloader()
 {}
 
-void EditorInterfaceLoader::AddInterface( Ref<IEditorInterface> iInterface )
+void EditorInterfaceHotReloader::AddInterface( Ref<IEditorInterface> editorInterface )
 {
-    iInterface->OnInit();
-    mInterfaces[iInterface->Name()] = iInterface;
+    editorInterface->OnInit();
+    mInterfaces[editorInterface->Name()] = editorInterface;
 }
 
-void EditorInterfaceLoader::LoadInterfaces()
+void EditorInterfaceHotReloader::LoadInterfaces()
 {
     auto contextInit = mHotReloader->GetFunction<void(ImGuiContext*)>( "ImGuiContextInit" );
     contextInit( mImGuiContext );
@@ -37,7 +37,7 @@ void EditorInterfaceLoader::LoadInterfaces()
         AddInterface( inter );
 }
 
-void EditorInterfaceLoader::OnUpdate( DeltaTime dt )
+void EditorInterfaceHotReloader::OnUpdate( DeltaTime dt )
 {
     if ( mHotReloader->TryUpdate() )
         LoadInterfaces();
@@ -46,7 +46,7 @@ void EditorInterfaceLoader::OnUpdate( DeltaTime dt )
         window->OnUpdate( dt );
 }
 
-void EditorInterfaceLoader::OnDraw( DeltaTime dt )
+void EditorInterfaceHotReloader::OnDraw( DeltaTime dt )
 {
     for ( auto& [name, window] : mInterfaces )
         window->OnDraw( dt );

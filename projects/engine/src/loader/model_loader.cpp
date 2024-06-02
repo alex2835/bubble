@@ -29,13 +29,13 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
             switch ( types[i] )
             {
             case aiTextureType_DIFFUSE:
-                material.mDiffuseMap = Loader::JustLoadTexture2D( directory / str.C_Str() );
+                material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
                 break;
             case aiTextureType_SPECULAR:
-                material.mSpecularMap = Loader::JustLoadTexture2D( directory / str.C_Str() );
+                material.mSpecularMap = LoadTexture2D( directory / str.C_Str() );
                 break;
             case aiTextureType_NORMALS:
-                material.mNormalMap = Loader::JustLoadTexture2D( directory / str.C_Str() );
+                material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
                 break;
                 //case aiTextureType_HEIGHT:
                 //    material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
@@ -147,7 +147,7 @@ Scope<MeshTreeViewNode> ProcessNode( Model& model,
 
 
 
-Ref<Model> Loader::JustLoadModel( const path& path )
+Ref<Model> LoadModel( const path& path )
 {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile( path.string(), 0 );
@@ -171,7 +171,7 @@ Ref<Model> Loader::LoadModel( const path& path )
     if ( iter != mModels.end() )
         return iter->second;
 
-	auto model = JustLoadModel( path );
+	auto model = bubble::LoadModel( path );
     //model->mShader = LoadShader( PHONG_SHADER ); // default shader
 	mModels.emplace( path, model );
     return model;

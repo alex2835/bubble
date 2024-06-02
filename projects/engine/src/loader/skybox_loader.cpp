@@ -3,7 +3,7 @@
 
 namespace bubble
 {
-Ref<Skybox> Loader::JustLoadSkybox( const path& path )
+Ref<Skybox> LoadSkybox( const path& path )
 {
     auto [data, spec] = OpenImage( path );
 
@@ -63,7 +63,7 @@ Ref<Skybox> Loader::LoadSkybox( const path& path )
     if ( iter != mSkyboxes.end() )
         return iter->second;
 
-    auto skybox = JustLoadSkybox( path );
+    auto skybox = bubble::LoadSkybox( path );
     mSkyboxes.emplace( path, skybox );
     return skybox;
 }

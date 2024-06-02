@@ -12,12 +12,12 @@ namespace bubble
 class IEditorInterface;
 struct EditorState;
 
-class EditorInterfaceLoader
+class EditorInterfaceHotReloader
 {
 public:
-    EditorInterfaceLoader( EditorState& editorState,
+    EditorInterfaceHotReloader( EditorState& editorState,
                            Engine& engine );
-    ~EditorInterfaceLoader();
+    ~EditorInterfaceHotReloader();
 
     void AddInterface( Ref<IEditorInterface> );
     void LoadInterfaces();

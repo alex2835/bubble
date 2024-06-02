@@ -240,7 +240,7 @@ void CompileShaders( Shader& shader,
 }
 
 
-Ref<Shader> Loader::JustLoadShader( const path& path )
+Ref<Shader> LoadShader( const path& path )
 {
     Ref<Shader> shader = CreateRef<Shader>();
     shader->mName = path.stem().string();
@@ -258,7 +258,7 @@ Ref<Shader> Loader::LoadShader( const path& path )
     if ( iter != mShaders.end() )
         return iter->second;
 
-    auto shader = JustLoadShader( path );
+    auto shader = bubble::LoadShader( path );
     mShaders.emplace( path, shader );
     return shader;
 }

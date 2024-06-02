@@ -1,6 +1,5 @@
 #include "engine/utils/emscripten_main_loop.hpp"
 #include "editor_application.hpp"
-#include "editor_shaders.hpp"
 #include <functional>
 
 namespace bubble
@@ -17,7 +16,7 @@ BubbleEditor::BubbleEditor()
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
       mEditorMode( EditorMode::Editing ),
-      mInterfaceLoader( *this, mEngine )
+      mInterfaceHotReloader( *this, mEngine )
 {
     // Add components functions
     ComponentManager::Add<TagComponent>();
@@ -28,10 +27,10 @@ BubbleEditor::BubbleEditor()
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Selecting objects
-    mObjectIdShader = Loader::JustLoadShader( OBJECT_PICKING_SHADER );
+    mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );
 
     // Editor's viewport interface
-    mInterfaceLoader.LoadInterfaces();
+    mInterfaceHotReloader.LoadInterfaces();
 }
 
 
@@ -50,19 +49,17 @@ void BubbleEditor::Run()
         for ( const auto& event : events )
             mSceneCamera.OnEvent( event );
 
-        // Update engine
-        mEngine.OnUpdate();
-        auto dt = mEngine.mTimer.GetDeltaTime();
+        // Update editor state
+        mTimer.OnUpdate();
+        auto dt = mTimer.GetDeltaTime();
         mSceneCamera.OnUpdate( dt );
-        mInterfaceLoader.OnUpdate( dt );
+        mInterfaceHotReloader.OnUpdate( dt );
 
         // Draw scene
         switch ( mEditorMode )
         {
         case EditorMode::Editing:
-            SetUniformBuffer();
             DrawProjectScene();
-            DrawSceneObjectId();
             break;
         case EditorMode::Runing:
             break;
@@ -71,7 +68,7 @@ void BubbleEditor::Run()
         // ImGui interface
         Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();
-        mInterfaceLoader.OnDraw( dt );
+        mInterfaceHotReloader.OnDraw( dt );
         mWindow.ImGuiEnd();
 
         // Render window
@@ -83,14 +80,11 @@ void BubbleEditor::Run()
 }
 
 
-void BubbleEditor::SetUniformBuffer()
-{
-    mEngine.mRenderer.SetUniformBuffers( mSceneCamera, mSceneViewport );
-}
-
-
 void BubbleEditor::DrawProjectScene()
 {
+    mEngine.mRenderer.SetUniformBuffers( mSceneCamera, mSceneViewport );
+
+    // Draw scene
     mSceneViewport.Bind();
     mEngine.mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
     mProject.mScene.ForEach<ModelComponent, TransformComponent>(
@@ -100,14 +94,11 @@ void BubbleEditor::DrawProjectScene()
     {
         mEngine.mRenderer.DrawModel( model, transform.Transform(), model->mShader );
     } );
-}
 
-
-void BubbleEditor::DrawSceneObjectId()
-{
+    // Draw scene's objectId
     mObjectIdViewport.Bind();
     mEngine.mRenderer.ClearScreenUint( uvec4( 0 ) );
-    mProject.mScene.ForEach<ModelComponent, TransformComponent>( 
+    mProject.mScene.ForEach<ModelComponent, TransformComponent>(
     [&]( Entity entity,
          ModelComponent& model,
          TransformComponent& transform )
