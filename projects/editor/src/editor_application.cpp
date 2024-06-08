@@ -16,6 +16,7 @@ BubbleEditor::BubbleEditor()
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
       mEditorMode( EditorMode::Editing ),
+      mShaderHotReloader( mProject.mLoader ),
       mInterfaceHotReloader( *this, mEngine )
 {
     // Add components functions
@@ -53,6 +54,7 @@ void BubbleEditor::Run()
         mTimer.OnUpdate();
         auto dt = mTimer.GetDeltaTime();
         mSceneCamera.OnUpdate( dt );
+        mShaderHotReloader.OnUpdate();
         mInterfaceHotReloader.OnUpdate( dt );
 
         // Draw scene

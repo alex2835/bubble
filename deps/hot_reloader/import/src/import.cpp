@@ -4,7 +4,7 @@ namespace hr
 {
 bool IsClose( fs::file_time_type start, fs::file_time_type end )
 {
-    return std::chrono::duration_cast<std::chrono::microseconds>( end - start ) < 1000ms;
+    return std::chrono::duration_cast<std::chrono::microseconds>( end - start ) < 1s;
 }
 
 

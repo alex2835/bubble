@@ -19,25 +19,16 @@ Framebuffer::Framebuffer( Texture2D&& color, Texture2D&& depth )
 }
 
 Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
-    : mColorAttachment( std::move( other.mColorAttachment ) ),
-      mDepthAttachment( std::move( other.mDepthAttachment ) )
+    : mColorAttachment( Texture2DSpecification::CreateRGBA8( {} ) ),
+      mDepthAttachment( Texture2DSpecification::CreateDepth( {} ) )
 {
-    mRendererID = other.mRendererID;
-    mSpecification = other.mSpecification;
-    other.mRendererID = 0;
+    Swap( other );
 }
 
 Framebuffer& Framebuffer::operator= ( Framebuffer&& other ) noexcept
 {
     if ( this != &other )
-    {
-        glcall( glDeleteFramebuffers( 1, &mRendererID ) );
-        mRendererID = other.mRendererID;
-        mSpecification = other.mSpecification;
-        mColorAttachment = std::move( other.mColorAttachment );
-        mDepthAttachment = std::move( other.mDepthAttachment );
-        other.mRendererID = 0;
-    }
+        Swap( other );
     return *this;
 }
 
@@ -80,6 +71,15 @@ glm::u32 Framebuffer::ReadColorAttachmentPixelRedUint( uvec2 pos )
 Framebuffer::~Framebuffer()
 {
     glcall( glDeleteFramebuffers( 1, &mRendererID ) );
+}
+
+void Framebuffer::Swap( Framebuffer& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mColorAttachment, other.mColorAttachment );
+    std::swap( mDepthAttachment, other.mDepthAttachment );
+    std::swap( mStencilAttachment, other.mStencilAttachment );
+    std::swap( mSpecification, other.mSpecification );
 }
 
 void Framebuffer::Invalidate()

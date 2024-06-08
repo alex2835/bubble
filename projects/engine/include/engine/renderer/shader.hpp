@@ -35,6 +35,8 @@ public:
     Shader( Shader&& ) noexcept;
     Shader& operator= ( Shader&& ) noexcept;
 
+    void Swap( Shader& other ) noexcept;
+
     i32 GetUniform( string_view name ) const;
     i32 GetUniformBuffer( string_view name ) const;
 

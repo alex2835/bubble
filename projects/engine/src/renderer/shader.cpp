@@ -14,10 +14,8 @@ Shader::Shader( Shader&& other ) noexcept
 
 Shader& Shader::operator=( Shader&& other ) noexcept
 {
-    mShaderId = other.mShaderId;
-    mName = std::move( other.mName );
-    mUniformCache = std::move( mUniformCache );
-    other.mShaderId = 0;
+    if ( this != &other )
+        Swap( other );
     return *this;
 }
 
@@ -29,6 +27,15 @@ void Shader::Bind() const
 void Shader::Unbind() const
 {
     glcall( glUseProgram( 0 ) );
+}
+
+void Shader::Swap( Shader& other ) noexcept
+{
+    std::swap( mShaderId, other.mShaderId );
+    std::swap( mName, other.mName );
+    std::swap( mUniformCache, other.mUniformCache );
+    std::swap( mPath, other.mPath );
+    std::swap( mModules, other.mModules );
 }
 
 i32 Shader::GetUniform( string_view uniformName ) const

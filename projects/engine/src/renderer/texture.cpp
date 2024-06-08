@@ -102,31 +102,27 @@ Texture2D::Texture2D( const Texture2DSpecification& spec )
 }
 
 Texture2D::Texture2D( Texture2D&& other ) noexcept
-    : mRendererID( other.mRendererID ),
-      mSpecification( other.mSpecification )
+    : mSpecification( Texture2DSpecification::CreateRGBA8( {} ) )
 {
-    other.mSpecification.mWidth = 0;
-    other.mSpecification.mHeight = 0;
-    other.mRendererID = 0;
+    Swap( other );
 }
 
 Texture2D& Texture2D::operator=( Texture2D&& other ) noexcept
 {
-    if( this != &other )
-    {
-        glDeleteTextures( 1, &mRendererID );
-        mRendererID = other.mRendererID;
-        mSpecification = other.mSpecification;
-        other.mRendererID = 0;
-        other.mSpecification.mWidth = 0;
-        other.mSpecification.mHeight = 0;
-    }
+    if ( this != &other )
+        Swap( other );
     return *this;
 }
 
 Texture2D::~Texture2D()
 {
     glDeleteTextures( 1, &mRendererID );
+}
+
+void Texture2D::Swap( Texture2D& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mSpecification, other.mSpecification );
 }
 
 void Texture2D::SetData( void* data, u32 size )

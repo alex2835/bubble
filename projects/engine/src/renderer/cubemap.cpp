@@ -24,18 +24,13 @@ Cubemap::Cubemap( i32 width, i32 height, const Texture2DSpecification& spec )
 
 Cubemap::Cubemap( Cubemap&& other ) noexcept
 {
-    mRendererID = other.mRendererID;
-    other.mRendererID = 0;
+    Swap( other );
 }
 
 Cubemap& Cubemap::operator=( Cubemap&& other ) noexcept
 {
     if( this != &other )
-    {
-        glcall( glDeleteTextures( 1, &mRendererID ) );
-        mRendererID = other.mRendererID;
-        other.mRendererID = 0;
-    }
+        Swap( other );
     return *this;
 }
 
@@ -61,6 +56,11 @@ Cubemap::Cubemap( const std::array<Scope<u8[]>, 6>& data,
 Cubemap::~Cubemap()
 {
     glcall( glDeleteTextures( 1, &mRendererID ) );
+}
+
+void Cubemap::Swap( Cubemap& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
 }
 
 void Cubemap::Bind( i32 slot )

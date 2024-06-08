@@ -45,6 +45,8 @@ public:
     Texture2D( Texture2D&& ) noexcept;
     Texture2D& operator= ( Texture2D&& ) noexcept;
     ~Texture2D();
+    
+    void Swap( Texture2D& other ) noexcept;
 
     GLuint RendererID() const;
     GLsizei Width()  const;

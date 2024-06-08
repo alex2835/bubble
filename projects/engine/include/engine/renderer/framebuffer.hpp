@@ -30,7 +30,9 @@ public:
     Framebuffer( Framebuffer&& other ) noexcept;
     Framebuffer& operator = ( Framebuffer&& other ) noexcept;
     Framebuffer( Texture2D&& color, Texture2D&& depth );
-    virtual ~Framebuffer();
+    ~Framebuffer();
+
+    void Swap( Framebuffer& other ) noexcept;
 
     void SetColorAttachment( Texture2D&& texture );
     void SetDepthAttachment( Texture2D&& texture );

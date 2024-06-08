@@ -11,7 +11,7 @@ namespace bubble
 {
 class BufferLayout;
 class VertexBuffer;
-struct UniformArrayElemnt;
+struct UniformArrayElement;
 class UniformArray;
 
 enum class GLSLDataType
@@ -76,14 +76,13 @@ class BUBBLE_ENGINE_EXPORT VertexBuffer
 public:
     VertexBuffer( const BufferLayout& layout, u64 size );
     VertexBuffer( const BufferLayout& layout, void* vertices, u64 size );
-
     VertexBuffer( const VertexBuffer& ) = delete;
     VertexBuffer& operator=( const VertexBuffer& ) = delete;
-
     VertexBuffer( VertexBuffer&& ) noexcept;
     VertexBuffer& operator=( VertexBuffer&& ) noexcept;
-
     ~VertexBuffer();
+
+    void Swap( VertexBuffer& other ) noexcept;
 
     void Bind() const;
     void Unbind() const;
@@ -104,14 +103,13 @@ class BUBBLE_ENGINE_EXPORT IndexBuffer
 public:
     IndexBuffer() = default;
     IndexBuffer( u32* indices, u64 count );
-
     IndexBuffer( const IndexBuffer& ) = delete;
     IndexBuffer& operator=( const IndexBuffer& ) = delete;
-
     IndexBuffer( IndexBuffer&& ) noexcept;
     IndexBuffer& operator=( IndexBuffer&& ) noexcept;
-
     ~IndexBuffer();
+
+    void Swap( IndexBuffer& other ) noexcept;
 
     void Bind() const;
     void Unbind() const;
@@ -127,13 +125,13 @@ class BUBBLE_ENGINE_EXPORT VertexArray
 {
 public:
     VertexArray() noexcept;
-    ~VertexArray();
-
     VertexArray( const VertexArray& ) = delete;
     VertexArray& operator=( const VertexArray& ) = delete;
-
     VertexArray( VertexArray&& ) noexcept;
     VertexArray& operator=( VertexArray&& ) noexcept;
+    ~VertexArray();
+
+    void Swap( VertexArray& other ) noexcept;
 
     void Bind() const;
     void Unbind() const;
@@ -166,6 +164,8 @@ public:
     UniformBuffer& operator=( UniformBuffer&& ) noexcept;
     ~UniformBuffer();
 
+    void Swap( UniformBuffer& other ) noexcept;
+
     // Raw (Don't forget to fallow std140 paddings)
     void SetData( const void* data, u32 size, u32 offset = 0 );
 
@@ -173,8 +173,8 @@ public:
     const string& Name() const;
     u64 Index() const;
 
-    UniformArrayElemnt operator[] ( u64 index );
-    UniformArrayElemnt Element ( u64 index );
+    UniformArrayElement operator[] ( u64 index );
+    UniformArrayElement Element ( u64 index );
 
     const BufferLayout& Layout() const;
     // Return size in bytes
@@ -196,16 +196,15 @@ private:
 
 
 /*
-    Doesn't own any resources
-    Point to current element in array
+    Doesn't own any resources. Point to current element in array
 */
-struct BUBBLE_ENGINE_EXPORT UniformArrayElemnt
+struct BUBBLE_ENGINE_EXPORT UniformArrayElement
 {
     GLuint mRendererID = 0;
     u64 mArrayIndex = 0;
     const BufferLayout& mLayout;
 
-    UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64 index );
+    UniformArrayElement( const UniformBuffer& uniform_buffer, u64 index );
 
     // Raw
     void SetData( const void* data, u64 size = 0, u64 offset = 0 );

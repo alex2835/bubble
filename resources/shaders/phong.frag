@@ -16,6 +16,7 @@ out vec4 FragColor;
 void main()
 {
     // temp
+//    vec4 tex = vec4(1.0f);
     vec4 tex = texture(uMaterial.diffuseMap, vTexCoords);
     FragColor = tex;
     return;

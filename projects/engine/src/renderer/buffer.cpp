@@ -250,28 +250,26 @@ VertexBuffer::VertexBuffer( const BufferLayout& layout, void* vertices, u64 size
 
 VertexBuffer::VertexBuffer( VertexBuffer&& other ) noexcept
 {
-    mRendererID = other.mRendererID;
-    mLayout = std::move( other.mLayout );
-    mSize = other.mSize;
-    other.mRendererID = 0;
+    Swap( other );
 }
 
 VertexBuffer& VertexBuffer::operator=( VertexBuffer&& other ) noexcept
 {
     if ( this != &other )
-    {
-        mRendererID = other.mRendererID;
-        mLayout = std::move( other.mLayout );
-        mSize = other.mSize;
-        other.mRendererID = 0;
-        other.mSize = 0;
-    }
+        Swap( other );
     return *this;
 }
 
 VertexBuffer::~VertexBuffer()
 {
     glcall( glDeleteBuffers( 1, &mRendererID ) );
+}
+
+void VertexBuffer::Swap( VertexBuffer& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mSize, other.mSize );
+    std::swap( mLayout, other.mLayout );
 }
 
 void VertexBuffer::Bind() const
@@ -317,27 +315,25 @@ IndexBuffer::IndexBuffer( u32* indices, u64 count )
 
 IndexBuffer::IndexBuffer( IndexBuffer&& other ) noexcept
 {
-    mRendererID = other.mRendererID;
-    mCount = other.mCount;
-    other.mRendererID = 0;
-    other.mCount = 0;
+    Swap( other );
 }
 
 IndexBuffer& IndexBuffer::operator=( IndexBuffer&& other ) noexcept
 {
     if ( this != &other )
-    {
-        mRendererID = other.mRendererID;
-        mCount = other.mCount;
-        other.mRendererID = 0;
-        other.mCount = 0;
-    }
+        Swap( other );
     return *this;
 }
 
 IndexBuffer::~IndexBuffer()
 {
     glcall( glDeleteBuffers( 1, &mRendererID ) );
+}
+
+void IndexBuffer::Swap( IndexBuffer& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mCount, other.mCount );
 }
 
 void IndexBuffer::Bind() const
@@ -365,31 +361,27 @@ VertexArray::VertexArray() noexcept
 
 VertexArray::VertexArray( VertexArray&& other ) noexcept
 {
-    mRendererID = other.mRendererID;
-    VertexBufferIndex( other.mVertexBufferIndex );
-    mVertexBuffers = std::move( other.mVertexBuffers );
-    mIndexBuffer = std::move( other.mIndexBuffer );
-    other.mRendererID = 0;
-    other.VertexBufferIndex( 0 );
+    Swap( other );
 }
 
 VertexArray& VertexArray::operator=( VertexArray&& other ) noexcept
 {
     if ( this != &other )
-    {
-        mRendererID = other.mRendererID;
-        VertexBufferIndex( other.mVertexBufferIndex );
-        mVertexBuffers = std::move( other.mVertexBuffers );
-        mIndexBuffer = std::move( other.mIndexBuffer );
-        other.mRendererID = 0;
-        other.VertexBufferIndex( 0 );
-    }
+        Swap( other );
     return *this;
 }
 
 VertexArray::~VertexArray()
 {
     glcall( glDeleteVertexArrays( 1, &mRendererID ) );
+}
+
+void VertexArray::Swap( VertexArray& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mVertexBufferIndex, other.mVertexBufferIndex );
+    std::swap( mVertexBuffers, other.mVertexBuffers );
+    std::swap( mIndexBuffer, other.mIndexBuffer );
 }
 
 void VertexArray::Bind() const
@@ -510,37 +502,30 @@ UniformBuffer::UniformBuffer( i32 index,
 }
 
 UniformBuffer::UniformBuffer( UniformBuffer&& other ) noexcept
-    : mRendererID( other.mRendererID ),
-      mBufferSize( other.mBufferSize ),
-      mLayout( std::move( other.mLayout ) ),
-      mIndex( other.mIndex ),
-      mSize( other.mSize )
 {
-    other.mRendererID = 0;
-    other.mSize = 0;
-    other.mBufferSize = 0;
+    Swap( other );
 }
 
 UniformBuffer& UniformBuffer::operator=( UniformBuffer&& other ) noexcept
 {
     if ( this != &other )
-    {
-        mRendererID = other.mRendererID;
-        mBufferSize = other.mBufferSize;
-        mLayout = std::move( other.mLayout );
-        mIndex = other.mIndex;
-        mSize = other.mSize;
-
-        other.mRendererID = 0;
-        other.mSize = 0;
-        other.mBufferSize = 0;
-    }
+        Swap( other );
     return *this;
 }
 
 UniformBuffer::~UniformBuffer()
 {
     glDeleteBuffers( 1, &mRendererID );
+}
+
+void UniformBuffer::Swap( UniformBuffer& other ) noexcept
+{
+    std::swap( mRendererID, other.mRendererID );
+    std::swap( mName, other.mName );
+    std::swap( mLayout, other.mLayout );
+    std::swap( mBufferSize, other.mBufferSize );
+    std::swap( mSize, other.mSize );
+    std::swap( mIndex, other.mIndex );
 }
 
 GLint UniformBuffer::RendererID() const
@@ -564,15 +549,15 @@ void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
     glBufferSubData( GL_UNIFORM_BUFFER, offset, size, data );
 }
 
-UniformArrayElemnt UniformBuffer::operator[]( u64 index )
+UniformArrayElement UniformBuffer::operator[]( u64 index )
 {
     return Element( index );
 }
 
-UniformArrayElemnt UniformBuffer::Element( u64 index )
+UniformArrayElement UniformBuffer::Element( u64 index )
 {
     BUBBLE_ASSERT( index < mSize, "Buffer access valiation" );
-    return UniformArrayElemnt( *this, index );
+    return UniformArrayElement( *this, index );
 }
 
 void UniformBuffer::CalculateOffsetsAndStride()
@@ -616,15 +601,15 @@ u64 UniformBuffer::Size()
     return mSize;
 };
 
-// UniformArrayElemnt 
-UniformArrayElemnt::UniformArrayElemnt( const UniformBuffer& uniform_buffer, u64 index )
+// UniformArrayElement 
+UniformArrayElement::UniformArrayElement( const UniformBuffer& uniform_buffer, u64 index )
     : mLayout( uniform_buffer.Layout() ),
       mRendererID( uniform_buffer.RendererID() ),
       mArrayIndex( index )
 {
 }
 
-void UniformArrayElemnt::SetData( const void* data, u64 size, u64 offset )
+void UniformArrayElement::SetData( const void* data, u64 size, u64 offset )
 {
     u64 array_index_offset = mLayout.Stride() * mArrayIndex;
     size = size ? size : mLayout.Stride();
@@ -632,49 +617,49 @@ void UniformArrayElemnt::SetData( const void* data, u64 size, u64 offset )
     glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset + offset, size, data );
 }
 
-void UniformArrayElemnt::SetInt( const string& name, i32 data )
+void UniformArrayElement::SetInt( const string& name, i32 data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Int );
     SetRawData( elem, &data );
 }
 
 
-void UniformArrayElemnt::SetFloat( const string& name, f32 data )
+void UniformArrayElement::SetFloat( const string& name, f32 data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float );
     SetRawData( elem, &data );
 }
 
 
-void UniformArrayElemnt::SetFloat2( const string& name, const vec2& data )
+void UniformArrayElement::SetFloat2( const string& name, const vec2& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float2 );
     SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetFloat3( const string& name, const vec3& data )
+void UniformArrayElement::SetFloat3( const string& name, const vec3& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float3 );
     SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetFloat4( const string& name, const vec4& data )
+void UniformArrayElement::SetFloat4( const string& name, const vec4& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float4 );
     SetRawData( elem, value_ptr( data ) );
 }
 
 
-void UniformArrayElemnt::SetMat4( const string& name, const mat4& data )
+void UniformArrayElement::SetMat4( const string& name, const mat4& data )
 {
     const BufferElement& elem = FindBufferElement( name, GLSLDataType::Mat4 );
     SetRawData( elem, value_ptr( data ) );
 }
 
 
-const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, GLSLDataType type )
+const BufferElement& UniformArrayElement::FindBufferElement( const string& name, GLSLDataType type )
 {
     auto elem = std::find_if( mLayout.begin(), mLayout.end(),
                               [&name, &type]( const BufferElement& elem )
@@ -685,7 +670,7 @@ const BufferElement& UniformArrayElemnt::FindBufferElement( const string& name, 
     return *elem;
 }
 
-void UniformArrayElemnt::SetRawData( const BufferElement& elem, const void* data )
+void UniformArrayElement::SetRawData( const BufferElement& elem, const void* data )
 {
     u64 array_index_offset = mLayout.Stride() * mArrayIndex + elem.mOffset;
     glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
