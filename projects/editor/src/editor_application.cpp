@@ -19,13 +19,16 @@ BubbleEditor::BubbleEditor()
       mShaderHotReloader( mProject.mLoader ),
       mInterfaceHotReloader( *this, mEngine )
 {
+    // Window
+    mWindow.SetVSync( false );
+    
+    // ImGui
+    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
+
     // Add components functions
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
     ComponentManager::Add<TransformComponent>();
-
-    // ImGui
-    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Selecting objects
     mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );

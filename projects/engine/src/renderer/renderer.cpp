@@ -91,9 +91,15 @@ void Renderer::DrawModel( const Ref<Model>& model,
                           const mat4& transform,
                           const Ref<Shader>& shader )
 {
+    if ( not model )
+        return;
+
+    // Set uniform buffers
     shader->SetUniformBuffer( mVertexUniformBuffer );
     if ( shader->mModules.test( ShaderModule::Light ) )
         shader->SetUniformBuffer( mLightsInfoUniformBuffer );
+
+    // Draw model
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
         Renderer::DrawMesh( mesh, shader, transform );

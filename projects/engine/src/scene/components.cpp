@@ -85,27 +85,44 @@ void ModelComponent::OnComponentDraw( const Loader& loader, void* raw )
 {
     auto& modelComponent = *(ModelComponent*)raw;
     ImGui::TextColored( COLOR_YELLOW, "ModelComponent" );
-    if ( ImGui::BeginCombo( "models", modelComponent->mName.c_str() ) )
-    {
-        for ( const auto& [modelPath, model] : loader.mModels )
-        {
-            auto modelName = modelPath.stem().string();
-            if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponent->mName ) )
-                modelComponent = model;
-        }
-        ImGui::EndCombo();
-    }
 
-    const auto& currentShader = modelComponent->mShader;
-    if ( ImGui::BeginCombo( "shaders", currentShader->mName.c_str() ) )
+    if ( not modelComponent )
     {
-        for ( const auto& [shaderPath, shader] : loader.mShaders )
+        if ( ImGui::BeginCombo( "models", "Not selected" ) )
         {
-            auto shaderName = shaderPath.stem().string();
-            if ( ImGui::Selectable( shaderName.c_str(), shaderName == currentShader->mName ) )
-                modelComponent->mShader = shader;
+            for ( const auto& [modelPath, model] : loader.mModels )
+            {
+                auto modelName = modelPath.stem().string();
+                if ( ImGui::Selectable( modelName.c_str() ) )
+                    modelComponent = model;
+            }
+            ImGui::EndCombo();
         }
-        ImGui::EndCombo();
+    }
+    else
+    {
+        if ( ImGui::BeginCombo( "models", modelComponent->mName.c_str() ) )
+        {
+            for ( const auto& [modelPath, model] : loader.mModels )
+            {
+                auto modelName = modelPath.stem().string();
+                if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponent->mName ) )
+                    modelComponent = model;
+            }
+            ImGui::EndCombo();
+        }
+
+        const auto& currentShader = modelComponent->mShader;
+        if ( ImGui::BeginCombo( "shaders", currentShader->mName.c_str() ) )
+        {
+            for ( const auto& [shaderPath, shader] : loader.mShaders )
+            {
+                auto shaderName = shaderPath.stem().string();
+                if ( ImGui::Selectable( shaderName.c_str(), shaderName == currentShader->mName ) )
+                    modelComponent->mShader = shader;
+            }
+            ImGui::EndCombo();
+        }
     }
 }
 

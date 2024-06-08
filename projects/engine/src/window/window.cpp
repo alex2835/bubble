@@ -191,6 +191,7 @@ Window::Window( const string& name, WindowSize size )
     }
 #endif
 
+    // Set up ImGui
     IMGUI_CHECKVERSION();
     mImGuiContext = ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
