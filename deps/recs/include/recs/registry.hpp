@@ -108,7 +108,7 @@ private:
     }
     Pool& GetComponentPool( ComponentTypeId id );
 
-public:
+protected:
     size_t mEntityCounter = 1;
     size_t mComponentCounter = 1;
     std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>> mComponents;

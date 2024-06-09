@@ -1,14 +1,14 @@
 #pragma once
-#include "engine/serialization/scene_serialization.hpp"
 #include "engine/utils/types.hpp"
+#include "engine/scene/scene.hpp"
+#include "engine/loader/loader.hpp"
 #include <nlohmann/json.hpp>
 
-namespace recs
+namespace bubble
 {
 using namespace nlohmann;
-using namespace bubble;
 
-void SceneToJson( const Loader& loader, json& j, const Scene& scene )
+void Scene::ToJson( const Scene& scene, const Loader& loader, json& j )
 {
     j["Entity counter"] = scene.mEntityCounter;
     j["Component counter"] = scene.mComponentCounter;
@@ -37,7 +37,7 @@ void SceneToJson( const Loader& loader, json& j, const Scene& scene )
     }
 }
 
-void SceneFromJson( Loader& loader, const json& j, Scene& scene )
+void Scene::FromJson( Scene& scene, Loader& loader, const json& j )
 {
     scene.mEntityCounter = j["Entity counter"];
     scene.mComponentCounter = j["Component counter"];

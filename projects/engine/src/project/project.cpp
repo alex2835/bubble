@@ -1,7 +1,6 @@
 
 #include "engine/project/project.hpp"
 #include "engine/serialization/loader_serialization.hpp"
-#include "engine/serialization/scene_serialization.hpp"
 #include "nlohmann/json.hpp"
 #include <fstream>
 
@@ -37,14 +36,14 @@ void Project::Open( const path& rootFile )
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
     mLoader = projectJson["Loader"];
-    SceneFromJson( mLoader, projectJson["Scene"], mScene );
+    Scene::FromJson( mScene, mLoader, projectJson["Scene"] );
 }
 
 void Project::Save()
 {
     json projectJson;
     projectJson["Loader"] = mLoader;
-    SceneToJson( mLoader, projectJson["Scene"], mScene );
+    Scene::ToJson( mScene, mLoader, projectJson["Scene"] );
 
     std::ofstream projectFile( mRootFile );
     projectFile << projectJson.dump( 1 );
