@@ -6,7 +6,7 @@
 
 namespace bubble
 {
-class ShaderHotReloader
+class ResourceHotReloader
 {
     struct UpdateInfo 
     {
@@ -15,8 +15,8 @@ class ShaderHotReloader
     };
 
 public:
-    ShaderHotReloader( Loader& loader );
-    ~ShaderHotReloader();
+    ResourceHotReloader( Loader& loader );
+    ~ResourceHotReloader();
     void OnUpdate();
 
 private:

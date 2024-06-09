@@ -91,7 +91,7 @@ void Renderer::DrawModel( const Ref<Model>& model,
                           const mat4& transform,
                           const Ref<Shader>& shader )
 {
-    if ( not model )
+    if ( not model or not shader )
         return;
 
     // Set uniform buffers

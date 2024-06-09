@@ -6,6 +6,7 @@
 #include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/loader/loader.hpp"
+#include "engine/scene/scene.hpp"
 
 namespace bubble
 {
@@ -38,9 +39,19 @@ class BUBBLE_ENGINE_EXPORT ComponentManager
 public:
     static ComponentManager& Instance();
 
+    static void SetScene( Scene& scene )
+    {
+        Instance().mScene = &scene;
+    }
+
     template <ComponentConcept Component>
     static void Add()
     {
+        auto scene = Instance().mScene;
+        if ( not scene )
+            throw std::runtime_error( "Scene is not set" );
+        scene->AddComponet<Component>();
+
         AddOnDraw( Component::Name(), Component::OnComponentDraw );
         AddToJson( Component::Name(), Component::ToJson );
         AddFromJson( Component::Name(), Component::FromJson );
@@ -56,8 +67,7 @@ public:
     static ComponentToJson GetToJson( string_view componentName );
 private:
     ComponentManager() = default;
+    Scene* mScene = nullptr;
     str_hash_map<ComponentFunctions> mComponentFunctions;
 };
-
-
 }

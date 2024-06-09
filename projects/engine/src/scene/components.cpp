@@ -86,58 +86,63 @@ void ModelComponent::OnComponentDraw( const Loader& loader, void* raw )
     auto& modelComponent = *(ModelComponent*)raw;
     ImGui::TextColored( COLOR_YELLOW, "ModelComponent" );
 
-    if ( not modelComponent )
+    auto modelComponentName = modelComponent ? modelComponent->mName.c_str() : "Not selected";
+    if ( ImGui::BeginCombo( "models", modelComponentName ) )
     {
-        if ( ImGui::BeginCombo( "models", "Not selected" ) )
+        for ( const auto& [modelPath, model] : loader.mModels )
         {
-            for ( const auto& [modelPath, model] : loader.mModels )
-            {
-                auto modelName = modelPath.stem().string();
-                if ( ImGui::Selectable( modelName.c_str() ) )
-                    modelComponent = model;
-            }
-            ImGui::EndCombo();
+            auto modelName = modelPath.stem().string();
+            if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponentName ) )
+                modelComponent = model;
         }
-    }
-    else
-    {
-        if ( ImGui::BeginCombo( "models", modelComponent->mName.c_str() ) )
-        {
-            for ( const auto& [modelPath, model] : loader.mModels )
-            {
-                auto modelName = modelPath.stem().string();
-                if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponent->mName ) )
-                    modelComponent = model;
-            }
-            ImGui::EndCombo();
-        }
-
-        const auto& currentShader = modelComponent->mShader;
-        if ( ImGui::BeginCombo( "shaders", currentShader->mName.c_str() ) )
-        {
-            for ( const auto& [shaderPath, shader] : loader.mShaders )
-            {
-                auto shaderName = shaderPath.stem().string();
-                if ( ImGui::Selectable( shaderName.c_str(), shaderName == currentShader->mName ) )
-                    modelComponent->mShader = shader;
-            }
-            ImGui::EndCombo();
-        }
+        ImGui::EndCombo();
     }
 }
 
 void ModelComponent::ToJson( const Loader& loader, json& json, const void* raw )
 {
     const auto& model = *(const ModelComponent*)raw;
-    json["Path"] = model->mPath;
-    json["Shader"] = model->mShader->mPath;
+    json = model->mPath;
 }
 
 void ModelComponent::FromJson( Loader& loader, const json& json, void* raw )
 {
     auto& model = *(ModelComponent*)raw;
-    model = loader.LoadModel( json["Path"] );
-    model->mShader = loader.LoadShader( json["Shader"] );
+    model = loader.LoadModel( json );
 }
+
+
+
+// ShaderComponent
+void ShaderComponent::OnComponentDraw( const Loader& loader, void* raw )
+{
+    auto& shaderComponent = *(ShaderComponent*)raw;
+    ImGui::TextColored( COLOR_YELLOW, "ShaderComponent" );
+
+    auto shaderComponentName = shaderComponent ? shaderComponent->mName.c_str() : "Not selected";
+    if ( ImGui::BeginCombo( "shaders", shaderComponentName ) )
+    {
+        for ( const auto& [shaderPath, shader] : loader.mShaders )
+        {
+            auto shaderName = shaderPath.stem().string();
+            if ( ImGui::Selectable( shaderName.c_str(), shaderName == shaderComponentName ) )
+                shaderComponent = shader;
+        }
+        ImGui::EndCombo();
+    }
+}
+
+void ShaderComponent::ToJson( const Loader& loader, json& json, const void* raw )
+{
+    const auto& shader = *(const ShaderComponent*)raw;
+    json = shader->mPath;
+}
+
+void ShaderComponent::FromJson( Loader& loader, const json& json, void* raw )
+{
+    auto& shader  = *(ShaderComponent*)raw;
+    shader = loader.LoadShader( json );
+}
+
 
 }

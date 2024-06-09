@@ -3,7 +3,7 @@
 #include "scene_camera.hpp"
 #include "editor_state.hpp"
 #include "editor_interface_hot_reloader.hpp"
-#include "shader_hot_reloader.hpp"
+#include "resource_hot_reloader.hpp"
 
 namespace bubble
 {
@@ -25,7 +25,7 @@ private:
 
     Engine mEngine;
     EditorInterfaceHotReloader mInterfaceHotReloader;
-    ShaderHotReloader mShaderHotReloader;
+    ResourceHotReloader mResourceHotReloader;
 };
 
 }

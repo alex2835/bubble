@@ -1,6 +1,8 @@
 #pragma once
 #include "ieditor_interface.hpp"
 #include "editor_application.hpp"
+#include "engine/scene/components_manager.hpp"
+
 
 namespace bubble
 {

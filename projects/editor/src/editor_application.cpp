@@ -1,4 +1,5 @@
 #include "engine/utils/emscripten_main_loop.hpp"
+#include "engine/scene/components_manager.hpp"
 #include "editor_application.hpp"
 #include <functional>
 
@@ -16,19 +17,20 @@ BubbleEditor::BubbleEditor()
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
       mEditorMode( EditorMode::Editing ),
-      mShaderHotReloader( mProject.mLoader ),
+      mResourceHotReloader( mProject.mLoader ),
       mInterfaceHotReloader( *this, mEngine )
 {
     // Window
     mWindow.SetVSync( false );
-    
     // ImGui
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
-    // Add components functions
+    // Add default components
+    ComponentManager::SetScene( mProject.mScene );
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
     ComponentManager::Add<TransformComponent>();
+    ComponentManager::Add<ShaderComponent>();
 
     // Selecting objects
     mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );
@@ -57,7 +59,7 @@ void BubbleEditor::Run()
         mTimer.OnUpdate();
         auto dt = mTimer.GetDeltaTime();
         mSceneCamera.OnUpdate( dt );
-        mShaderHotReloader.OnUpdate();
+        mResourceHotReloader.OnUpdate();
         mInterfaceHotReloader.OnUpdate( dt );
 
         // Draw scene
@@ -76,7 +78,7 @@ void BubbleEditor::Run()
         mInterfaceHotReloader.OnDraw( dt );
         mWindow.ImGuiEnd();
 
-        // Render window
+        // Swap window
         mWindow.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__
@@ -92,12 +94,13 @@ void BubbleEditor::DrawProjectScene()
     // Draw scene
     mSceneViewport.Bind();
     mEngine.mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-    mProject.mScene.ForEach<ModelComponent, TransformComponent>(
+    mProject.mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
     [&]( Entity entity,
          ModelComponent& model,
+         ShaderComponent& shader,
          TransformComponent& transform )
     {
-        mEngine.mRenderer.DrawModel( model, transform.Transform(), model->mShader );
+        mEngine.mRenderer.DrawModel( model, transform.Transform(), shader );
     } );
 
     // Draw scene's objectId

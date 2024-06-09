@@ -3,8 +3,6 @@
 #include "engine/renderer/light.hpp"
 #include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
-#include "components_manager.hpp"
-
 
 // Basic components
 namespace bubble
@@ -55,6 +53,19 @@ struct ModelComponent : public Ref<Model>
     static string_view Name()
     {
         return "ModelComponent"sv;
+    }
+    BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
+    BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );
+    BUBBLE_ENGINE_EXPORT static void FromJson( Loader& loader, const json& json, void* raw );
+};
+
+struct ShaderComponent : public Ref<Shader>
+{
+    using Ref<Shader>::operator=;
+
+    static string_view Name()
+    {
+        return "ShaderComponent"sv;
     }
     BUBBLE_ENGINE_EXPORT static void OnComponentDraw( const Loader& loader, void* raw );
     BUBBLE_ENGINE_EXPORT static void ToJson( const Loader& loader, json& json, const void* raw );

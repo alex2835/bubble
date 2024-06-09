@@ -51,7 +51,7 @@ struct MeshTreeViewNode
 {
     string mName;
     vector<Mesh*> mMeshes;
-    vector<Scope<MeshTreeViewNode>> mChildern;
+    vector<Scope<MeshTreeViewNode>> mChildren;
 
     MeshTreeViewNode() = default;
     MeshTreeViewNode( const string& name )
@@ -65,7 +65,6 @@ struct BUBBLE_ENGINE_EXPORT Model
     path mPath;
     vector<Mesh> mMeshes;
     Scope<MeshTreeViewNode> mRootMeshTreeView;
-    Ref<Shader> mShader;
     AABB mBoundingBox;
 
     Model();

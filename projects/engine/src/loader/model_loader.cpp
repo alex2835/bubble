@@ -140,7 +140,7 @@ Scope<MeshTreeViewNode> ProcessNode( Model& model,
         mesh_node->mMeshes.push_back( &model.mMeshes.back() );
     }
     for ( u32 i = 0; i < node->mNumChildren; i++ )
-        mesh_node->mChildern.push_back( ProcessNode( model, node->mChildren[i], scene, path ) );
+        mesh_node->mChildren.push_back( ProcessNode( model, node->mChildren[i], scene, path ) );
 
     return std::move( mesh_node );
 }

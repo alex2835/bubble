@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/utils/types.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/components_manager.hpp"
 #include "engine/loader/loader.hpp"
 #include <nlohmann/json.hpp>
 
@@ -43,11 +44,11 @@ void Scene::FromJson( Scene& scene, Loader& loader, const json& j )
     scene.mComponentCounter = j["Component counter"];
     scene.mComponents = j["Components"];
     // Entity components
-    const json& entityCompnentsJson = j["Entity components"];
-    for ( const auto& [entityStr, componetsJson] : entityCompnentsJson.items() )
+    const json& entityComponentsJson = j["Entity components"];
+    for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )
     {
         hash_set<ComponentTypeId> components;
-        for ( ComponentTypeId component : componetsJson )
+        for ( ComponentTypeId component : componentsJson )
             components.insert( component );
 
         u64 entityId = std::atoi( entityStr.c_str() );
