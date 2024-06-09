@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string_view>
 #include <functional>
+#include <unordered_set>
 
 #include "recs/impex.hpp"
 
@@ -35,6 +36,7 @@ public:
         return mId && mRegistry;
     }
 
+    // Component type API
     template <ComponentType T, typename ...Args>
     Entity AddComponet( Args&& ...args );
 
@@ -57,6 +59,11 @@ public:
     {
         return mId;
     };
+
+    // Component Ids API
+    const std::unordered_set<ComponentTypeId>& EntityComponentIds();
+    void EntityAddComponentId( ComponentTypeId componentId );
+    void EntityRemoveComponentId( ComponentTypeId componentId );
 
 private:
     Entity( size_t id, Registry* registry )

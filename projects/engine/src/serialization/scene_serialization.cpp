@@ -46,8 +46,8 @@ void SceneFromJson( Loader& loader, const json& j, Scene& scene )
     const json& entityCompnentsJson = j["Entity components"];
     for ( const auto& [entityStr, componetsJson] : entityCompnentsJson.items() )
     {
-        hash_set<ComponentIdType> components;
-        for ( ComponentIdType component : componetsJson )
+        hash_set<ComponentTypeId> components;
+        for ( ComponentTypeId component : componetsJson )
             components.insert( component );
 
         u64 entityId = std::atoi( entityStr.c_str() );

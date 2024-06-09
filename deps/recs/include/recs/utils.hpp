@@ -4,8 +4,8 @@
 
 namespace recs
 {
-typedef size_t ComponentIdType;
-constexpr ComponentIdType INVALID_COMPONENT_TYPE = 0;
+typedef size_t ComponentTypeId;
+constexpr ComponentTypeId INVALID_COMPONENT_TYPE = 0;
 
 template<typename T>
 concept ComponentType = requires( T component )

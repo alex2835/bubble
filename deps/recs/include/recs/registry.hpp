@@ -28,6 +28,7 @@ public:
     Entity GetEntityById( size_t id );
     void RemoveEntity( Entity& entity );
 
+    // Component types API
     template <ComponentType Component>
     Registry& AddComponet();
 
@@ -48,7 +49,14 @@ public:
 
     template <ComponentType Component>
     void RemoveComponent( Entity entity );
+    
+    // ComponentIds API
+    const std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>>& AllComponentIdsMap();
+    const std::unordered_set<ComponentTypeId>& EntityComponentIds( Entity entity );
+    void EntityAddComponentId( Entity entity, ComponentTypeId componentId );
+    void EntityRemoveComponentId( Entity entity, ComponentTypeId componentId );
 
+    // For each entities
     template <ComponentType ...Components, typename F>
     void ForEach( F&& func );
 
@@ -67,13 +75,13 @@ public:
 private:
     // Component ids management
     template <ComponentType Component>
-    ComponentIdType AddComponentTypeId();
+    ComponentTypeId AddComponentTypeId();
 
     template <ComponentType Component>
-    ComponentIdType GetComponentTypeId();
+    ComponentTypeId GetComponentTypeId();
 
     template <ComponentType ...Components>
-    std::array<ComponentIdType, sizeof...(Components)> GetComponentsTypeId();
+    std::array<ComponentTypeId, sizeof...(Components)> GetComponentsTypeId();
 
     template <ComponentType Component>
     bool HasComponentTypeId();
@@ -82,12 +90,12 @@ private:
     bool HasComponentsTypeId();
 
     template <ComponentType Component>
-    Component& EntityGetComponent( Entity entity, ComponentIdType component );
+    Component& EntityGetComponent( Entity entity, ComponentTypeId component );
 
-    void EntityAddComponent( Entity entity, ComponentIdType component );
-    bool EntityHasComponent( Entity entity, ComponentIdType component );
-    void EntityRemoveComponent( Entity entity, ComponentIdType component );
-    std::unordered_set<ComponentIdType>& GetEntityComponentsIds( Entity entity );
+    void EntityAddComponent( Entity entity, ComponentTypeId component );
+    bool EntityHasComponent( Entity entity, ComponentTypeId component );
+    void EntityRemoveComponent( Entity entity, ComponentTypeId component );
+    std::unordered_set<ComponentTypeId>& GetEntityComponentsIds( Entity entity );
 
     // For each
     template <ComponentType ...Components, typename F>
@@ -98,21 +106,21 @@ private:
     {
         return std::forward_as_tuple( pools[Is]->template Get<Args>( indicies[Is] )... );
     }
-    Pool& GetComponentPool( ComponentIdType id );
+    Pool& GetComponentPool( ComponentTypeId id );
 
 public:
     size_t mEntityCounter = 1;
     size_t mComponentCounter = 1;
-    std::unordered_map<std::string, ComponentIdType, string_hash, std::equal_to<>> mComponents;
-    std::unordered_map<Entity, std::unordered_set<ComponentIdType>> mEntitiesComponentIds;
-    std::unordered_map<ComponentIdType, Pool> mPools;
+    std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>> mComponents;
+    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> mEntitiesComponentIds;
+    std::unordered_map<ComponentTypeId, Pool> mPools;
 };
 
 
 // Component ids
 
 template <ComponentType Component>
-ComponentIdType Registry::GetComponentTypeId()
+ComponentTypeId Registry::GetComponentTypeId()
 {
     auto iter = mComponents.find( Component::Name() );
     if ( iter == mComponents.end() )
@@ -121,7 +129,7 @@ ComponentIdType Registry::GetComponentTypeId()
 }
 
 template <ComponentType Component>
-ComponentIdType Registry::AddComponentTypeId()
+ComponentTypeId Registry::AddComponentTypeId()
 {
     auto iter = mComponents.find( Component::Name() );
     if ( iter == mComponents.end() )
@@ -134,7 +142,7 @@ ComponentIdType Registry::AddComponentTypeId()
 }
 
 template <ComponentType ...Components>
-std::array<ComponentIdType, sizeof...(Components)> Registry::GetComponentsTypeId()
+std::array<ComponentTypeId, sizeof...(Components)> Registry::GetComponentsTypeId()
 {
     return { GetComponentTypeId<Components>()... };
 }
@@ -152,7 +160,7 @@ bool Registry::HasComponentsTypeId()
 }
 
 template <ComponentType Component>
-Component& Registry::EntityGetComponent( Entity entity, ComponentIdType component )
+Component& Registry::EntityGetComponent( Entity entity, ComponentTypeId component )
 {
     Pool& pool = GetComponentPool( component );
     return pool.Get<Component>( entity );
@@ -164,7 +172,7 @@ Component& Registry::EntityGetComponent( Entity entity, ComponentIdType componen
 template <ComponentType Component>
 Registry& Registry::AddComponet()
 {
-    ComponentIdType componentType = GetComponentTypeId<Component>();
+    ComponentTypeId componentType = GetComponentTypeId<Component>();
     if ( componentType == INVALID_COMPONENT_TYPE )
     {
         componentType = AddComponentTypeId<Component>();
@@ -179,7 +187,7 @@ Registry& Registry::AddComponet( Entity entity, Args&& ...args )
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "Add component: invalid entity" );
 
-    ComponentIdType componentType = GetComponentTypeId<Component>();
+    ComponentTypeId componentType = GetComponentTypeId<Component>();
     if ( componentType == INVALID_COMPONENT_TYPE )
     {
         componentType = AddComponentTypeId<Component>();
@@ -205,7 +213,7 @@ Component& Registry::GetComponent( Entity entity )
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "Get component: invalid entity" );
 
-    ComponentIdType componentType = GetComponentTypeId<Component>();
+    ComponentTypeId componentType = GetComponentTypeId<Component>();
     if ( componentType != INVALID_COMPONENT_TYPE )
     {
         Pool& pool = GetComponentPool( componentType );
@@ -250,7 +258,7 @@ bool Registry::HasComponents( Entity entity )
 template <ComponentType Component>
 void Registry::RemoveComponent( Entity entity )
 {
-    ComponentIdType component = GetComponentTypeId<Component>();
+    ComponentTypeId component = GetComponentTypeId<Component>();
     if ( EntityHasComponent( entity, component ) )
     {
         Pool& pool = mPools[component];

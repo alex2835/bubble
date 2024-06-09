@@ -32,24 +32,29 @@ void Registry::RemoveEntity( Entity& entity )
     entity.mId = 0;
 }
 
-std::unordered_set<ComponentIdType>& Registry::GetEntityComponentsIds( Entity entity )
+const std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>>& Registry::AllComponentIdsMap()
+{
+    return mComponents;
+}
+
+std::unordered_set<ComponentTypeId>& Registry::GetEntityComponentsIds( Entity entity )
 {
     return mEntitiesComponentIds[entity];
 }
 
-void Registry::EntityAddComponent( Entity entity, ComponentIdType componentId )
+void Registry::EntityAddComponent( Entity entity, ComponentTypeId componentId )
 {
     auto& entityComponents = mEntitiesComponentIds[entity];
     entityComponents.insert( componentId );
 }
 
-bool Registry::EntityHasComponent( Entity entity, ComponentIdType componentId )
+bool Registry::EntityHasComponent( Entity entity, ComponentTypeId componentId )
 {
     auto& entityComponents = mEntitiesComponentIds[entity];
     return entityComponents.count( componentId );
 }
 
-void Registry::EntityRemoveComponent( Entity entity, ComponentIdType componentId )
+void Registry::EntityRemoveComponent( Entity entity, ComponentTypeId componentId )
 {
     auto& entityComponents = mEntitiesComponentIds[entity];
     auto iter = entityComponents.find( componentId );
@@ -57,7 +62,7 @@ void Registry::EntityRemoveComponent( Entity entity, ComponentIdType componentId
     entityComponents.erase( iter );
 }
 
-Pool& Registry::GetComponentPool( ComponentIdType id )
+Pool& Registry::GetComponentPool( ComponentTypeId id )
 {
     return mPools[id];
 }
@@ -65,7 +70,7 @@ Pool& Registry::GetComponentPool( ComponentIdType id )
 void Registry::UpdateEntityReferences()
 {
     // rewrite pointers
-    std::unordered_map<Entity, std::unordered_set<ComponentIdType>> map;
+    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> map;
     for ( auto entityComponents : mEntitiesComponentIds )
     {
         Entity entity = entityComponents.first;
@@ -86,7 +91,7 @@ void Registry::CloneInto( Registry& registry )
     //registry.mPools = mPools;
 
     // rewrite pointers
-    std::unordered_map<Entity, std::unordered_set<ComponentIdType>> map;
+    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> map;
     for ( auto entityComponents : mEntitiesComponentIds )
     {
         Entity entity = entityComponents.first;
@@ -103,5 +108,50 @@ void Registry::CloneInto( Registry& registry )
             entity.mRegistry = &registry;
     }
 }
+
+const std::unordered_set<recs::ComponentTypeId>& Registry::EntityComponentIds( Entity entity )
+{
+    return mEntitiesComponentIds[entity];
+}
+
+void Registry::EntityAddComponentId( Entity entity, ComponentTypeId componentId )
+{
+    auto iter = mPools.find( componentId );
+    if ( iter == mPools.end() )
+        throw std::runtime_error( "Invalid componentId " + std::to_string( componentId ) );
+
+    auto& pool = iter->second;
+    pool.PushEmpty( entity );
+    mEntitiesComponentIds[entity].insert( componentId );
+}
+
+void Registry::EntityRemoveComponentId( Entity entity, ComponentTypeId componentId )
+{
+    auto iter = mPools.find( componentId );
+    if ( iter == mPools.end() )
+        throw std::runtime_error( "Invalid componentId " + std::to_string( componentId ) );
+
+    auto& pool = iter->second;
+    pool.Remove( entity );
+    mEntitiesComponentIds[entity].erase( componentId );
+}
+
+
+// Entity 
+const std::unordered_set<ComponentTypeId>& Entity::EntityComponentIds()
+{
+    return mRegistry->EntityComponentIds( *this );
+}
+
+void Entity::EntityAddComponentId( ComponentTypeId componentId )
+{
+    return mRegistry->EntityAddComponentId( *this, componentId );
+}
+
+void Entity::EntityRemoveComponentId( ComponentTypeId componentId )
+{
+    return mRegistry->EntityRemoveComponentId( *this, componentId );
+}
+
 
 }

@@ -81,7 +81,8 @@ public:
 
         ImGui::BeginChild( "Components" );
         {
-            const auto& entityComponents = mProject.mScene.mEntitiesComponentIds[mSelectedEntity];
+            const auto& allComponents = mProject.mScene.AllComponentIdsMap();
+            const auto& entityComponents = mSelectedEntity.EntityComponentIds();
 
             // Entity components popups
             if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
@@ -91,34 +92,26 @@ public:
             {
                 if ( ImGui::BeginMenu( "Add component" ) )
                 {
-                    for ( const auto& [name, id] : mProject.mScene.mComponents )
+                    for ( const auto& [name, id] : allComponents )
                     {
                         if ( entityComponents.contains( id ) )
                             continue;
 
                         if ( ImGui::MenuItem( name.c_str() ) )
-                        {
-                            auto& pool = mProject.mScene.mPools[id];
-                            pool.PushEmpty( mSelectedEntity );
-                            mProject.mScene.mEntitiesComponentIds[mSelectedEntity].insert( id );
-                        }
+                            mSelectedEntity.EntityAddComponentId( id );
                     }
                     ImGui::EndMenu();
                 }
 
                 if ( ImGui::BeginMenu( "Remove component" ) )
                 {
-                    for ( const auto& [name, id] : mProject.mScene.mComponents )
+                    for ( const auto& [name, id] : allComponents )
                     {
                         if ( not entityComponents.contains( id ) )
                             continue;
 
                         if ( ImGui::MenuItem( name.c_str() ) )
-                        {
-                            auto& pool = mProject.mScene.mPools[id];
-                            pool.Remove( mSelectedEntity );
-                            mProject.mScene.mEntitiesComponentIds[mSelectedEntity].erase( id );
-                        }
+                            mSelectedEntity.EntityRemoveComponentId( id );
                     }
                     ImGui::EndMenu();
                 }
