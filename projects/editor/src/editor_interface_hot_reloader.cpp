@@ -14,7 +14,9 @@ EditorInterfaceHotReloader::EditorInterfaceHotReloader( EditorState& editorState
       mEditorState( editorState ),
       mEngine( engine ),
       mHotReloader( CreateRef<hr::HotReloader>( "bubble_interface" ) )
-{}
+{
+    LoadInterfaces();
+}
 
 EditorInterfaceHotReloader::~EditorInterfaceHotReloader()
 {}

@@ -9,7 +9,7 @@ constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : EditorState{ 
+    : EditorState{
         .mWindow = Window( "Bubble", WINDOW_SIZE ),
         .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
                                        Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
@@ -34,9 +34,6 @@ BubbleEditor::BubbleEditor()
 
     // Selecting objects
     mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );
-
-    // Editor's viewport interface
-    mInterfaceHotReloader.LoadInterfaces();
 }
 
 
@@ -51,23 +48,24 @@ void BubbleEditor::Run()
 #endif
     {
         // Poll events
-        const auto& events = mWindow.PollEvents();
-        for ( const auto& event : events )
-            mSceneCamera.OnEvent( event );
-
-        // Update editor state
         mTimer.OnUpdate();
         auto dt = mTimer.GetDeltaTime();
-        mSceneCamera.OnUpdate( dt );
-        mResourceHotReloader.OnUpdate();
-        mInterfaceHotReloader.OnUpdate( dt );
+        const auto& events = mWindow.PollEvents();
 
         // Draw scene
         switch ( mEditorMode )
         {
         case EditorMode::Editing:
+        {
+            for ( const auto& event : events )
+                mSceneCamera.OnEvent( event );
+            mSceneCamera.OnUpdate( dt );
+            mResourceHotReloader.OnUpdate();
+            mInterfaceHotReloader.OnUpdate( dt );
+
             DrawProjectScene();
             break;
+        }
         case EditorMode::Runing:
             break;
         }
