@@ -16,9 +16,8 @@ struct Engine;
 class IEditorInterface : public EditorStateRef
 {
 public:
-    IEditorInterface( EditorState& editorState, Engine& engine )
-        : EditorStateRef( editorState ),
-          mEngine( engine )
+    IEditorInterface( EditorState& editorState )
+        : EditorStateRef( editorState )
     {}
     virtual ~IEditorInterface()
     {}
@@ -29,6 +28,5 @@ public:
     virtual void OnDraw( DeltaTime dt ) = 0;
 protected:
     bool mOpen = true;
-    Engine& mEngine;
 };
 }

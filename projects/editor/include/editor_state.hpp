@@ -11,6 +11,8 @@ struct EditorState
     Framebuffer mObjectIdViewport;
     SceneCamera mSceneCamera;
 
+    Engine mEngine;
+
     Project mProject;
     Entity mSelectedEntity;
 };
@@ -22,6 +24,7 @@ struct EditorStateRef
           mSceneViewport( editorState.mSceneViewport ),
           mObjectIdViewport( editorState.mObjectIdViewport ),
           mSceneCamera( editorState.mSceneCamera ),
+          mEngine( editorState.mEngine ),
           mProject( editorState.mProject ),
           mSelectedEntity( editorState.mSelectedEntity )
     {}
@@ -30,6 +33,8 @@ struct EditorStateRef
     Framebuffer& mSceneViewport;
     Framebuffer& mObjectIdViewport;
     SceneCamera& mSceneCamera;
+
+    Engine& mEngine;
 
     Project& mProject;
     Entity& mSelectedEntity;

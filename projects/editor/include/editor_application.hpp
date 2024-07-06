@@ -23,7 +23,6 @@ private:
     EditorMode mEditorMode;
     Ref<Shader> mObjectIdShader;
 
-    Engine mEngine;
     EditorInterfaceHotReloader mInterfaceHotReloader;
     ResourceHotReloader mResourceHotReloader;
 };

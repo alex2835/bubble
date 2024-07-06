@@ -22,8 +22,10 @@ Mesh::Mesh( const string& name,
         { "Bitangent", GLSLDataType::Float3, mVertices.mBitangents.size() }
     };
 
-    u64 size = sizeof( vec3 ) * mVertices.mPositions.size() + sizeof( vec3 ) * mVertices.mNormals.size() +
-               sizeof( vec2 ) * mVertices.mTexCoords.size() + sizeof( vec3 ) * mVertices.mTangents.size() +
+    u64 size = sizeof( vec3 ) * mVertices.mPositions.size() + 
+               sizeof( vec3 ) * mVertices.mNormals.size() +
+               sizeof( vec2 ) * mVertices.mTexCoords.size() +
+               sizeof( vec3 ) * mVertices.mTangents.size() +
                sizeof( vec3 ) * mVertices.mBitangents.size();
 
     vector<char> data( size );
@@ -43,13 +45,13 @@ Mesh::Mesh( const string& name,
 
     memmove( data.data() + offset, mVertices.mBitangents.data(), sizeof( vec3 ) * mVertices.mBitangents.size() );
 
-    IndexBuffer  index_buffer = IndexBuffer( mIndices.data(), mIndices.size() );
-    VertexBuffer vertex_buffer = VertexBuffer( layout, data.data(), size );
+    auto vertex_buffer = VertexBuffer( layout, data.data(), size );
+    auto index_buffer = IndexBuffer( mIndices.data(), mIndices.size() );
     mVertexArray.AddVertexBuffer( std::move( vertex_buffer ) );
     mVertexArray.SetIndexBuffer( std::move( index_buffer ) );
 }
 
-void Mesh::BindVertetxArray() const
+void Mesh::BindVertexArray() const
 {
     mVertexArray.Bind();
 }

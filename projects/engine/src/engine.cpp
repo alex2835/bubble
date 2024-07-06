@@ -10,7 +10,7 @@ void Engine::OnUpdate()
 
 void Engine::DrawScene( const Camera& camera, 
                         const Framebuffer& framebuffer )
-{   
+{
     // Scene rendering
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
@@ -24,6 +24,5 @@ void Engine::DrawScene( const Camera& camera,
         mRenderer.DrawModel( model, transform.Transform(), shader );
     } );
 }
-
 
 }

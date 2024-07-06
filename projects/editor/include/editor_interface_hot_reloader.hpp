@@ -15,8 +15,7 @@ struct EditorState;
 class EditorInterfaceHotReloader
 {
 public:
-    EditorInterfaceHotReloader( EditorState& editorState,
-                           Engine& engine );
+    EditorInterfaceHotReloader( EditorState& editorState );
     ~EditorInterfaceHotReloader();
 
     void AddInterface( Ref<IEditorInterface> );
@@ -27,7 +26,6 @@ public:
 
 private:
     EditorState& mEditorState;
-    Engine& mEngine;
     ImGuiContext* mImGuiContext;
 
     Ref<hr::HotReloader> mHotReloader;

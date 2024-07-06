@@ -15,6 +15,6 @@ target_include_directories(${TARGET_NAME} PUBLIC
 
 add_custom_command(
     TARGET ${TARGET_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
     ${PROJECT_SOURCE_DIR}/resources
     $<TARGET_FILE_DIR:${TARGET_NAME}>/resources)

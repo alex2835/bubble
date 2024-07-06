@@ -19,22 +19,20 @@ HR_REGISTER_FUNC( void, ImGuiContextInit, ImGuiContext* );
 
 
 void LoadEditorInterface( EditorState& editorState,
-                          Engine& engine,
-                          std::vector<Ref<IEditorInterface>>& interfaces )
+                          vector<Ref<IEditorInterface>>& interfaces )
 {
-    auto menubar = Ref<IEditorInterface>( ( IEditorInterface* ) new Menubar( editorState, engine ) );
-    interfaces.push_back( menubar );
+    auto menuBar = Ref<IEditorInterface>( ( IEditorInterface* ) new Menubar( editorState ) );
+    interfaces.push_back( menuBar );
 
-    auto entitiesInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new EntitiesInterface( editorState, engine ) );
+    auto entitiesInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new EntitiesInterface( editorState ) );
     interfaces.push_back( entitiesInterface );
 
-    auto viewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( editorState, engine ) );
+    auto viewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( editorState ) );
     interfaces.push_back( viewportInterface );
 
-    auto projectInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new ProjectInterface( editorState, engine ) );
+    auto projectInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new ProjectInterface( editorState ) );
     interfaces.push_back( projectInterface );
 }
-HR_REGISTER_FUNC( void, LoadEditorInterface, 
-                  EditorState&, Engine&, std::vector<Ref<IEditorInterface>>& );
+HR_REGISTER_FUNC( void, LoadEditorInterface, EditorState&, vector<Ref<IEditorInterface>>& );
 
 }

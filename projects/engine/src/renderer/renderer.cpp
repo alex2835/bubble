@@ -80,7 +80,7 @@ void Renderer::DrawMesh( const Mesh& mesh,
                          const Ref<Shader>& shader,
                          const mat4& transform )
 {
-    mesh.BindVertetxArray();
+    mesh.BindVertexArray();
     if ( shader->mModules.test( ShaderModule::Material ) )
         mesh.ApplyMaterial( shader );
     glDrawElements( GL_TRIANGLES, (GLsizei)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );

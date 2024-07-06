@@ -1,4 +1,5 @@
 #pragma once
+#include "engine/renderer/camera_third_person.hpp"
 #include "ieditor_interface.hpp"
 #include "editor_application.hpp"
 
@@ -12,16 +13,17 @@ enum class FilesystemNodeType
     Texture
 };
 
-bool isModelDir( const filesystem::directory_entry& dir )
+namespace
+{
+std::optional<path> tryFindModelInFolder( const path& dir )
 {
     for ( const auto& item : filesystem::directory_iterator( dir ) )
     {
         const auto& extension = item.path().extension();
-        if ( extension == ".obj" or 
-             extension == ".blend" )
-            return true;
+        if ( extension == ".obj" )
+            return item;
     }
-    return false;
+    return std::nullopt;
 }
 
 bool isTextureFile( const filesystem::directory_entry& item )
@@ -37,7 +39,7 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 {
     if ( item.is_directory() )
     {
-        if ( isModelDir( item ) )
+        if ( tryFindModelInFolder( item ) )
             return FilesystemNodeType::Model;
         return FilesystemNodeType::Folder;
     }
@@ -48,20 +50,27 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
     }
     return FilesystemNodeType::Unknown;
 }
-
-
+} // namespace
 
 
 
 class ProjectInterface : public IEditorInterface
 {
-public:
     struct FilesystemNode
     {
         path mPath;
         FilesystemNodeType mType = FilesystemNodeType::Unknown;
         vector<FilesystemNode> mChildren;
     };
+
+public:
+    using IEditorInterface::IEditorInterface;
+    ~ProjectInterface() override = default;
+
+    string_view Name() override
+    {
+        return "Project"sv;
+    }
 
     void FillFilesystemNode( FilesystemNode& root )
     {
@@ -76,27 +85,36 @@ public:
         }
     }
 
+    void FillIcons( const FilesystemNode& node )
+    {
+        if ( node.mType == FilesystemNodeType::Model )
+        {
+            auto modelPath = tryFindModelInFolder( node.mPath );
+            if ( modelPath )
+                mProject.mLoader.LoadModel( *modelPath );
+            //mEngine.DrawScene();
+        }
+
+        for ( const auto& child : node.mChildren )
+            FillIcons( child );
+    }
+
     void FillFilesystemTree()
     {
         FilesystemNode root;
         root.mPath = mProject.mRootFile.parent_path();
         root.mType = FilesystemNodeType::Folder;
         FillFilesystemNode( root );
+        FillIcons( root );
         std::swap( mFilesystemTreeRoot, root );
-    }
-
-    
-
-    using IEditorInterface::IEditorInterface;
-    ~ProjectInterface() override = default;
-
-    string_view Name() override
-    {
-        return "Project"sv;
     }
 
     void OnInit() override
     {
+        mShader = LoadShader( "./resources/shaders/only_defuse" );
+
+        mFolderIcon = LoadTexture2D( "./resources/images/project_tree/folder.png" );
+        mFileIcon = LoadTexture2D( "./resources/images/project_tree/file.png" );
         if ( not mProject.mName.empty() )
             FillFilesystemTree();
     }
@@ -130,8 +148,37 @@ public:
         if ( not mSelectedNode )
             return;
 
-        for ( const auto& child : mSelectedNode->mChildren )
-            ImGui::Text( child.mPath.string().c_str() );
+        int elementsInRow = 8;
+        ImVec2 windowSize = ImGui::GetWindowSize();
+        float elemLength = windowSize.x / ( elementsInRow * 1.1f );
+        ImVec2 elemSize = ImVec2( elemLength, elemLength );
+
+        for ( size_t i = 0; i < mSelectedNode->mChildren.size(); i++ )
+        {
+            const auto& child = mSelectedNode->mChildren[i];
+            if ( i % elementsInRow != 0 )
+                ImGui::SameLine();
+
+            ImGui::BeginChild( child.mPath.string().c_str(), elemSize + ImVec2( 0, 50 ) );
+            {
+                // Handle actions
+                if ( child.mType == FilesystemNodeType::Folder and
+                     ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) and
+                     ImGui::IsWindowHovered() )
+                    mSelectedNode = &child;
+
+                // Draw
+                Ref<Texture2D> texture = mFileIcon;
+                if ( child.mType == FilesystemNodeType::Folder )
+                    texture = mFolderIcon;
+                if ( child.mType == FilesystemNodeType::Texture )
+                    texture = mProject.mLoader.LoadTexture2D( child.mPath );
+
+                ImGui::Image( (ImTextureID)(GLint64)texture->RendererID(), elemSize );
+                ImGui::Text( child.mPath.stem().string().c_str() );
+            }
+            ImGui::EndChild();
+        }
     }
 
     void OnDraw( DeltaTime ) override
@@ -141,7 +188,7 @@ public:
         {
             ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
             {
-                if ( ImGui::Button( "Update", ImVec2{ 50, 20 } ) )
+                if ( ImGui::Button( "Update", ImVec2{ 75, 25 } ) )
                     FillFilesystemTree();
 
                 DrawFilesystemTree( mFilesystemTreeRoot );
@@ -163,6 +210,15 @@ public:
 private:
     FilesystemNode mFilesystemTreeRoot;
     const FilesystemNode* mSelectedNode = nullptr;
+
+    // Render model
+    ThirdPersonCamera mCamera;
+    Scene mScene;
+    Ref<Shader> mShader;
+
+    str_hash_map<Texture2D> mModelIcons;
+    Ref<Texture2D> mFolderIcon;
+    Ref<Texture2D> mFileIcon;
 };
 
 }

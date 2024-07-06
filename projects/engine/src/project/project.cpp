@@ -24,6 +24,12 @@ void Project::Create( const path& rootDir, const string& projectName )
     mRootFile =  ( projectDir / projectName ).replace_extension( ROOT_FILE_EXT );
     if ( filesystem::exists( mRootFile ) )
         throw std::runtime_error( "Project with such name already exists: " + mRootFile.string() );
+
+    // Load default stuff
+    mLoader.LoadShader( PHONG_SHADER );
+    mLoader.LoadShader( ONLY_DEFUSE_SHADER );
+    mLoader.LoadShader( WHITE_SHADER );
+
     Save();
 }
 

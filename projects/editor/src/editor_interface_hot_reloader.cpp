@@ -8,11 +8,9 @@
 
 namespace bubble
 {
-EditorInterfaceHotReloader::EditorInterfaceHotReloader( EditorState& editorState,
-                                              Engine& engine )
+EditorInterfaceHotReloader::EditorInterfaceHotReloader( EditorState& editorState )
     : mImGuiContext( editorState.mWindow.GetImGuiContext() ),
       mEditorState( editorState ),
-      mEngine( engine ),
       mHotReloader( CreateRef<hr::HotReloader>( "bubble_interface" ) )
 {
     LoadInterfaces();
@@ -32,9 +30,9 @@ void EditorInterfaceHotReloader::LoadInterfaces()
     auto contextInit = mHotReloader->GetFunction<void(ImGuiContext*)>( "ImGuiContextInit" );
     contextInit( mImGuiContext );
 
-    auto loader = mHotReloader->GetFunction<void( EditorState&, Engine&, std::vector<Ref<IEditorInterface>>& )>( "LoadEditorInterface" );
+    auto loader = mHotReloader->GetFunction<void( EditorState&, vector<Ref<IEditorInterface>>& )>( "LoadEditorInterface" );
     std::vector<Ref<IEditorInterface>> interfaces;
-    loader( mEditorState, mEngine, interfaces );
+    loader( mEditorState, interfaces );
     for ( const auto& inter : interfaces )
         AddInterface( inter );
 }

@@ -11,22 +11,21 @@ namespace bubble
 
 BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
 {
-    constexpr auto textureTypes = 4;
-    const aiTextureType types[textureTypes] = { aiTextureType_DIFFUSE ,
+    const array<aiTextureType, 4> textureTypes{ aiTextureType_DIFFUSE ,
                                                 aiTextureType_SPECULAR,
                                                 aiTextureType_HEIGHT,
                                                 aiTextureType_NORMALS };
     BasicMaterial material;
     auto directory = path.parent_path();
-    for ( u32 i = 0; i < textureTypes; i++ )
+    for ( u32 i = 0; i < textureTypes.size(); i++ )
     {
-        auto texturesCount = mat->GetTextureCount( types[i] );
+        auto texturesCount = mat->GetTextureCount( textureTypes[i] );
         for ( u32 j = 0; j < texturesCount; j++ )
         {
             aiString str;
-            mat->GetTexture( types[i], j, &str );
+            mat->GetTexture( textureTypes[i], j, &str );
 
-            switch ( types[i] )
+            switch ( textureTypes[i] )
             {
             case aiTextureType_DIFFUSE:
                 material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
@@ -118,7 +117,7 @@ Mesh ProcessMesh( const aiMesh* mesh,
     // Material
     aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
     BasicMaterial material = LoadMaterialTextures( assimp_material, path );
-
+    
     return Mesh( mesh->mName.C_Str(),
                  std::move( material ),
                  std::move( vertices ),
@@ -167,12 +166,11 @@ Ref<Model> LoadModel( const path& path )
 
 Ref<Model> Loader::LoadModel( const path& path )
 {
-	auto iter = mModels.find( path );
+    auto iter = mModels.find( path );
     if ( iter != mModels.end() )
         return iter->second;
 
 	auto model = bubble::LoadModel( path );
-    //model->mShader = LoadShader( PHONG_SHADER ); // default shader
 	mModels.emplace( path, model );
     return model;
 }

@@ -18,7 +18,7 @@ BubbleEditor::BubbleEditor()
       },
       mEditorMode( EditorMode::Editing ),
       mResourceHotReloader( mProject.mLoader ),
-      mInterfaceHotReloader( *this, mEngine )
+      mInterfaceHotReloader( *this )
 {
     // Window
     mWindow.SetVSync( false );

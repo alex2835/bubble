@@ -32,7 +32,7 @@ public:
     Mesh( Mesh&& ) = default;
     Mesh& operator= ( Mesh&& ) = default;
 
-    void BindVertetxArray() const;
+    void BindVertexArray() const;
     u64 IndiciesSize() const;
 
     void ApplyMaterial( const Ref<Shader>& shader ) const;
