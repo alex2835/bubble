@@ -125,7 +125,7 @@ void Texture2D::Swap( Texture2D& other ) noexcept
     std::swap( mSpecification, other.mSpecification );
 }
 
-void Texture2D::SetData( void* data, u32 size )
+void Texture2D::SetData( const void* data, u32 size )
 {
     Bind();
     u32 channels = mSpecification.ExtractTextureSpecChannels();

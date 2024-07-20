@@ -5,42 +5,104 @@
 #include "assimp/Exporter.hpp"
 #include "assimp/scene.h"
 #include "assimp/postprocess.h"
+#include "thread_pool.hpp"
+#include "fixed_size_packaged_task.hpp"
 
 namespace bubble
 {
+constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE ,
+                                                 aiTextureType_SPECULAR,
+                                                 aiTextureType_HEIGHT,
+                                                 aiTextureType_NORMALS };
 
-BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
+struct ModelData
 {
-    const array<aiTextureType, 4> textureTypes{ aiTextureType_DIFFUSE ,
-                                                aiTextureType_SPECULAR,
-                                                aiTextureType_HEIGHT,
-                                                aiTextureType_NORMALS };
-    BasicMaterial material;
-    auto directory = path.parent_path();
-    for ( u32 i = 0; i < textureTypes.size(); i++ )
+    Scope<Assimp::Importer> mImporter;
+    map<path, TextureData> mTexturesData;
+    path mPath;
+};
+
+
+map<path, TextureData> LoadModelTextureData( const path& modelDirectory,
+                                             const aiScene* scene )
+{
+    map<path, TextureData> texturesData;
+
+    ThreadPool threadPool;
+    std::vector<FixedSizePackagedTask<pair<path, TextureData>()>> tasks;
+
+    for ( u32 materialIndex = 0; materialIndex < scene->mNumMaterials; materialIndex++ )
     {
-        auto texturesCount = mat->GetTextureCount( textureTypes[i] );
+        auto material = scene->mMaterials[materialIndex];
+        for ( u32 textureTypeIndex = 0; textureTypeIndex < cTextureTypes.size(); textureTypeIndex++ )
+        {
+            auto textureType = cTextureTypes[textureTypeIndex];
+            auto texturesCount = material->GetTextureCount( textureType );
+            for ( u32 textureIndex = 0; textureIndex < texturesCount; textureIndex++ )
+            {
+                aiString textureName;
+                material->GetTexture( textureType, textureIndex, &textureName );
+                auto texturePath = modelDirectory / textureName.C_Str();
+                tasks.emplace_back( [texturePath]()
+                {
+                    auto textureData = OpenTexture( texturePath );
+                    return std::make_pair( texturePath, std::move( textureData ) );
+                } );
+            }
+        }
+    }
+    threadPool.AddTasks( tasks );
+
+    for ( auto& task : tasks )
+    {
+        auto [texturePath, textureData] = task.get();
+        texturesData.emplace( texturePath, std::move( textureData ) );
+    }
+    return texturesData;
+}
+
+
+ModelData OpenModel( const path& modelPath )
+{
+    auto importer = CreateScope<Assimp::Importer>();
+    const aiScene* scene = importer->ReadFile( modelPath.string(), 0 );
+    if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
+        throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer->GetErrorString() ) );
+    importer->ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
+
+    auto texturesData = LoadModelTextureData( modelPath.parent_path(), importer->GetScene() );
+    return { std::move( importer ), std::move( texturesData ), modelPath };
+}
+
+
+
+BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& modelDirectory )
+{
+    BasicMaterial material;
+    for ( u32 i = 0; i < cTextureTypes.size(); i++ )
+    {
+        auto texturesCount = mat->GetTextureCount( cTextureTypes[i] );
         for ( u32 j = 0; j < texturesCount; j++ )
         {
             aiString str;
-            mat->GetTexture( textureTypes[i], j, &str );
+            mat->GetTexture( cTextureTypes[i], j, &str );
 
-            switch ( textureTypes[i] )
+            switch ( cTextureTypes[i] )
             {
             case aiTextureType_DIFFUSE:
-                material.mDiffuseMap = LoadTexture2D( directory / str.C_Str() );
+                material.mDiffuseMap = LoadTexture2D( modelDirectory / str.C_Str() );
                 break;
             case aiTextureType_SPECULAR:
-                material.mSpecularMap = LoadTexture2D( directory / str.C_Str() );
+                material.mSpecularMap = LoadTexture2D( modelDirectory / str.C_Str() );
                 break;
             case aiTextureType_NORMALS:
-                material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
+                material.mNormalMap = LoadTexture2D( modelDirectory / str.C_Str() );
                 break;
                 //case aiTextureType_HEIGHT:
                 //    material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
                 //    break;
             default:
-                LogWarning( "Model: {}. Doesn't use texture: {}", path.string(), str.C_Str() );
+                LogWarning( "Model: {}. Doesn't use texture: {}", modelDirectory.string(), str.C_Str() );
             }
         }
     }
@@ -75,7 +137,7 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& path )
 
 Mesh ProcessMesh( const aiMesh* mesh,
                   const aiScene* scene,
-                  const path& path )
+                  const path& modelPath )
 {
     VertexData vertices;
 
@@ -116,7 +178,7 @@ Mesh ProcessMesh( const aiMesh* mesh,
 
     // Material
     aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
-    BasicMaterial material = LoadMaterialTextures( assimp_material, path );
+    BasicMaterial material = LoadMaterialTextures( assimp_material, modelPath.parent_path() );
     
     return Mesh( mesh->mName.C_Str(),
                  std::move( material ),
@@ -128,39 +190,41 @@ Mesh ProcessMesh( const aiMesh* mesh,
 Scope<MeshTreeViewNode> ProcessNode( Model& model,
                                      const aiNode* node,
                                      const aiScene* scene,
-                                     const path& path )
+                                     const path& modelPath )
 {
     auto mesh_node = CreateScope<MeshTreeViewNode>( node->mName.C_Str() );
 
     for ( u32 i = 0; i < node->mNumMeshes; i++ )
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-        model.mMeshes.push_back( ProcessMesh( mesh, scene, path ) );
+        model.mMeshes.push_back( ProcessMesh( mesh, scene, modelPath ) );
         mesh_node->mMeshes.push_back( &model.mMeshes.back() );
     }
     for ( u32 i = 0; i < node->mNumChildren; i++ )
-        mesh_node->mChildren.push_back( ProcessNode( model, node->mChildren[i], scene, path ) );
+        mesh_node->mChildren.push_back( ProcessNode( model, node->mChildren[i], scene, modelPath ) );
 
     return std::move( mesh_node );
 }
 
 
+Ref<Model> LoadModel( const ModelData& modelData )
+{
+    auto scene = modelData.mImporter->GetScene();
+
+    auto model = CreateRef<Model>();
+    model->mName = modelData.mPath.stem().string();
+    model->mPath = modelData.mPath;
+    model->mMeshes.reserve( scene->mNumMeshes );
+    model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, modelData.mPath );
+    //model->CreateBoundingBox();
+    return model;
+}
+
 
 Ref<Model> LoadModel( const path& path )
 {
-    Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile( path.string(), 0 );
-    if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
-        throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer.GetErrorString() ) );
-    importer.ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
-
-	auto model = CreateRef<Model>();
-    model->mName = path.stem().string();
-	model->mPath = path;
-    model->mMeshes.reserve( scene->mNumMeshes );
-    model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, path );
-    //model->CreateBoundingBox();
-	return model;
+    auto modelData = OpenModel( path );
+    return LoadModel( modelData );
 }
 
 
@@ -173,6 +237,32 @@ Ref<Model> Loader::LoadModel( const path& path )
 	auto model = bubble::LoadModel( path );
 	mModels.emplace( path, model );
     return model;
+}
+
+
+void Loader::LoadModels( const vector<path>& modelsPaths )
+{
+    ThreadPool threadPool;
+    std::vector<FixedSizePackagedTask<pair<path,ModelData>()>> modelDataTasks;
+
+    for ( const path& modelPath : modelsPaths )
+    {
+        if ( mModels.contains( modelPath ) )
+            continue;
+
+        modelDataTasks.emplace_back( [modelPath]()
+        {
+            return std::make_pair( modelPath, OpenModel( modelPath ) );
+        } );
+    }
+
+    threadPool.AddTasks( modelDataTasks );
+
+    for ( auto& task : modelDataTasks )
+    {
+        auto [modelPath, modelData] = task.get();
+        mModels[modelPath] = bubble::LoadModel( modelData );
+    }
 }
 
 }

@@ -27,13 +27,15 @@ void to_json( json& j, const Loader& loader )
 
 void from_json( const json& j, Loader& loader )
 {
+    //if ( j.contains( "textures" ) && !j["textures"].is_null() )
+    //    for ( const auto& texturePath : j["textures"] )
+    //        loader.LoadTexture2D( texturePath );
+    
     if ( j.contains( "textures" ) && !j["textures"].is_null() )
-        for ( const auto& texturePath : j["textures"] )
-            loader.LoadTexture2D( texturePath );
+        loader.LoadTextures2D( j["textures"] );
 
     if ( j.contains( "models" ) && !j["models"].is_null() )
-        for ( const auto& modelPath : j["models"] )
-            loader.LoadModel( modelPath );
+        loader.LoadModels( j["models"] );
 
     if ( j.contains( "shaders" ) && !j["shaders"].is_null() )
         for ( const auto& shaderPath : j["shaders"] )

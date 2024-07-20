@@ -16,6 +16,9 @@
 #include <exception>
 #include <tuple>
 #include <format>
+#include <ranges>
+#include <future>
+#include <span>
 
 namespace bubble
 {
@@ -24,6 +27,8 @@ using namespace CPM_GLM_AABB_NS;
 using namespace nlohmann;
 using namespace std::string_literals;
 using namespace std::string_view_literals;
+namespace ranges = std::ranges;
+namespace views = std::ranges::views;
 
 using i8 = std::int8_t;
 using u8 = std::uint8_t;
@@ -58,7 +63,12 @@ template <typename T, u64 SIZE>
 using array = std::array<T, SIZE>;
 template <typename T>
 using opt = std::optional<T>;
-
+template <typename T, typename S>
+using pair = std::pair<T, S>;
+template <typename T>
+using future = std::future<T>;
+template <typename T>
+using span = std::span<T>;
 
 struct string_hash
 {

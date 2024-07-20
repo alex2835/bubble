@@ -53,7 +53,7 @@ public:
     GLsizei Height() const;
 
     // size in bytes
-    void SetData( void* data, u32 size );
+    void SetData( const void* data, u32 size );
     void GetData( void* data, u32 size ) const;
 
     void Bind( i32 slot = 0 ) const;

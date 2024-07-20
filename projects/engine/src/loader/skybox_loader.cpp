@@ -5,7 +5,7 @@ namespace bubble
 {
 Ref<Skybox> LoadSkybox( const path& path )
 {
-    auto [data, spec] = OpenImage( path );
+    auto [data, spec, _] = OpenTexture( path );
 
     auto width = spec.mWidth / 4;
     auto height = spec.mHeight / 3;
