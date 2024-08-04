@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.0.0)
-project(hot_reloader_main VERSION 0.1.0)
+cmake_minimum_required(VERSION 3.12)
+project(hot_reloader_main)
 
 add_subdirectory(import)
 add_subdirectory(export)

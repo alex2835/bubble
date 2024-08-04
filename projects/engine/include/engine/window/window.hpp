@@ -53,6 +53,9 @@ public:
     void LockCursor( bool lock );
     void SetVSync( bool vsync );
 
+    const MouseInput& GetMouseInput() const;
+    const KeyboardInput& GetKeyboardInput() const;
+
     GLFWwindow* GetHandle() const;
     const char* GetGLSLVersion() const;
 

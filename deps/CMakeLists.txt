@@ -1,12 +1,14 @@
 
 if(NOT EMSCRIPTEN)
 	#GIT_TAG glew-cmake-2.2.0  GIT_REPOSITORY "https://github.com/Perlmint/glew-cmake.git"
+
 	add_subdirectory(glew)
 
 	#GIT_TAG 3.3.8  GIT_REPOSITORY "https://github.com/glfw/glfw.git"
     option(GLFW_BUILD_EXAMPLES "" OFF)
 	option(GLFW_BUILD_TESTS "" OFF)
 	option(GLFW_BUILD_DOCS "" OFF)
+	option(glew-cmake_BUILD_SHARED "" OFF)
 	add_subdirectory(glfw)
 endif()
 
@@ -31,3 +33,4 @@ add_subdirectory(hot_reloader)
 add_subdirectory(stb_image)
 add_subdirectory(magic_enum)
 add_subdirectory(thread_pool)
+add_subdirectory(argagg)

@@ -8,13 +8,14 @@ add_executable(${TARGET_NAME} ${SRCS} ${HDRS})
 
 target_link_libraries(${TARGET_NAME} bubble_engine)
 target_link_libraries(${TARGET_NAME} hot_reloader_import)
+target_link_libraries(${TARGET_NAME} argagg)
 
 target_include_directories(${TARGET_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 add_custom_command(
-    TARGET ${TARGET_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+    TARGET ${TARGET_NAME} PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
     ${PROJECT_SOURCE_DIR}/resources
     $<TARGET_FILE_DIR:${TARGET_NAME}>/resources)

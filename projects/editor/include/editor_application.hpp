@@ -17,6 +17,7 @@ class BubbleEditor : EditorState
 
 public:
     BubbleEditor();
+    void OpenProject( const path& projectPath );
     void Run();
     void DrawProjectScene();
 private:

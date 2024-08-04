@@ -5,16 +5,25 @@ namespace bubble
 {
 struct EditorState
 {
+    bool IsKeyCliked( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
+    i32 IsKeyPressed( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
+    bool IsKeyCliked( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyCliked( key ); };
+    i32 IsKeyPressed( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyPressed( key ); };
+
+public:
+    // Editor
     Timer mTimer;
     Window mWindow;
     Framebuffer mSceneViewport;
     Framebuffer mObjectIdViewport;
     SceneCamera mSceneCamera;
-
+    // Engine 
     Engine mEngine;
-
+    // Project
     Project mProject;
     Entity mSelectedEntity;
+    // UI global state
+    bool mUINeedUpdateProjectInterface = false;
 };
 
 struct EditorStateRef
@@ -26,17 +35,26 @@ struct EditorStateRef
           mSceneCamera( editorState.mSceneCamera ),
           mEngine( editorState.mEngine ),
           mProject( editorState.mProject ),
-          mSelectedEntity( editorState.mSelectedEntity )
+          mSelectedEntity( editorState.mSelectedEntity ),
+          mUINeedUpdateProjectInterface( editorState.mUINeedUpdateProjectInterface )
     {}
+    bool IsKeyCliked( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
+    i32 IsKeyPressed( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
+    bool IsKeyCliked( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyCliked( key ); };
+    i32 IsKeyPressed( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyPressed( key ); };
 
+public:
+    // Editor
     Window& mWindow;
     Framebuffer& mSceneViewport;
     Framebuffer& mObjectIdViewport;
     SceneCamera& mSceneCamera;
-
+    // Engine
     Engine& mEngine;
-
+    // Project
     Project& mProject;
     Entity& mSelectedEntity;
+    // UI global state
+    bool& mUINeedUpdateProjectInterface;
 };
 }

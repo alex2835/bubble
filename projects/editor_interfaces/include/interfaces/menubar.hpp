@@ -59,6 +59,8 @@ public:
                 mProject.Create( mCreateProjectSelectedPath, mCreateProjectName );
                 ImGui::CloseCurrentPopup();
                 mCreateProjectModal = false;
+
+                mUINeedUpdateProjectInterface = true;
             }
             ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
 
@@ -98,6 +100,8 @@ public:
                 mFileDialog.ClearSelected();
                 mOpenProjectModal = false;
                 mProject.Open( projectPath );
+
+                mUINeedUpdateProjectInterface = true;
             }
             catch ( const std::exception& e )
             {

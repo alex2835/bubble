@@ -188,8 +188,11 @@ public:
         {
             ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
             {
-                if ( ImGui::Button( "Update", ImVec2{ 75, 25 } ) )
+                if ( mUINeedUpdateProjectInterface )
+                {
+                    mUINeedUpdateProjectInterface = false;
                     FillFilesystemTree();
+                }
 
                 DrawFilesystemTree( mFilesystemTreeRoot );
             }

@@ -21,16 +21,16 @@ HR_REGISTER_FUNC( void, ImGuiContextInit, ImGuiContext* );
 void LoadEditorInterface( EditorState& editorState,
                           vector<Ref<IEditorInterface>>& interfaces )
 {
-    auto menuBar = Ref<IEditorInterface>( ( IEditorInterface* ) new Menubar( editorState ) );
+    auto menuBar = Ref<IEditorInterface>( new Menubar( editorState ) );
     interfaces.push_back( menuBar );
 
-    auto entitiesInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new EntitiesInterface( editorState ) );
+    auto entitiesInterface = Ref<IEditorInterface>( new EntitiesInterface( editorState ) );
     interfaces.push_back( entitiesInterface );
 
-    auto viewportInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new SceneViewportInterface( editorState ) );
+    auto viewportInterface = Ref<IEditorInterface>( new SceneViewportInterface( editorState ) );
     interfaces.push_back( viewportInterface );
 
-    auto projectInterface = Ref<IEditorInterface>( ( IEditorInterface* ) new ProjectInterface( editorState ) );
+    auto projectInterface = Ref<IEditorInterface>( new ProjectInterface( editorState ) );
     interfaces.push_back( projectInterface );
 }
 HR_REGISTER_FUNC( void, LoadEditorInterface, EditorState&, vector<Ref<IEditorInterface>>& );

@@ -271,6 +271,16 @@ void Window::SetVSync( bool vsync )
     glfwSwapInterval( vsync );
 }
 
+const MouseInput& Window::GetMouseInput() const
+{
+    return mMouseInput;
+}
+
+const KeyboardInput& Window::GetKeyboardInput() const
+{
+    return mKeyboardInput;
+}
+
 GLFWwindow* Window::GetHandle() const
 {
     return mWindow;

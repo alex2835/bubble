@@ -1,5 +1,6 @@
-#include "engine/utils/emscripten_main_loop.hpp"
 #include "engine/scene/components_manager.hpp"
+#include "engine/utils/emscripten_main_loop.hpp"
+#include "engine/log/log.hpp"
 #include "editor_application.hpp"
 #include <functional>
 
@@ -37,10 +38,15 @@ BubbleEditor::BubbleEditor()
 }
 
 
+void BubbleEditor::OpenProject( const path& projectPath )
+{
+    LogInfo( "Openg project {}", projectPath.string() );
+    mProject.Open( projectPath );
+}
+
+
 void BubbleEditor::Run()
 {
-    mProject.Open( R"(C:\Users\sa007\Desktop\projects\bubble_sand_box\project name\project name.bubble)" );
-
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
