@@ -67,7 +67,6 @@ void Loader::LoadTextures2D( const vector<path>& texturePaths )
             return std::make_pair( texturePath, OpenTexture( texturePath ) );
         } );
     }
-
     threadPool.AddTasks( textureDataTasks );
 
     for ( auto& task : textureDataTasks )

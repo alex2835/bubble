@@ -6,14 +6,6 @@
 #include "fixed_size_packaged_task.hpp"
 #include "thread_pool.hpp"
 
-
-void* operator new ( size_t size, const char* filename, int line )
-{
-    assert( false );
-    void* ptr = new char[size];
-    return ptr;
-}
-
 int mulFunc( int x, int y )
 {
     return x * y;

@@ -255,7 +255,6 @@ void Loader::LoadModels( const vector<path>& modelsPaths )
             return std::make_pair( modelPath, OpenModel( modelPath ) );
         } );
     }
-
     threadPool.AddTasks( modelDataTasks );
 
     for ( auto& task : modelDataTasks )

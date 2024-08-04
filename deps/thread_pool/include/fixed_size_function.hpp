@@ -1,5 +1,4 @@
 ﻿#pragma once
-#include <array>
 #include <type_traits>
 
 template <typename Signature, size_t StorageSize = 64>
@@ -8,7 +7,7 @@ class FixedSizeFunction;
 template <typename Ret, typename... Args, size_t StorageSize>
 class FixedSizeFunction<Ret( Args... ), StorageSize>
 {
-    using StorageType = std::array<unsigned char, StorageSize>;
+    using StorageType = unsigned char[StorageSize];
     using FunctionPtrType = Ret( * )( Args... );
     using CallableType = Ret( * )( StorageType& funcObj, FunctionPtrType func, Args&&... args );
     using AllocationFunctionType = void ( * )( StorageType& storage, void* Callable );
@@ -34,20 +33,20 @@ public:
         mCallable = []( StorageType& funcObjStorage, FunctionPtrType /*func*/, Args&&... args ) -> Ret
         {
             if constexpr ( std::is_same_v<Ret, void> )
-                reinterpret_cast<UnrefFunctionType*>( funcObjStorage.data() )->operator()( std::forward<Args>( args )... );
+                reinterpret_cast<UnrefFunctionType*>( funcObjStorage )->operator()( std::forward<Args>( args )... );
             else
-                return reinterpret_cast<UnrefFunctionType*>( funcObjStorage.data() )->operator()( std::forward<Args>( args )... );
+                return reinterpret_cast<UnrefFunctionType*>( funcObjStorage )->operator()( std::forward<Args>( args )... );
         };
 
         mAllocationFunction = []( StorageType& storage, void* funcObj )
         {
             UnrefFunctionType* functionalObject = reinterpret_cast<UnrefFunctionType*>( funcObj );
-            ::new( storage.data() )UnrefFunctionType( std::forward<UnrefFunctionType>( *functionalObject ) );
+            ::new( storage )UnrefFunctionType( std::forward<UnrefFunctionType>( *functionalObject ) );
         };
 
         mDeallocationFunction = []( StorageType& storage )
         {
-            reinterpret_cast<UnrefFunctionType*>( storage.data() )->~UnrefFunctionType();
+            reinterpret_cast<UnrefFunctionType*>( storage )->~UnrefFunctionType();
         };
 
         mAllocationFunction( mStorage, &funcObj );
@@ -104,7 +103,7 @@ private:
     // Pure function
     FunctionPtrType mFunctionPtr = nullptr;
     // Functional object
-    StorageType mStorage;
+    StorageType mStorage = { 0 };
     AllocationFunctionType mAllocationFunction = nullptr;
     DeallocationFunctionType mDeallocationFunction = nullptr;
 };
