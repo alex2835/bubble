@@ -60,11 +60,11 @@ struct BUBBLE_ENGINE_EXPORT Camera
     f32 mSpeedY = 0;
 
 public:
-    Camera( const vec3& position = vec3( 0.0f, 0.0f, 0.0f ),
+    Camera( vec3 position = vec3( 0.0f, 0.0f, 0.0f ),
             f32 yaw = camera::YAW,
             f32 pitch = camera::PITCH,
             f32 fov = camera::FOV,
-            const vec3& up = vec3( 0.0f, 1.0f, 0.0f )
+            vec3 up = vec3( 0.0f, 1.0f, 0.0f )
     );
 
     mat4 GetLookatMat() const;

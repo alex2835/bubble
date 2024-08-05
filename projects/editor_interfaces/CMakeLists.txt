@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
  
-set(TARGET_NAME bubble_interface)
+set(TARGET_NAME bubble_editor_interface)
 
 file(GLOB_RECURSE SRCS *.cpp)
 file(GLOB_RECURSE HDRS *.h)

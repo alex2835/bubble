@@ -1,5 +1,5 @@
 
-#include "resource_hot_reloader.hpp"
+#include "resources_hot_reloader/resources_hot_reloader.hpp"
 
 namespace bubble
 {
@@ -19,17 +19,17 @@ filesystem::file_time_type ReadShaderLastFileTime( const path& shaderPath )
 
 
 
-ResourceHotReloader::ResourceHotReloader( Loader& loader ) 
+ResourcesHotReloader::ResourcesHotReloader( Loader& loader ) 
     : mLoader( loader )
 {}
 
-ResourceHotReloader::~ResourceHotReloader()
+ResourcesHotReloader::~ResourcesHotReloader()
 {
     StopThread();
 }
 
 
-void ResourceHotReloader::StopThread()
+void ResourcesHotReloader::StopThread()
 {
     mStop = true;
     if ( mUpdater.joinable() )
@@ -38,7 +38,7 @@ void ResourceHotReloader::StopThread()
 }
 
 
-void ResourceHotReloader::CreateUpdater()
+void ResourcesHotReloader::CreateUpdater()
 {
     StopThread();
 
@@ -65,7 +65,7 @@ void ResourceHotReloader::CreateUpdater()
 }
 
 
-void ResourceHotReloader::OnUpdate()
+void ResourcesHotReloader::OnUpdate()
 {
     if ( mLoader.mShaders.size() != mUpdateInfoMap.size() )
         CreateUpdater();

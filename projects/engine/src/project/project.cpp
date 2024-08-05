@@ -8,6 +8,14 @@ namespace bubble
 {
 constexpr string_view ROOT_FILE_EXT = ".bubble"sv;
 
+void Project::LoadDefaultResources()
+{
+    mLoader.LoadShader( PHONG_SHADER );
+    mLoader.LoadShader( WHITE_SHADER );
+    mLoader.LoadShader( ONLY_DEFUSE_COLOR_SHADER );
+    mLoader.LoadShader( ONLY_DEFUSE_TEXTURE_SHADER );
+}
+
 Project::Project()
 {
     // Order is strict
@@ -25,11 +33,7 @@ void Project::Create( const path& rootDir, const string& projectName )
     if ( filesystem::exists( mRootFile ) )
         throw std::runtime_error( "Project with such name already exists: " + mRootFile.string() );
 
-    // Load default stuff
-    mLoader.LoadShader( PHONG_SHADER );
-    mLoader.LoadShader( ONLY_DEFUSE_SHADER );
-    mLoader.LoadShader( WHITE_SHADER );
-
+    LoadDefaultResources();
     Save();
 }
 

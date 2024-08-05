@@ -13,5 +13,7 @@ out vec4 FragColor;
 
 void main()
 {
-    FragColor = texture(uMaterial.diffuseMap, vTexCoords);
+    FragColor = uMaterial.hasDeffuseMap ?
+                    texture(uMaterial.diffuseMap, vTexCoords) :
+                    uMaterial.diffuseColor ;
 }

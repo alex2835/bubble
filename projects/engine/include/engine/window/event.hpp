@@ -31,7 +31,7 @@ struct Event
         KeyMods Mods;
         vec2 Pos;
         vec2 Offset;
-        f32 ZoomOffset;
+        f32 ZoomOffset = 0.0f;
     } mMouse;
 
     const KeyboardInput* mKeyboardInput;

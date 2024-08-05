@@ -19,8 +19,8 @@ public:
     // Time in seconds
     explicit TimePoint( f32 time );
 
-    f32 GetSeconds();
-    f32 GetMilliseconds();
+    f32 Seconds();
+    f32 Milliseconds();
 
 private:
     f32 mTime = 0.0f;

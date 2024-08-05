@@ -1,11 +1,13 @@
 #pragma once
 #include "engine/utils/filesystem.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/renderer/camera.hpp"
 
 namespace bubble
 {
 class BUBBLE_ENGINE_EXPORT Project
 {
+    void LoadDefaultResources();
 public:
     Project();
     void Create( const path& rootDir, const string& projectName );
@@ -14,8 +16,11 @@ public:
 
     string mName;
     path mRootFile;
-    Scene mScene;
     Loader mLoader;
+
+    Scene mScene;
+    Entity mMainCharacter;
+    vector<Ref<Camera>> mCameras;
 };
 
 }

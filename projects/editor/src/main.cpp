@@ -1,26 +1,26 @@
 #include <print>
 #include <argagg/argagg.hpp>
-#include "editor_application.hpp"
+#include "editor_application/editor_application.hpp"
 
 int main( int argc, char** argv )
 {
+    argagg::parser argparser
+    {
+        {
+          {
+            "help", {"-h", "--help"},
+            "Print help and exit", 0
+          },
+          {
+            "project", {"-p", "--project"},
+            "Path to project file", 1
+          }
+        }
+    };
+
     try
     {
-        argagg::parser argparser
-        {
-            {
-              {
-                "help", {"-h", "--help"},
-                "Print help and exit", 0
-              },
-              {
-                "project", {"-p", "--project"},
-                "Path to project file", 1
-              }
-            }
-        };
         auto args = argparser.parse( argc, argv );
-
         if ( args["help"] )
         {
             std::cout << argparser;

@@ -6,7 +6,7 @@
 
 namespace bubble
 {
-class ResourceHotReloader
+class ResourcesHotReloader
 {
     struct UpdateInfo 
     {
@@ -15,8 +15,8 @@ class ResourceHotReloader
     };
 
 public:
-    ResourceHotReloader( Loader& loader );
-    ~ResourceHotReloader();
+    ResourcesHotReloader( Loader& loader );
+    ~ResourcesHotReloader();
     void OnUpdate();
 
 private:

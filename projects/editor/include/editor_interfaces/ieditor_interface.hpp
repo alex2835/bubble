@@ -6,7 +6,7 @@
 #undef max
 
 #include <string>
-#include "editor_state.hpp"
+#include "editor_application/editor_state.hpp"
 #include "engine/engine.hpp"
 
 namespace bubble

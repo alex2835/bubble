@@ -1,7 +1,7 @@
 #pragma once
 #include "engine/renderer/camera_third_person.hpp"
-#include "ieditor_interface.hpp"
-#include "editor_application.hpp"
+#include "editor_interfaces/ieditor_interface.hpp"
+#include "editor_application/editor_application.hpp"
 
 namespace bubble
 {
@@ -111,8 +111,7 @@ public:
 
     void OnInit() override
     {
-        mShader = LoadShader( "./resources/shaders/only_defuse" );
-
+        //mShader = LoadShader( "./resources/shaders/only_defuse" );
         mFolderIcon = LoadTexture2D( "./resources/images/project_tree/folder.png" );
         mFileIcon = LoadTexture2D( "./resources/images/project_tree/file.png" );
         if ( not mProject.mName.empty() )
@@ -217,7 +216,7 @@ private:
     // Render model
     ThirdPersonCamera mCamera;
     Scene mScene;
-    Ref<Shader> mShader;
+    //Ref<Shader> mShader;
 
     str_hash_map<Texture2D> mModelIcons;
     Ref<Texture2D> mFolderIcon;

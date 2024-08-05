@@ -6,7 +6,7 @@ namespace bubble
 
 ThirdPersonCamera::ThirdPersonCamera( f32 yaw, f32 pitch )
     : mCenter( vec3( 0, 0, 0 ) ),
-    Camera( vec3(), yaw, pitch )
+      Camera( vec3(), yaw, pitch )
 {
 }
 
@@ -115,8 +115,8 @@ void ThirdPersonCamera::OnUpdate( DeltaTime dt )
     mIsRotatingX = false;
     mIsRotatingY = false;
 
-    mYaw += mSpeedX * dt.GetSeconds();
-    mPitch += mSpeedY * dt.GetSeconds();
+    mYaw += mSpeedX * dt.Seconds();
+    mPitch += mSpeedY * dt.Seconds();
 
     // Transformation matrix
     mat4 transform = mat4( 1.0f );

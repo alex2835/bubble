@@ -3,11 +3,11 @@
 
 namespace bubble
 {
-Camera::Camera( const vec3& position,
+Camera::Camera( vec3 position,
                 f32 yaw,
                 f32 pitch,
                 f32 fov,
-                const vec3& up )
+                vec3 up )
     : mPosition( position ),
       mWorldUp( up ),
       mYaw( yaw ),
@@ -31,7 +31,6 @@ mat4 Camera::GetPprojectionMat( i32 window_width, i32 window_height ) const
 void Camera::UpdateCameraVectors()
 {
     vec3 front;
-
     front.x = std::cos( mYaw ) * std::cos( mPitch );
     front.y = std::sin( mPitch );
     front.z = std::sin( mYaw ) * std::cos( mPitch );

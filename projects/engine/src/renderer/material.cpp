@@ -13,19 +13,29 @@ void BasicMaterial::Apply( const Ref<Shader>& shader ) const
     // Textures
     if ( mDiffuseMap )
     {
+        shader->SetUni1i( "uMaterial.hasDiffuseMap", true );
         shader->SetUni1i( "uMaterial.diffuseMap", 0 );
         mDiffuseMap->Bind( 0 );
     }
+    shader->SetUni1i( "uMaterial.hasDiffuseMap", false );
+
     if ( mSpecularMap )
     {
+        shader->SetUni1i( "uMaterial.hasSpecularMap", true );
         shader->SetUni1i( "uMaterial.specularMap", 1 );
         mSpecularMap->Bind( 1 );
     }
+    else
+        shader->SetUni1i( "uMaterial.hasSpecularMap", false );
+
     if( mNormalMap )
     {
+        shader->SetUni1i( "uMaterial.hasNormalMap", true );
         shader->SetUni1i( "uMaterial.normalMap", 2 );
         mNormalMap->Bind( 2 );
     }
+    else
+        shader->SetUni1i( "uMaterial.hasNormalMap", false );
 
     shader->SetUni1i( "uMaterial.shininess", mShininess );
     shader->SetUni1f( "uMaterial.shininessStrength", mShininessStrength );

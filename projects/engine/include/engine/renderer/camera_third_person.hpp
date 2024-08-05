@@ -18,9 +18,7 @@ struct BUBBLE_ENGINE_EXPORT ThirdPersonCamera : public Camera
     ThirdPersonCamera( f32 yaw = camera::YAW, 
                        f32 pitch = camera::PITCH );
 
-    /*
-        Directions: UP, DOWN, LEFT, RIGHT
-    */
+    // Directions: UP, DOWN, LEFT, RIGHT
     void ProcessRotation( CameraMovement direction );
     void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
     void ProcessMouseMovementOffset( f32 xoffset, f32 yoffset );

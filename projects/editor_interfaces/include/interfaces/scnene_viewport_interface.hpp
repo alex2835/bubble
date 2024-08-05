@@ -1,6 +1,6 @@
 #pragma once
-#include "ieditor_interface.hpp"
-#include "editor_application.hpp"
+#include "editor_interfaces/ieditor_interface.hpp"
+#include "editor_application/editor_application.hpp"
 
 namespace bubble
 {

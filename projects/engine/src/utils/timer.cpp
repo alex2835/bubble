@@ -11,12 +11,12 @@ TimePoint::TimePoint( f32 time )
 {
 }
 
-f32 TimePoint::GetSeconds()
+f32 TimePoint::Seconds()
 {
     return mTime;
 }
 
-f32 TimePoint::GetMilliseconds()
+f32 TimePoint::Milliseconds()
 {
     return mTime * 1000.0f;
 }

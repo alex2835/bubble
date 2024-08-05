@@ -1,16 +1,11 @@
 #pragma once 
 #include "engine/engine.hpp"
+#include "utils/scene_camera.hpp"
 
 namespace bubble
 {
 struct EditorState
 {
-    bool IsKeyCliked( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
-    i32 IsKeyPressed( KeyboardKey key ) const { return mWindow.GetKeyboardInput().IsKeyCliked( key ); };
-    bool IsKeyCliked( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyCliked( key ); };
-    i32 IsKeyPressed( MouseKey key ) const { return mWindow.GetMouseInput().IsKeyPressed( key ); };
-
-public:
     // Editor
     Timer mTimer;
     Window mWindow;

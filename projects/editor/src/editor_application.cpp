@@ -1,7 +1,7 @@
 #include "engine/scene/components_manager.hpp"
 #include "engine/utils/emscripten_main_loop.hpp"
 #include "engine/log/log.hpp"
-#include "editor_application.hpp"
+#include "editor_application/editor_application.hpp"
 #include <functional>
 
 namespace bubble
@@ -18,11 +18,12 @@ BubbleEditor::BubbleEditor()
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
       },
       mEditorMode( EditorMode::Editing ),
-      mResourceHotReloader( mProject.mLoader ),
+      mResourcesHotReloader( mProject.mLoader ),
       mInterfaceHotReloader( *this )
 {
     // Window
     mWindow.SetVSync( false );
+
     // ImGui
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
@@ -42,6 +43,7 @@ void BubbleEditor::OpenProject( const path& projectPath )
 {
     LogInfo( "Openg project {}", projectPath.string() );
     mProject.Open( projectPath );
+    mUINeedUpdateProjectInterface = true;
 }
 
 
@@ -66,7 +68,7 @@ void BubbleEditor::Run()
             for ( const auto& event : events )
                 mSceneCamera.OnEvent( event );
             mSceneCamera.OnUpdate( dt );
-            mResourceHotReloader.OnUpdate();
+            mResourcesHotReloader.OnUpdate();
             mInterfaceHotReloader.OnUpdate( dt );
 
             DrawProjectScene();

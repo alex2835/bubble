@@ -3,15 +3,6 @@
 
 namespace bubble
 {
-FreeCamera::FreeCamera( const vec3& position,
-                        f32 yaw,
-                        f32 pitch,
-                        f32 mFov,
-                        const vec3& up )
-    : Camera( position, yaw, pitch, mFov, up )
-{
-}
-
 void FreeCamera::ProcessMovement( CameraMovement direction )
 {
     f32 max_speed = mMaxSpeed * mDeltaSpeed;
@@ -118,8 +109,8 @@ void FreeCamera::OnUpdate( DeltaTime dt )
     mIsMovingX = false;
     mIsMovingY = false;
 
-    mPosition += mFront * mSpeedX * dt.GetSeconds();
-    mPosition += mRight * mSpeedY * dt.GetSeconds();
+    mPosition += mFront * mSpeedX * dt.Seconds();
+    mPosition += mRight * mSpeedY * dt.Seconds();
 
     UpdateCameraVectors();
 }

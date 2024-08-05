@@ -2,6 +2,10 @@
 // Material
 struct Material
 {
+    bool hasDeffuseMap;
+    bool hasSpecularMap;
+    bool hasNormalMap;
+
     sampler2D diffuseMap;
     sampler2D specularMap;
     sampler2D normalMap;
