@@ -5,6 +5,8 @@
 
 namespace bubble
 {
+namespace
+{
 enum class FilesystemNodeType
 {
     Unknown,
@@ -13,8 +15,6 @@ enum class FilesystemNodeType
     Texture
 };
 
-namespace
-{
 std::optional<path> tryFindModelInFolder( const path& dir )
 {
     for ( const auto& item : filesystem::directory_iterator( dir ) )

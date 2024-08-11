@@ -64,12 +64,8 @@ public:
     template <typename TasksType>
     void AddTasks( TasksType& tasks )
     {
-        {
-            std::unique_lock<std::mutex> lock( mEventMutex );
-            for ( auto& task : tasks )
-                mTasks.push( [&](){ task(); } );
-        }
-        mConditionVariable.notify_all();
+        for ( auto& task : tasks )
+            AddTask( [&]() { task(); } );
     }
 
 private:

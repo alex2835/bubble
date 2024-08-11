@@ -23,13 +23,13 @@ struct ModelData
 };
 
 
-map<path, TextureData> LoadModelTextureData( const path& modelDirectory,
-                                             const aiScene* scene )
+map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
+                                              const aiScene* scene )
 {
     map<path, TextureData> texturesData;
 
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path, TextureData>()>> tasks;
+    std::vector<FixedSizePackagedTask<pair<path, TextureData>()>> texturesDataTasks;
 
     for ( u32 materialIndex = 0; materialIndex < scene->mNumMaterials; materialIndex++ )
     {
@@ -43,7 +43,7 @@ map<path, TextureData> LoadModelTextureData( const path& modelDirectory,
                 aiString textureName;
                 material->GetTexture( textureType, textureIndex, &textureName );
                 auto texturePath = modelDirectory / textureName.C_Str();
-                tasks.emplace_back( [texturePath]()
+                texturesDataTasks.emplace_back( [texturePath]()
                 {
                     auto textureData = OpenTexture( texturePath );
                     return std::make_pair( texturePath, std::move( textureData ) );
@@ -51,9 +51,9 @@ map<path, TextureData> LoadModelTextureData( const path& modelDirectory,
             }
         }
     }
-    threadPool.AddTasks( tasks );
+    threadPool.AddTasks( texturesDataTasks );
 
-    for ( auto& task : tasks )
+    for ( auto& task : texturesDataTasks )
     {
         auto [texturePath, textureData] = task.get();
         texturesData.emplace( texturePath, std::move( textureData ) );
@@ -70,8 +70,8 @@ ModelData OpenModel( const path& modelPath )
         throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer->GetErrorString() ) );
     importer->ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
-    auto texturesData = LoadModelTextureData( modelPath.parent_path(), importer->GetScene() );
-    return { std::move( importer ), std::move( texturesData ), modelPath };
+    auto texturesData = LoadModelTexturesData( modelPath.parent_path(), importer->GetScene() );
+    return ModelData{ std::move( importer ), std::move( texturesData ), modelPath };
 }
 
 
