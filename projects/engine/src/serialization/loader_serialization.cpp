@@ -26,11 +26,7 @@ void to_json( json& j, const Loader& loader )
 }
 
 void from_json( const json& j, Loader& loader )
-{
-    //if ( j.contains( "textures" ) && !j["textures"].is_null() )
-    //    for ( const auto& texturePath : j["textures"] )
-    //        loader.LoadTexture2D( texturePath );
-    
+{    
     if ( j.contains( "textures" ) && !j["textures"].is_null() )
         loader.LoadTextures2D( j["textures"] );
 

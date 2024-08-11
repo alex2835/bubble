@@ -3,7 +3,6 @@
 #include <thread>
 #include <mutex>
 #include <queue>
-#include <atomic>
 #include <future>
 #include <condition_variable>
 #include "fixed_size_function.hpp"
@@ -45,7 +44,10 @@ public:
 
     ~ThreadPool()
     {
-        mIsRunning = false;
+        {
+            std::unique_lock<std::mutex> lock( mEventMutex );
+            mIsRunning = false;
+        }
         mConditionVariable.notify_all();
         for ( std::thread& thread : mThreadsPool )
             thread.join();
@@ -73,5 +75,5 @@ private:
     std::condition_variable mConditionVariable;
     std::mutex mEventMutex;
     std::vector<std::thread> mThreadsPool;
-    std::atomic<bool> mIsRunning;
+    bool mIsRunning;
 };

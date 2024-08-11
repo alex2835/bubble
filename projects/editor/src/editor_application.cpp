@@ -28,11 +28,10 @@ BubbleEditor::BubbleEditor()
     ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
 
     // Add default components
-    ComponentManager::SetScene( mProject.mScene );
-    ComponentManager::Add<TagComponent>();
-    ComponentManager::Add<ModelComponent>();
-    ComponentManager::Add<TransformComponent>();
-    ComponentManager::Add<ShaderComponent>();
+    ComponentManager::Add<TagComponent>( mProject.mScene );
+    ComponentManager::Add<ModelComponent>( mProject.mScene );
+    ComponentManager::Add<TransformComponent>( mProject.mScene );
+    ComponentManager::Add<ShaderComponent>( mProject.mScene );
 
     // Selecting objects
     mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );
