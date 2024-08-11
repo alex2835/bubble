@@ -19,13 +19,6 @@ public:
     IEditorInterface( EditorState& editorState )
         : EditorStateRef( editorState )
     {}
-    virtual ~IEditorInterface()
-    {}
-    virtual string_view Name() = 0;
-    virtual void OnInit() = 0;
-    // Called out of ImGui
-    virtual void OnUpdate( DeltaTime dt ) = 0;
-    virtual void OnDraw( DeltaTime dt ) = 0;
 protected:
     bool mOpen = true;
 };

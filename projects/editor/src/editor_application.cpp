@@ -61,22 +61,22 @@ void BubbleEditor::Run()
 
         // Draw scene
         switch ( mEditorMode )
-        {
-        case EditorMode::Editing:
-        {
-            for ( const auto& event : events )
-                mSceneCamera.OnEvent( event );
-            mSceneCamera.OnUpdate( dt );
-            mResourcesHotReloader.OnUpdate();
-            mInterfaceHotReloader.OnUpdate( dt );
+		{
+			case EditorMode::Editing:
+			{
+				for ( const auto& event : events )
+					mSceneCamera.OnEvent( event );
+				mSceneCamera.OnUpdate( dt );
+				mResourcesHotReloader.OnUpdate();
+				mInterfaceHotReloader.OnUpdate( dt );
 
-            DrawProjectScene();
-            break;
+				DrawProjectScene();
+				break;
+			}
+			case EditorMode::Runing:
+				break;
         }
-        case EditorMode::Runing:
-            break;
-        }
-        
+
         // ImGui interface
         Framebuffer::BindWindow( mWindow );
         mWindow.ImGuiBegin();

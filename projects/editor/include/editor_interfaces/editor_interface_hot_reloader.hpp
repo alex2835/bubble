@@ -2,33 +2,26 @@
 #include <imgui.h>
 #include "engine/utils/types.hpp"
 
-namespace hr
-{
-class HotReloader;
-}
+#include "editor_interfaces/interfaces/menubar.hpp"
+#include "editor_interfaces/interfaces/entities_interface.hpp"
+#include "editor_interfaces/interfaces/scnene_viewport_interface.hpp"
+#include "editor_interfaces/interfaces/project_interface.hpp"
 
 namespace bubble
 {
-class IEditorInterface;
 struct EditorState;
 
 class EditorInterfaceHotReloader
 {
 public:
     EditorInterfaceHotReloader( EditorState& editorState );
-    ~EditorInterfaceHotReloader();
-
-    void AddInterface( Ref<IEditorInterface> );
-    void LoadInterfaces();
-
     void OnUpdate( DeltaTime dt );
     void OnDraw( DeltaTime dt );
 
 private:
-    EditorState& mEditorState;
-    ImGuiContext* mImGuiContext;
-
-    Ref<hr::HotReloader> mHotReloader;
-    map<string_view, Ref<IEditorInterface>> mInterfaces;
+    Menubar mMenubar;
+    EntitiesInterface mEntitiesInterface;
+    SceneViewportInterface mSceneViewportInterface;
+    ProjectInterface mProjectInterface;
 };
 }

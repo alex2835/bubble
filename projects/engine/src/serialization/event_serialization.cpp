@@ -123,7 +123,7 @@ string ToString<KeyboardKey>( const KeyboardKey& key )
         return "KEY_BACKSPACE";
     case KeyboardKey::INSERT:
         return "KEY_INSERT";
-    case KeyboardKey::DELETE:
+    case KeyboardKey::DEL:
         return "KEY_DELETE";
     case KeyboardKey::RIGHT:
         return "KEY_RIGHT";

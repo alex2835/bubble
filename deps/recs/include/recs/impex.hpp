@@ -1,15 +1,13 @@
 #pragma once
 
-#ifdef RECS_STATIC
-#  define RECS_EXPORT
+#ifdef WIN32
+#  ifdef EXPORT_RECS
+#     define RECS_EXPORT __declspec(dllexport)
+#  elif IMPORT_RECS
+#     define RECS_EXPORT __declspec(dllimport)
 #else
-#  ifdef WIN32
-#    ifdef BUILDING_RECS
-#       define RECS_EXPORT __declspec(dllexport)
-#    else
-#       define RECS_EXPORT __declspec(dllimport)
-#    endif
-#  else
-#    define RECS_EXPORT __attribute__((visibility("default")))
+#	define RECS_EXPORT
 #  endif
+#else
+#  define RECS_EXPORT __attribute__((visibility("default")))
 #endif

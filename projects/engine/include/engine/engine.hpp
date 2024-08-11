@@ -13,10 +13,11 @@ namespace bubble
 struct BUBBLE_ENGINE_EXPORT Engine
 {
     Timer mTimer;
-    Scene mRunningScene;
+    Scene mScene;
     Renderer mRenderer;
 
     void OnUpdate();
     void DrawScene( const Camera& mCamera, const Framebuffer& mFramebuffer );
 };
+
 }
