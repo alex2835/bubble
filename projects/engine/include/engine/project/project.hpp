@@ -5,7 +5,7 @@
 
 namespace bubble
 {
-class BUBBLE_ENGINE_EXPORT Project
+class Project
 {
     void LoadDefaultResources();
 public:

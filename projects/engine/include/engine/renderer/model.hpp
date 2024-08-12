@@ -1,5 +1,4 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/texture.hpp"
@@ -17,7 +16,7 @@ struct VertexData
     vector<vec3> mBitangents;
 };
 
-class BUBBLE_ENGINE_EXPORT Mesh
+class Mesh
 {
 public:
     Mesh() = default;
@@ -59,7 +58,7 @@ struct MeshTreeViewNode
     {}
 };
 
-struct BUBBLE_ENGINE_EXPORT Model
+struct Model
 {
     string mName;
     path mPath;

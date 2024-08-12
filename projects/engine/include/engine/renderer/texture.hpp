@@ -1,11 +1,10 @@
 #pragma once
 #include "engine/utils/error.hpp"
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT Texture2DSpecification
+struct Texture2DSpecification
 {
     u32 mWidth = 0;
     u32 mHeight = 0;
@@ -36,7 +35,7 @@ private:
 
 
 
-class BUBBLE_ENGINE_EXPORT Texture2D
+class Texture2D
 {
 public:
     Texture2D( const Texture2DSpecification& spec );

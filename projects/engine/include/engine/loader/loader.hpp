@@ -1,5 +1,4 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/log/log.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/utils/filesystem.hpp"
@@ -29,18 +28,18 @@ struct TextureData
     path mPath;
 };
 
-BUBBLE_ENGINE_EXPORT TextureData OpenTexture( const path& path );
+TextureData OpenTexture( const path& path );
 
-BUBBLE_ENGINE_EXPORT Ref<Texture2D> LoadTexture2D( const path& path );
-BUBBLE_ENGINE_EXPORT Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
+Ref<Texture2D> LoadTexture2D( const path& path );
+Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 
-BUBBLE_ENGINE_EXPORT Ref<Shader> LoadShader( const path& path );
-BUBBLE_ENGINE_EXPORT Ref<Model> LoadModel( const path& path );
-BUBBLE_ENGINE_EXPORT Ref<Model> LoadModel( const TextureData& path );
-BUBBLE_ENGINE_EXPORT Ref<Skybox> LoadSkybox( const path& path );
+Ref<Shader> LoadShader( const path& path );
+Ref<Model> LoadModel( const path& path );
+Ref<Model> LoadModel( const TextureData& path );
+Ref<Skybox> LoadSkybox( const path& path );
 
 
-struct BUBBLE_ENGINE_EXPORT Loader
+struct Loader
 {
     hash_map<path, Ref<Texture2D>> mTextures;
     hash_map<path, Ref<Model>> mModels;

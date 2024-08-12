@@ -1,14 +1,14 @@
 #pragma once
-#include "editor_interfaces/ieditor_interface.hpp"
 #include "engine/scene/components_manager.hpp"
+#include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
 {
-class EntitiesInterface : public IEditorInterface
+class EntitiesWindow : public UserInterfaceWindowBase
 {
 public:
-    using IEditorInterface::IEditorInterface;
-    ~EntitiesInterface();
+    using UserInterfaceWindowBase::UserInterfaceWindowBase;
+    ~EntitiesWindow();
 
     string_view Name();
     void OnUpdate( DeltaTime );

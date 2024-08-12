@@ -8,7 +8,7 @@
 namespace bubble
 {
 
-class BUBBLE_ENGINE_EXPORT Renderer
+class Renderer
 {
 public:
     Renderer();

@@ -1,10 +1,10 @@
 
-#include "editor_interfaces/interfaces/scnene_viewport_interface.hpp"
+#include "editor_user_interface/windows/scnene_viewport_window.hpp"
 
 namespace bubble
 {
 SceneViewportInterface::SceneViewportInterface( EditorState& editorState )
-    : IEditorInterface( editorState )
+    : UserInterfaceWindowBase( editorState )
 {
     mNewSize = mSceneViewport.Size();
 }

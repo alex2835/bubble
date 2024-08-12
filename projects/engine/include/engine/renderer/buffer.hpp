@@ -3,7 +3,6 @@
 #include <string>
 #include <string_view>
 #include <cassert>
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/error.hpp"
 #include "engine/utils/types.hpp"
 
@@ -47,7 +46,7 @@ struct BufferElement
 };
 
 
-class BUBBLE_ENGINE_EXPORT BufferLayout
+class BufferLayout
 {
 public:
     BufferLayout() = default;
@@ -71,7 +70,7 @@ private:
 };
 
 
-class BUBBLE_ENGINE_EXPORT VertexBuffer
+class VertexBuffer
 {
 public:
     VertexBuffer( const BufferLayout& layout, u64 size );
@@ -98,7 +97,7 @@ public:
 };
 
 
-class BUBBLE_ENGINE_EXPORT IndexBuffer
+class IndexBuffer
 {
 public:
     IndexBuffer() = default;
@@ -121,7 +120,7 @@ public:
 };
 
 
-class BUBBLE_ENGINE_EXPORT VertexArray
+class VertexArray
 {
 public:
     VertexArray() noexcept;
@@ -153,7 +152,7 @@ private:
 
 
 
-class BUBBLE_ENGINE_EXPORT UniformBuffer
+class UniformBuffer
 {
 public:
     // additional size necessary if buffer contain more then one array (for example nLights)
@@ -198,7 +197,7 @@ private:
 /*
     Doesn't own any resources. Point to current element in array
 */
-struct BUBBLE_ENGINE_EXPORT UniformArrayElement
+struct UniformArrayElement
 {
     GLuint mRendererID = 0;
     u64 mArrayIndex = 0;

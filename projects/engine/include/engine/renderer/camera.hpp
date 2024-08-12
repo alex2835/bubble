@@ -1,7 +1,6 @@
 #pragma once
 #include "glm/gtc/matrix_transform.hpp"
 #include "engine/utils/timer.hpp"
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/math.hpp"
 #include "engine/window/event.hpp"
 
@@ -32,7 +31,7 @@ constexpr f32 SENSITIVTY = 4.25f;
 }
 
 
-struct BUBBLE_ENGINE_EXPORT Camera
+struct Camera
 {
     // Camera Attributes
     vec3 mPosition = vec3( 0.0f, 0.0f, 0.0f );

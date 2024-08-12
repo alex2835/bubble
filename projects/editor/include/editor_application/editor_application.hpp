@@ -1,14 +1,12 @@
 #pragma once
 #include "engine/engine.hpp"
-#include "editor_state.hpp"
-#include "editor_interfaces/editor_interface_hot_reloader.hpp"
-#include "resources_hot_reloader/resources_hot_reloader.hpp"
-#include "utils/scene_camera.hpp"
-#undef APIENTRY
+#include "editor_application/editor_state.hpp"
+#include "editor_user_interface/editor_user_interface.hpp"
+#include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 
 namespace bubble
 {
-class BubbleEditor : EditorState
+class BubbleEditor : public EditorState
 {
     enum class EditorMode
     {
@@ -26,8 +24,8 @@ private:
     EditorMode mEditorMode;
     // Shader to handle object picking in viewport
     Ref<Shader> mObjectIdShader;
-    // Editor UI interfaces and resource hot reloader
-    EditorInterfaceHotReloader mInterfaceHotReloader;
+    // Editor user interface and resource hot reloader
+    EditorUserInterface mEditorUserInterface;
     ResourcesHotReloader mResourcesHotReloader;
 };
 

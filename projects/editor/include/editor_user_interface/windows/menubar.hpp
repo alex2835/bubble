@@ -1,6 +1,6 @@
 #pragma once
-#include "editor_interfaces/ieditor_interface.hpp"
 #include "engine/utils/imgui_utils.hpp"
+#include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
 {
@@ -15,10 +15,10 @@ constexpr auto cFileDialogChooseDirFlags =
                     ImGuiFileBrowserFlags_ConfirmOnEnter |
                     ImGuiFileBrowserFlags_HideRegularFiles;
 
-class Menubar : public IEditorInterface
+class Menubar : public UserInterfaceWindowBase
 {
 public:
-    using IEditorInterface::IEditorInterface;
+    using UserInterfaceWindowBase::UserInterfaceWindowBase;
     ~Menubar();
 
     string_view Name();

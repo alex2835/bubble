@@ -1,11 +1,10 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/renderer/texture.hpp"
 
 namespace bubble
 {
-class BUBBLE_ENGINE_EXPORT Cubemap
+class Cubemap
 {
 public:
     Cubemap() = default;

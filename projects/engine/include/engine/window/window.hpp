@@ -22,7 +22,6 @@
 //#include <ImZoomSlider.h>
 //#include <ImCurveEdit.h>
 //#include <GraphEditor.h>
-#include "engine/utils/imexp.hpp"
 #include "engine/window/event.hpp"
 #include "engine/window/input.hpp"
 #include "engine/utils/types.hpp"
@@ -35,7 +34,7 @@ struct WindowSize
     u32 mHeight = 0;
 };
 
-class BUBBLE_ENGINE_EXPORT Window
+class Window : public WindowInput
 {
 public:
     Window( const string& name, WindowSize size );
@@ -52,9 +51,6 @@ public:
 
     void LockCursor( bool lock );
     void SetVSync( bool vsync );
-
-    const MouseInput& GetMouseInput() const;
-    const KeyboardInput& GetKeyboardInput() const;
 
     GLFWwindow* GetHandle() const;
     const char* GetGLSLVersion() const;
@@ -79,8 +75,6 @@ private:
     const char* mGLSLVersion;
     WindowSize mWindowSize;
     bool mShouldClose = false;
-    MouseInput mMouseInput;
-    KeyboardInput mKeyboardInput;
     vector<Event> mEvents;
 };
 

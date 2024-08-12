@@ -1,10 +1,9 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/renderer/camera.hpp"
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT ThirdPersonCamera : public Camera
+struct ThirdPersonCamera : public Camera
 {
     vec3 mCenter;
     f32 mRadius = 20.0f;

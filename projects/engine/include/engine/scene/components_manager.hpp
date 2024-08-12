@@ -3,7 +3,6 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
@@ -35,7 +34,7 @@ struct ComponentFunctions
 };
 
 
-class BUBBLE_ENGINE_EXPORT ComponentManager
+class ComponentManager
 {
 public:
     static ComponentManager& Instance();

@@ -1,10 +1,9 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/renderer/camera.hpp"
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT FreeCamera : public Camera
+struct FreeCamera : public Camera
 {
     f32 mLastMouseX = 0.5f;
     f32 mLastMouseY = 0.5f;

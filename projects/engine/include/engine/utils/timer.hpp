@@ -1,7 +1,6 @@
 #pragma once
 #include <time.h>
 #include <chrono>
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 
 namespace std
@@ -12,7 +11,7 @@ using time_point = std::chrono::high_resolution_clock::time_point;
 
 namespace bubble
 {
-class BUBBLE_ENGINE_EXPORT TimePoint
+class TimePoint
 {
 public:
     TimePoint() = default;
@@ -22,13 +21,16 @@ public:
     f32 Seconds();
     f32 Milliseconds();
 
+    // second
+    operator float() { return mTime; }
+
 private:
     f32 mTime = 0.0f;
 };
 typedef TimePoint DeltaTime;
 
 
-class BUBBLE_ENGINE_EXPORT Timer
+class Timer
 {
 public:
     void OnUpdate();

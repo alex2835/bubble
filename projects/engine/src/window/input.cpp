@@ -5,7 +5,6 @@
 
 namespace bubble
 {
-
 MouseInput::MouseInput()
 {
     for ( u64 key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
@@ -14,7 +13,7 @@ MouseInput::MouseInput()
 
 void MouseInput::OnUpdate()
 {
-    mKeyMods = KeyMods();
+    mMouseOffset = vec2();
 }
 
 bool MouseInput::IsKeyCliked( MouseKey key ) const
@@ -37,7 +36,6 @@ KeyboardInput::KeyboardInput()
 
 void KeyboardInput::OnUpdate()
 {
-    mKeyMods = KeyMods();
 }
 
 bool KeyboardInput::IsKeyCliked( KeyboardKey key ) const
@@ -49,7 +47,5 @@ i32 KeyboardInput::IsKeyPressed( KeyboardKey key ) const
 {
     return mKeyState[(i32)key] != NO_STATE;
 }
-
-
 
 }

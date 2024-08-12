@@ -1,5 +1,4 @@
 #pragma once
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/shader.hpp"
@@ -7,7 +6,7 @@
 namespace bubble
 {
 
-struct BUBBLE_ENGINE_EXPORT BasicMaterial
+struct BasicMaterial
 {
     BasicMaterial() = default;
     BasicMaterial( const BasicMaterial& ) = delete;

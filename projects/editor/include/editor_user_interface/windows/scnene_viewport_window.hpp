@@ -1,9 +1,9 @@
 #pragma once
-#include "editor_interfaces/ieditor_interface.hpp"
+#include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
 {
-class SceneViewportInterface : public IEditorInterface
+class SceneViewportInterface : public UserInterfaceWindowBase
 {
 public:
     SceneViewportInterface( EditorState& editorState );

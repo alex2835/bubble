@@ -10,7 +10,7 @@
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT Engine
+struct Engine
 {
     Timer mTimer;
     Scene mScene;

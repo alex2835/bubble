@@ -9,7 +9,6 @@
 #include "engine/utils/error.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/utils/filesystem.hpp"
-#include "engine/utils/imexp.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/buffer.hpp"
 
@@ -24,7 +23,7 @@ enum class ShaderModule
 using ShaderModules = magic_enum::containers::bitset<ShaderModule>;
 
 
-class BUBBLE_ENGINE_EXPORT Shader
+class Shader
 {
 public:
     Shader() = default;

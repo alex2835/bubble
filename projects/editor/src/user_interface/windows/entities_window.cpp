@@ -1,25 +1,25 @@
 
-#include "editor_interfaces/interfaces/entities_interface.hpp"
+#include "editor_user_interface/windows/entities_window.hpp"
 
 namespace bubble
 {
 
-EntitiesInterface::~EntitiesInterface()
+EntitiesWindow::~EntitiesWindow()
 {
 
 }
 
-magic_enum::string_view EntitiesInterface::Name()
+magic_enum::string_view EntitiesWindow::Name()
 {
     return "Entities"sv;
 }
 
-void EntitiesInterface::OnUpdate( DeltaTime )
+void EntitiesWindow::OnUpdate( DeltaTime )
 {
 
 }
 
-void EntitiesInterface::DrawEntities()
+void EntitiesWindow::DrawEntities()
 {
     ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
     {
@@ -68,7 +68,7 @@ void EntitiesInterface::DrawEntities()
     ImGui::EndChild();
 }
 
-void EntitiesInterface::DrawSelectedEntityProperties()
+void EntitiesWindow::DrawSelectedEntityProperties()
 {
     if ( mSelectedEntity == INVALID_ENTITY )
         return;
@@ -127,7 +127,7 @@ void EntitiesInterface::DrawSelectedEntityProperties()
     ImGui::EndChild();
 }
 
-void EntitiesInterface::OnDraw( DeltaTime )
+void EntitiesWindow::OnDraw( DeltaTime )
 {
     ImGui::Begin( Name().data(), &mOpen );
     {

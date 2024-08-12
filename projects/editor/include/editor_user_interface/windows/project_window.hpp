@@ -1,10 +1,8 @@
 #pragma once
 #include "engine/renderer/camera_third_person.hpp"
-#include "editor_interfaces/ieditor_interface.hpp"
+#include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
-{
-namespace
 {
 enum class FilesystemNodeType
 {
@@ -13,10 +11,8 @@ enum class FilesystemNodeType
     Model,
     Texture
 };
-} // namespace
 
-
-class ProjectInterface : public IEditorInterface
+class ProjectWindow : public UserInterfaceWindowBase
 {
     struct FilesystemNode
     {
@@ -26,8 +22,8 @@ class ProjectInterface : public IEditorInterface
     };
 
 public:
-    ProjectInterface( EditorState& editorState );
-    ~ProjectInterface();
+    ProjectWindow( EditorState& editorState );
+    ~ProjectWindow();
 
     string_view Name();
 

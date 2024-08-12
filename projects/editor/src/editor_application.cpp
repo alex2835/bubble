@@ -1,8 +1,5 @@
-#include "engine/scene/components_manager.hpp"
-#include "engine/utils/emscripten_main_loop.hpp"
-#include "engine/log/log.hpp"
+
 #include "editor_application/editor_application.hpp"
-#include <functional>
 
 namespace bubble
 {
@@ -15,18 +12,13 @@ BubbleEditor::BubbleEditor()
         .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
                                        Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
         .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) )
+                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
+        .mSceneCamera = SceneCamera( mWindow )
       },
       mEditorMode( EditorMode::Editing ),
       mResourcesHotReloader( mProject.mLoader ),
-      mInterfaceHotReloader( *this )
+      mEditorUserInterface( *this )
 {
-    // Window
-    mWindow.SetVSync( false );
-
-    // ImGui
-    ImGui::SetCurrentContext( mWindow.GetImGuiContext() );
-
     // Add default components
     ComponentManager::Add<TagComponent>( mProject.mScene );
     ComponentManager::Add<ModelComponent>( mProject.mScene );
@@ -40,9 +32,9 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::OpenProject( const path& projectPath )
 {
-    LogInfo( "Openg project {}", projectPath.string() );
+    LogInfo( "Open project {}", projectPath.string() );
+    mUINeedUpdateProjectWindow = true;
     mProject.Open( projectPath );
-    mUINeedUpdateProjectInterface = true;
 }
 
 
@@ -55,35 +47,30 @@ void BubbleEditor::Run()
 #endif
     {
         // Poll events
+        mWindow.PollEvents();
         mTimer.OnUpdate();
-        auto dt = mTimer.GetDeltaTime();
-        const auto& events = mWindow.PollEvents();
+        auto deltaTime = mTimer.GetDeltaTime();
 
         // Draw scene
         switch ( mEditorMode )
 		{
 			case EditorMode::Editing:
 			{
-				for ( const auto& event : events )
-					mSceneCamera.OnEvent( event );
-				mSceneCamera.OnUpdate( dt );
+				mSceneCamera.OnUpdate( deltaTime );
 				mResourcesHotReloader.OnUpdate();
-				mInterfaceHotReloader.OnUpdate( dt );
+				mEditorUserInterface.OnUpdate( deltaTime );
 
 				DrawProjectScene();
+                // ImGui
+                Framebuffer::BindWindow( mWindow );
+                mWindow.ImGuiBegin();
+                mEditorUserInterface.OnDraw( deltaTime );
+                mWindow.ImGuiEnd();
 				break;
 			}
 			case EditorMode::Runing:
 				break;
         }
-
-        // ImGui interface
-        Framebuffer::BindWindow( mWindow );
-        mWindow.ImGuiBegin();
-        mInterfaceHotReloader.OnDraw( dt );
-        mWindow.ImGuiEnd();
-
-        // Swap window
         mWindow.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__

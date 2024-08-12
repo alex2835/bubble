@@ -115,8 +115,8 @@ void ThirdPersonCamera::OnUpdate( DeltaTime dt )
     mIsRotatingX = false;
     mIsRotatingY = false;
 
-    mYaw += mSpeedX * dt.Seconds();
-    mPitch += mSpeedY * dt.Seconds();
+    mYaw += mSpeedX * dt;
+    mPitch += mSpeedY * dt;
 
     // Transformation matrix
     mat4 transform = mat4( 1.0f );

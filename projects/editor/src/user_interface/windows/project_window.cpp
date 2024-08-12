@@ -1,5 +1,5 @@
 
-#include "editor_interfaces/interfaces/project_interface.hpp"
+#include "editor_user_interface/windows/project_window.hpp"
 
 namespace bubble
 {
@@ -45,8 +45,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 
 
 
-ProjectInterface::ProjectInterface( EditorState& editorState )
-    : IEditorInterface( editorState )
+ProjectWindow::ProjectWindow( EditorState& editorState )
+    : UserInterfaceWindowBase( editorState )
 {
     //mShader = LoadShader( "./resources/shaders/only_defuse" );
     mFolderIcon = LoadTexture2D( "./resources/images/project_tree/folder.png" );
@@ -57,17 +57,17 @@ ProjectInterface::ProjectInterface( EditorState& editorState )
 }
 
 
-ProjectInterface::~ProjectInterface()
+ProjectWindow::~ProjectWindow()
 {
 
 }
 
-string_view ProjectInterface::Name()
+string_view ProjectWindow::Name()
 {
     return "Project"sv;
 }
 
-void ProjectInterface::FillFilesystemNode( FilesystemNode& root )
+void ProjectWindow::FillFilesystemNode( FilesystemNode& root )
 {
     for ( const auto& item : filesystem::directory_iterator( root.mPath ) )
     {
@@ -80,7 +80,7 @@ void ProjectInterface::FillFilesystemNode( FilesystemNode& root )
     }
 }
 
-void ProjectInterface::FillIcons( const FilesystemNode& node )
+void ProjectWindow::FillIcons( const FilesystemNode& node )
 {
     if ( node.mType == FilesystemNodeType::Model )
     {
@@ -94,7 +94,7 @@ void ProjectInterface::FillIcons( const FilesystemNode& node )
         FillIcons( child );
 }
 
-void ProjectInterface::FillFilesystemTree()
+void ProjectWindow::FillFilesystemTree()
 {
     FilesystemNode root;
     root.mPath = mProject.mRootFile.parent_path();
@@ -104,12 +104,12 @@ void ProjectInterface::FillFilesystemTree()
     std::swap( mFilesystemTreeRoot, root );
 }
 
-void ProjectInterface::OnUpdate( DeltaTime )
+void ProjectWindow::OnUpdate( DeltaTime )
 {
 
 }
 
-void ProjectInterface::DrawFilesystemTree( const FilesystemNode& node )
+void ProjectWindow::DrawFilesystemTree( const FilesystemNode& node )
 {
     if ( node.mType != FilesystemNodeType::Folder )
         return;
@@ -129,7 +129,7 @@ void ProjectInterface::DrawFilesystemTree( const FilesystemNode& node )
     }
 }
 
-void ProjectInterface::DrawSelectedFolderItems()
+void ProjectWindow::DrawSelectedFolderItems()
 {
     if ( not mSelectedNode )
         return;
@@ -167,16 +167,16 @@ void ProjectInterface::DrawSelectedFolderItems()
     }
 }
 
-void ProjectInterface::OnDraw( DeltaTime )
+void ProjectWindow::OnDraw( DeltaTime )
 {
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
     {
         ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
         {
-            if ( mUINeedUpdateProjectInterface )
+            if ( mUINeedUpdateProjectWindow )
             {
-                mUINeedUpdateProjectInterface = false;
+                mUINeedUpdateProjectWindow = false;
                 FillFilesystemTree();
             }
 

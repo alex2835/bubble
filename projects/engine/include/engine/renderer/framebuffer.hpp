@@ -1,14 +1,13 @@
 #pragma once
 #include <cstdint>
 #include <cassert>
-#include "engine/utils/imexp.hpp"
 #include "engine/utils/types.hpp"
 #include "engine/window/window.hpp"
 #include "engine/renderer/texture.hpp"
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT FramebufferSpecification
+struct FramebufferSpecification
 {
     GLsizei mWidth = 0;
     GLsizei mHeight = 0;
@@ -21,7 +20,7 @@ struct BUBBLE_ENGINE_EXPORT FramebufferSpecification
 };
 
 
-class BUBBLE_ENGINE_EXPORT Framebuffer
+class Framebuffer
 {
 public:
     Framebuffer() = delete;

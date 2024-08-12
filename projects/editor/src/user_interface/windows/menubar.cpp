@@ -1,5 +1,5 @@
 
-#include "editor_interfaces/interfaces/menubar.hpp"
+#include "editor_user_interface/windows/menubar.hpp"
 
 namespace bubble
 {
@@ -43,7 +43,7 @@ void Menubar::ModalCreateProject()
             ImGui::CloseCurrentPopup();
             mCreateProjectModal = false;
 
-            mUINeedUpdateProjectInterface = true;
+            mUINeedUpdateProjectWindow = true;
         }
         ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
 
@@ -84,7 +84,7 @@ void Menubar::ModalOpenProject()
             mOpenProjectModal = false;
             mProject.Open( projectPath );
 
-            mUINeedUpdateProjectInterface = true;
+            mUINeedUpdateProjectWindow = true;
         }
         catch ( const std::exception& e )
         {

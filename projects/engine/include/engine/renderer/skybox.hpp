@@ -1,13 +1,12 @@
 #pragma once
 #include "glm/gtx/transform.hpp"
-#include "engine/utils/imexp.hpp"
 #include "engine/renderer/cubemap.hpp"
 #include "engine/renderer/buffer.hpp"
 
 
 namespace bubble
 {
-struct BUBBLE_ENGINE_EXPORT Skybox
+struct Skybox
 {
     Cubemap mSkybox;
 

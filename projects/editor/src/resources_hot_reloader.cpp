@@ -1,5 +1,5 @@
 
-#include "resources_hot_reloader/resources_hot_reloader.hpp"
+#include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 
 namespace bubble
 {

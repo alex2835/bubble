@@ -1,7 +1,6 @@
 #pragma once
 #include <utility>
 #include <algorithm>
-#include "engine/utils/imexp.hpp"
 #include "engine/renderer/shader.hpp"
 
 namespace bubble
@@ -41,7 +40,7 @@ enum class LightType
 //};
 
 
-struct BUBBLE_ENGINE_EXPORT Light
+struct Light
 {
     LightType Type = LightType::DirLight;
 
