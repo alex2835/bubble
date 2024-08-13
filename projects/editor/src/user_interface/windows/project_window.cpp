@@ -3,7 +3,6 @@
 
 namespace bubble
 {
-
 namespace
 {
 std::optional<path> tryFindModelInFolder( const path& dir )
@@ -183,7 +182,6 @@ void ProjectWindow::OnDraw( DeltaTime )
             DrawFilesystemTree( mFilesystemTreeRoot );
         }
         ImGui::EndChild();
-
 
         ImGui::SameLine();
         ImGui::BeginChild( "Selected folder items" );
