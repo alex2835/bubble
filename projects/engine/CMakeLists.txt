@@ -37,8 +37,11 @@ if(EMSCRIPTEN)
 	target_link_options(${TARGET_NAME} PUBLIC
 		--bind -sUSE_WEBGL2=1 -sUSE_GLFW=3 -sWASM=1
 	)
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+elseif(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
-	  /WX /ZI
+	  /WX
 	)
 endif()
+
+set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
+set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 10)

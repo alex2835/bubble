@@ -1,7 +1,6 @@
 
 if(NOT EMSCRIPTEN)
 	#GIT_TAG glew-cmake-2.2.0  GIT_REPOSITORY "https://github.com/Perlmint/glew-cmake.git"
-
 	add_subdirectory(glew)
 
 	#GIT_TAG 3.3.8  GIT_REPOSITORY "https://github.com/glfw/glfw.git"
@@ -15,22 +14,29 @@ endif()
 #GIT_TAG v1.89.9-docking  GIT_REPOSITORY "https://github.com/ocornut/imgui.git"
 add_subdirectory(imgui)
 add_subdirectory(imgui_gizmo)
+add_subdirectory(imgui-filebrowser)
 
 #GIT_TAG v5.3.1  GIT_REPOSITORY "https://github.com/assimp/assimp.git"
 option(ASSIMP_BUILD_TESTS "" OFF)
 option(ASSIMP_BUILD_DOCS "" OFF)
 option(BUILD_SHARED_LIBS "" OFF)
+option(ASSIMP_NO_EXPORT "" ON)
+option(ASSIMP_INJECT_DEBUG_POSTFIX "" OFF)
+option(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT "" OFF)
+option(ASSIMP_BUILD_OBJ_IMPORTER ON)
 add_subdirectory(assimp)
 
 #GIT_TAG 0.9.9.8  GIT_REPOSITORY "https://github.com/g-truc/glm.git" 
 add_subdirectory(glm)
 add_subdirectory(glm-aabb)
 
-add_subdirectory(imgui-filebrowser)
+add_subdirectory(lua)
+add_subdirectory(sol2)
 add_subdirectory(json)
 add_subdirectory(recs)
-add_subdirectory(hot_reloader)
+#add_subdirectory(hot_reloader)
+add_subdirectory(argagg)
 add_subdirectory(stb_image)
 add_subdirectory(magic_enum)
 add_subdirectory(thread_pool)
-add_subdirectory(argagg)
+

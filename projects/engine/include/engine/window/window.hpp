@@ -52,6 +52,8 @@ public:
     void LockCursor( bool lock );
     void SetVSync( bool vsync );
 
+    WindowInput& GetWindowInput();
+
     GLFWwindow* GetHandle() const;
     const char* GetGLSLVersion() const;
 

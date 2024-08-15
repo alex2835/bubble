@@ -66,4 +66,5 @@ private:
     ComponentManager() = default;
     str_hash_map<ComponentFunctions> mComponentFunctions;
 };
+
 }

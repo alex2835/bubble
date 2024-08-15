@@ -21,8 +21,8 @@ add_custom_command(
     ${PROJECT_SOURCE_DIR}/resources
     $<TARGET_FILE_DIR:${TARGET_NAME}>/resources)
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+if(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
-	 /WX /ZI
+	 /WX
 	)
 endif()

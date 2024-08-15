@@ -16,17 +16,20 @@ class BubbleEditor : public EditorState
 
 public:
     BubbleEditor();
+    void AddDefaultComponents();
+
     void OpenProject( const path& projectPath );
     void Run();
     void DrawProjectScene();
 
 private:
     EditorMode mEditorMode;
-    // Shader to handle object picking in viewport
-    Ref<Shader> mObjectIdShader;
     // Editor user interface and resource hot reloader
     EditorUserInterface mEditorUserInterface;
     ResourcesHotReloader mResourcesHotReloader;
+    // Shader to handle object picking in viewport
+    Ref<Shader> mObjectIdShader;
+
 };
 
 }

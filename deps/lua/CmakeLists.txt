@@ -1,0 +1,10 @@
+
+project(lua)
+
+file(GLOB_RECURSE SRCS *.c)
+file(GLOB_RECURSE HDRS *.h)
+add_library(lua STATIC ${SRCS} ${HDRS})
+
+target_include_directories(lua PUBLIC 
+	${CMAKE_CURRENT_SOURCE_DIR}/src
+)

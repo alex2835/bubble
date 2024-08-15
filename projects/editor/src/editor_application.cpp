@@ -13,22 +13,24 @@ BubbleEditor::BubbleEditor()
                                        Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
         .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                           Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-        .mSceneCamera = SceneCamera( mWindow )
+        .mSceneCamera = SceneCamera( mWindow.GetWindowInput() )
       },
       mEditorMode( EditorMode::Editing ),
       mResourcesHotReloader( mProject.mLoader ),
-      mEditorUserInterface( *this )
+      mEditorUserInterface( *this ),
+      mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) )
 {
-    // Add default components
+    AddDefaultComponents();
+}
+
+
+void BubbleEditor::AddDefaultComponents()
+{
     ComponentManager::Add<TagComponent>( mProject.mScene );
     ComponentManager::Add<ModelComponent>( mProject.mScene );
     ComponentManager::Add<TransformComponent>( mProject.mScene );
     ComponentManager::Add<ShaderComponent>( mProject.mScene );
-
-    // Selecting objects
-    mObjectIdShader = LoadShader( OBJECT_PICKING_SHADER );
 }
-
 
 void BubbleEditor::OpenProject( const path& projectPath )
 {

@@ -132,5 +132,4 @@ void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponen
     shaderComponent = loader.LoadShader( json );
 }
 
-
 }

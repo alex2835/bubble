@@ -273,6 +273,11 @@ void Window::SetVSync( bool vsync )
     glfwSwapInterval( vsync );
 }
 
+bubble::WindowInput& Window::GetWindowInput()
+{
+    return *this;
+}
+
 GLFWwindow* Window::GetHandle() const
 {
     return mWindow;
