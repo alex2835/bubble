@@ -26,6 +26,8 @@ target_link_libraries(${TARGET_NAME} PUBLIC magic_enum)
 target_link_libraries(${TARGET_NAME} PUBLIC thread_pool)
 target_link_libraries(${TARGET_NAME} PUBLIC assimp)
 target_link_libraries(${TARGET_NAME} PUBLIC nlohmann_json)
+target_link_libraries(${TARGET_NAME} PUBLIC lua)
+target_link_libraries(${TARGET_NAME} PUBLIC sol2)
 
 if(NOT EMSCRIPTEN)
 	target_link_libraries(${TARGET_NAME} PUBLIC libglew_static)
@@ -39,9 +41,7 @@ if(EMSCRIPTEN)
 	)
 elseif(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
-	  /WX
+	  /WX /bigobj
 	)
 endif()
 
-set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
-set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 10)

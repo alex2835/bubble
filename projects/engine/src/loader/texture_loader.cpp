@@ -40,14 +40,16 @@ Ref<Texture2D> LoadTexture2D( const TextureData& textureData )
     return texture;
 }
 
-Ref<Texture2D> Loader::LoadTexture2D( const path& path )
+Ref<Texture2D> Loader::LoadTexture2D( const path& texturePath )
 {
-    auto iter = mTextures.find( path );
+    auto [relPath, absPath] = RelAbsFromProjectPath( texturePath );
+
+    auto iter = mTextures.find( relPath );
     if ( iter != mTextures.end() )
         return iter->second;
 
-    auto texture = bubble::LoadTexture2D( path );
-    mTextures.emplace( path, texture );
+    auto texture = bubble::LoadTexture2D( absPath );
+    mTextures.emplace( relPath, texture );
     return texture;
 }
 
@@ -55,24 +57,26 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& path )
 void Loader::LoadTextures2D( const vector<path>& texturePaths )
 {
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path, TextureData>()>> textureDataTasks;
+    std::vector<FixedSizePackagedTask<pair<path, TextureData>(), 128>> textureDataTasks;
 
     for ( const path& texturePath : texturePaths )
     {
+        auto [relPath, absPath] = RelAbsFromProjectPath( texturePath );
+
         if ( mTextures.contains( texturePath ) )
             continue;
 
-        textureDataTasks.emplace_back( [texturePath]()
+        textureDataTasks.emplace_back( [=]()
         {
-            return std::make_pair( texturePath, OpenTexture( texturePath ) );
+            return std::make_pair( relPath, OpenTexture( absPath ) );
         } );
     }
     threadPool.AddTasks( textureDataTasks );
 
     for ( auto& task : textureDataTasks )
     {
-        auto [texturePath, textureData] = task.get();
-        mTextures[texturePath] = bubble::LoadTexture2D( textureData );
+        auto [relTexturePath, textureData] = task.get();
+        mTextures[relTexturePath] = bubble::LoadTexture2D( textureData );
     }
 }
 

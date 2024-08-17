@@ -9,21 +9,21 @@ namespace bubble
 {
 using namespace nlohmann;
 
-void Scene::ToJson( const Scene& scene, const Loader& loader, json& j )
+void Scene::ToJson( const Loader& loader, json& j )
 {
-    j["Entity counter"] = scene.mEntityCounter;
-    j["Component counter"] = scene.mComponentCounter;
-    j["Components"] = scene.mComponents;
+    j["Entity counter"] = mEntityCounter;
+    j["Component counter"] = mComponentCounter;
+    j["Components"] = mComponents;
     // Entity components
     auto& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entity, components] : scene.mEntitiesComponentIds )
+    for ( const auto& [entity, components] : mEntitiesComponentIds )
         entityComponentsJson[std::to_string( entity )] = components;
 
     json& poolsJson = j["Component pools"];
-    for ( const auto& [componentName, componentId] : scene.mComponents )
+    for ( const auto& [componentName, componentId] : mComponents )
     {
-        auto iter = scene.mPools.find( componentId );
-        if ( iter == scene.mPools.end() )
+        auto iter = mPools.find( componentId );
+        if ( iter == mPools.end() )
             throw std::runtime_error( "No pool for component: " + componentName );
 
         const auto& pool = iter->second;
@@ -38,11 +38,11 @@ void Scene::ToJson( const Scene& scene, const Loader& loader, json& j )
     }
 }
 
-void Scene::FromJson( Scene& scene, Loader& loader, const json& j )
+void Scene::FromJson( Loader& loader, const json& j )
 {
-    scene.mEntityCounter = j["Entity counter"];
-    scene.mComponentCounter = j["Component counter"];
-    scene.mComponents = j["Components"];
+    mEntityCounter = j["Entity counter"];
+    mComponentCounter = j["Component counter"];
+    mComponents = j["Components"];
     // Entity components
     const json& entityComponentsJson = j["Entity components"];
     for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )
@@ -53,19 +53,19 @@ void Scene::FromJson( Scene& scene, Loader& loader, const json& j )
 
         u64 entityId = std::atoi( entityStr.c_str() );
         Entity entity = *(Entity*)&entityId;
-        scene.mEntitiesComponentIds[entity] = components;
+        mEntitiesComponentIds[entity] = components;
     }
-    scene.UpdateEntityReferences();
+    UpdateEntityReferences();
 
     for ( const auto& [componentName, poolJson] : j["Component pools"].items() )
     {
-        auto componentsIter = scene.mComponents.find( componentName );
-        if ( componentsIter == scene.mComponents.end() )
+        auto componentsIter = mComponents.find( componentName );
+        if ( componentsIter == mComponents.end() )
             throw std::runtime_error( "Scene from_json failed. No such component: " + componentName );
 
         const auto componentId = componentsIter->second;
-        auto poolsIter = scene.mPools.find( componentId );
-        if ( poolsIter == scene.mPools.end() )
+        auto poolsIter = mPools.find( componentId );
+        if ( poolsIter == mPools.end() )
             throw std::runtime_error( "scene from_json failed. No such pool: " + componentName );
 
         Pool& pool = poolsIter->second;
@@ -74,7 +74,7 @@ void Scene::FromJson( Scene& scene, Loader& loader, const json& j )
         for ( const auto& [entityIdStr, componentJson] : poolJson.items() )
         {
             u64 entityId = std::atoi( entityIdStr.c_str() );
-            componentFromJson( loader, componentJson, pool.PushEmpty( scene.GetEntityById( entityId ) ) );
+            componentFromJson( loader, componentJson, pool.PushEmpty( GetEntityById( entityId ) ) );
         }
     }
 }

@@ -228,14 +228,16 @@ Ref<Model> LoadModel( const path& path )
 }
 
 
-Ref<Model> Loader::LoadModel( const path& path )
+Ref<Model> Loader::LoadModel( const path& modelPath )
 {
-    auto iter = mModels.find( path );
+    auto[relPath,absPath] = RelAbsFromProjectPath( modelPath );
+
+    auto iter = mModels.find( relPath );
     if ( iter != mModels.end() )
         return iter->second;
 
-	auto model = bubble::LoadModel( path );
-	mModels.emplace( path, model );
+	auto model = bubble::LoadModel( absPath );
+	mModels.emplace( relPath, model );
     return model;
 }
 
@@ -243,24 +245,26 @@ Ref<Model> Loader::LoadModel( const path& path )
 void Loader::LoadModels( const vector<path>& modelsPaths )
 {
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path,ModelData>()>> modelDataTasks;
+    std::vector<FixedSizePackagedTask<pair<path,ModelData>(), 128>> modelDataTasks;
 
     for ( const path& modelPath : modelsPaths )
     {
+        auto [relPath, absPath] = RelAbsFromProjectPath( modelPath );
+
         if ( mModels.contains( modelPath ) )
             continue;
 
-        modelDataTasks.emplace_back( [modelPath]()
+        modelDataTasks.emplace_back( [=]()
         {
-            return std::make_pair( modelPath, OpenModel( modelPath ) );
+            return std::make_pair( relPath, OpenModel( absPath ) );
         } );
     }
     threadPool.AddTasks( modelDataTasks );
 
     for ( auto& task : modelDataTasks )
     {
-        auto [modelPath, modelData] = task.get();
-        mModels[modelPath] = bubble::LoadModel( modelData );
+        auto [relModelPath, modelData] = task.get();
+        mModels[relModelPath] = bubble::LoadModel( modelData );
     }
 }
 

@@ -43,17 +43,19 @@ void Project::Open( const path& rootFile )
         throw std::runtime_error( "Invalid project path: " + rootFile.string() );
     
     mRootFile = rootFile;
+    mLoader.mProjectRootPath = rootFile.parent_path();
+
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
-    mLoader = projectJson["Loader"];
-    Scene::FromJson( mScene, mLoader, projectJson["Scene"] );
+    from_json( projectJson["Loader"], mLoader );
+    mScene.FromJson( mLoader, projectJson["Scene"] );
 }
 
 void Project::Save()
 {
     json projectJson;
     projectJson["Loader"] = mLoader;
-    Scene::ToJson( mScene, mLoader, projectJson["Scene"] );
+    mScene.ToJson( mLoader, projectJson["Scene"] );
 
     std::ofstream projectFile( mRootFile );
     projectFile << projectJson.dump( 1 );

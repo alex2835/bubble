@@ -94,7 +94,8 @@ void ModelComponent::OnComponentDraw( const Loader& loader, ModelComponent& mode
 
 void ModelComponent::ToJson( const Loader& loader, json& json, const ModelComponent& modelComponent )
 {
-    json = modelComponent->mPath;
+    auto [relPath, _] = loader.RelAbsFromProjectPath( modelComponent->mPath );
+    json = relPath;
 }
 
 void ModelComponent::FromJson( Loader& loader, const json& json, ModelComponent& modelComponent )
@@ -124,7 +125,8 @@ void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& sh
 
 void ShaderComponent::ToJson( const Loader& loader, json& json, const ShaderComponent& shaderComponent )
 {
-    json = shaderComponent->mPath;
+    auto [relPath, _] = loader.RelAbsFromProjectPath( shaderComponent->mPath );
+    json = relPath;
 }
 
 void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponent& shaderComponent )

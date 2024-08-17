@@ -252,14 +252,16 @@ Ref<Shader> LoadShader( const path& path )
 }
 
 
-Ref<Shader> Loader::LoadShader( const path& path )
+Ref<Shader> Loader::LoadShader( const path& shaderPath )
 {
-    auto iter = mShaders.find( path );
+	auto [relPath, absPath] = RelAbsFromProjectPath( shaderPath );
+
+    auto iter = mShaders.find( relPath );
     if ( iter != mShaders.end() )
         return iter->second;
 
-    auto shader = bubble::LoadShader( path );
-    mShaders.emplace( path, shader );
+    auto shader = bubble::LoadShader( absPath );
+    mShaders.emplace( relPath, shader );
     return shader;
 }
 

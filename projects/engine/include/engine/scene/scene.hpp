@@ -8,8 +8,8 @@ using namespace recs;
 class Scene : public Registry
 {
 public:
-    static void ToJson( const Scene& scene, const Loader& loader, json& j );
-    static void FromJson( Scene& scene, Loader& loader, const json& j );
+    void ToJson( const Loader& loader, json& j );
+    void FromJson( Loader& loader, const json& j );
 };
 
 }

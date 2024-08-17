@@ -57,14 +57,16 @@ Ref<Skybox> LoadSkybox( const path& path )
     return skybox;
 }
 
-Ref<Skybox> Loader::LoadSkybox( const path& path )
+Ref<Skybox> Loader::LoadSkybox( const path& skyboxPath )
 {
-    auto iter = mSkyboxes.find( path );
+    auto [relPath, absPath] = RelAbsFromProjectPath( skyboxPath );
+
+    auto iter = mSkyboxes.find( relPath );
     if ( iter != mSkyboxes.end() )
         return iter->second;
 
-    auto skybox = bubble::LoadSkybox( path );
-    mSkyboxes.emplace( path, skybox );
+    auto skybox = bubble::LoadSkybox( absPath );
+    mSkyboxes.emplace( relPath, skybox );
     return skybox;
 }
 

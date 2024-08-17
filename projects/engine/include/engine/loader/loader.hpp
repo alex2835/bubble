@@ -34,25 +34,39 @@ TextureData OpenTexture( const path& path );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 
-Ref<Shader> LoadShader( const path& path );
 Ref<Model> LoadModel( const path& path );
 Ref<Model> LoadModel( const TextureData& path );
+
+Ref<Shader> LoadShader( const path& path );
 Ref<Skybox> LoadSkybox( const path& path );
 
 
 struct Loader
 {
+    path mProjectRootPath;
     hash_map<path, Ref<Texture2D>> mTextures;
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Skybox>> mSkyboxes;
-    
+
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
     Ref<Shader> LoadShader( const path& path );
     Ref<Model> LoadModel( const path& path );
     void LoadModels( const vector<path>& paths );
     Ref<Skybox> LoadSkybox( const path& path );
+
+
+    // rel, abs
+    pair<path, path> RelAbsFromProjectPath( const path& resPath ) const
+    {
+        // engine resource
+        if ( resPath.string().starts_with( "." ) )
+            return { resPath, resPath };
+
+        return { resPath.is_relative() ? resPath : filesystem::relative( resPath, mProjectRootPath ),
+                 resPath.is_absolute() ? resPath : mProjectRootPath / resPath };
+    }
 };
 
 }
