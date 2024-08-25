@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 set(TARGET_NAME bubble_engine)
 
 file(GLOB_RECURSE SRCS *.cpp)
-file(GLOB_RECURSE HDRS *.h)
+file(GLOB_RECURSE HDRS *.hpp)
 add_library(${TARGET_NAME} STATIC ${SRCS} ${HDRS})
 
 target_include_directories(${TARGET_NAME} PUBLIC 

@@ -6,12 +6,11 @@
 
 namespace bubble
 {
-
 void CreateSceneBindings( sol::state& lua )
 {
     lua.new_usertype<Entity>(
         "Entity",
-        "AddTagComponent", &Entity::AddComponet<TagComponent>
+        "AddTagComponent", &Entity::AddComponet<TagComponent, string>
     );
 
     lua.new_usertype<Scene>(
@@ -19,6 +18,5 @@ void CreateSceneBindings( sol::state& lua )
         "CreateEntity", &Scene::CreateEntity
     );
 }
-
 
 } // namespace bubble
