@@ -9,13 +9,13 @@ class Script
 public:
     Script( const path& scriptPath )
         : mPath( scriptPath ),
-          mScript( readFile( scriptPath ) )
+          mScript( filesystem::readFile( scriptPath ) )
     {}
 
-    string_view GetCode() { return mScript; }
+    string_view GetCode() const { return mScript; }
 
 private:
-    path mPaht;
+    path mPath;
     string mScript;
 };
 

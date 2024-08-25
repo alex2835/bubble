@@ -24,25 +24,25 @@ void Window::KeyCallback( GLFWwindow* window,
     //    event.mType = EventType::ShouldClose;
     //    win->mEvents.push_back( event );
     //}
-    win->mKeyboardInput.mKeyState[key] = action;
-    win->mKeyboardInput.mKeyMods.SHIFT = mods & GLFW_MOD_SHIFT;
-    win->mKeyboardInput.mKeyMods.CONTROL = mods & GLFW_MOD_CONTROL;
-    win->mKeyboardInput.mKeyMods.ALT = mods & GLFW_MOD_ALT;
-    win->mKeyboardInput.mKeyMods.SUPER = mods & GLFW_MOD_SUPER;
-    win->mKeyboardInput.mKeyMods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
-    win->mKeyboardInput.mKeyMods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
+    win->mWindowInput.mKeyboardInput.mKeyState[key] = action;
+    win->mWindowInput.mKeyboardInput.mKeyMods.SHIFT = mods & GLFW_MOD_SHIFT;
+    win->mWindowInput.mKeyboardInput.mKeyMods.CONTROL = mods & GLFW_MOD_CONTROL;
+    win->mWindowInput.mKeyboardInput.mKeyMods.ALT = mods & GLFW_MOD_ALT;
+    win->mWindowInput.mKeyboardInput.mKeyMods.SUPER = mods & GLFW_MOD_SUPER;
+    win->mWindowInput.mKeyboardInput.mKeyMods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
+    win->mWindowInput.mKeyboardInput.mKeyMods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
 }
 
 void Window::MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mMouseInput.mKeyState[key] = action;
-    win->mMouseInput.mKeyMods.SHIFT = mods & GLFW_MOD_SHIFT;
-    win->mMouseInput.mKeyMods.CONTROL = mods & GLFW_MOD_CONTROL;
-    win->mMouseInput.mKeyMods.ALT = mods & GLFW_MOD_ALT;
-    win->mMouseInput.mKeyMods.SUPER = mods & GLFW_MOD_SUPER;
-    win->mMouseInput.mKeyMods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
-    win->mMouseInput.mKeyMods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
+    win->mWindowInput.mMouseInput.mKeyState[key] = action;
+    win->mWindowInput.mMouseInput.mKeyMods.SHIFT = mods & GLFW_MOD_SHIFT;
+    win->mWindowInput.mMouseInput.mKeyMods.CONTROL = mods & GLFW_MOD_CONTROL;
+    win->mWindowInput.mMouseInput.mKeyMods.ALT = mods & GLFW_MOD_ALT;
+    win->mWindowInput.mMouseInput.mKeyMods.SUPER = mods & GLFW_MOD_SUPER;
+    win->mWindowInput.mMouseInput.mKeyMods.CAPS_LOCK = mods & GLFW_MOD_CAPS_LOCK;
+    win->mWindowInput.mMouseInput.mKeyMods.NUM_LOCK = mods & GLFW_MOD_NUM_LOCK;
 }
 
 void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
@@ -50,13 +50,13 @@ void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     auto window_size = win->Size();
     auto mouse_pos = vec2( xpos, window_size.mHeight - ypos );
-    win->mMouseInput.mMouseOffset = mouse_pos - win->mMouseInput.mMousePos;
-    win->mMouseInput.mMousePos = mouse_pos;
+    win->mWindowInput.mMouseInput.mMouseOffset = mouse_pos - win->mWindowInput.mMouseInput.mMousePos;
+    win->mWindowInput.mMouseInput.mMousePos = mouse_pos;
 
     Event event = win->CreateEvent();
     event.mType = EventType::MouseMove;
-    event.mMouse.Pos = win->mMouseInput.mMousePos;
-    event.mMouse.Offset = win->mMouseInput.mMouseOffset;
+    event.mMouse.Pos = win->mWindowInput.mMouseInput.mMousePos;
+    event.mMouse.Offset = win->mWindowInput.mMouseInput.mMouseOffset;
     win->mEvents.push_back( event );
 }
 
@@ -87,18 +87,18 @@ void Window::FillKeyboardEvents()
 {
     for ( u64 key = 0; key < MAX_KEYBOAR_KEYS_SIZE; key++ )
     {
-        if ( mKeyboardInput.mKeyState[key] == NO_STATE )
+        if ( mWindowInput.mKeyboardInput.mKeyState[key] == NO_STATE )
             continue;
 
-        auto action = mKeyboardInput.mKeyState[key];
-        if ( mKeyboardInput.mKeyState[key] == (i32)KeyAction::Release )
-            mKeyboardInput.mKeyState[key] = NO_STATE;
+        auto action = mWindowInput.mKeyboardInput.mKeyState[key];
+        if ( mWindowInput.mKeyboardInput.mKeyState[key] == (i32)KeyAction::Release )
+            mWindowInput.mKeyboardInput.mKeyState[key] = NO_STATE;
 
         Event event = CreateEvent();
         event.mType = EventType::KeyboardKey;
         event.mKeyboard.Key = static_cast<KeyboardKey>( key );
         event.mKeyboard.Action = static_cast<KeyAction>( action );
-        event.mKeyboard.Mods = mKeyboardInput.mKeyMods;
+        event.mKeyboard.Mods = mWindowInput.mKeyboardInput.mKeyMods;
         mEvents.push_back( event );
     }
 }
@@ -107,18 +107,18 @@ void Window::FillMouseEvents()
 {
     for ( u64 key = 0; key < MAX_MOUSE_KEYS_SIZE; key++ )
     {
-        if ( mMouseInput.mKeyState[key] == NO_STATE )
+        if ( mWindowInput.mMouseInput.mKeyState[key] == NO_STATE )
             continue;
 
-        auto action = mMouseInput.mKeyState[key];
-        if ( mMouseInput.mKeyState[key] == (i32)KeyAction::Release )
-            mMouseInput.mKeyState[key] = NO_STATE;
+        auto action = mWindowInput.mMouseInput.mKeyState[key];
+        if ( mWindowInput.mMouseInput.mKeyState[key] == (i32)KeyAction::Release )
+            mWindowInput.mMouseInput.mKeyState[key] = NO_STATE;
 
         Event event= CreateEvent();
         event.mType = EventType::MouseKey;
         event.mMouse.Key = static_cast<MouseKey>( key );
         event.mMouse.Action = static_cast<KeyAction>( action );
-        event.mMouse.Mods = mMouseInput.mKeyMods;
+        event.mMouse.Mods = mWindowInput.mMouseInput.mKeyMods;
         mEvents.push_back( event );
     }
 }
@@ -126,8 +126,8 @@ void Window::FillMouseEvents()
 bubble::Event Window::CreateEvent() const
 {
     Event event;
-    event.mKeyboardInput = &mKeyboardInput;
-    event.mMouseInput = &mMouseInput;
+    event.mKeyboardInput = &mWindowInput.mKeyboardInput;
+    event.mMouseInput = &mWindowInput.mMouseInput;
     return event;
 }
 
@@ -247,19 +247,19 @@ const vector<Event>& Window::PollEvents()
 
 void Window::OnUpdate()
 {
-    mMouseInput.OnUpdate();
-    mKeyboardInput.OnUpdate();
+    mWindowInput.mMouseInput.OnUpdate();
+    mWindowInput.mKeyboardInput.OnUpdate();
     glfwSwapBuffers( mWindow );
 }
 
 bool Window::IsKeyPressed( KeyboardKey key )
 {
-    return mKeyboardInput.IsKeyPressed( key );
+    return mWindowInput.mKeyboardInput.IsKeyPressed( key );
 }
 
 bool Window::IsKeyPressed( MouseKey key )
 {
-    return mMouseInput.IsKeyPressed( key );
+    return mWindowInput.mMouseInput.IsKeyPressed( key );
 }
 
 void Window::LockCursor( bool lock )
@@ -273,9 +273,9 @@ void Window::SetVSync( bool vsync )
     glfwSwapInterval( vsync );
 }
 
-bubble::WindowInput& Window::GetWindowInput()
+WindowInput& Window::GetWindowInput()
 {
-    return *this;
+    return mWindowInput;
 }
 
 GLFWwindow* Window::GetHandle() const

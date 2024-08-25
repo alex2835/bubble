@@ -2,7 +2,9 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <string_view>
+#include <format>
 #include <string>
+#include <array>
 #include <tuple>
 #include <ranges>
 #include "recs/impex.hpp"
@@ -10,6 +12,7 @@
 #include "recs/entity.hpp"
 #include "recs/pool.hpp"
 #include "recs/view.hpp"
+#include "recs/runtime_view.hpp"
 
 namespace recs
 {
@@ -50,9 +53,9 @@ public:
     template <ComponentType Component>
     void RemoveComponent( Entity entity );
     
-    // ComponentIds API
-    const std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>>& AllComponentIdsMap();
-    const std::unordered_set<ComponentTypeId>& EntityComponentIds( Entity entity );
+    // ComponentTypeIds API
+    const std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>>& AllComponentTypeIdsMap();
+    const std::unordered_set<ComponentTypeId>& EntityComponentTypeIds( Entity entity );
     void EntityAddComponentId( Entity entity, ComponentTypeId componentId );
     void EntityRemoveComponentId( Entity entity, ComponentTypeId componentId );
 
@@ -61,10 +64,14 @@ public:
     void ForEach( F&& func );
 
     template <typename F>
+    void RuntimeForEach( const std::vector<std::string_view>& components, F&& func );
+
+    template <typename F>
     void ForEachEntity( F&& func );
 
     template <ComponentType ...Components>
     View<Components...> GetView();
+    RuntimeView GetRuntimeView( const std::vector<std::string_view>& components );
 
     template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
@@ -79,6 +86,7 @@ private:
 
     template <ComponentType Component>
     ComponentTypeId GetComponentTypeId();
+    ComponentTypeId GetComponentTypeId( std::string_view name );
 
     template <ComponentType ...Components>
     std::array<ComponentTypeId, sizeof...(Components)> GetComponentsTypeId();
@@ -100,19 +108,22 @@ private:
     // For each
     template <ComponentType ...Components, typename F>
     void ForEachTuple( F&& func );
-
+    
     template <typename ...Args, size_t Size, size_t ...Is>
-    std::tuple<Args&...> MakeTupleFromPoolsAndIndicies( Pool* const( &pools )[Size], size_t const( &indicies )[Size], std::index_sequence<Is...> )
+    std::tuple<Args&...> MakeTupleFromPoolsAndIndicies( const std::array<Pool*, Size>& pools, 
+                                                        const std::array<size_t, Size>& indicies,
+                                                        std::index_sequence<Is...> )
     {
         return std::forward_as_tuple( pools[Is]->template Get<Args>( indicies[Is] )... );
     }
     Pool& GetComponentPool( ComponentTypeId id );
+    Pool& GetComponentPool( std::string_view component );
 
 protected:
     size_t mEntityCounter = 1;
     size_t mComponentCounter = 1;
     std::unordered_map<std::string, ComponentTypeId, string_hash, std::equal_to<>> mComponents;
-    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> mEntitiesComponentIds;
+    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> mEntitiesComponentTypeIds;
     std::unordered_map<ComponentTypeId, Pool> mPools;
 };
 
@@ -292,7 +303,7 @@ void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "ForEachEntityComponentRaw: Invalid entity" );
 
-    const auto& components = mEntitiesComponentIds[entity];
+    const auto& components = mEntitiesComponentTypeIds[entity];
     for ( const auto& [name, id] : mComponents )
     {
         if ( components.count( id ) )
@@ -315,7 +326,7 @@ void Registry::ForEach( F&& func )
 template <typename F>
 void Registry::ForEachEntity( F&& func )
 {
-    for ( const auto& [entity, _] : mEntitiesComponentIds )
+    for ( const auto& [entity, _] : mEntitiesComponentTypeIds )
         func( entity );
 }
 
@@ -326,16 +337,16 @@ void Registry::ForEachTuple( F&& func )
         throw std::runtime_error( "No such components set: " +
               ( ( std::string( Components::Name() ) + ", " ) + ... ) );
 
-    const auto size = sizeof...( Components );
-    Pool* pools[size];
+    constexpr auto size = sizeof...( Components );
+    std::array<Pool*, size> pools;
 
     auto componentTypes = GetComponentsTypeId<Components...>();
-    int i = 0;
-    for ( auto componentType : componentTypes )
-        pools[i++] = &GetComponentPool( componentType );
+    for ( size_t i = 0; i < componentTypes.size(); i++ )
+        pools[i] = &GetComponentPool( componentTypes[i] );
 
     size_t max_id = 0;
-    size_t indicies[size] = { 0u };
+    std::array<size_t, size> indicies;
+    indicies.fill( 0u );
     while ( true )
     {
         for ( int i = 0; i < size; i++ )
@@ -371,6 +382,52 @@ void Registry::ForEachTuple( F&& func )
         func( entity, tuple );
 
         for ( int i = 0; i < size; i++ )
+            indicies[i]++;
+    }
+}
+
+template <typename F>
+void Registry::RuntimeForEach( const std::vector<std::string_view>& components, F&& func )
+{
+    std::vector<Pool*> pools( components.size() );
+    for ( size_t i = 0; i < components.size(); i++ )
+        pools[i] = &GetComponentPool( components[i] );
+
+    size_t max_id = 0;
+    std::vector<size_t> indicies( components.size(), 0u );
+    while ( true )
+    {
+        for ( size_t i = 0; i < components.size(); i++ )
+        {
+            if ( indicies[i] >= pools[i]->Size() )
+                return;
+
+            if ( max_id < pools[i]->mEntities[indicies[i]].mId )
+                max_id = pools[i]->mEntities[indicies[i]].mId;
+        }
+
+        bool next = false;
+        for ( size_t i = 0; i < components.size(); i++ )
+        {
+            while ( pools[i]->mEntities[indicies[i]].mId < max_id )
+            {
+                if ( pools[i]->mEntities[indicies[i]].mId > max_id )
+                {
+                    next = true;
+                    break;
+                }
+
+                indicies[i]++;
+                if ( indicies[i] >= pools[i]->Size() )
+                    return;
+            }
+        }
+        if ( next )
+            continue;
+
+        func( Entity( max_id, this ) );
+
+        for ( int i = 0; i < components.size(); i++ )
             indicies[i]++;
     }
 }

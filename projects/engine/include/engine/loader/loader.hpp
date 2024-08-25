@@ -6,6 +6,7 @@
 #include "engine/renderer/shader.hpp"
 #include "engine/renderer/model.hpp"
 #include "engine/renderer/skybox.hpp"
+#include "engine/scripting/script.hpp"
 #include <mutex>
 
 struct aiMesh;
@@ -48,14 +49,15 @@ struct Loader
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Skybox>> mSkyboxes;
+    hash_map<path, Ref<Script>> mScripts;
 
+    Ref<Script> LoadScript( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
     Ref<Shader> LoadShader( const path& path );
     Ref<Model> LoadModel( const path& path );
     void LoadModels( const vector<path>& paths );
     Ref<Skybox> LoadSkybox( const path& path );
-
 
     // rel, abs
     pair<path, path> RelAbsFromProjectPath( const path& resPath ) const

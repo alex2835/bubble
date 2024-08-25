@@ -16,8 +16,8 @@ void Scene::ToJson( const Loader& loader, json& j )
     j["Components"] = mComponents;
     // Entity components
     auto& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entity, components] : mEntitiesComponentIds )
-        entityComponentsJson[std::to_string( entity )] = components;
+    for ( const auto& [entity, componentTypeIds] : mEntitiesComponentTypeIds )
+        entityComponentsJson[std::to_string( entity )] = componentTypeIds;
 
     json& poolsJson = j["Component pools"];
     for ( const auto& [componentName, componentId] : mComponents )
@@ -53,7 +53,7 @@ void Scene::FromJson( Loader& loader, const json& j )
 
         u64 entityId = std::atoi( entityStr.c_str() );
         Entity entity = *(Entity*)&entityId;
-        mEntitiesComponentIds[entity] = components;
+        mEntitiesComponentTypeIds[entity] = components;
     }
     UpdateEntityReferences();
 

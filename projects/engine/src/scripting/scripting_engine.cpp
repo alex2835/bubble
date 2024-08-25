@@ -1,12 +1,17 @@
 
 #include <sol/sol.hpp>
 #include "engine/utils/types.hpp"
+#include "engine/scene/scene.hpp"
+#include "engine/scripting/script.hpp"
 #include "engine/scripting/scripting_engine.hpp"
-#include "engine/scripting/glm_bindings.hpp"
+#include "engine/scripting/bindings/glm_lua_bindings.hpp"
+#include "engine/scripting/bindings/scene_lua_bindings.hpp"
+
+#include <print>
 
 namespace bubble
 {
-ScriptingEngine::ScriptingEngine()
+ScriptingEngine::ScriptingEngine( Scene& scene )
 	: mLua( CreateScope<sol::state>() )
 {
 	mLua->open_libraries( sol::lib::base,
@@ -15,12 +20,28 @@ ScriptingEngine::ScriptingEngine()
 						  sol::lib::io,
 						  sol::lib::math );
 
-	bubble::CreateGLMBindings( *mLua );
+    CreateVec2Bindings( *mLua );
+    CreateVec3Bindings( *mLua );
+    CreateVec4Bindings( *mLua );
+    CreateMat2Bindings( *mLua );
+    CreateMat3Bindings( *mLua );
+    CreateMat4Bindings( *mLua );
+    MathFreeFunctionsBindings( *mLua );
+
+    CreateSceneBindings( *mLua );
+    mLua->set( "scene", &scene );
 }
 
-void ScriptingEngine::RunScript( string_view script )
+
+ScriptingEngine::~ScriptingEngine()
 {
-	mLua->safe_script( script );
+
+}
+
+
+void ScriptingEngine::RunScript( const Script& script )
+{
+    mLua->safe_script( script.GetCode() );
 }
 
 }

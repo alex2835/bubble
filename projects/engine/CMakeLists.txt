@@ -29,19 +29,22 @@ target_link_libraries(${TARGET_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${TARGET_NAME} PUBLIC lua)
 target_link_libraries(${TARGET_NAME} PUBLIC sol2)
 
-if(NOT EMSCRIPTEN)
-	target_link_libraries(${TARGET_NAME} PUBLIC libglew_static)
-	target_link_libraries(${TARGET_NAME} PUBLIC glfw)
-endif()
-
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)
 	target_link_options(${TARGET_NAME} PUBLIC
 		--bind -sUSE_WEBGL2=1 -sUSE_GLFW=3 -sWASM=1
 	)
-elseif(MSVC)
+else()
+	target_link_libraries(${TARGET_NAME} PUBLIC libglew_static)
+	target_link_libraries(${TARGET_NAME} PUBLIC glfw)
+endif()
+
+
+if(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
 	  /WX /bigobj
 	)
 endif()
 
+#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
+#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 10)

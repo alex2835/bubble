@@ -24,24 +24,17 @@ BubbleEditor::BubbleEditor()
 }
 
 
-void BubbleEditor::AddDefaultComponents()
-{
-    ComponentManager::Add<TagComponent>( mProject.mScene );
-    ComponentManager::Add<ModelComponent>( mProject.mScene );
-    ComponentManager::Add<TransformComponent>( mProject.mScene );
-    ComponentManager::Add<ShaderComponent>( mProject.mScene );
-}
-
-void BubbleEditor::OpenProject( const path& projectPath )
-{
-    LogInfo( "Open project {}", projectPath.string() );
-    mUINeedUpdateProjectWindow = true;
-    mProject.Open( projectPath );
-}
-
-
 void BubbleEditor::Run()
 {
+    ScriptingEngine lua( mProject.mScene );
+    Script script( "C:/Users/avusc/Desktop/projects/bubble_sand_box/bubble_project/scripts/main.lua" );
+
+    lua.RunScript( script );
+
+    //exit(0);
+
+
+
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
@@ -78,6 +71,23 @@ void BubbleEditor::Run()
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
 #endif
+}
+
+
+void BubbleEditor::AddDefaultComponents()
+{
+    ComponentManager::Add<TagComponent>( mProject.mScene );
+    ComponentManager::Add<ModelComponent>( mProject.mScene );
+    ComponentManager::Add<TransformComponent>( mProject.mScene );
+    ComponentManager::Add<ShaderComponent>( mProject.mScene );
+}
+
+
+void BubbleEditor::OpenProject( const path& projectPath )
+{
+    LogInfo( "Open project {}", projectPath.string() );
+    mUINeedUpdateProjectWindow = true;
+    mProject.Open( projectPath );
 }
 
 

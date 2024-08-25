@@ -48,6 +48,7 @@ public:
 protected:
     KeyboardInput mKeyboardInput;
     MouseInput mMouseInput;
+    friend class Window;
 };
 
 }

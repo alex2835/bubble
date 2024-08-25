@@ -75,8 +75,8 @@ void EntitiesWindow::DrawSelectedEntityProperties()
 
     ImGui::BeginChild( "Components" );
     {
-        const auto& allComponents = mProject.mScene.AllComponentIdsMap();
-        const auto& entityComponents = mSelectedEntity.EntityComponentIds();
+        const auto& allComponents = mProject.mScene.AllComponentTypeIdsMap();
+        const auto& entityComponents = mSelectedEntity.EntityComponentTypeIds();
 
         // Entity components popups
         if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )

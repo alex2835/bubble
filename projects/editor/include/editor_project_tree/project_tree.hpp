@@ -6,6 +6,7 @@ namespace bubble
 {
 enum class ProjectNodeType
 {
+    Main,
     Folder,
     Camera,
     GameObject,

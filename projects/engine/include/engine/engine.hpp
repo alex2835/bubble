@@ -7,6 +7,7 @@
 #include "renderer/renderer.hpp"
 #include "scene/scene.hpp"
 #include "project/project.hpp"
+#include "scripting/scripting_engine.hpp"
 
 namespace bubble
 {

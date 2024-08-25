@@ -10,12 +10,6 @@ template<ComponentType ...Components>
 class RECS_EXPORT View
 {
 public:
-    View( std::vector<Entity>&& entities,
-          std::vector<std::tuple<Components&...>>&& components )
-        : mEntities( std::move( entities ) ),
-          mComponents( std::move( components ) )
-    {}
-
     template <typename F>
     void ForEach( F&& func )
     {
@@ -61,8 +55,15 @@ public:
     }
 
 private:
+    View( std::vector<Entity>&& entities,
+          std::vector<std::tuple<Components&...>>&& components )
+        : mEntities( std::move( entities ) ),
+          mComponents( std::move( components ) )
+    {}
+
     std::vector<Entity> mEntities;
     std::vector<std::tuple<Components&...>> mComponents;
+    friend class Registry;
 };
 
 }

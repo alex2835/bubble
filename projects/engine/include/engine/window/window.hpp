@@ -34,7 +34,7 @@ struct WindowSize
     u32 mHeight = 0;
 };
 
-class Window : public WindowInput
+class Window
 {
 public:
     Window( const string& name, WindowSize size );
@@ -78,6 +78,7 @@ private:
     WindowSize mWindowSize;
     bool mShouldClose = false;
     vector<Event> mEvents;
+    WindowInput mWindowInput;
 };
 
 }

@@ -61,7 +61,7 @@ public:
     };
 
     // Component Ids API
-    const std::unordered_set<ComponentTypeId>& EntityComponentIds();
+    const std::unordered_set<ComponentTypeId>& EntityComponentTypeIds();
     void EntityAddComponentId( ComponentTypeId componentId );
     void EntityRemoveComponentId( ComponentTypeId componentId );
 
