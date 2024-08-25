@@ -1,30 +1,11 @@
 #pragma once
-#if defined(__EMSCRIPTEN__)
-#   include <emscripten.h>
-#   include <emscripten/html5.h>
-#   define GL_GLEXT_PROTOTYPES
-#   define EGL_EGLEXT_PROTOTYPES
-#else
-#   include <GL/glew.h>
-#   include <GLFW/glfw3.h>
-#   if defined(IMGUI_IMPL_OPENGL_ES2)
-#       include <GLES2/gl2.h>
-#   endif
-#endif
-#include <stdexcept>
-#include <iostream>
-#include <vector>
-#include <imgui.h>
-#include <imgui_impl_opengl3.h>
-#include <imgui_impl_glfw.h>
-#include <ImGuizmo.h>
-//#include <ImSequencer.h>
-//#include <ImZoomSlider.h>
-//#include <ImCurveEdit.h>
-//#include <GraphEditor.h>
+#include "engine/types/number.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/array.hpp"
 #include "engine/window/event.hpp"
-#include "engine/window/input.hpp"
-#include "engine/utils/types.hpp"
+
+struct GLFWwindow;
+struct ImGuiContext;
 
 namespace bubble
 {

@@ -63,7 +63,7 @@ void SceneViewportInterface::DrawViewport()
 
     if ( ImGui::IsItemHovered() )
     {
-        auto middleButton = mWindow.IsKeyPressed( MouseKey::BUTTON_MIDDLE );
+        auto middleButton = mWindow.IsKeyPressed( MouseKey::MIDDLE );
         mSceneCamera.mIsActive = middleButton;
     }
 }

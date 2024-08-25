@@ -1,9 +1,13 @@
 
+#include <GL/glew.h>
+#include "engine/log/log.hpp"
 #include "engine/utils/error.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/string.hpp"
 
 namespace bubble
 {
-string_view GLErrorString( GLenum errorCode )
+string_view GLErrorString( i32 errorCode )
 {
     switch ( errorCode )
     {
@@ -42,7 +46,7 @@ void GLClearError()
 
 void PrintOpenGLErrors( string_view function, string_view file, i32 line )
 {
-    GLenum errorCode = glGetError();
+    i32 errorCode = glGetError();
     if ( errorCode != GL_NO_ERROR )
     {
         auto errorString = GLErrorString( errorCode );

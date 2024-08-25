@@ -1,13 +1,11 @@
 #pragma once
-#include "engine/utils/types.hpp"
 #include "engine/log/log.hpp"
-
-#include "window/window.hpp"
-#include "loader/loader.hpp"
-#include "renderer/renderer.hpp"
-#include "scene/scene.hpp"
-#include "project/project.hpp"
-#include "scripting/scripting_engine.hpp"
+#include "engine/window/window.hpp"
+#include "engine/loader/loader.hpp"
+#include "engine/renderer/renderer.hpp"
+#include "engine/scene/scene.hpp"
+#include "engine/project/project.hpp"
+#include "engine/scripting/scripting_engine.hpp"
 
 namespace bubble
 {

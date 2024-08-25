@@ -1,6 +1,7 @@
 
+#include <GL/glew.h>
 #include "engine/loader/loader.hpp"
-#include "engine/utils/string.hpp"
+#include "engine/types/string.hpp"
 
 namespace bubble
 {
@@ -119,16 +120,16 @@ void CompileShaders( Shader& shader,
 					 string_view geometry_source )
 {
 	// Vertex shaders
-	GLint vertex_shader = glCreateShader( GL_VERTEX_SHADER );
+	i32 vertex_shader = glCreateShader( GL_VERTEX_SHADER );
 	const char* cvertex_source = vertex_source.data();
 	glcall( glShaderSource( vertex_shader, 1, &cvertex_source, NULL ) );
 	glcall( glCompileShader( vertex_shader ) );
 	{
-		GLint success;
+		i32 success;
 		glGetShaderiv( vertex_shader, GL_COMPILE_STATUS, &success );
 		if ( success != GL_TRUE )
 		{
-			GLint max_length = 0;
+			i32 max_length = 0;
 			glGetShaderiv( vertex_shader, GL_INFO_LOG_LENGTH, &max_length );
 
 			string log;
@@ -145,16 +146,16 @@ void CompileShaders( Shader& shader,
 	}
 
 	// Fragment shader
-	GLint fragment_shader = glCreateShader( GL_FRAGMENT_SHADER );
+	i32 fragment_shader = glCreateShader( GL_FRAGMENT_SHADER );
 	const char* cfragment_source = fragment_source.data();
 	glcall( glShaderSource( fragment_shader, 1, &cfragment_source, NULL ) );
 	glcall( glCompileShader( fragment_shader ) );
 	{
-		GLint success;
+		i32 success;
 		glGetShaderiv( fragment_shader, GL_COMPILE_STATUS, &success );
 		if ( success != GL_TRUE )
 		{
-			GLint max_length = 0;
+			i32 max_length = 0;
 			string log;
 
 			glGetShaderiv( fragment_shader, GL_INFO_LOG_LENGTH, &max_length );
@@ -172,7 +173,7 @@ void CompileShaders( Shader& shader,
 	}
 
 	// Geometry shader
-	GLint geometry_shader = 0;
+	i32 geometry_shader = 0;
 	if ( geometry_source.size() )
 	{
 		geometry_shader = glCreateShader( GL_GEOMETRY_SHADER );
@@ -180,11 +181,11 @@ void CompileShaders( Shader& shader,
 		glcall( glShaderSource( geometry_shader, 1, &cgeometry_source, NULL ) );
 		glcall( glCompileShader( geometry_shader ) );
 		{
-			GLint success;
+			i32 success;
 			glGetShaderiv( geometry_shader, GL_COMPILE_STATUS, &success );
 			if ( success != GL_TRUE )
 			{
-				GLint max_length = 0;
+				i32 max_length = 0;
 				string log;
 
 				glGetShaderiv( geometry_shader, GL_INFO_LOG_LENGTH, &max_length );
@@ -213,11 +214,11 @@ void CompileShaders( Shader& shader,
 	
 	glcall( glLinkProgram( shader.mShaderId ) );
 	{
-		GLint success;
+		i32 success;
 		glGetProgramiv( shader.mShaderId, GL_LINK_STATUS, &success );
 		if ( success != GL_TRUE )
 		{
-			GLint max_length = 0;
+			i32 max_length = 0;
 			string log;
 
 			glGetShaderiv( shader.mShaderId, GL_INFO_LOG_LENGTH, &max_length );

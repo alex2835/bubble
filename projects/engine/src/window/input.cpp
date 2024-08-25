@@ -1,6 +1,6 @@
 #pragma once
-#include <vector>
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/array.hpp"
 #include "engine/window/input.hpp"
 
 namespace bubble
@@ -18,13 +18,13 @@ void MouseInput::OnUpdate()
 
 bool MouseInput::IsKeyCliked( MouseKey key ) const
 {
-    return mKeyState[(i32)key] == (i32)KeyAction::Press;
+    return mKeyState[(i32)key] == (i32)KeyAction::PRESS;
 }
 
 i32 MouseInput::IsKeyPressed( MouseKey key ) const 
 {
-    return mKeyState[(i32)key] == (i32)KeyAction::Press or
-           mKeyState[(i32)key] == (i32)KeyAction::Repeat;
+    return mKeyState[(i32)key] == (i32)KeyAction::PRESS or
+           mKeyState[(i32)key] == (i32)KeyAction::REPEAT;
 }
 
 
@@ -41,8 +41,8 @@ void KeyboardInput::OnUpdate()
 
 bool KeyboardInput::IsKeyCliked( KeyboardKey key ) const
 {
-    return mKeyState[(i32)key] == (i32)KeyAction::Press or 
-           mKeyState[(i32)key] == (i32)KeyAction::Repeat;
+    return mKeyState[(i32)key] == (i32)KeyAction::PRESS or 
+           mKeyState[(i32)key] == (i32)KeyAction::REPEAT;
 }
 
 i32 KeyboardInput::IsKeyPressed( KeyboardKey key ) const

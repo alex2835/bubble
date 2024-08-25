@@ -1,6 +1,8 @@
 
-#include "engine/renderer/buffer.hpp"
+#include <GL/glew.h>
 #include "glm/gtc/type_ptr.hpp"
+#include "engine/types/array.hpp"
+#include "engine/renderer/buffer.hpp"
 
 namespace bubble
 {
@@ -22,13 +24,13 @@ u32 GLSLDataTypeSize( GLSLDataType type )
     case GLSLDataType::Mat4:
         return sizeof( GLfloat ) * 4 * 4;
     case GLSLDataType::Int:
-        return sizeof( GLint );
+        return sizeof( i32 );
     case GLSLDataType::Int2:
-        return sizeof( GLint ) * 2;
+        return sizeof( i32 ) * 2;
     case GLSLDataType::Int3:
-        return sizeof( GLint ) * 3;
+        return sizeof( i32 ) * 3;
     case GLSLDataType::Int4:
-        return sizeof( GLint ) * 4;
+        return sizeof( i32 ) * 4;
     case GLSLDataType::Bool:
         return sizeof( GLboolean );
     }
@@ -67,7 +69,7 @@ u32 GLSLDataComponentCount( GLSLDataType type )
     return 0;
 }
 
-GLenum GLSLDataTypeToOpenGLBasemType( GLSLDataType mType )
+i32 GLSLDataTypeToOpenGLBasemType( GLSLDataType mType )
 {
     switch ( mType )
     {
@@ -421,7 +423,7 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
                     GLSLDataComponentCount( element.mType ),
                     GLSLDataTypeToOpenGLBasemType( element.mType ),
                     element.mNormalized ? GL_TRUE : GL_FALSE,
-                    GLsizei( layout.Stride() ? layout.Stride() : element.mSize ),
+                    i32( layout.Stride() ? layout.Stride() : element.mSize ),
                     (const void*)element.mOffset ) );
             VertexBufferIndex( mVertexBufferIndex + 1 );
         }break;
@@ -436,7 +438,7 @@ void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
                         count,
                         GLSLDataTypeToOpenGLBasemType( element.mType ),
                         element.mNormalized ? GL_TRUE : GL_FALSE,
-                        GLsizei( layout.Stride() ? layout.Stride() : element.mSize ),
+                        i32( layout.Stride() ? layout.Stride() : element.mSize ),
                         (const void*)( sizeof( f32 ) * count * i ) ) );
                 glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
                 VertexBufferIndex( mVertexBufferIndex + 1 );
@@ -528,7 +530,7 @@ void UniformBuffer::Swap( UniformBuffer& other ) noexcept
     std::swap( mIndex, other.mIndex );
 }
 
-GLint UniformBuffer::RendererID() const
+i32 UniformBuffer::RendererID() const
 {
     return mRendererID;
 }

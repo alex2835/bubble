@@ -1,4 +1,5 @@
 
+#include <GL/glew.h>
 #include "engine/log/log.hpp"
 #include "engine/renderer/shader.hpp"
 
@@ -137,7 +138,7 @@ void Shader::SetUniformBuffer( const Ref<UniformBuffer>& ub )
 {
     auto shaderBufferIndex = GetUniformBuffer( ub->Name() );
     if ( shaderBufferIndex != GL_INVALID_INDEX )
-        glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (GLint)ub->Index() ) );
+        glcall( glUniformBlockBinding( mShaderId, shaderBufferIndex, (i32)ub->Index() ) );
 }
 
 }

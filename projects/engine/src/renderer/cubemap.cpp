@@ -1,5 +1,8 @@
 
+#include <GL/glew.h>
 #include <stb_image.h>
+#include "engine/types/pointer.hpp"
+#include "engine/types/array.hpp"
 #include "engine/renderer/cubemap.hpp"
 
 namespace bubble
@@ -34,13 +37,13 @@ Cubemap& Cubemap::operator=( Cubemap&& other ) noexcept
     return *this;
 }
 
-Cubemap::Cubemap( const std::array<Scope<u8[]>, 6>& data, 
+Cubemap::Cubemap( const array<Scope<u8[]>, 6>& data, 
                   const Texture2DSpecification& spec )
 {
     glcall( glGenTextures( 1, &mRendererID ) );
     glcall( glBindTexture( GL_TEXTURE_CUBE_MAP, mRendererID ) );
 
-    for( GLuint i = 0; i < 6; i++ )
+    for( u32 i = 0; i < 6; i++ )
     {
         glcall( glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, spec.mInternalFormat,
                               spec.mWidth, spec.mHeight, 0, spec.mDataFormat, GL_UNSIGNED_BYTE, data[i].get() ) );

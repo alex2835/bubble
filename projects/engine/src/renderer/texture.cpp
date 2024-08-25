@@ -1,4 +1,5 @@
 
+#include <GL/glew.h>
 #include <stb_image.h>
 #include "engine/renderer/texture.hpp"
 
@@ -92,7 +93,18 @@ Texture2DSpecification Texture2DSpecification::CreateDepth( uvec2 size )
 
 Texture2DSpecification::Texture2DSpecification( uvec2 size )
     : mWidth( size.x ),
-      mHeight( size.y )
+      mHeight( size.y ),
+      mChanelFormat( GL_UNSIGNED_BYTE ),
+      mDataFormat( GL_RGBA ),
+      mInternalFormat( GL_RGBA8 ),
+      mMinFiler( GL_LINEAR ),
+      mMagFilter( GL_LINEAR ),
+      mWrapS( GL_REPEAT ),
+      mWrapT( GL_REPEAT ),
+      mBorderColor( vec4( 1.0f ) ),
+      mFlip( false ),
+      mMinMap( false ),
+      mAnisotropicFiltering( false )
 {}
 
 Texture2D::Texture2D( const Texture2DSpecification& spec )
@@ -160,17 +172,17 @@ void Texture2D::Resize( const ivec2& new_size )
     Invalidate();
 }
 
-GLsizei Texture2D::Width() const
+i32 Texture2D::Width() const
 {
     return mSpecification.mWidth;
 }
 
-GLsizei Texture2D::Height() const
+i32 Texture2D::Height() const
 {
     return mSpecification.mHeight;
 }
 
-GLuint Texture2D::RendererID() const
+u32 Texture2D::RendererID() const
 {
     return mRendererID;
 }

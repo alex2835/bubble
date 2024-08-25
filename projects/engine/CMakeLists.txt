@@ -4,16 +4,11 @@ set(TARGET_NAME bubble_engine)
 
 file(GLOB_RECURSE SRCS *.cpp)
 file(GLOB_RECURSE HDRS *.h)
-
 add_library(${TARGET_NAME} STATIC ${SRCS} ${HDRS})
-target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)
 
 target_include_directories(${TARGET_NAME} PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
-add_definitions(-DGLM_FORCE_SWIZZLE)
 
 target_link_libraries(${TARGET_NAME} PUBLIC imgui)
 target_link_libraries(${TARGET_NAME} PUBLIC imgui_gizmo)
@@ -28,6 +23,9 @@ target_link_libraries(${TARGET_NAME} PUBLIC assimp)
 target_link_libraries(${TARGET_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${TARGET_NAME} PUBLIC lua)
 target_link_libraries(${TARGET_NAME} PUBLIC sol2)
+
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+add_definitions(-DGLM_FORCE_SWIZZLE)
 
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)
@@ -46,5 +44,5 @@ if(MSVC)
 	)
 endif()
 
-#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
-#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 10)
+set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
+set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 5)

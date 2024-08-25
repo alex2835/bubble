@@ -33,7 +33,7 @@ struct SceneCamera : public FreeCamera
         if ( mInput.IsKeyPressed( KeyboardKey::D ) )
             ProcessMovement( CameraMovement::RIGHT );
 
-        if ( mInput.IsKeyPressed( MouseKey::BUTTON_MIDDLE ) )
+        if ( mInput.IsKeyPressed( MouseKey::MIDDLE ) )
             ProcessMouseMovementOffset( mInput.MouseOffset().x, 
                                         mInput.MouseOffset().y );
 

@@ -1,3 +1,5 @@
+
+#include <GL/glew.h>
 #include "engine/renderer/renderer.hpp"
 
 namespace bubble
@@ -83,7 +85,7 @@ void Renderer::DrawMesh( const Mesh& mesh,
     mesh.BindVertexArray();
     if ( shader->mModules.test( ShaderModule::Material ) )
         mesh.ApplyMaterial( shader );
-    glDrawElements( GL_TRIANGLES, (GLsizei)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
+    glDrawElements( GL_TRIANGLES, (i32)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
 }
 
 

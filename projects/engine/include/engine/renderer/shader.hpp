@@ -1,13 +1,11 @@
 #pragma once
-#include <string>
-#include <cstdint>
-#include <unordered_map>
-#include <exception>
-#include <glm/gtc/type_ptr.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <magic_enum/magic_enum_containers.hpp>
 #include "engine/utils/error.hpp"
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/pointer.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/map.hpp"
 #include "engine/utils/filesystem.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/buffer.hpp"
@@ -67,7 +65,7 @@ public:
     string mName;
     path mPath;
     ShaderModules mModules;
-    GLuint mShaderId = 0;
+    u32 mShaderId = 0;
 private:
     mutable str_hash_map<i32> mUniformCache;
 };

@@ -1,20 +1,11 @@
 #pragma once
+#include <imgui.h>
+#include <imfilebrowser.h>
 #include "engine/utils/imgui_utils.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
 {
-constexpr auto cFileDialogChooseFileFlags = 
-                    ImGuiFileBrowserFlags_CloseOnEsc |
-                    ImGuiFileBrowserFlags_ConfirmOnEnter;
-
-constexpr auto cFileDialogChooseDirFlags =
-                    ImGuiFileBrowserFlags_SelectDirectory |
-                    ImGuiFileBrowserFlags_CloseOnEsc |
-                    ImGuiFileBrowserFlags_CreateNewDir |
-                    ImGuiFileBrowserFlags_ConfirmOnEnter |
-                    ImGuiFileBrowserFlags_HideRegularFiles;
-
 class Menubar : public UserInterfaceWindowBase
 {
 public:

@@ -1,10 +1,8 @@
 #pragma once
-#include <vector>
-#include <string>
-#include <string_view>
-#include <cassert>
+#include "engine/types/number.hpp"
+#include "engine/types/glm.hpp"
+#include "engine/types/array.hpp"
 #include "engine/utils/error.hpp"
-#include "engine/utils/types.hpp"
 
 namespace bubble
 {
@@ -32,7 +30,7 @@ u32 GLSLDataTypeSize( GLSLDataType type );
 u32 GLSLDataComponentCount( GLSLDataType type );
 u32 Std140DataTypeSize( GLSLDataType type );
 u32 Std140DataTypeAligment( GLSLDataType type );
-GLenum GLSLDataTypeToOpenGLBasemType( GLSLDataType mType );
+i32 GLSLDataTypeToOpenGLBasemType( GLSLDataType mType );
 
 
 struct BufferElement
@@ -91,7 +89,7 @@ public:
     u64 Size();
 
 //private:
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     u64 mSize = 0;
     BufferLayout mLayout;
 };
@@ -115,7 +113,7 @@ public:
     u64 GetCount() const;
 
 //private:
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     u64 mCount = 0;
 };
 
@@ -144,8 +142,8 @@ public:
     void VertexBufferIndex( u32 val );
 
 private:
-    GLuint mRendererID = 0;
-    GLuint mVertexBufferIndex = 0;
+    u32 mRendererID = 0;
+    u32 mVertexBufferIndex = 0;
     vector<VertexBuffer> mVertexBuffers;
     IndexBuffer mIndexBuffer;
 };
@@ -168,7 +166,7 @@ public:
     // Raw (Don't forget to fallow std140 paddings)
     void SetData( const void* data, u32 size, u32 offset = 0 );
 
-    GLint RendererID() const;
+    i32 RendererID() const;
     const string& Name() const;
     u64 Index() const;
 
@@ -185,7 +183,7 @@ private:
     // Recalculate size and offset of elements for std140
     void CalculateOffsetsAndStride();
 
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     string mName;
     BufferLayout mLayout;
     u64 mBufferSize = 0;
@@ -199,7 +197,7 @@ private:
 */
 struct UniformArrayElement
 {
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     u64 mArrayIndex = 0;
     const BufferLayout& mLayout;
 

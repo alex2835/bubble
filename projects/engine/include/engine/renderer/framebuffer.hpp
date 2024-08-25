@@ -1,7 +1,9 @@
 #pragma once
 #include <cstdint>
 #include <cassert>
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/glm.hpp"
+#include "engine/types/utility.hpp"
 #include "engine/window/window.hpp"
 #include "engine/renderer/texture.hpp"
 
@@ -9,9 +11,9 @@ namespace bubble
 {
 struct FramebufferSpecification
 {
-    GLsizei mWidth = 0;
-    GLsizei mHeight = 0;
-    GLsizei mSamples = 1;
+    i32 mWidth = 0;
+    i32 mHeight = 0;
+    i32 mSamples = 1;
 
     uvec2 Size() const
     {
@@ -47,15 +49,15 @@ public:
     static void BindWindow( Window& window );
     void Invalidate();
 
-    GLsizei Width() const;
-    GLsizei Height() const;
+    i32 Width() const;
+    i32 Height() const;
     uvec2 Size() const;
     void Resize( uvec2 size );
 
     FramebufferSpecification Specification() const;
 
 private:
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     Texture2D mColorAttachment;
     Texture2D mDepthAttachment;
     opt<Texture2D> mStencilAttachment;

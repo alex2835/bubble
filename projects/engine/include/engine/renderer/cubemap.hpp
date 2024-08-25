@@ -1,5 +1,6 @@
 #pragma once
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/pointer.hpp"
 #include "engine/renderer/texture.hpp"
 
 namespace bubble
@@ -22,7 +23,7 @@ public:
     void Bind( i32 slot = 0 );
 
 private:
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
 };
 
 }

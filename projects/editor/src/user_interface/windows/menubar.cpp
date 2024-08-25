@@ -3,6 +3,18 @@
 
 namespace bubble
 {
+constexpr auto cFileDialogChooseFileFlags =
+                    ImGuiFileBrowserFlags_CloseOnEsc |
+                    ImGuiFileBrowserFlags_ConfirmOnEnter;
+
+constexpr auto cFileDialogChooseDirFlags =
+                    ImGuiFileBrowserFlags_SelectDirectory |
+                    ImGuiFileBrowserFlags_CloseOnEsc |
+                    ImGuiFileBrowserFlags_CreateNewDir |
+                    ImGuiFileBrowserFlags_ConfirmOnEnter |
+                    ImGuiFileBrowserFlags_HideRegularFiles;
+
+
 Menubar::~Menubar()
 {
 

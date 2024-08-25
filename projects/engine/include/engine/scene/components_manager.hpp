@@ -3,7 +3,8 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
-#include "engine/utils/types.hpp"
+#include "engine/types/json.hpp"
+#include "engine/types/map.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
 

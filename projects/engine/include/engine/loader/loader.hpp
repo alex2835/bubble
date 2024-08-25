@@ -1,6 +1,9 @@
 #pragma once
 #include "engine/log/log.hpp"
-#include "engine/utils/types.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/pointer.hpp"
+#include "engine/types/map.hpp"
+#include "engine/types/utility.hpp"
 #include "engine/utils/filesystem.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/shader.hpp"

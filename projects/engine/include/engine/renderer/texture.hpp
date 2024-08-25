@@ -1,24 +1,25 @@
 #pragma once
 #include "engine/utils/error.hpp"
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/glm.hpp"
 
 namespace bubble
 {
 struct Texture2DSpecification
 {
-    u32 mWidth = 0;
-    u32 mHeight = 0;
-    u32 mChanelFormat = GL_UNSIGNED_BYTE; // GL_UNSIGNED_BYTE, GL_FLOAT
-    u32 mDataFormat = GL_RGBA;            // GL_RED, GL_RGB, GL_RGBA, GL_DEPTH_COMPONENT
-    u32 mInternalFormat = GL_RGBA8;       // GL_RED8, GL_RGB8, GL_RGBA8, GL_DEPTH_COMPONENT
-    u32 mMinFiler = GL_LINEAR;            // GL_LINEAR, GL_NEAREST
-    u32 mMagFilter = GL_LINEAR;           // GL_LINEAR, GL_NEAREST
-    u32 mWrapS = GL_REPEAT;	              // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
-    u32 mWrapT = GL_REPEAT;	              // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
-    vec4 mBorderColor = vec4( 1.0f );
-    bool mFlip = false;
-    bool mMinMap = false;
-    bool mAnisotropicFiltering = false;
+    u32 mWidth;
+    u32 mHeight;
+    u32 mChanelFormat;   // GL_UNSIGNED_BYTE, GL_FLOAT
+    u32 mDataFormat;     // GL_RED, GL_RGB, GL_RGBA, GL_DEPTH_COMPONENT
+    u32 mInternalFormat; // GL_RED8, GL_RGB8, GL_RGBA8, GL_DEPTH_COMPONENT
+    u32 mMinFiler;       // GL_LINEAR, GL_NEAREST
+    u32 mMagFilter;      // GL_LINEAR, GL_NEAREST
+    u32 mWrapS;	         // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
+    u32 mWrapT;	         // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
+    vec4 mBorderColor;
+    bool mFlip;
+    bool mMinMap;
+    bool mAnisotropicFiltering;
 
     Texture2DSpecification( const Texture2DSpecification& ) = default;
 
@@ -47,9 +48,9 @@ public:
     
     void Swap( Texture2D& other ) noexcept;
 
-    GLuint RendererID() const;
-    GLsizei Width()  const;
-    GLsizei Height() const;
+    u32 RendererID() const;
+    i32 Width()  const;
+    i32 Height() const;
 
     // size in bytes
     void SetData( const void* data, u32 size );
@@ -64,7 +65,7 @@ public:
     bool operator==( const Texture2D& other ) const;
 
 private:
-    GLuint mRendererID = 0;
+    u32 mRendererID = 0;
     Texture2DSpecification mSpecification;
 };
 

@@ -1,8 +1,8 @@
 #pragma once
-#include "engine/serialization/loader_serialization.hpp"
-#include "engine/window/window.hpp"
 #include <nlohmann/json.hpp>
-#include <future>
+#include <engine/types/json.hpp>
+#include "engine/window/window.hpp"
+#include "engine/serialization/loader_serialization.hpp"
 
 namespace bubble
 {

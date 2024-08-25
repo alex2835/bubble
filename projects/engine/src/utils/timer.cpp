@@ -3,20 +3,20 @@
 
 namespace bubble
 {
-std::time_point Timer::mGlobalStartTime = Now();
+TimePoint Timer::mGlobalStartTime = Now();
 
 
-TimePoint::TimePoint( f32 time )
+DeltaTime::DeltaTime( f32 time )
     : mTime( time )
 {
 }
 
-f32 TimePoint::Seconds()
+f32 DeltaTime::Seconds()
 {
     return mTime;
 }
 
-f32 TimePoint::Milliseconds()
+f32 DeltaTime::Milliseconds()
 {
     return mTime * 1000.0f;
 }
@@ -25,8 +25,8 @@ f32 TimePoint::Milliseconds()
 
 void Timer::OnUpdate()
 {
-    std::time_point now = Now();
-    std::duration<f32> time_dif = duration_cast<std::duration<f32>>( now - mLastTime );
+    TimePoint now = Now();
+    chrono::duration<f32> time_dif = duration_cast<chrono::duration<f32>>( now - mLastTime );
     mDeltatime = DeltaTime( time_dif.count() );
     mLastTime = now;
 }
@@ -36,15 +36,15 @@ DeltaTime Timer::GetDeltaTime()
     return mDeltatime;
 }
 
-std::time_point Timer::Now()
+TimePoint Timer::Now()
 {
-    return  std::high_resolution_clock::now();
+    return TimeStamp::now();
 }
 
-TimePoint Timer::GetGlobalTime()
+DeltaTime Timer::GetGlobalTime()
 {
-    return TimePoint( std::duration_cast<std::duration<f32>>( 
-                            std::system_clock::now().time_since_epoch() ).count() );
+    return DeltaTime( chrono::duration_cast<chrono::duration<f32>>(
+                        chrono::system_clock::now().time_since_epoch() ).count() );
 }
 
 }

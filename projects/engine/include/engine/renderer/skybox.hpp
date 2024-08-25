@@ -1,8 +1,7 @@
 #pragma once
-#include "glm/gtx/transform.hpp"
-#include "engine/renderer/cubemap.hpp"
+#include "engine/types/glm.hpp"
 #include "engine/renderer/buffer.hpp"
-
+#include "engine/renderer/cubemap.hpp"
 
 namespace bubble
 {

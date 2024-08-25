@@ -1,6 +1,5 @@
 
 #include <sol/sol.hpp>
-#include "engine/utils/types.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/scripting/script.hpp"
 #include "engine/scripting/scripting_engine.hpp"

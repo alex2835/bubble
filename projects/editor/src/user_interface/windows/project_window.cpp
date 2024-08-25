@@ -1,4 +1,5 @@
 
+#include <imgui.h>
 #include "editor_user_interface/windows/project_window.hpp"
 
 namespace bubble
@@ -159,7 +160,7 @@ void ProjectWindow::DrawSelectedFolderItems()
             if ( child.mType == FilesystemNodeType::Texture )
                 texture = mProject.mLoader.LoadTexture2D( child.mPath );
 
-            ImGui::Image( (ImTextureID)(GLint64)texture->RendererID(), elemSize );
+            ImGui::Image( (ImTextureID)(i64)texture->RendererID(), elemSize );
             ImGui::Text( child.mPath.stem().string().c_str() );
         }
         ImGui::EndChild();

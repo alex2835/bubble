@@ -1,4 +1,5 @@
 
+#include <GL/glew.h>
 #include "engine/log/log.hpp"
 #include "engine/renderer/framebuffer.hpp"
 
@@ -104,12 +105,12 @@ void Framebuffer::Invalidate()
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
 }
 
-GLsizei Framebuffer::Width() const
+i32 Framebuffer::Width() const
 {
     return mSpecification.mWidth;
 }
 
-GLsizei Framebuffer::Height() const
+i32 Framebuffer::Height() const
 {
     return mSpecification.mHeight;
 }

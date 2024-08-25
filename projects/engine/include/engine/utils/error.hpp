@@ -1,11 +1,10 @@
 #pragma once 
-#include <GL/glew.h>
-#include "engine/log/log.hpp"
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/string.hpp"
 
 namespace bubble
 {
-string_view GLErrorString( GLenum errorCode );
+string_view GLErrorString( i32 errorCode );
 void GLClearError();
 void PrintOpenGLErrors( string_view function, string_view file, i32 line );
 }

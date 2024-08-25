@@ -1,8 +1,6 @@
 #pragma once
-#include <string>
-#include "engine/window/key_map.hpp"
+#include "engine/types/string.hpp"
 #include "engine/window/event.hpp"
-
 
 namespace bubble
 {

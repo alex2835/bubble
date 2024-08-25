@@ -1,6 +1,7 @@
 #pragma once 
+#include "engine/types/glm.hpp"
+#include "engine/types/number.hpp"
 #include "engine/window/key_map.hpp"
-#include "engine/utils/types.hpp"
 
 namespace bubble
 {

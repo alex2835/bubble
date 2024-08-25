@@ -1,6 +1,6 @@
 #pragma once
-#include "engine/utils/pointers.hpp"
 #include <sol/forward.hpp>
+#include "engine/types/pointer.hpp"
 
 namespace bubble
 {

@@ -1,9 +1,11 @@
 #pragma once
-#include "engine/utils/types.hpp"
+#include <nlohmann/json.hpp>
+#include "engine/types/json.hpp"
+#include "engine/types/array.hpp"
+#include "engine/types/set.hpp"
+#include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/scene/components_manager.hpp"
-#include "engine/loader/loader.hpp"
-#include <nlohmann/json.hpp>
 
 namespace bubble
 {

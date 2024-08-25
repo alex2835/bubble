@@ -1,5 +1,26 @@
+
+#if defined(__EMSCRIPTEN__)
+#   include <emscripten.h>
+#   include <emscripten/html5.h>
+#   define GL_GLEXT_PROTOTYPES
+#   define EGL_EGLEXT_PROTOTYPES
+#else
+#   include <GL/glew.h>
+#   include <GLFW/glfw3.h>
+#   if defined(IMGUI_IMPL_OPENGL_ES2)
+#       include <GLES2/gl2.h>
+#   endif
+#endif
+#include <imgui.h>
+#include <imgui_impl_opengl3.h>
+#include <imgui_impl_glfw.h>
+
+#include "engine/window/event.hpp"
+#include "engine/window/input.hpp"
 #include "engine/window/window.hpp"
+#include "engine/types/number.hpp"
 #include "engine/log/log.hpp"
+
 
 namespace bubble
 {
@@ -72,14 +93,14 @@ void Window::ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset )
 void Window::WindowSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
+    win->mWindowSize = WindowSize{ (u32)width, (u32)height };
     glfwSetWindowSize( win->mWindow, width, height );
 }
 
 void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ (unsigned)width, (unsigned)height };
+    win->mWindowSize = WindowSize{ (u32)width, (u32)height };
     glViewport( 0, 0, width, height );
 }
 
@@ -91,7 +112,7 @@ void Window::FillKeyboardEvents()
             continue;
 
         auto action = mWindowInput.mKeyboardInput.mKeyState[key];
-        if ( mWindowInput.mKeyboardInput.mKeyState[key] == (i32)KeyAction::Release )
+        if ( mWindowInput.mKeyboardInput.mKeyState[key] == (i32)KeyAction::RELEASE )
             mWindowInput.mKeyboardInput.mKeyState[key] = NO_STATE;
 
         Event event = CreateEvent();
@@ -111,7 +132,7 @@ void Window::FillMouseEvents()
             continue;
 
         auto action = mWindowInput.mMouseInput.mKeyState[key];
-        if ( mWindowInput.mMouseInput.mKeyState[key] == (i32)KeyAction::Release )
+        if ( mWindowInput.mMouseInput.mKeyState[key] == (i32)KeyAction::RELEASE )
             mWindowInput.mMouseInput.mKeyState[key] = NO_STATE;
 
         Event event= CreateEvent();
@@ -182,7 +203,7 @@ Window::Window( const string& name, WindowSize size )
     glfwSetFramebufferSizeCallback( mWindow, FramebufferSizeCallback );
 
 #if !defined(__EMSCRIPTEN__)
-    GLenum err = glewInit();
+    i32 err = glewInit();
     if ( GLEW_OK != err )
     {
         std::cerr << "Error: " << glewGetErrorString( err ) << std::endl;

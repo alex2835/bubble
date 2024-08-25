@@ -1,9 +1,11 @@
 #pragma once
-#include "engine/utils/types.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/array.hpp"
+#include "engine/types/glm.hpp"
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/material.hpp"
-#include <vector>
 
 namespace bubble
 {

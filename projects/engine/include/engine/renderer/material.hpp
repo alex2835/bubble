@@ -1,5 +1,5 @@
 #pragma once
-#include "engine/utils/types.hpp"
+#include "engine/types/glm.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/shader.hpp"
 

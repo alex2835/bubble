@@ -1,5 +1,6 @@
 #pragma once
-#include "engine/utils/types.hpp"
+#include "engine/types/glm.hpp"
+#include "engine/types/json.hpp"
 
 namespace glm
 {

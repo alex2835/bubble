@@ -1,7 +1,10 @@
 #pragma once
-#include "engine/loader/loader.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/number.hpp"
+#include "engine/types/json.hpp"
+#include "engine/types/glm.hpp"
 #include "engine/renderer/light.hpp"
-#include "engine/utils/types.hpp"
+#include "engine/loader/loader.hpp"
 
 // Basic components
 namespace bubble

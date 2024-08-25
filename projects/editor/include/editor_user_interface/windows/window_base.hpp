@@ -1,10 +1,4 @@
 #pragma once
-#include <imgui.h>
-#undef APIENTRY
-#include <imfilebrowser.h>
-#undef min
-#undef max
-
 #include "editor_application/editor_state.hpp"
 #include "engine/engine.hpp"
 

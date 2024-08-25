@@ -1,8 +1,6 @@
 #pragma once
 #include <imgui.h>
-#include "engine/utils/types.hpp"
 #include "editor_application/editor_state.hpp"
-
 #include "editor_user_interface/windows/menubar.hpp"
 #include "editor_user_interface/windows/entities_window.hpp"
 #include "editor_user_interface/windows/scnene_viewport_window.hpp"
