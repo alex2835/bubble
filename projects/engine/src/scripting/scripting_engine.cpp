@@ -39,12 +39,12 @@ ScriptingEngine::ScriptingEngine( WindowInput& input, Scene& scene )
             "scene", &scene,
             // Input
             "IsKeyCliked", [&]( int key ) { 
-                    if ( key < (int)MouseKey::LAST )
+                    if ( key <= (int)MouseKey::LAST )
                         return input.IsKeyCliked( MouseKey( key ) );
                     return input.IsKeyCliked( KeyboardKey( key ) );
             },
             "IsKeyPressed", [&]( int key ) { 
-                    if ( key < (int)MouseKey::LAST )
+                    if ( key <= (int)MouseKey::LAST )
                         return input.IsKeyPressed( MouseKey( key ) );
                     return input.IsKeyPressed( KeyboardKey( key ) );
             }
