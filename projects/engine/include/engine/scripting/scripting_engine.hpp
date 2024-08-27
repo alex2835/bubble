@@ -1,5 +1,6 @@
 #pragma once
 #include <sol/forward.hpp>
+#include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
 
 namespace bubble
@@ -10,7 +11,7 @@ class Script;
 class ScriptingEngine
 {
 public:
-    ScriptingEngine( Scene& scene );
+    ScriptingEngine( WindowInput& input, Scene& scene );
     ~ScriptingEngine();
 
     void RunScript( const Script& script );

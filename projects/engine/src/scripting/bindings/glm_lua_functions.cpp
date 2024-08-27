@@ -7,7 +7,7 @@
 
 namespace bubble
 {
-void MathFreeFunctionsBindings( sol::state& lua )
+void CreateMathFreeFunctionsBindings( sol::state& lua )
 {
     lua.set_function( "identity_mat2", glm::identity<glm::mat2> );
 	lua.set_function( "identity_mat3", glm::identity<glm::mat3> );

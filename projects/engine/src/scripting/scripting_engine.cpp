@@ -5,12 +5,13 @@
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/scripting/bindings/glm_lua_bindings.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
+#include "engine/scripting/bindings/window_input_bindings.hpp"
 
 #include <print>
 
 namespace bubble
 {
-ScriptingEngine::ScriptingEngine( Scene& scene )
+ScriptingEngine::ScriptingEngine( WindowInput& input, Scene& scene )
 	: mLua( CreateScope<sol::state>() )
 {
 	mLua->open_libraries( sol::lib::base,
@@ -25,10 +26,30 @@ ScriptingEngine::ScriptingEngine( Scene& scene )
     CreateMat2Bindings( *mLua );
     CreateMat3Bindings( *mLua );
     CreateMat4Bindings( *mLua );
-    MathFreeFunctionsBindings( *mLua );
+    CreateMathFreeFunctionsBindings( *mLua );
 
     CreateSceneBindings( *mLua );
-    mLua->set( "scene", &scene );
+    
+    CreateWindowInputBindings( *mLua );
+    
+    // Engine bindings
+    mLua->set( "bubble", 
+        mLua->create_table_with(
+            // Scene
+            "scene", &scene,
+            // Input
+            "IsKeyCliked", [&]( int key ) { 
+                    if ( key < (int)MouseKey::LAST )
+                        return input.IsKeyCliked( MouseKey( key ) );
+                    return input.IsKeyCliked( KeyboardKey( key ) );
+            },
+            "IsKeyPressed", [&]( int key ) { 
+                    if ( key < (int)MouseKey::LAST )
+                        return input.IsKeyPressed( MouseKey( key ) );
+                    return input.IsKeyPressed( KeyboardKey( key ) );
+            }
+        )
+    );
 }
 
 

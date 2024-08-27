@@ -145,9 +145,10 @@ enum class MouseKey
     SEVEN     = 6,
     EIGHT     = 7,
     LAST      = EIGHT,
+
     LEFT      = ONE,
     RIGHT     = TWO,
-    MIDDLE    = THREE,
+    MIDDLE    = THREE
 };
 
 struct KeyMods

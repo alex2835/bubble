@@ -26,13 +26,8 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    ScriptingEngine lua( mProject.mScene );
+    ScriptingEngine lua( mWindow.GetWindowInput(), mProject.mScene );
     Script script( "C:/Users/avusc/Desktop/projects/bubble_sand_box/bubble_project/scripts/main.lua" );
-
-    lua.RunScript( script );
-
-    //exit(0);
-
 
 
 #ifdef __EMSCRIPTEN__
@@ -41,6 +36,8 @@ void BubbleEditor::Run()
     while ( !mWindow.ShouldClose() )
 #endif
     {
+        lua.RunScript( script );
+
         // Poll events
         mWindow.PollEvents();
         mTimer.OnUpdate();
