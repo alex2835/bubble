@@ -32,7 +32,9 @@ struct TransformComponent
 	static void ToJson( const Loader& loader, json& json, const TransformComponent& component );
 	static void FromJson( Loader& loader, const json& json, TransformComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
-
+	
+	TransformComponent() = default;
+    TransformComponent( vec3 pos, vec3 rot, vec3 scale );
 	mat4 Transform();
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );

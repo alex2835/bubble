@@ -9,10 +9,14 @@ void CreateLoaderBidnings( sol::state& lua )
 {
     lua.new_usertype<Loader>(
         "Loader",
-        "loadTexture", &Loader::LoadTexture2D,
-        "loadModel", &Loader::LoadModel,
-        "loadShader", &Loader::LoadShader,
-        "loadScript", &Loader::LoadScript
+        "LoadTexture",
+        []( Loader& loader, const string& str ) { return loader.LoadTexture2D( str ); },
+        "LoadModel",
+        []( Loader& loader, const string& str ) { return loader.LoadModel( str ); },
+        "LoadShader",
+        []( Loader& loader, const string& str ) { return loader.LoadShader( str ); },
+        "LoadScript",
+        []( Loader& loader, const string& str ) { return loader.LoadScript( str ); }
     );
 }
 }

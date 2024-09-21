@@ -20,6 +20,8 @@ ScriptingEngine::ScriptingEngine( WindowInput& input,
 	mLua->open_libraries( sol::lib::base,
 						  sol::lib::table,
 						  sol::lib::string,
+                          sol::lib::os,
+                          sol::lib::utf8,
 						  sol::lib::io,
 						  sol::lib::math );
 
@@ -31,11 +33,9 @@ ScriptingEngine::ScriptingEngine( WindowInput& input,
     CreateMat4Bindings( *mLua );
     CreateMathFreeFunctionsBindings( *mLua );
 
-    CreateSceneBindings( *mLua );
-    
     CreateWindowInputBindings( *mLua );
-
     CreateLoaderBidnings( *mLua );
+    CreateSceneBindings( *mLua );
     
     // Engine bindings
     mLua->set( "bLoader", &loader );
@@ -56,8 +56,6 @@ ScriptingEngine::ScriptingEngine( WindowInput& input,
             return input.IsKeyPressed( KeyboardKey( key ) );
         }
     );
-
-
 }
 
 

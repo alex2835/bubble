@@ -53,6 +53,12 @@ mat4 TransformComponent::Transform()
     return transform;
 }
 
+TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
+    : mPosition( pos ),
+      mRotation( rot ),
+      mScale( scale )
+{}
+
 void TransformComponent::ToJson( const Loader& loader, json& json, const TransformComponent& transformComponent )
 {
     json["Position"] = transformComponent.mPosition;
@@ -70,8 +76,11 @@ void TransformComponent::FromJson( Loader& loader, const json& json, TransformCo
 void TransformComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<TransformComponent>(
-        "TransformComponent",
-        "Position",
+        "Transform",
+        sol::call_constructor,
+        sol::constructors<TransformComponent(), 
+                          TransformComponent(vec3, vec3, vec3)>(),
+        "Position", 
         &TransformComponent::mPosition,
         "Rotation",
         &TransformComponent::mRotation,

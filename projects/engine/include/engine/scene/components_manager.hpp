@@ -75,6 +75,8 @@ public:
     static void AddCreateLuaBinding( string_view componentName, ComponentCreateLuaBinding CreateLuaBindingFunc );
     static ComponentCreateLuaBinding GetCreateLuaBinding( string_view componentName );
 
+    const auto begin(){ return mComponentFuncTable.begin(); }
+    const auto end() { return mComponentFuncTable.end(); }
 private:
     static void CreateComponentTable( string_view componentName );
     static ComponentFunctionsTable& GetComponentTable( string_view componentName );
