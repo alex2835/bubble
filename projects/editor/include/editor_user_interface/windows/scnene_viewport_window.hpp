@@ -12,7 +12,7 @@ namespace bubble
 class SceneViewportInterface : public UserInterfaceWindowBase
 {
 public:
-    SceneViewportInterface( EditorState& editorState );
+    SceneViewportInterface( BubbleEditor& editorState );
     ~SceneViewportInterface();
 
     string_view Name();
@@ -24,6 +24,8 @@ public:
 
     void DrawViewport();
     void DrawGizmo();
+    void DrawGrid();
+    bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 
 private:

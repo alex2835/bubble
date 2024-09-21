@@ -40,9 +40,9 @@ endif()
 
 if(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
-	  /WX /bigobj
+	  /WX
 	)
 endif()
 
 #set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD ON)
-#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 5)
+#set_target_properties(${TARGET_NAME} PROPERTIES UNITY_BUILD_BATCH_SIZE 4)

@@ -4,6 +4,8 @@
 
 namespace bubble
 {
+class BubbleEditor;
+
 enum class FilesystemNodeType
 {
     Unknown,
@@ -22,7 +24,7 @@ class ProjectWindow : public UserInterfaceWindowBase
     };
 
 public:
-    ProjectWindow( EditorState& editorState );
+    ProjectWindow( BubbleEditor& editorState );
     ~ProjectWindow();
 
     string_view Name();

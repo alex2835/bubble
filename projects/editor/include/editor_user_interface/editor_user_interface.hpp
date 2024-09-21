@@ -1,6 +1,5 @@
 #pragma once
 #include <imgui.h>
-#include "editor_application/editor_state.hpp"
 #include "editor_user_interface/windows/menubar.hpp"
 #include "editor_user_interface/windows/entities_window.hpp"
 #include "editor_user_interface/windows/scnene_viewport_window.hpp"
@@ -8,10 +7,12 @@
 
 namespace bubble
 {
+class BubbleEditor;
+
 class EditorUserInterface
 {
 public:
-    EditorUserInterface( EditorState& editorState );
+    EditorUserInterface( BubbleEditor& editorState );
     void OnUpdate( DeltaTime dt );
     void OnDraw( DeltaTime dt );
 

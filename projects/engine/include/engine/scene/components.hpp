@@ -1,4 +1,5 @@
 #pragma once
+#include <sol/forward.hpp>
 #include "engine/types/string.hpp"
 #include "engine/types/number.hpp"
 #include "engine/types/json.hpp"
@@ -18,6 +19,7 @@ struct TagComponent : public string
 	static void OnComponentDraw( const Loader& loader, TagComponent& component );
 	static void ToJson( const Loader& loader, json& json, const TagComponent& component );
 	static void FromJson( Loader& loader, const json& json, TagComponent& component );
+	static void CreateLuaBinding( sol::state& lua );
 };
 
 struct TransformComponent
@@ -29,6 +31,7 @@ struct TransformComponent
 	static void OnComponentDraw( const Loader& loader, TransformComponent& component );
 	static void ToJson( const Loader& loader, json& json, const TransformComponent& component );
 	static void FromJson( Loader& loader, const json& json, TransformComponent& component );
+	static void CreateLuaBinding( sol::state& lua );
 
 	mat4 Transform();
 	vec3 mPosition = vec3( 0 );
@@ -46,6 +49,7 @@ struct LightComponent : public Light
 	static void OnComponentDraw( const Loader& loader, LightComponent& component );
 	static void ToJson( const Loader& loader, json& json, const LightComponent& component );
 	static void FromJson( Loader& loader, const json& json, LightComponent& component );
+	static void CreateLuaBinding( sol::state& lua );
 };
 
 struct ModelComponent : public Ref<Model>
@@ -59,6 +63,7 @@ struct ModelComponent : public Ref<Model>
 	static void OnComponentDraw( const Loader& loader, ModelComponent& component );
 	static void ToJson( const Loader& loader, json& json, const ModelComponent& component );
 	static void FromJson( Loader& loader, const json& json, ModelComponent& component );
+	static void CreateLuaBinding( sol::state& lua );
 };
 
 struct ShaderComponent : public Ref<Shader>
@@ -72,6 +77,7 @@ struct ShaderComponent : public Ref<Shader>
 	static void OnComponentDraw( const Loader& loader, ShaderComponent& component );
 	static void ToJson( const Loader& loader, json& json, const ShaderComponent& component );
 	static void FromJson( Loader& loader, const json& json, ShaderComponent& component );
+	static void CreateLuaBinding( sol::state& lua );
 };
 
 }

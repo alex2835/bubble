@@ -1,22 +1,16 @@
 #pragma once
-#include "editor_application/editor_state.hpp"
 #include "engine/engine.hpp"
+#include "utils/scene_camera.hpp"
+
 
 namespace bubble
 {
+class BubbleEditor;
+
 class UserInterfaceWindowBase
 {
 public:
-    UserInterfaceWindowBase( EditorState& editorState )
-        : mWindow( editorState.mWindow ),
-          mSceneViewport( editorState.mSceneViewport ),
-          mObjectIdViewport( editorState.mObjectIdViewport ),
-          mSceneCamera( editorState.mSceneCamera ),
-          mEngine( editorState.mEngine ),
-          mProject( editorState.mProject ),
-          mSelectedEntity( editorState.mSelectedEntity ),
-          mUINeedUpdateProjectWindow( editorState.mUINeedUpdateProjectWindow )
-    {}
+    UserInterfaceWindowBase( BubbleEditor& editorState );
 
 protected:
     bool mOpen = true;

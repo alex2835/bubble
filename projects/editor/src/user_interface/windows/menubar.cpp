@@ -1,5 +1,6 @@
 
 #include "editor_user_interface/windows/menubar.hpp"
+#include "editor_application/editor_application.hpp"
 
 namespace bubble
 {

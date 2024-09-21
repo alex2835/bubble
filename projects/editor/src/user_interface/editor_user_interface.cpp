@@ -1,9 +1,10 @@
 
 #include "editor_user_interface/editor_user_interface.hpp"
+#include "editor_application/editor_application.hpp"
 
 namespace bubble
 {
-EditorUserInterface::EditorUserInterface( EditorState& editorState )
+EditorUserInterface::EditorUserInterface( BubbleEditor& editorState )
     :  mMenubar( editorState ),
        mEntitiesWindow( editorState ),
        mSceneViewportWindow( editorState ),

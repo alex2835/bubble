@@ -7,14 +7,12 @@ constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : EditorState{
-        .mWindow = Window( "Bubble", WINDOW_SIZE ),
-        .mSceneViewport = Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
-                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-        .mObjectIdViewport = Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                          Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ),
-        .mSceneCamera = SceneCamera( mWindow.GetWindowInput() )
-      },
+    : mWindow( Window( "Bubble", WINDOW_SIZE ) ),
+      mSceneViewport( Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                                   Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
+      mObjectIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                                      Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
+      mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
       mEditorMode( EditorMode::Editing ),
       mResourcesHotReloader( mProject.mLoader ),
       mEditorUserInterface( *this ),
@@ -26,7 +24,7 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    ScriptingEngine lua( mWindow.GetWindowInput(), mProject.mScene );
+    ScriptingEngine lua( mWindow.GetWindowInput(), mProject.mLoader, mProject.mScene );
     Script script( "C:/Users/avusc/Desktop/projects/bubble_sand_box/bubble_project/scripts/main.lua" );
 
 

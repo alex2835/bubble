@@ -1,6 +1,7 @@
 
 #include <imgui.h>
 #include "editor_user_interface/windows/project_window.hpp"
+#include "editor_application/editor_application.hpp"
 
 namespace bubble
 {
@@ -45,7 +46,7 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 
 
 
-ProjectWindow::ProjectWindow( EditorState& editorState )
+ProjectWindow::ProjectWindow( BubbleEditor& editorState )
     : UserInterfaceWindowBase( editorState )
 {
     //mShader = LoadShader( "./resources/shaders/only_defuse" );

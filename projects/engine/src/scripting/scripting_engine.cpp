@@ -6,12 +6,15 @@
 #include "engine/scripting/bindings/glm_lua_bindings.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
+#include "engine/scripting/bindings/loader_lua_bindings.hpp"
 
 #include <print>
 
 namespace bubble
 {
-ScriptingEngine::ScriptingEngine( WindowInput& input, Scene& scene )
+ScriptingEngine::ScriptingEngine( WindowInput& input,
+                                  Loader& loader,
+                                  Scene& scene )
 	: mLua( CreateScope<sol::state>() )
 {
 	mLua->open_libraries( sol::lib::base,
@@ -31,25 +34,30 @@ ScriptingEngine::ScriptingEngine( WindowInput& input, Scene& scene )
     CreateSceneBindings( *mLua );
     
     CreateWindowInputBindings( *mLua );
+
+    CreateLoaderBidnings( *mLua );
     
     // Engine bindings
-    mLua->set( "bubble", 
-        mLua->create_table_with(
-            // Scene
-            "scene", &scene,
-            // Input
-            "IsKeyCliked", [&]( int key ) { 
-                    if ( key <= (int)MouseKey::LAST )
-                        return input.IsKeyCliked( MouseKey( key ) );
-                    return input.IsKeyCliked( KeyboardKey( key ) );
-            },
-            "IsKeyPressed", [&]( int key ) { 
-                    if ( key <= (int)MouseKey::LAST )
-                        return input.IsKeyPressed( MouseKey( key ) );
-                    return input.IsKeyPressed( KeyboardKey( key ) );
-            }
-        )
+    mLua->set( "bLoader", &loader );
+    mLua->set( "bScene", &scene );
+
+    mLua->set(
+        "bIsKeyCliked", [&]( int key ) { 
+                if ( key <= (int)MouseKey::LAST )
+                    return input.IsKeyCliked( MouseKey( key ) );
+                return input.IsKeyCliked( KeyboardKey( key ) );
+        } 
     );
+
+    mLua->set( 
+        "bIsKeyPressed", [&]( int key ) {
+            if ( key <= (int)MouseKey::LAST )
+                return input.IsKeyPressed( MouseKey( key ) );
+            return input.IsKeyPressed( KeyboardKey( key ) );
+        }
+    );
+
+
 }
 
 

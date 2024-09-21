@@ -11,7 +11,7 @@ class Script;
 class ScriptingEngine
 {
 public:
-    ScriptingEngine( WindowInput& input, Scene& scene );
+    ScriptingEngine( WindowInput& input, Loader& loader, Scene& scene );
     ~ScriptingEngine();
 
     void RunScript( const Script& script );

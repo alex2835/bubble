@@ -24,17 +24,12 @@
 
 namespace bubble
 {
-
 void Window::ErrorCallback( i32 error, const char* description )
 {
     LogError( "Error: {} \nDescription: {}", error, description );
 }
 
-void Window::KeyCallback( GLFWwindow* window,
-                          i32 key, 
-                          i32 scancode, 
-                          i32 action, 
-                          i32 mods )
+void Window::KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action, i32 mods )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
 

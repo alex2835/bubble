@@ -19,7 +19,7 @@ struct MouseInput
     MouseInput();
     void OnUpdate();
     bool IsKeyCliked( MouseKey key ) const;
-    i32 IsKeyPressed( MouseKey key ) const;
+    bool IsKeyPressed( MouseKey key ) const;
 };
 
 
@@ -31,18 +31,18 @@ struct KeyboardInput
     KeyboardInput();
     void OnUpdate();
     bool IsKeyCliked( KeyboardKey key ) const;
-    i32 IsKeyPressed( KeyboardKey key ) const;
+    bool IsKeyPressed( KeyboardKey key ) const;
 };
 
 class WindowInput
 {
 public:
     bool IsKeyCliked( KeyboardKey key ) const { return mKeyboardInput.IsKeyCliked( key ); }
-    i32 IsKeyPressed( KeyboardKey key ) const { return mKeyboardInput.IsKeyCliked( key ); }
+    bool IsKeyPressed( KeyboardKey key ) const { return mKeyboardInput.IsKeyPressed( key ); }
     KeyMods KeyMods() const { return mKeyboardInput.mKeyMods; }
 
     bool IsKeyCliked( MouseKey key ) const { return mMouseInput.IsKeyCliked( key ); }
-    i32 IsKeyPressed( MouseKey key ) const { return mMouseInput.IsKeyPressed( key ); }
+    bool IsKeyPressed( MouseKey key ) const { return mMouseInput.IsKeyPressed( key ); }
     vec2 MouseOffset() const { return mMouseInput.mMouseOffset; }
     vec2 MousePos() const { return mMouseInput.mMousePos; }
 

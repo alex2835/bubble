@@ -3,6 +3,7 @@
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
+#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -23,6 +24,13 @@ void TagComponent::ToJson( const Loader& loader, json& json, const TagComponent&
 void TagComponent::FromJson( Loader& loader, const json& json, TagComponent& tagComponent )
 {
     tagComponent = json;
+}
+
+void TagComponent::CreateLuaBinding( sol::state& lua )
+{
+    //lua.new_usertype<TagComponent>(
+    //    "TagComponent",
+    //);
 }
 
 // TransformComponent
@@ -59,6 +67,19 @@ void TransformComponent::FromJson( Loader& loader, const json& json, TransformCo
     transformComponent.mScale = json["Scale"];
 }
 
+void TransformComponent::CreateLuaBinding( sol::state& lua )
+{
+    lua.new_usertype<TransformComponent>(
+        "TransformComponent",
+        "Position",
+        &TransformComponent::mPosition,
+        "Rotation",
+        &TransformComponent::mRotation,
+        "Scale",
+        &TransformComponent::mScale
+    );
+}
+
 // LightComponent
 void LightComponent::OnComponentDraw( const Loader& loader, LightComponent& lightComponent )
 {
@@ -72,6 +93,14 @@ void LightComponent::ToJson( const Loader& loader, json& json, const LightCompon
 
 void LightComponent::FromJson( Loader& loader, const json& json, LightComponent& lightComponent )
 {
+
+}
+
+void LightComponent::CreateLuaBinding( sol::state& lua )
+{
+    lua.new_usertype<Light>(
+        "Light"
+    );
 }
 
 // ModelComponent
@@ -103,7 +132,12 @@ void ModelComponent::FromJson( Loader& loader, const json& json, ModelComponent&
     modelComponent = loader.LoadModel( json );
 }
 
-
+void ModelComponent::CreateLuaBinding( sol::state& lua )
+{
+    lua.new_usertype<Model>(
+        "Model"
+    );
+}
 
 // ShaderComponent
 void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& shaderComponent )
@@ -132,6 +166,13 @@ void ShaderComponent::ToJson( const Loader& loader, json& json, const ShaderComp
 void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponent& shaderComponent )
 {
     shaderComponent = loader.LoadShader( json );
+}
+
+void ShaderComponent::CreateLuaBinding( sol::state& lua )
+{
+    lua.new_usertype<Shader>(
+        "Shader"
+    );
 }
 
 }
