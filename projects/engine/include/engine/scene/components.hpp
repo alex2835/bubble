@@ -10,7 +10,7 @@
 // Basic components
 namespace bubble
 {
-struct TagComponent : public string
+struct TagComponent
 {
 	static string_view Name()
 	{
@@ -20,6 +20,11 @@ struct TagComponent : public string
 	static void ToJson( const Loader& loader, json& json, const TagComponent& component );
 	static void FromJson( Loader& loader, const json& json, TagComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
+
+public:
+	TagComponent() = default;
+	TagComponent( string name );
+	string mName;
 };
 
 struct TransformComponent
@@ -33,6 +38,7 @@ struct TransformComponent
 	static void FromJson( Loader& loader, const json& json, TransformComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
 	
+public:
 	TransformComponent() = default;
     TransformComponent( vec3 pos, vec3 rot, vec3 scale );
 	mat4 Transform();
@@ -80,6 +86,25 @@ struct ShaderComponent : public Ref<Shader>
 	static void ToJson( const Loader& loader, json& json, const ShaderComponent& component );
 	static void FromJson( Loader& loader, const json& json, ShaderComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
+};
+
+struct ScriptComponent
+{
+    static string_view Name()
+    {
+        return "ScriptComponent"sv;
+    }
+    static void OnComponentDraw( const Loader& loader, ScriptComponent& component );
+    static void ToJson( const Loader& loader, json& json, const ScriptComponent& component );
+    static void FromJson( Loader& loader, const json& json, ScriptComponent& component );
+    static void CreateLuaBinding( sol::state& lua );
+
+public:
+	ScriptComponent() = default;
+	ScriptComponent( const Ref<Script>& scirpt );
+	~ScriptComponent();
+	Ref<Script> mScript;
+	Ref<sol::table> mState;
 };
 
 }

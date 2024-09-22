@@ -33,8 +33,9 @@ struct TextureData
     path mPath;
 };
 
-TextureData OpenTexture( const path& path );
+Ref<Script> LoadScript( const path& path );
 
+TextureData OpenTexture( const path& path );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 

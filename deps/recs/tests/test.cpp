@@ -35,7 +35,7 @@ int main( void )
 
     //    recs::Entity entity = registry.CreateEntity();
 
-    //    registry.AddComponet<Speed>( entity, 0.0f );
+    //    registry.AddComponent<Speed>( entity, 0.0f );
     //    assert( registry.HasComponent<Speed>( entity ) );
     //    assert( !registry.HasComponent<Position>( entity ) );
 
@@ -58,8 +58,8 @@ int main( void )
         // get component
         recs::Entity entity = registry.CreateEntity();
 
-        registry.AddComponet<Speed>( entity, 1.0f );
-        registry.AddComponet<Position>( entity, 0.0f, 0.0f );
+        registry.AddComponent<Speed>( entity, 1.0f );
+        registry.AddComponent<Position>( entity, 0.0f, 0.0f );
 
         auto [speed, position] = registry.GetComponents<Speed, Position>( entity );
 
@@ -77,7 +77,7 @@ int main( void )
         for ( int i = 0; i < 10; i++ )
         {
             recs::Entity entity = registry.CreateEntity();
-            registry.AddComponet<Speed>( entity, (float)i );
+            registry.AddComponent<Speed>( entity, (float)i );
         }
 
         int i = 0;
@@ -85,7 +85,7 @@ int main( void )
             assert( speed.s == i++ );
 
         for ( auto& entity : entities )
-            registry.AddComponet<Speed>( entity, 5.f );
+            registry.AddComponent<Speed>( entity, 5.f );
 
         for ( auto& entity : entities )
             assert( entity.GetComponent<Speed>().s == 5 );
@@ -105,14 +105,14 @@ int main( void )
         for ( int i = 0; i < 10; i++ )
         {
             recs::Entity entity = registry.CreateEntity();
-            registry.AddComponet<Speed>( entity, i );
+            registry.AddComponent<Speed>( entity, i );
         }
 
         int i = 0;
         for ( auto entity : entities )
         {
-            entity.AddComponet<Speed>( 1.0f )
-                  .AddComponet<Position>( i++, 1.0f );
+            entity.AddComponent<Speed>( 1.0f )
+                  .AddComponent<Position>( i++, 1.0f );
         }
 
         // foreach
@@ -164,14 +164,14 @@ int main( void )
         for ( int i = 0; i < 10; i++ )
         {
             recs::Entity entity = registry.CreateEntity();
-            registry.AddComponet<Speed>( entity, i );
+            registry.AddComponent<Speed>( entity, i );
         }
 
         int i = 0;
         for ( auto entity : entities )
         {
-            entity.AddComponet<Speed>( 1.0f )
-                .AddComponet<Position>( i++, 1.0f );
+            entity.AddComponent<Speed>( 1.0f )
+                .AddComponent<Position>( i++, 1.0f );
         }
 
         auto view = registry.GetView<Speed, Position>();

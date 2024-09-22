@@ -38,7 +38,7 @@ public:
 
     // Component type API
     template <ComponentType T, typename ...Args>
-    Entity AddComponet( Args&& ...args );
+    Entity AddComponent( Args&& ...args );
 
     template <ComponentType T>
     T& GetComponent();

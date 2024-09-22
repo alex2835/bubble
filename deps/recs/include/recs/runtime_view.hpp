@@ -32,7 +32,7 @@ private:
     RuntimeView( std::vector<Entity>&& entities )
         : mEntities( entities )
     {}
-
+		
 	std::vector<Entity> mEntities;
 	friend class Registry;
 };

@@ -48,7 +48,7 @@ public:
     template <ComponentConcept Component>
     static void Add( Scene& scene )
     {
-        scene.AddComponet<Component>();
+        scene.AddComponent<Component>();
         CreateComponentTable( Component::Name() );
 
         AddOnDraw( Component::Name(), []( const Loader& loader, void* rawData )

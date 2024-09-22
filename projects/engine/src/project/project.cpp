@@ -19,9 +19,9 @@ void Project::LoadDefaultResources()
 Project::Project()
 {
     // Order is strict
-    mScene.AddComponet<TagComponent>()
-          .AddComponet<ModelComponent>()
-          .AddComponet<TransformComponent>();
+    mScene.AddComponent<TagComponent>()
+          .AddComponent<ModelComponent>()
+          .AddComponent<TransformComponent>();
 }
 
 void Project::Create( const path& rootDir, const string& projectName )

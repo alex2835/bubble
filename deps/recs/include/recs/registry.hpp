@@ -33,10 +33,10 @@ public:
 
     // Component types API
     template <ComponentType Component>
-    Registry& AddComponet();
+    Registry& AddComponent();
 
     template <ComponentType Component, typename ...Args>
-    Registry& AddComponet( Entity entity, Args&& ...args );
+    Registry& AddComponent( Entity entity, Args&& ...args );
 
     template <ComponentType Component>
     Component& GetComponent( Entity entity );
@@ -71,7 +71,7 @@ public:
 
     template <ComponentType ...Components>
     View<Components...> GetView();
-    RuntimeView GetRuntimeView( const std::vector<std::string_view>& components );
+    std::vector<Entity> GetRuntimeView( const std::vector<std::string_view>& components );
 
     template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
@@ -181,7 +181,7 @@ Component& Registry::EntityGetComponent( Entity entity, ComponentTypeId componen
 // Registry
 
 template <ComponentType Component>
-Registry& Registry::AddComponet()
+Registry& Registry::AddComponent()
 {
     ComponentTypeId componentType = GetComponentTypeId<Component>();
     if ( componentType == INVALID_COMPONENT_TYPE )
@@ -193,7 +193,7 @@ Registry& Registry::AddComponet()
 }
 
 template <ComponentType Component, typename ...Args>
-Registry& Registry::AddComponet( Entity entity, Args&& ...args )
+Registry& Registry::AddComponent( Entity entity, Args&& ...args )
 {
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "Add component: invalid entity" );
@@ -436,9 +436,9 @@ void Registry::RuntimeForEach( const std::vector<std::string_view>& components, 
 // Entity
 
 template <ComponentType Component, typename ...Args>
-Entity Entity::AddComponet( Args&& ...args )
+Entity Entity::AddComponent( Args&& ...args )
 {
-    mRegistry->template AddComponet<Component>( *this, std::forward<Args>( args )... );
+    mRegistry->template AddComponent<Component>( *this, std::forward<Args>( args )... );
     return *this;
 }
 

@@ -2,11 +2,11 @@
 #include <sol/forward.hpp>
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
+#include "engine/scripting/script.hpp"
 
 namespace bubble
 {
 class Scene;
-class Script;
 
 class ScriptingEngine
 {
@@ -15,6 +15,7 @@ public:
     ~ScriptingEngine();
 
     void RunScript( const Script& script );
+    void RunScript( const Ref<Script>& script );
 
 private:
     Scope<sol::state> mLua;

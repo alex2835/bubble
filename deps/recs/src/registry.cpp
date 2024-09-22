@@ -145,7 +145,7 @@ void Registry::EntityRemoveComponentId( Entity entity, ComponentTypeId component
     mEntitiesComponentTypeIds[entity].erase( componentId );
 }
 
-recs::RuntimeView Registry::GetRuntimeView( const std::vector<std::string_view>& components )
+std::vector<Entity> Registry::GetRuntimeView( const std::vector<std::string_view>& components )
 {
     std::vector<Entity> entities;
 
@@ -158,7 +158,7 @@ recs::RuntimeView Registry::GetRuntimeView( const std::vector<std::string_view>&
     {
         entities.push_back( entity );
     } );
-    return RuntimeView( std::move( entities ) );
+    return entities;
 }
 
 ComponentTypeId Registry::GetComponentTypeId( std::string_view name )

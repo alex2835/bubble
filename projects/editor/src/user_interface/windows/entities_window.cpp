@@ -33,7 +33,7 @@ void EntitiesWindow::DrawEntities()
             if ( ImGui::MenuItem( "Create Entity" ) )
             {
                 auto entity = mProject.mScene.CreateEntity();
-                entity.AddComponet<TagComponent>( "New entity" );
+                entity.AddComponent<TagComponent>( "New entity" );
             }
             ImGui::EndPopup();
         }
@@ -43,7 +43,7 @@ void EntitiesWindow::DrawEntities()
         mProject.mScene.ForEachEntity( [&]( Entity entity )
         {
             auto& tag = entity.GetComponent<TagComponent>();
-            ImGui::Selectable( ( tag + "##TAG" ).c_str(), entity == mSelectedEntity );
+            ImGui::Selectable( ( tag.mName + "##TAG" ).c_str(), entity == mSelectedEntity );
             if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
                  ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
                 mSelectedEntity = entity;

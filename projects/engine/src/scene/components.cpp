@@ -13,25 +13,33 @@ constexpr auto COLOR_YELLOW = ImVec4( 1, 1, 0, 1 );
 void TagComponent::OnComponentDraw( const Loader& loader, TagComponent& tagComponent )
 {
     ImGui::TextColored( COLOR_YELLOW, "TagComponent" );
-    ImGui::InputText( tagComponent );
+    ImGui::InputText( tagComponent.mName );
 }
 
 void TagComponent::ToJson( const Loader& loader, json& json, const TagComponent& tagComponent )
 {
-    json = tagComponent;
+    json = tagComponent.mName;
 }
 
 void TagComponent::FromJson( Loader& loader, const json& json, TagComponent& tagComponent )
 {
-    tagComponent = json;
+    tagComponent.mName = json;
 }
 
 void TagComponent::CreateLuaBinding( sol::state& lua )
 {
-    //lua.new_usertype<TagComponent>(
-    //    "TagComponent",
-    //);
+    lua.new_usertype<TagComponent>(
+        "Tag",
+        sol::call_constructor,
+        sol::constructors<TagComponent(), TagComponent(string)>(),
+        "Name",
+        &TagComponent::mName
+    );
 }
+
+TagComponent::TagComponent( string name ) 
+    : mName( std::move( name ) )
+{}
 
 // TransformComponent
 void TransformComponent::OnComponentDraw( const Loader& loader, TransformComponent& transformComponent )
@@ -41,6 +49,12 @@ void TransformComponent::OnComponentDraw( const Loader& loader, TransformCompone
     ImGui::DragFloat3( "Rotation", (float*)&transformComponent.mRotation, 0.01f );
     ImGui::DragFloat3( "Position", (float*)&transformComponent.mPosition, 0.1f );
 }
+
+TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
+    : mPosition( pos ),
+      mRotation( rot ),
+      mScale( scale )
+{}
 
 mat4 TransformComponent::Transform()
 {
@@ -52,12 +66,6 @@ mat4 TransformComponent::Transform()
     transform = glm::scale( transform, mScale );
     return transform;
 }
-
-TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
-    : mPosition( pos ),
-      mRotation( rot ),
-      mScale( scale )
-{}
 
 void TransformComponent::ToJson( const Loader& loader, json& json, const TransformComponent& transformComponent )
 {
@@ -75,17 +83,27 @@ void TransformComponent::FromJson( Loader& loader, const json& json, TransformCo
 
 void TransformComponent::CreateLuaBinding( sol::state& lua )
 {
+    auto to_string = []( const TransformComponent& t )
+    {
+        const vec3& p = t.mPosition;
+        const vec3& r = t.mRotation;
+        const vec3& s = t.mScale;
+        return std::format( "pos: [{},{},{}], rot: [{},{},{}], scale: [{},{},{}]",
+                            p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z );
+    };
+
     lua.new_usertype<TransformComponent>(
         "Transform",
         sol::call_constructor,
-        sol::constructors<TransformComponent(), 
-                          TransformComponent(vec3, vec3, vec3)>(),
+        sol::constructors<TransformComponent(), TransformComponent(vec3, vec3, vec3)>(),
         "Position", 
         &TransformComponent::mPosition,
         "Rotation",
         &TransformComponent::mRotation,
         "Scale",
-        &TransformComponent::mScale
+        &TransformComponent::mScale,
+        sol::meta_function::to_string,
+        to_string
     );
 }
 
@@ -144,7 +162,9 @@ void ModelComponent::FromJson( Loader& loader, const json& json, ModelComponent&
 void ModelComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<Model>(
-        "Model"
+        "Model",
+        sol::meta_function::to_string,
+        []( const Model& model ) { return model.mName; }
     );
 }
 
@@ -180,8 +200,56 @@ void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponen
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<Shader>(
-        "Shader"
+        "Shader",
+        sol::meta_function::to_string,
+        []( const Shader& shader ){ return shader.mName; }
     );
+}
+
+// ScriptComponent
+void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& scriptComponent )
+{
+    ImGui::TextColored( COLOR_YELLOW, "ScriptComponent" );
+
+    auto scriptComponentName = scriptComponent.mScript ? 
+                               scriptComponent.mScript->mName.c_str() :
+                               "Not selected";
+    if ( ImGui::BeginCombo( "shaders", scriptComponentName ) )
+    {
+        for ( const auto& [scriptPath, shader] : loader.mScripts )
+        {
+            auto scriptName = scriptPath.stem().string();
+            if ( ImGui::Selectable( scriptName.c_str(), scriptName == scriptComponentName ) )
+                scriptComponent = shader;
+        }
+        ImGui::EndCombo();
+    }
+}
+
+void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComponent& component )
+{
+
+}
+
+void ScriptComponent::FromJson( Loader& loader, const json& json, ScriptComponent& component )
+{
+
+}
+
+void ScriptComponent::CreateLuaBinding( sol::state& lua )
+{
+
+}
+
+ScriptComponent::ScriptComponent( const Ref<Script>& scirpt )
+    : mScript( scirpt )
+{
+
+}
+
+ScriptComponent::~ScriptComponent()
+{
+
 }
 
 }

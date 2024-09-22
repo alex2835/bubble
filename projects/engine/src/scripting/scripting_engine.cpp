@@ -67,7 +67,12 @@ ScriptingEngine::~ScriptingEngine()
 
 void ScriptingEngine::RunScript( const Script& script )
 {
-    mLua->safe_script( script.GetCode() );
+    mLua->safe_script( script.mCode );
+}
+
+void ScriptingEngine::RunScript( const Ref<Script>& script )
+{
+    RunScript( *script );
 }
 
 }
