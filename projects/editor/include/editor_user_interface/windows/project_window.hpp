@@ -11,6 +11,7 @@ enum class FilesystemNodeType
     Unknown,
     Folder,
     Model,
+    Script,
     Texture
 };
 
@@ -41,11 +42,6 @@ public:
 private:
     FilesystemNode mFilesystemTreeRoot;
     const FilesystemNode* mSelectedNode = nullptr;
-
-    // Render model
-    ThirdPersonCamera mCamera;
-    Scene mScene;
-    //Ref<Shader> mShader;
 
     str_hash_map<Texture2D> mModelIcons;
     Ref<Texture2D> mFolderIcon;

@@ -49,7 +49,7 @@ ScriptingEngine::ScriptingEngine( WindowInput& input,
         } 
     );
 
-    mLua->set( 
+    mLua->set(
         "bIsKeyPressed", [&]( int key ) {
             if ( key <= (int)MouseKey::LAST )
                 return input.IsKeyPressed( MouseKey( key ) );
@@ -64,6 +64,15 @@ ScriptingEngine::~ScriptingEngine()
 
 }
 
+
+void ScriptingEngine::OnUpdate( Ref<Script>& script )
+{
+    if ( not script )
+        return;
+    //mLua->set( "onUpdate", sol::nil );
+    RunScript( script );
+    //mLua->get<sol::function>( "onUpdate" ).call();
+}
 
 void ScriptingEngine::RunScript( const Script& script )
 {

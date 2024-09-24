@@ -9,7 +9,7 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editorState )
       mSceneViewport( editorState.mSceneViewport ),
       mObjectIdViewport( editorState.mObjectIdViewport ),
       mSceneCamera( editorState.mSceneCamera ),
-      mEngine( editorState.mEngine ),
+      //mEngine( editorState.mEngine ),
       mProject( editorState.mProject ),
       mSelectedEntity( editorState.mSelectedEntity ),
       mUINeedUpdateProjectWindow( editorState.mUINeedUpdateProjectWindow )

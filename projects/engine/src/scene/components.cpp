@@ -214,7 +214,7 @@ void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& sc
     auto scriptComponentName = scriptComponent.mScript ? 
                                scriptComponent.mScript->mName.c_str() :
                                "Not selected";
-    if ( ImGui::BeginCombo( "shaders", scriptComponentName ) )
+    if ( ImGui::BeginCombo( "scripts", scriptComponentName ) )
     {
         for ( const auto& [scriptPath, shader] : loader.mScripts )
         {
@@ -226,14 +226,15 @@ void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& sc
     }
 }
 
-void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComponent& component )
+void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComponent& scriptComponent )
 {
-
+    auto [relPath, _] = loader.RelAbsFromProjectPath( scriptComponent.mScript->mPath );
+    json = relPath;
 }
 
-void ScriptComponent::FromJson( Loader& loader, const json& json, ScriptComponent& component )
+void ScriptComponent::FromJson( Loader& loader, const json& json, ScriptComponent& scriptComponent )
 {
-
+    scriptComponent.mScript = loader.LoadScript( json );
 }
 
 void ScriptComponent::CreateLuaBinding( sol::state& lua )

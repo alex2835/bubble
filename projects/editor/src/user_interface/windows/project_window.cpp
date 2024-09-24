@@ -18,6 +18,12 @@ std::optional<path> tryFindModelInFolder( const path& dir )
     return std::nullopt;
 }
 
+bool isScriptFile( const filesystem::directory_entry& item )
+{
+    const auto& extension = item.path().extension();
+    return extension == ".lua";
+}
+
 bool isTextureFile( const filesystem::directory_entry& item )
 {
     const auto& extension = item.path().extension();
@@ -39,6 +45,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
     {
         if ( isTextureFile( item ) )
             return FilesystemNodeType::Texture;
+        else if ( isScriptFile( item ) )
+            return FilesystemNodeType::Script;
     }
     return FilesystemNodeType::Unknown;
 }
@@ -49,7 +57,6 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 ProjectWindow::ProjectWindow( BubbleEditor& editorState )
     : UserInterfaceWindowBase( editorState )
 {
-    //mShader = LoadShader( "./resources/shaders/only_defuse" );
     mFolderIcon = LoadTexture2D( "./resources/images/project_tree/folder.png" );
     mFileIcon = LoadTexture2D( "./resources/images/project_tree/file.png" );
     if ( not mProject.mName.empty() )
@@ -88,8 +95,9 @@ void ProjectWindow::FillIcons( const FilesystemNode& node )
         auto modelPath = tryFindModelInFolder( node.mPath );
         if ( modelPath )
             mProject.mLoader.LoadModel( *modelPath );
-        //mEngine.DrawScene();
     }
+    else if ( node.mType == FilesystemNodeType::Script )
+        mProject.mLoader.LoadScript( node.mPath );
 
     for ( const auto& child : node.mChildren )
         FillIcons( child );

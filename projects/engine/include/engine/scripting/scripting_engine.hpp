@@ -12,12 +12,17 @@ class ScriptingEngine
 {
 public:
     ScriptingEngine( WindowInput& input, Loader& loader, Scene& scene );
+    ScriptingEngine( const ScriptingEngine& ) = default;
+    ScriptingEngine( ScriptingEngine&& ) = default;
+    ScriptingEngine& operator=( const ScriptingEngine& ) = default;
+    ScriptingEngine& operator=( ScriptingEngine&& ) = default;
     ~ScriptingEngine();
 
+    void OnUpdate( Ref<Script>& script );
     void RunScript( const Script& script );
     void RunScript( const Ref<Script>& script );
 
-private:
+//private:
     Scope<sol::state> mLua;
 };
 

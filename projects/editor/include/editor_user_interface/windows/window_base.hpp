@@ -21,7 +21,7 @@ protected:
     SceneCamera& mSceneCamera;
     Entity& mSelectedEntity;
     // Engine
-    Engine& mEngine;
+    //Engine& mEngine;
     // Project
     Project& mProject;
     // UI global state

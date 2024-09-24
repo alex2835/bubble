@@ -20,9 +20,9 @@ Ref<Script> Loader::LoadScript( const path& scriptPath )
 
     auto iter = mScripts.find( relPath );
     if ( iter != mScripts.end() )
-        return iter->second;    
+        return iter->second;
 
-    auto script = bubble::LoadScript( scriptPath );
+    auto script = bubble::LoadScript( absPath );
     mScripts.emplace( relPath, script );
     return script;
 }

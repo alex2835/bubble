@@ -15,10 +15,9 @@ public:
     };
 
     BubbleEditor();
-    void AddDefaultComponents();
-
     void OpenProject( const path& projectPath );
     void Run();
+    void UpdateScripts();
     void DrawProjectScene();
 
 public:
@@ -31,8 +30,11 @@ public:
     SceneCamera mSceneCamera;
     Entity mSelectedEntity;
 
-    Engine mEngine;
+    //Engine mEngine;
+    Renderer mRenderer;
     Project mProject;
+    ScriptingEngine mScriptingEngine;
+
     // UI global state
     bool mUINeedUpdateProjectWindow = false;
 
