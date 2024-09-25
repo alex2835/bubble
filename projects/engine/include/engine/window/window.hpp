@@ -9,19 +9,13 @@ struct ImGuiContext;
 
 namespace bubble
 {
-struct WindowSize
-{
-    u32 mWidth = 0;
-    u32 mHeight = 0;
-};
-
 class Window
 {
 public:
-    Window( const string& name, WindowSize size );
+    Window( const string& name, uvec2 size );
     ~Window();
 
-    WindowSize Size() const;
+    uvec2 Size() const;
     bool ShouldClose() const;
 
     const vector<Event>& PollEvents();
@@ -38,6 +32,7 @@ public:
     GLFWwindow* GetHandle() const;
     const char* GetGLSLVersion() const;
 
+    void BindWindowFramebuffer();
     ImGuiContext* GetImGuiContext();
     void ImGuiBegin();
     void ImGuiEnd();
@@ -56,7 +51,7 @@ private:
     GLFWwindow* mWindow;
     ImGuiContext* mImGuiContext;
     const char* mGLSLVersion;
-    WindowSize mWindowSize;
+    ivec2 mWindowSize;
     bool mShouldClose = false;
     vector<Event> mEvents;
     WindowInput mWindowInput;

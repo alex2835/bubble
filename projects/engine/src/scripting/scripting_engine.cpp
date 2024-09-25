@@ -12,6 +12,8 @@
 
 namespace bubble
 {
+constexpr string_view ON_UPDATE_FUNC = "OnUpdate"sv;
+
 ScriptingEngine::ScriptingEngine( WindowInput& input,
                                   Loader& loader,
                                   Scene& scene )
@@ -69,9 +71,26 @@ void ScriptingEngine::OnUpdate( Ref<Script>& script )
 {
     if ( not script )
         return;
-    //mLua->set( "onUpdate", sol::nil );
-    RunScript( script );
-    //mLua->get<sol::function>( "onUpdate" ).call();
+
+    auto scriptFunctionsIter = mCache.find( script->mName );
+    if ( scriptFunctionsIter == mCache.end() )
+    {
+        mLua->set( ON_UPDATE_FUNC, sol::nil );
+        RunScript( script );
+        auto onUpdate = mLua->get<sol::function>( ON_UPDATE_FUNC );
+
+        auto newName = script->mName + string( ON_UPDATE_FUNC );
+        mLua->set( newName, onUpdate );
+        auto newOnUpdate = mLua->get<sol::function>( newName );
+
+        scriptFunctionsIter = mCache.emplace(
+            script->mName,
+            FunctionCache{ .mOnUpdate=newOnUpdate }
+        ).first;
+    }
+    auto& scriptFunctions = scriptFunctionsIter->second;
+    if ( scriptFunctions.mOnUpdate )
+        scriptFunctions.mOnUpdate();
 }
 
 void ScriptingEngine::RunScript( const Script& script )

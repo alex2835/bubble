@@ -6,14 +6,13 @@
 
 namespace bubble
 {
+class ScriptingEngine;
+
 struct Script
 {
-    ~Script();
-
     path mPath;
     string mName;
     string mCode;
-    Ref<sol::function> mOnUpdate;
 };
 
 }

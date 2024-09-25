@@ -1,12 +1,10 @@
 
 #include "editor_application/editor_application.hpp"
-
-#include "engine/scripting/scripting_engine.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
 {
-constexpr WindowSize WINDOW_SIZE{ 1200, 720 };
+constexpr uvec2 WINDOW_SIZE{ 1920, 1080 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
@@ -33,9 +31,11 @@ void BubbleEditor::Run()
     {
         // Poll events
         mWindow.PollEvents();
+        if ( mWindow.Size() == uvec2( 0u ) )
+            continue;
+
         mTimer.OnUpdate();
         auto deltaTime = mTimer.GetDeltaTime();
-
         // Draw scene
         switch ( mEditorMode )
 		{
@@ -44,16 +44,10 @@ void BubbleEditor::Run()
 				mSceneCamera.OnUpdate( deltaTime );
 				mResourcesHotReloader.OnUpdate();
 				mEditorUserInterface.OnUpdate( deltaTime );
-
-                //UpdateScripts();
-                auto view = mProject.mScene.GetRuntimeView( { "ScriptComponent" } );
-                for ( auto entity : view )
-                    mScriptingEngine.OnUpdate( entity.GetComponent<ScriptComponent>().mScript );
-
-
+                UpdateScripts();
 				DrawProjectScene();
+                
                 // ImGui
-                Framebuffer::BindWindow( mWindow );
                 mWindow.ImGuiBegin();
                 mEditorUserInterface.OnDraw( deltaTime );
                 mWindow.ImGuiEnd();
@@ -78,11 +72,12 @@ void BubbleEditor::OpenProject( const path& projectPath )
 
 void BubbleEditor::UpdateScripts()
 {
-    mProject.mScene.ForEach<ScriptComponent>( 
-    [&]( Entity, ScriptComponent& script )
+    auto view = mProject.mScene.GetView<ScriptComponent>();
+    for ( auto entity : view.GetEntities() )
     {
-        mScriptingEngine.OnUpdate( script.mScript );
-    } );
+        auto& scirptingComponent = entity.GetComponent<ScriptComponent>();
+        mScriptingEngine.OnUpdate( scirptingComponent.mScript );
+    }
 }
 
 void BubbleEditor::DrawProjectScene()

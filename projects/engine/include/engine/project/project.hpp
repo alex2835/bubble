@@ -2,6 +2,7 @@
 #include "engine/utils/filesystem.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/camera.hpp"
+#include "engine/scripting/scripting_engine.hpp"
 
 namespace bubble
 {
@@ -17,10 +18,9 @@ public:
     string mName;
     path mRootFile;
     Loader mLoader;
-
     Scene mScene;
-    Entity mMainCharacter;
-    vector<Ref<Camera>> mCameras;
+    //Entity mMainCharacter;
+    //vector<Ref<Camera>> mCameras;
 };
 
 }

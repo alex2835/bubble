@@ -65,7 +65,7 @@ void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     auto window_size = win->Size();
-    auto mouse_pos = vec2( xpos, window_size.mHeight - ypos );
+    auto mouse_pos = vec2( xpos, window_size.y - ypos );
     win->mWindowInput.mMouseInput.mMouseOffset = mouse_pos - win->mWindowInput.mMouseInput.mMousePos;
     win->mWindowInput.mMouseInput.mMousePos = mouse_pos;
 
@@ -88,14 +88,14 @@ void Window::ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset )
 void Window::WindowSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ (u32)width, (u32)height };
+    win->mWindowSize = uvec2{ (u32)width, (u32)height };
     glfwSetWindowSize( win->mWindow, width, height );
 }
 
 void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = WindowSize{ (u32)width, (u32)height };
+    win->mWindowSize = uvec2{ (u32)width, (u32)height };
     glViewport( 0, 0, width, height );
 }
 
@@ -149,7 +149,7 @@ bubble::Event Window::CreateEvent() const
 
 
 
-Window::Window( const string& name, WindowSize size )
+Window::Window( const string& name, uvec2 size )
     : mWindowSize( size )
 {
     glfwSetErrorCallback( ErrorCallback );
@@ -179,7 +179,7 @@ Window::Window( const string& name, WindowSize size )
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
 
-    mWindow = glfwCreateWindow( size.mWidth, size.mHeight, name.c_str(), NULL, NULL );
+    mWindow = glfwCreateWindow( size.x, size.y, name.c_str(), NULL, NULL );
     if( !mWindow )
     {
         glfwTerminate();
@@ -241,7 +241,7 @@ Window::~Window()
     glfwTerminate();
 }
 
-WindowSize Window::Size() const 
+uvec2 Window::Size() const
 {
     return mWindowSize;
 }
@@ -304,8 +304,11 @@ const char* Window::GetGLSLVersion() const
     return mGLSLVersion;
 }
 
-
-
+void Window::BindWindowFramebuffer()
+{
+    glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+    glViewport( 0, 0, mWindowSize.x, mWindowSize.y );
+}
 
 ImGuiContext* Window::GetImGuiContext()
 {
@@ -314,6 +317,7 @@ ImGuiContext* Window::GetImGuiContext()
 
 void Window::ImGuiBegin()
 {
+    BindWindowFramebuffer();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -325,7 +329,7 @@ void Window::ImGuiEnd()
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
 
-    // Multi viewports
+    // Multi view ports
     //ImGuiIO& io = ImGui::GetIO();
     //if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
     //{

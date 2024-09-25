@@ -19,7 +19,7 @@ public:
     void DrawModel( const Ref<Model>& model, const mat4& transform, const Ref<Shader>& shader = {} );
 
 //private:
-    Ref<UniformBuffer> mVertexUniformBuffer;    
+    Ref<UniformBuffer> mVertexUniformBuffer;
     Ref<UniformBuffer> mLightsInfoUniformBuffer;
     Ref<UniformBuffer> mLightsUniformBuffer;
 };

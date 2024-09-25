@@ -126,13 +126,6 @@ void Framebuffer::Unbind() const
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
 }
 
-void Framebuffer::BindWindow( Window& window )
-{
-    glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
-    WindowSize window_size = window.Size();
-    glViewport( 0, 0, window_size.mWidth, window_size.mHeight );
-}
-
 uvec2 Framebuffer::Size() const
 {
     return { Width(), Height() };

@@ -4,7 +4,6 @@
 #include "engine/types/number.hpp"
 #include "engine/types/glm.hpp"
 #include "engine/types/utility.hpp"
-#include "engine/window/window.hpp"
 #include "engine/renderer/texture.hpp"
 
 namespace bubble
@@ -46,7 +45,6 @@ public:
     
     void Bind() const;
     void Unbind() const;
-    static void BindWindow( Window& window );
     void Invalidate();
 
     i32 Width() const;

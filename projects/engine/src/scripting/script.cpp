@@ -1,11 +1,7 @@
 
-#include "engine/scripting/script.hpp"
+//#include "engine/scripting/script.hpp"
 
 namespace bubble
 {
-Script::~Script()
-{
-
-}
 
 }
