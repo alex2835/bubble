@@ -75,10 +75,12 @@ void ScriptingEngine::OnUpdate( Ref<Script>& script )
     auto scriptFunctionsIter = mCache.find( script->mName );
     if ( scriptFunctionsIter == mCache.end() )
     {
+        // Extract function from script
         mLua->set( ON_UPDATE_FUNC, sol::nil );
         RunScript( script );
         auto onUpdate = mLua->get<sol::function>( ON_UPDATE_FUNC );
 
+        // Save in lua state with script name
         auto newName = script->mName + string( ON_UPDATE_FUNC );
         mLua->set( newName, onUpdate );
         auto newOnUpdate = mLua->get<sol::function>( newName );
