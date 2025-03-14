@@ -9,12 +9,10 @@ ComponentManager& ComponentManager::Instance()
     return componentManager;
 }
 
-
-void ComponentManager::CreateComponentTable( string_view componentName )
+bool ComponentManager::CreateComponentTable( string_view componentName )
 {
     auto& storage = Instance();
-    if ( not storage.mComponentFuncTable.emplace( componentName, ComponentFunctionsTable{} ).second )
-        throw std::runtime_error( std::format( "{} already exists in component manager.", componentName ) );
+    return storage.mComponentFuncTable.emplace( componentName, ComponentFunctionsTable{} ).second;
 }
 
 ComponentFunctionsTable& ComponentManager::GetComponentTable( string_view componentName )

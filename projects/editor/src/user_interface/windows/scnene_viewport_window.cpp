@@ -68,10 +68,7 @@ void SceneViewportInterface::DrawViewport()
     mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
     if ( ImGui::IsItemHovered() )
-    {
-        auto middleButton = mWindow.IsKeyPressed( MouseKey::MIDDLE );
-        mSceneCamera.mIsActive = middleButton;
-    }
+        mSceneCamera.mIsActive = mWindow.IsKeyPressed( MouseKey::RIGHT );
 }
 
 

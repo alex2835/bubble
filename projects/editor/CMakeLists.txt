@@ -17,7 +17,7 @@ add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
 
 if(MSVC)
 	target_compile_options(${TARGET_NAME} PUBLIC
-	 /WX
+	 /WX /ZI
 	)
 endif()
 

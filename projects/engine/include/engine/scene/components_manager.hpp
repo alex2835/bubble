@@ -49,18 +49,19 @@ public:
     static void Add( Scene& scene )
     {
         scene.AddComponent<Component>();
-        CreateComponentTable( Component::Name() );
+        if ( CreateComponentTable( Component::Name() ) )
+        {
+            AddOnDraw( Component::Name(), []( const Loader& loader, void* rawData )
+            { Component::OnComponentDraw( loader, *reinterpret_cast<Component*>( rawData ) ); } );
 
-        AddOnDraw( Component::Name(), []( const Loader& loader, void* rawData )
-        { Component::OnComponentDraw( loader, *reinterpret_cast<Component*>( rawData ) ); } );
+            AddToJson( Component::Name(), []( const Loader& loader, json& json, const void* rawData )
+            { Component::ToJson( loader, json, *reinterpret_cast<const Component*>( rawData ) ); } );
 
-        AddToJson( Component::Name(), []( const Loader& loader, json& json, const void* rawData )
-        { Component::ToJson( loader, json, *reinterpret_cast<const Component*>( rawData ) ); } );
+            AddFromJson( Component::Name(), []( Loader& loader, const json& json, void* rawData )
+            { Component::FromJson( loader, json, *reinterpret_cast<Component*>( rawData ) ); } );
 
-        AddFromJson( Component::Name(), []( Loader& loader, const json& json, void* rawData ) 
-        { Component::FromJson( loader, json, *reinterpret_cast<Component*>( rawData ) ); } );
-
-        AddCreateLuaBinding( Component::Name(), Component::CreateLuaBinding );
+            AddCreateLuaBinding( Component::Name(), Component::CreateLuaBinding );
+        }
     }
 
     static void AddOnDraw( string_view componentName, OnComponentDrawFunc drawFunc );
@@ -78,7 +79,7 @@ public:
     const auto begin(){ return mComponentFuncTable.begin(); }
     const auto end() { return mComponentFuncTable.end(); }
 private:
-    static void CreateComponentTable( string_view componentName );
+    static bool CreateComponentTable( string_view componentName );
     static ComponentFunctionsTable& GetComponentTable( string_view componentName );
 
     str_hash_map<ComponentFunctionsTable> mComponentFuncTable;

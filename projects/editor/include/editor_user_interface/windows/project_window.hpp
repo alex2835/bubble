@@ -1,5 +1,4 @@
 #pragma once
-#include "engine/renderer/camera_third_person.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble

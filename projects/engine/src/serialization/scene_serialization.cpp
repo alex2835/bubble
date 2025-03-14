@@ -43,8 +43,8 @@ void Scene::ToJson( const Loader& loader, json& j )
 void Scene::FromJson( Loader& loader, const json& j )
 {
     mEntityCounter = j["Entity counter"];
-    mComponentCounter = j["Component counter"];
-    mComponents = j["Components"];
+    //mComponentCounter = j["Component counter"];
+    //mComponents = j["Components"];
     // Entity components
     const json& entityComponentsJson = j["Entity components"];
     for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )

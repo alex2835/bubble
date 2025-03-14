@@ -13,11 +13,12 @@ public:
 
     string_view Name();
     void OnUpdate( DeltaTime );
-    void DrawEntities();
-    void DrawSelectedEntityProperties();
     void OnDraw( DeltaTime );
 
 private:
+    void DrawEntities();
+    void DrawSelectedEntityProperties();
+
     str_hash_set mNoCompDrawFuncWarnings;
 };
 

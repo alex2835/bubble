@@ -38,7 +38,7 @@ public:
     }
 
     Pool( const Pool& );
-    Pool& operator=( const Pool& ) = delete;
+    Pool& operator=( const Pool& );
     Pool( Pool&& ) = default;
     Pool& operator=( Pool&& ) = default;
     ~Pool();
@@ -63,7 +63,6 @@ public:
     const void* GetRaw( Entity entity ) const;
     const void* GetRaw( size_t index ) const;
 
-    Pool Clone() const;
 
 private:
     Pool( size_t component_size,
@@ -71,6 +70,7 @@ private:
           void( *delete_func )( void* ),
           void( *copy_func )( const void*, void* ) );
 
+    void Clone( Pool& pool ) const;
     void Realloc( size_t new_capacity );
     void* GetElemAddress( size_t size );
     const void* GetElemAddressConst( size_t size ) const;

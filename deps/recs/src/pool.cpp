@@ -16,9 +16,20 @@ Pool::Pool( size_t component_size,
     Realloc( 10 );
 }
 
-Pool Pool::Clone() const
+Pool::Pool( const Pool& other )
 {
-    Pool pool;
+    other.Clone( *this );
+}
+
+Pool& Pool::operator=( const Pool& other )
+{
+    if ( this != &other )
+        other.Clone( *this );
+    return *this;
+}
+
+void Pool::Clone( Pool& pool ) const
+{
     pool.mEntities = mEntities;
     pool.mDoInit = mDoInit;
     pool.mDoDelete = mDoDelete;
@@ -30,8 +41,6 @@ Pool Pool::Clone() const
 
     for ( size_t i = 0; i < pool.mSize; i++ )
         pool.mDoCopy( GetElemAddressConst( i ), pool.GetElemAddress( i ) );
-
-    return pool;
 }
 
 Pool::~Pool()
@@ -110,7 +119,8 @@ void Pool::Realloc( size_t new_capacity )
     if ( mCapacity < new_capacity )
     {
         char* new_data = new char[new_capacity * mComponentSize];
-        memmove( new_data, mData.get(), mComponentSize * mSize );
+        if ( mData )
+            memmove( new_data, mData.get(), mComponentSize * mSize );
         mData.reset( new_data );
         mCapacity = new_capacity;
     }

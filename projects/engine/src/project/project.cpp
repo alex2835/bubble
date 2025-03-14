@@ -13,7 +13,7 @@ void Project::LoadDefaultResources()
     mLoader.LoadShader( PHONG_SHADER );
     mLoader.LoadShader( WHITE_SHADER );
     mLoader.LoadShader( ONLY_DIFFUSE_SHADER );
-}
+} 
 
 Project::Project()
 {

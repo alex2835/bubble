@@ -13,10 +13,13 @@ struct Engine
 {
     Timer mTimer;
     Scene mScene;
+    Camera mActiveCamera;
     Renderer mRenderer;
+    ScriptingEngine mScriptingEngine;
 
+    Engine( WindowInput& input, Loader& loader );
     void OnUpdate();
-    void DrawScene( const Camera& mCamera, const Framebuffer& mFramebuffer );
+    void DrawScene( const Framebuffer& mFramebuffer );
 };
 
 }

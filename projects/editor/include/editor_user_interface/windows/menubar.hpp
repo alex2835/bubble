@@ -1,6 +1,6 @@
 #pragma once
 #include <imgui.h>
-#include <imfilebrowser.h>
+//#include <imfilebrowser.h>
 #include "engine/utils/imgui_utils.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
@@ -21,7 +21,7 @@ public:
     void OnDraw( DeltaTime dt );
 
 private:
-    ImGui::FileBrowser mFileDialog;
+    //ImGui::FileBrowser mFileDialog;
     path mCreateProjectSelectedPath;
     string mCreateProjectName = "project name"s;
 

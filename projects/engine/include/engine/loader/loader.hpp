@@ -12,11 +12,6 @@
 #include "engine/scripting/script.hpp"
 #include <mutex>
 
-struct aiMesh;
-struct aiNode;
-struct aiScene;
-struct aiMaterial;
-
 namespace bubble
 {
 // Object id shader to select entity from screen

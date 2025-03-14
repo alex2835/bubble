@@ -11,36 +11,35 @@ public:
     enum class EditorMode
     {
         Editing,
-        Runing
+        Running
     };
 
     BubbleEditor();
     void OpenProject( const path& projectPath );
     void Run();
-    void UpdateScripts();
     void DrawProjectScene();
 
 public:
-    EditorMode mEditorMode;
     Timer mTimer;
     Window mWindow;
+    EditorMode mEditorMode;
     Framebuffer mSceneViewport;
-    Framebuffer mObjectIdViewport;// Handles object picking in viewport
+    Framebuffer mObjectIdViewport; // Handles object picking in viewport
     Ref<Shader> mObjectIdShader;
     SceneCamera mSceneCamera;
     Entity mSelectedEntity;
 
-    //Engine mEngine;
-    Renderer mRenderer;
     Project mProject;
-    ScriptingEngine mScriptingEngine;
 
     // UI global state
     bool mUINeedUpdateProjectWindow = false;
 
-    // Editor user interface and resource hot reloader
+    // Editor's user interface and resource hot reloader
     EditorUserInterface mEditorUserInterface;
     ResourcesHotReloader mResourcesHotReloader;
+
+    // Game runner 
+    Engine mEngine;
 };
 
 }

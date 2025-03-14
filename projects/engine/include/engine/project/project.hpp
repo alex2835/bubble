@@ -19,8 +19,6 @@ public:
     path mRootFile;
     Loader mLoader;
     Scene mScene;
-    //Entity mMainCharacter;
-    //vector<Ref<Camera>> mCameras;
 };
 
 }

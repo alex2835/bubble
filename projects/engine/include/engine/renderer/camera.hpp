@@ -35,7 +35,7 @@ struct Camera
 {
     // Camera Attributes
     vec3 mPosition = vec3( 0.0f, 0.0f, 0.0f );
-    vec3 mFront    = vec3( 0.0f, 0.0f, -1.0f );
+    vec3 mForward  = vec3( 0.0f, 0.0f, -1.0f );
     vec3 mUp       = vec3( 0 );
     vec3 mRight    = vec3( 0 );
     vec3 mWorldUp  = vec3( 0.0f, 1.0f, 0.0f );
@@ -45,18 +45,33 @@ struct Camera
 
     // Mouse
     f32 mMouseSensitivity = camera::SENSITIVTY;
+    f32 mLastMouseX = 0.5f;
+    f32 mLastMouseY = 0.5f;
 
+    // Fov
+    f32 mFov = camera::FOV;
+    f32 mDeltaFov = camera::DELTA_FOV;
+
+
+    // Free camera
     // Euler Angles
     f32 mYaw = camera::YAW;
     f32 mPitch = camera::PITCH;
-    f32 mFov = camera::FOV;
-    f32 mDeltaFov = camera::DELTA_FOV;
 
     // Speed
     f32 mMaxSpeed = camera::MAX_SPEED;
     f32 mDeltaSpeed = camera::DELTA_SPEED;
-    f32 mSpeedX = 0;
-    f32 mSpeedY = 0;
+    f32 mSpeedForwardOrUp = 0;
+    f32 mSpeedRight = 0;
+    bool mIsMovingForward = false;
+    bool mIsMovingRight = false;
+
+    // Third person camera
+    vec3 mCenter;
+    f32 mRadius = 20.0f;
+    bool mIsRotatingRight = false;
+    bool mIsRotatingUp = false;
+
 
 public:
     Camera( vec3 position = vec3( 0.0f, 0.0f, 0.0f ),
@@ -69,6 +84,17 @@ public:
     mat4 GetLookatMat() const;
     mat4 GetPprojectionMat( i32 window_width, i32 window_height ) const;
 
-    void UpdateCameraVectors();
+    // Free camera 
+    void ProcessMovement( CameraMovement direction );
+    void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
+    void ProcessMouseMovementOffset( f32 xOffset, f32 yOffset );
+    void ProcessMouseScroll( f32 offset );
+    void EulerAnglesToVectors();
+    void OnUpdateFreeCamera( DeltaTime dt );
+
+    // Third person camera
+    void ProcessRotation( CameraMovement direction );
+    void OnUpdateThirdPerson( DeltaTime dt );
+
 };
 }

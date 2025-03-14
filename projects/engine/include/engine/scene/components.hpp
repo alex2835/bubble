@@ -5,6 +5,7 @@
 #include "engine/types/json.hpp"
 #include "engine/types/glm.hpp"
 #include "engine/renderer/light.hpp"
+#include "engine/renderer/camera.hpp"
 #include "engine/loader/loader.hpp"
 
 // Basic components
@@ -27,6 +28,7 @@ public:
 	string mName;
 };
 
+
 struct TransformComponent
 {
 	static string_view Name()
@@ -45,8 +47,21 @@ public:
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );
 	vec3 mScale = vec3( 1 );
-
 };
+
+
+struct CameraComponent : Camera
+{
+    static string_view Name()
+    {
+        return "CameraComponent"sv;
+    }
+    static void OnComponentDraw( const Loader& loader, CameraComponent& component );
+    static void ToJson( const Loader& loader, json& json, const CameraComponent& component );
+    static void FromJson( Loader& loader, const json& json, CameraComponent& component );
+    static void CreateLuaBinding( sol::state& lua );
+};
+
 
 struct LightComponent : public Light
 {
@@ -59,6 +74,7 @@ struct LightComponent : public Light
 	static void FromJson( Loader& loader, const json& json, LightComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
 };
+
 
 struct ModelComponent : public Ref<Model>
 {
@@ -74,6 +90,7 @@ struct ModelComponent : public Ref<Model>
 	static void CreateLuaBinding( sol::state& lua );
 };
 
+
 struct ShaderComponent : public Ref<Shader>
 {
 	using Ref<Shader>::operator=;
@@ -87,6 +104,7 @@ struct ShaderComponent : public Ref<Shader>
 	static void FromJson( Loader& loader, const json& json, ShaderComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
 };
+
 
 struct ScriptComponent
 {
@@ -104,7 +122,7 @@ public:
 	ScriptComponent( const Ref<Script>& scirpt );
 	~ScriptComponent();
 	Ref<Script> mScript;
-	Ref<sol::table> mState;
+	//Ref<sol::table> mState;
 };
 
 }

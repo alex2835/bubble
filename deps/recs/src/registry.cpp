@@ -110,9 +110,9 @@ void Registry::CloneInto( Registry& registry )
     }
     registry.mEntitiesComponentTypeIds = std::move( map );
     
-    for ( const auto& [componentId, pool] : registry.mPools )
+    for ( const auto& [componentId, pool] : mPools )
     {
-        registry.mPools[componentId] = pool.Clone();
+        registry.mPools[componentId] = pool;
         for ( auto& entity : registry.mPools[componentId].mEntities )
             entity.mRegistry = &registry;
     }
