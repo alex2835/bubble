@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 project(bubble)
 
-set(CMAKE_CXX_STANDARD 23)
 find_package(OPENGL REQUIRED)
 set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
 

@@ -214,8 +214,8 @@ Window::Window( const string& name, uvec2 size )
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
-    io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
+    // io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleViewports;
+    // io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
 
     //LoadIniSettingsFromMemory()
     //io.IniFilename = nullptr;

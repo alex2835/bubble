@@ -1,5 +1,7 @@
 
 set(imgui_SOURCE_DIR "imgui")
+set(CMAKE_CXX_STANDARD 23)
+
 add_library(imgui STATIC
   ${imgui_SOURCE_DIR}/imgui.cpp
   ${imgui_SOURCE_DIR}/imgui.h
