@@ -1,14 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 project(recs VERSION 0.1.0)
-
 set(CMAKE_CXX_STANDARD 23)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-	target_compile_options(recs PUBLIC
-	  # C4251 suppress stl dll export warnings
-	  /wd4251 /WX
-	)
-endif()
-
 
 SET(SOURCE
    "src/pool.cpp"
@@ -16,6 +8,11 @@ SET(SOURCE
 )
 
 add_library(recs STATIC ${SOURCE})
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+	target_compile_options(recs PUBLIC
+		/WX
+	)
+endif()
 add_definitions(-DBUILDING_RECS)
 
 target_include_directories(recs PUBLIC

@@ -43,8 +43,8 @@ public:
 
     u32 ReadColorAttachmentPixelRedUint( uvec2 pos );
     
-    void Bind() const;
-    void Unbind() const;
+    void Bind();
+    void Unbind();
     void Invalidate();
 
     i32 Width() const;

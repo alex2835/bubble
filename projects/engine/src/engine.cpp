@@ -14,15 +14,13 @@ void Engine::OnUpdate()
     mTimer.OnUpdate();
 
     // Update scripts
-    auto view = mScene.GetView<ScriptComponent>();
-    for ( auto entity : view.GetEntities() )
+    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& script )
     {
-        auto& scirptingComponent = entity.GetComponent<ScriptComponent>();
-        mScriptingEngine.OnUpdate( scirptingComponent.mScript );
-    }
+        mScriptingEngine.OnUpdate( script.mScript );
+    });
 }
 
-void Engine::DrawScene( const Framebuffer& framebuffer )
+void Engine::DrawScene( Framebuffer& framebuffer )
 {
     // Scene rendering
     framebuffer.Bind();

@@ -20,9 +20,9 @@ public:
     void DrawProjectScene();
 
 public:
+    EditorMode mEditorMode;
     Timer mTimer;
     Window mWindow;
-    EditorMode mEditorMode;
     Framebuffer mSceneViewport;
     Framebuffer mObjectIdViewport; // Handles object picking in viewport
     Ref<Shader> mObjectIdShader;

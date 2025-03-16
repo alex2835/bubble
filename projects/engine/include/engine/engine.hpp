@@ -19,7 +19,7 @@ struct Engine
 
     Engine( WindowInput& input, Loader& loader );
     void OnUpdate();
-    void DrawScene( const Framebuffer& mFramebuffer );
+    void DrawScene( Framebuffer& framebuffer );
 };
 
 }

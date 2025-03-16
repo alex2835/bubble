@@ -50,21 +50,24 @@ void BubbleEditor::Run()
 				mSceneCamera.OnUpdate( deltaTime );
 				mResourcesHotReloader.OnUpdate();
 				mEditorUserInterface.OnUpdate( deltaTime );
-				DrawProjectScene();                
+				DrawProjectScene();            
 				break;
 			}
             case EditorMode::Running:
             {
+                //mSceneCamera.OnUpdate( deltaTime );
+                //mEngine.mActiveCamera = mSceneCamera;
+
                 mEngine.OnUpdate();
                 mEngine.DrawScene( mSceneViewport );
                 break;
             }
         }
-        // Window is hidden
+
+        // Window is hidden so no need rendering
         if ( mWindow.Size() == uvec2( 0u ) )
             continue;
 
-        // ImGui interface
         mWindow.ImGuiBegin();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();

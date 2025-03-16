@@ -115,13 +115,13 @@ i32 Framebuffer::Height() const
     return mSpecification.mHeight;
 }
 
-void Framebuffer::Bind() const
+void Framebuffer::Bind()
 {
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, mRendererID ) );
     glViewport( 0, 0, Width(), Height() );
 }
 
-void Framebuffer::Unbind() const
+void Framebuffer::Unbind()
 {
     glcall( glBindFramebuffer( GL_FRAMEBUFFER, 0 ) );
 }
