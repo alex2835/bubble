@@ -10,8 +10,8 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editorState )
       mObjectIdViewport( editorState.mObjectIdViewport ),
       mSceneCamera( editorState.mSceneCamera ),
       //mEngine( editorState.mEngine ),
-      mProject( editorState.mProject ),
       mSelectedEntity( editorState.mSelectedEntity ),
+      mProject( editorState.mProject ),
       mUINeedUpdateProjectWindow( editorState.mUINeedUpdateProjectWindow )
 {}
 

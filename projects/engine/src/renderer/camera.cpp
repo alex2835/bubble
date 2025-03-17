@@ -6,9 +6,9 @@ namespace bubble
 Camera::Camera( vec3 position, f32 yaw, f32 pitch, f32 fov, vec3 up )
     : mPosition( position ),
       mWorldUp( up ),
+      mFov( fov ),
       mYaw( yaw ),
-      mPitch( pitch ),
-      mFov( fov )
+      mPitch( pitch )
 {}
 
 mat4 Camera::GetLookatMat() const

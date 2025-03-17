@@ -14,10 +14,10 @@ class ScriptingEngine
 {
 public:
     ScriptingEngine( WindowInput& input, Loader& loader, Scene& scene );
-    ScriptingEngine( const ScriptingEngine& ) = default;
-    ScriptingEngine( ScriptingEngine&& ) = default;
-    ScriptingEngine& operator=( const ScriptingEngine& ) = default;
-    ScriptingEngine& operator=( ScriptingEngine&& ) = default;
+    ScriptingEngine( const ScriptingEngine& ) = delete;
+    ScriptingEngine( ScriptingEngine&& ) = delete;
+    ScriptingEngine& operator=( const ScriptingEngine& ) = delete;
+    ScriptingEngine& operator=( ScriptingEngine&& ) = delete;
     ~ScriptingEngine();
 
     void OnUpdate( Ref<Script>& script );

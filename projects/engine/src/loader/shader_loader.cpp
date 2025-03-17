@@ -1,4 +1,3 @@
-
 #include <GL/glew.h>
 #include "engine/loader/loader.hpp"
 #include "engine/types/string.hpp"

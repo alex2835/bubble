@@ -1,4 +1,3 @@
-#pragma once
 #include <nlohmann/json.hpp>
 #include "engine/types/json.hpp"
 #include "engine/types/array.hpp"

@@ -321,7 +321,7 @@ void Window::ImGuiBegin()
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::DockSpaceOverViewport( ImGui::GetMainViewport() );
+    ImGui::DockSpaceOverViewport( 0, ImGui::GetMainViewport() );
 }
 
 void Window::ImGuiEnd()

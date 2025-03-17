@@ -56,7 +56,7 @@ TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
       mScale( scale )
 {}
 
-mat4 TransformComponent::Transform()
+mat4 TransformComponent::TransformMat()
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );

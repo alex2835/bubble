@@ -9,9 +9,9 @@ Mesh::Mesh( const string& name,
             VertexData&& vertices,
             vector<u32>&& indices )
     : mName( name ),
-      mMaterial( std::move( material ) ),
       mVertices( std::move( vertices ) ),
-      mIndices( std::move( indices ) )
+      mIndices( std::move( indices ) ),
+      mMaterial( std::move( material ) )
 {
     BufferLayout layout
     {

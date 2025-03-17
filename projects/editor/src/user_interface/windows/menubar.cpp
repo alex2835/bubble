@@ -4,16 +4,16 @@
 
 namespace bubble
 {
-//constexpr auto cFileDialogChooseFileFlags =
-//                    ImGuiFileBrowserFlags_CloseOnEsc |
-//                    ImGuiFileBrowserFlags_ConfirmOnEnter;
-//
-//constexpr auto cFileDialogChooseDirFlags =
-//                    ImGuiFileBrowserFlags_SelectDirectory |
-//                    ImGuiFileBrowserFlags_CloseOnEsc |
-//                    ImGuiFileBrowserFlags_CreateNewDir |
-//                    ImGuiFileBrowserFlags_ConfirmOnEnter |
-//                    ImGuiFileBrowserFlags_HideRegularFiles;
+constexpr auto cFileDialogChooseFileFlags =
+                    ImGuiFileBrowserFlags_CloseOnEsc |
+                    ImGuiFileBrowserFlags_ConfirmOnEnter;
+
+constexpr auto cFileDialogChooseDirFlags =
+                    ImGuiFileBrowserFlags_SelectDirectory |
+                    ImGuiFileBrowserFlags_CloseOnEsc |
+                    ImGuiFileBrowserFlags_CreateNewDir |
+                    ImGuiFileBrowserFlags_ConfirmOnEnter |
+                    ImGuiFileBrowserFlags_HideRegularFiles;
 
 
 Menubar::~Menubar()
@@ -42,9 +42,9 @@ void Menubar::ModalCreateProject()
 
         if ( ImGui::Button( "Browse", ImVec2( 100, 30 ) ) )
         {
-            //mFileDialog = ImGui::FileBrowser( cFileDialogChooseDirFlags );
-            //mFileDialog.SetTitle( "Choose directory" );
-            //mFileDialog.Open();
+            mFileDialog = ImGui::FileBrowser( cFileDialogChooseDirFlags );
+            mFileDialog.SetTitle( "Choose directory" );
+            mFileDialog.Open();
         }
         ImGui::SameLine();
 
@@ -67,43 +67,43 @@ void Menubar::ModalCreateProject()
         }
 
         // File dialog
-        //mFileDialog.Display();
-        //if ( mFileDialog.HasSelected() )
-        //{
-        //    mCreateProjectSelectedPath = mFileDialog.GetSelected();
-        //    mFileDialog.ClearSelected();
-        //}
+        mFileDialog.Display();
+        if ( mFileDialog.HasSelected() )
+        {
+            mCreateProjectSelectedPath = mFileDialog.GetSelected();
+            mFileDialog.ClearSelected();
+        }
         ImGui::EndPopup();
     }
 }
 
 void Menubar::ModalOpenProject()
 {
-    //if ( !mFileDialog.IsOpened() )
-    //{
-    //    mFileDialog = ImGui::FileBrowser( cFileDialogChooseFileFlags );
-    //    mFileDialog.SetTypeFilters( { ".bubble" } );
-    //    mFileDialog.Open();
-    //}
+    if ( !mFileDialog.IsOpened() )
+    {
+        mFileDialog = ImGui::FileBrowser( cFileDialogChooseFileFlags );
+        mFileDialog.SetTypeFilters( { ".bubble" } );
+        mFileDialog.Open();
+    }
 
-    //// File dialog
-    //mFileDialog.Display();
-    //if ( mFileDialog.HasSelected() )
-    //{
-    //    try
-    //    {
-    //        auto projectPath = mFileDialog.GetSelected();
-    //        mFileDialog.ClearSelected();
-    //        mOpenProjectModal = false;
-    //        mProject.Open( projectPath );
+    // File dialog
+    mFileDialog.Display();
+    if ( mFileDialog.HasSelected() )
+    {
+        try
+        {
+            auto projectPath = mFileDialog.GetSelected();
+            mFileDialog.ClearSelected();
+            mOpenProjectModal = false;
+            mProject.Open( projectPath );
 
-    //        mUINeedUpdateProjectWindow = true;
-    //    }
-    //    catch ( const std::exception& e )
-    //    {
-    //        LogError( e.what() );
-    //    }
-    //}
+            mUINeedUpdateProjectWindow = true;
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( e.what() );
+        }
+    }
 }
 
 void Menubar::DrawMenubar()

@@ -140,7 +140,7 @@ void Texture2D::Swap( Texture2D& other ) noexcept
 void Texture2D::SetData( const void* data, u32 size )
 {
     Bind();
-    u32 channels = mSpecification.ExtractTextureSpecChannels();
+    [[maybe_unused]]u32 channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0,
             mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
@@ -149,7 +149,7 @@ void Texture2D::SetData( const void* data, u32 size )
 void Texture2D::GetData( void* data, u32 size ) const
 {
     Bind();
-    u32 channels = mSpecification.ExtractTextureSpecChannels();
+    [[maybe_unused]] u32 channels = mSpecification.ExtractTextureSpecChannels();
     BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
     glcall( glGetTexImage( GL_TEXTURE_2D, 0, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
 }

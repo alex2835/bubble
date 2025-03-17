@@ -1,4 +1,13 @@
 
+if(WIN32)
+	# Suppres third party warnings
+	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+		SET(CMAKE_C_FLAGS  "${CMAKE_CXX_FLAGS} -w")
+		SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -w")
+	endif()
+endif()
+
+
 if(NOT EMSCRIPTEN)
 	#GIT_TAG glew-cmake-2.2.0  GIT_REPOSITORY "https://github.com/Perlmint/glew-cmake.git"
 	add_subdirectory(glew)

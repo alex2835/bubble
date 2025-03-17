@@ -43,7 +43,7 @@ struct TransformComponent
 public:
 	TransformComponent() = default;
     TransformComponent( vec3 pos, vec3 rot, vec3 scale );
-	mat4 Transform();
+	mat4 TransformMat();
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );
 	vec3 mScale = vec3( 1 );

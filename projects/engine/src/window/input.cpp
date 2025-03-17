@@ -1,4 +1,3 @@
-#pragma once
 #include "engine/types/number.hpp"
 #include "engine/types/array.hpp"
 #include "engine/window/input.hpp"

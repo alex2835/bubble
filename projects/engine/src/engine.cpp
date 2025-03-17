@@ -28,12 +28,12 @@ void Engine::DrawScene( Framebuffer& framebuffer )
     mRenderer.SetUniformBuffers( mActiveCamera, framebuffer );
     
     mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-    [&]( Entity entity,
+    [&]( Entity _,
          ModelComponent& model,
          ShaderComponent& shader,
          TransformComponent& transform )
     {
-        mRenderer.DrawModel( model, transform.Transform(), shader );
+        mRenderer.DrawModel( model, transform.TransformMat(), shader );
     } );
 }
 

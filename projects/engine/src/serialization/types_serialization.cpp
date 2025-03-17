@@ -1,4 +1,3 @@
-#pragma once
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
 

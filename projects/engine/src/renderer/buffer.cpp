@@ -488,10 +488,10 @@ UniformBuffer::UniformBuffer( i32 index,
                               string name,
                               const BufferLayout& layout,
                               u32 size )
-    : mIndex( index ), 
-      mName( std::move( name ) ),
+    : mName( std::move( name ) ),
       mLayout( layout ),
-      mSize( size )
+      mSize( size ),
+      mIndex( index )
 {
     CalculateOffsetsAndStride();
     mBufferSize = mLayout.Stride() * size;
@@ -605,9 +605,9 @@ u64 UniformBuffer::Size()
 
 // UniformArrayElement 
 UniformArrayElement::UniformArrayElement( const UniformBuffer& uniform_buffer, u64 index )
-    : mLayout( uniform_buffer.Layout() ),
-      mRendererID( uniform_buffer.RendererID() ),
-      mArrayIndex( index )
+    : mRendererID( uniform_buffer.RendererID() ),
+      mArrayIndex( index ),
+      mLayout( uniform_buffer.Layout() )
 {
 }
 

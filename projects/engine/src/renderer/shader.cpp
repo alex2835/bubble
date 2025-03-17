@@ -6,9 +6,9 @@
 namespace bubble
 {
 Shader::Shader( Shader&& other ) noexcept
-    : mShaderId( other.mShaderId ),
-      mName( std::move( other.mName ) ),
-      mUniformCache( std::move( mUniformCache ) )
+    : mName( std::move( other.mName ) ),
+      mShaderId( other.mShaderId ),
+      mUniformCache( std::move( other.mUniformCache ) )
 {
     other.mShaderId = 0;
 }

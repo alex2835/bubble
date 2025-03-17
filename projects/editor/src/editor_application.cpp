@@ -14,10 +14,10 @@ BubbleEditor::BubbleEditor()
                                    Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       mObjectIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
-      mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
-      mResourcesHotReloader( mProject.mLoader ),
-      mEditorUserInterface( *this ),
       mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) ),
+      mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
+      mEditorUserInterface( *this ),
+      mResourcesHotReloader( mProject.mLoader ),
       mEngine( mWindow.GetWindowInput(), mProject.mLoader )
 {}
 
@@ -55,8 +55,8 @@ void BubbleEditor::Run()
 			}
             case EditorMode::Running:
             {
-                //mSceneCamera.OnUpdate( deltaTime );
-                //mEngine.mActiveCamera = mSceneCamera;
+                mSceneCamera.OnUpdate( deltaTime );
+                mEngine.mActiveCamera = mSceneCamera;
 
                 mEngine.OnUpdate();
                 mEngine.DrawScene( mSceneViewport );
@@ -93,12 +93,12 @@ void BubbleEditor::DrawProjectScene()
     mEngine.mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
     mEngine.mRenderer.SetUniformBuffers( mSceneCamera, mSceneViewport );
     mProject.mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-    [&]( Entity entity,
+    [&]( Entity _,
          ModelComponent& model,
          ShaderComponent& shader,
          TransformComponent& transform )
     {
-        mEngine.mRenderer.DrawModel( model, transform.Transform(), shader );
+        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), shader );
     } );
 
     // Draw scene's objectId
@@ -110,7 +110,7 @@ void BubbleEditor::DrawProjectScene()
          TransformComponent& transform )
     {
         mObjectIdShader->SetUni1ui( "uObjectId", (u32)entity );
-        mEngine.mRenderer.DrawModel( model, transform.Transform(), mObjectIdShader );
+        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mObjectIdShader );
     } );
 }
 

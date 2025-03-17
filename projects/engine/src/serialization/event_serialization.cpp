@@ -1,4 +1,3 @@
-#pragma once
 #include <string>
 #include <stdexcept>
 #include "engine/window/key_map.hpp"

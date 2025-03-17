@@ -13,7 +13,6 @@ class UniformArray;
 
 enum class GLSLDataType
 {
-    None,
     Float,
     Float2,
     Float3,
@@ -90,8 +89,8 @@ public:
 
 //private:
     u32 mRendererID = 0;
-    u64 mSize = 0;
     BufferLayout mLayout;
+    u64 mSize = 0;
 };
 
 
