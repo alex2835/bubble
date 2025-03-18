@@ -2,7 +2,7 @@
 C++ OpeGL Imgui
 
 ## Build
-### Windows
+### Windows/MacOS
 ~~~
 mkdir build
 cd build
