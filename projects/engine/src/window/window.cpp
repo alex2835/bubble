@@ -218,7 +218,7 @@ Window::Window( const string& name, uvec2 size )
     // io.ConfigFlags |= ImGuiConfigFlags_DpiEnableScaleFonts;
 
     //LoadIniSettingsFromMemory()
-    //io.IniFilename = nullptr;
+    io.IniFilename = "./resources/imgui/imgui.ini";
 
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();
