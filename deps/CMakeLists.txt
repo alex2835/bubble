@@ -1,10 +1,8 @@
 
-if(WIN32)
-	# Suppres third party warnings
-	if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-		SET(CMAKE_C_FLAGS  "${CMAKE_CXX_FLAGS} -w")
-		SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -w")
-	endif()
+# Suppres third party warnings
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	SET(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -w -stdlib=libc++")
+	SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -w -stdlib=libc++")
 endif()
 
 

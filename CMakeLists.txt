@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 project(bubble)
 
-find_package(OPENGL REQUIRED)
+find_package(OpenGL REQUIRED)
 set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

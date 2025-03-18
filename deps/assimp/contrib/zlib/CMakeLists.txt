@@ -1,24 +1,11 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 2.4.4...3.15.0)
 set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS ON)
 
-# CMake 3.0 changed the project command, setting policy CMP0048 reverts to the old behaviour.
-# See http://www.cmake.org/cmake/help/v3.0/policy/CMP0048.html
-cmake_policy(PUSH)
-if(CMAKE_MAJOR_VERSION GREATER 2)
-	cmake_policy(SET CMP0048 NEW)
-endif()
 project(zlib C)
-SET (ZLIB_VERSION_MAJOR 1)
-SET (ZLIB_VERSION_MINOR 2)
-SET (ZLIB_VERSION_PATCH 13)
-SET (ZLIB_VERSION ${ZLIB_VERSION_MAJOR}.${ZLIB_VERSION_MINOR}.${ZLIB_VERSION_PATCH})
-SET (ZLIB_SOVERSION 1)
-SET (PROJECT_VERSION "${ZLIB_VERSION}")
-cmake_policy(POP)
 
+set(VERSION "1.3.1")
 
-option(ASM686 "Enable building i686 assembly implementation")
-option(AMD64 "Enable building amd64 assembly implementation")
+option(ZLIB_BUILD_EXAMPLES "Enable Zlib Examples" OFF)
 
 #set(INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin" CACHE PATH "Installation directory for executables")
 #set(INSTALL_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib" CACHE PATH "Installation directory for libraries")
@@ -72,7 +59,6 @@ endif()
 check_include_file(unistd.h Z_HAVE_UNISTD_H)
 
 if(MSVC)
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4131 /wd4127 /wd4244")
     set(CMAKE_DEBUG_POSTFIX "d")
     add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
     add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
@@ -88,7 +74,7 @@ if(NOT CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_CURRENT_BINARY_DIR)
         message(STATUS "to 'zconf.h.included' because this file is included with zlib")
         message(STATUS "but CMake generates it automatically in the build directory.")
         file(RENAME ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h ${CMAKE_CURRENT_SOURCE_DIR}/zconf.h.included)
-    endif()
+  endif()
 endif()
 
 set(ZLIB_PC ${CMAKE_CURRENT_BINARY_DIR}/zlib.pc)
