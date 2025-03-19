@@ -1,5 +1,5 @@
-# Buble  Game Engine
-C++ OpeGL Imgui
+# Bubble  Game Engine
+C++ OpenGL Imgui
 
 ## Build
 ### Windows/MacOS
