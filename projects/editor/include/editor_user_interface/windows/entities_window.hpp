@@ -1,6 +1,6 @@
 #pragma once
 #include "engine/types/set.hpp"
-#include "engine/scene/components_manager.hpp"
+#include "engine/scene/component_manager.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble

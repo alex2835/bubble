@@ -4,13 +4,19 @@
 #include <iostream>
 #include <string_view>
 
+enum class Component
+{
+    Speed,
+    Position
+};
+
 struct Speed
 {
     int s;
 
-    static std::string_view Name()
+    static size_t ID()
     {
-        return "Speed";
+        return static_cast<size_t>( Component::Speed );
     }
     bool operator==( const Speed& ) const = default;
 };
@@ -20,9 +26,9 @@ struct Position
     int x = 0.0f;
     int y = 0.0f;
 
-    static std::string_view Name()
+    static size_t ID()
     {
-        return "Position";
+        return static_cast<size_t>( Component::Position );
     }
     bool operator==( const Position& ) const = default;
 };
@@ -80,18 +86,18 @@ int main( void )
             registry.AddComponent<Speed>( entity, (float)i );
         }
 
-        int i = 0;
-        for ( auto& [speed] : registry.GetView<Speed>() )
-            assert( speed.s == i++ );
-
-        for ( auto& entity : entities )
-            registry.AddComponent<Speed>( entity, 5.f );
-
-        for ( auto& entity : entities )
-            assert( entity.GetComponent<Speed>().s == 5 );
-
-        for ( auto& [speed] : registry.GetView<Speed>() )
-            assert( speed.s < 10 );
+        //int i = 0;
+        //for ( auto& [speed] : registry.GetView<Speed>() )
+        //    assert( speed.s == i++ );
+        //
+        //for ( auto& entity : entities )
+        //    registry.AddComponent<Speed>( entity, 5.f );
+        //
+        //for ( auto& entity : entities )
+        //    assert( entity.GetComponent<Speed>().s == 5 );
+        //
+        //for ( auto& [speed] : registry.GetView<Speed>() )
+        //    assert( speed.s < 10 );
     }
 
     {
@@ -111,11 +117,11 @@ int main( void )
         int i = 0;
         for ( auto entity : entities )
         {
-            entity.AddComponent<Speed>( 1.0f )
-                  .AddComponent<Position>( i++, 1.0f );
+            registry.AddComponent<Speed>( entity, 1.0f )
+                    .AddComponent<Position>( entity, i++, 1.0f );
         }
 
-        // foreach
+        // ForEach
         int count = 0;
         registry.ForEach<Speed, Position>( [&]( recs::Entity entity, Speed& speed, Position& position )
         {
@@ -132,7 +138,7 @@ int main( void )
 
         // remove component
         for ( auto entity : entities )
-            entity.RemoveComponent<Position>();
+            registry.RemoveComponent<Position>( entity );
 
         count = 0;
         registry.ForEach<Position>( [&]( recs::Entity entity, Position& speed )
@@ -170,26 +176,26 @@ int main( void )
         int i = 0;
         for ( auto entity : entities )
         {
-            entity.AddComponent<Speed>( 1.0f )
-                .AddComponent<Position>( i++, 1.0f );
+            registry.AddComponent<Speed>( entity, 1.0f )
+                    .AddComponent<Position>( entity, Position{ .x=i++, .y=1 } );
         }
 
-        auto view = registry.GetView<Speed, Position>();
-        assert( view.Size() == 10 );
 
+        // Test copy registry
+        std::vector<std::tuple<Speed, Position>> components;
+        registry.ForEach<Speed, Position>( [&components]( recs::Entity _, Speed& speed, Position& position )
+        {
+            components.emplace_back( std::make_tuple( speed, position ) );
+        } );
 
-        // Clone 
-        recs::Registry registry_copy;
-        registry.CloneInto( registry_copy );
-
-        auto c_view = registry_copy.GetView<Speed, Position>();
-        assert( view.Size() == 10 );
-
-        for ( auto& [s, p] : c_view )
-            s.s = 5;
-
-        for ( auto& [s, p] : view )
-            assert( s.s != 5 );
+        recs::Registry registryCopy = registry;
+        std::vector<std::tuple<Speed, Position>> copyComponents;
+        registryCopy.ForEach<Speed, Position>( [&copyComponents]( recs::Entity _, Speed& speed, Position& position )
+        {
+            copyComponents.emplace_back( std::make_tuple( speed, position ) );
+        } );
+        assert( components == copyComponents );
+        
     }
 
     return 0;

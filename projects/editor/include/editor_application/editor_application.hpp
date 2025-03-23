@@ -19,17 +19,27 @@ public:
     void Run();
     void DrawProjectScene();
 
+    void StartGame();
+    void StartEditing();
+
 public:
-    EditorMode mEditorMode;
     Timer mTimer;
     Window mWindow;
+
+    // Editor
+    EditorMode mEditorMode;
     Framebuffer mSceneViewport;
     Framebuffer mObjectIdViewport; // Handles object picking in viewport
     Ref<Shader> mObjectIdShader;
     SceneCamera mSceneCamera;
     Entity mSelectedEntity;
 
+    ScriptingEngine mScriptingEngine;
+    Loader mLoader;
+    // Game to edit
     Project mProject;
+    // Game runner 
+    Engine mEngine;
 
     // UI global state
     bool mUINeedUpdateProjectWindow = false;
@@ -37,9 +47,6 @@ public:
     // Editor's user interface and resource hot reloader
     EditorUserInterface mEditorUserInterface;
     ResourcesHotReloader mResourcesHotReloader;
-
-    // Game runner 
-    Engine mEngine;
 };
 
 }

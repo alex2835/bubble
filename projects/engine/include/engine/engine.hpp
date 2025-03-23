@@ -5,19 +5,21 @@
 #include "engine/renderer/renderer.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/project/project.hpp"
-#include "engine/scripting/scripting_engine.hpp"
 
 namespace bubble
 {
+class ScriptingEngine;
+
 struct Engine
 {
     Timer mTimer;
     Scene mScene;
     Camera mActiveCamera;
     Renderer mRenderer;
-    ScriptingEngine mScriptingEngine;
+    ScriptingEngine& mScriptingEngine;
 
-    Engine( WindowInput& input, Loader& loader );
+    Engine( ScriptingEngine& scriptingEngine );
+    void OnStart();
     void OnUpdate();
     void DrawScene( Framebuffer& framebuffer );
 };

@@ -31,50 +31,18 @@ public:
         return mId < other.mId;
     }
 
-    bool IsValid()
-    {
-        return mId && mRegistry;
-    }
-
-    // Component type API
-    template <ComponentType T, typename ...Args>
-    Entity AddComponent( Args&& ...args );
-
-    template <ComponentType T>
-    T& GetComponent();
-
-    template <ComponentType T>
-    bool HasComponent();
-
-    template <ComponentType ...Components>
-    bool HasComponents();
-
-    template <ComponentType ...Components>
-    std::tuple<Components&...> GetComponents();
-
-    template <ComponentType T>
-    Entity RemoveComponent();
-
     operator size_t() const
     {
         return mId;
     };
 
-    // Component Ids API
-    const std::unordered_set<ComponentTypeId>& EntityComponentTypeIds();
-    void EntityAddComponentId( ComponentTypeId componentId );
-    void EntityRemoveComponentId( ComponentTypeId componentId );
-
 private:
-    Entity( size_t id, Registry* registry )
-        : mId( id ),
-          mRegistry( registry )
+    Entity( size_t id )
+        : mId( id )
     {}
 
-private:
     size_t mId = 0u;
-    Registry* mRegistry = nullptr;
-    friend class Registry;
+    friend Registry;
 };
 
 constexpr Entity INVALID_ENTITY = {};

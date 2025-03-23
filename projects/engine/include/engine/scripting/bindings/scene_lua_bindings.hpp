@@ -1,8 +1,9 @@
 
 #include <sol/forward.hpp>
-#include "engine/scene/scene.hpp"
 
 namespace bubble
 {
-void CreateSceneBindings( sol::state& lua );
+class Scene;
+
+void CreateSceneBindings( Scene& scene, sol::state& lua );
 }

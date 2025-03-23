@@ -84,7 +84,7 @@ void SceneViewportInterface::DrawGizmo()
             mCurrentGizmoOperation = ImGuizmo::SCALE;
     }
     mat4 transformMat;
-    auto& entityTransform = mSelectedEntity.GetComponent<TransformComponent>();
+    auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( mSelectedEntity );
     auto lookAt = mSceneCamera.GetLookatMat();
     auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
@@ -164,7 +164,7 @@ void SceneViewportInterface::OnDraw( DeltaTime )
         auto windowPos = ImGui::GetWindowPos();
         ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
 
-        if ( mSelectedEntity and mSelectedEntity.HasComponent<TransformComponent>() )
+        if ( mSelectedEntity and mProject.mScene.HasComponent<TransformComponent>( mSelectedEntity ) )
             DrawGizmo();
         
         //bool viewManipulatorUsing = DrawViewManipulator();

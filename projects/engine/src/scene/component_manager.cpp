@@ -1,5 +1,5 @@
 
-#include "engine/scene/components_manager.hpp"
+#include "engine/scene/component_manager.hpp"
 
 namespace bubble
 {
@@ -9,64 +9,85 @@ ComponentManager& ComponentManager::Instance()
     return componentManager;
 }
 
-bool ComponentManager::CreateComponentTable( string_view componentName )
+bool ComponentManager::CreateComponentTable( size_t componentID )
 {
     auto& storage = Instance();
-    return storage.mComponentFuncTable.emplace( componentName, ComponentFunctionsTable{} ).second;
+    return storage.mComponentFuncTable.emplace( componentID, ComponentFunctionsTable{} ).second;
 }
 
-ComponentFunctionsTable& ComponentManager::GetComponentTable( string_view componentName )
+ComponentFunctionsTable& ComponentManager::GetComponentTable( size_t componentID )
 {
     auto& storage = Instance();
-    auto iter = storage.mComponentFuncTable.find( componentName );
+    auto iter = storage.mComponentFuncTable.find( componentID );
     if ( iter != storage.mComponentFuncTable.end() )
         return iter->second;
-    throw std::runtime_error( std::format( "{} doesn't exist in component manager.", componentName ) );
+    throw std::runtime_error( std::format( "{} doesn't exist in component manager.", (size_t)componentID ) );
 }
 
-
-void ComponentManager::AddOnDraw( string_view componentName, OnComponentDrawFunc drawFunc )
+void ComponentManager::AddName( size_t componentID, string_view name )
 {
-    auto& table = GetComponentTable( componentName );
+    auto& table = GetComponentTable( componentID );
+    table.mName = name;
+}
+
+string_view ComponentManager::GetName( size_t componentID )
+{
+    return GetComponentTable( componentID ).mName;
+}
+
+size_t ComponentManager::GetID( string_view name )
+{
+    auto& storage = Instance();
+    for ( const auto& [id, table] : storage.mComponentFuncTable )
+    {
+        if ( table.mName == name )
+            return id;
+    }
+    throw std::runtime_error( std::format( "Invalid component name: {}", name ) );
+}
+
+void ComponentManager::AddOnDraw( size_t componentID, OnComponentDrawFunc drawFunc )
+{
+    auto& table = GetComponentTable( componentID );
     table.mOnDraw = drawFunc;
 }
 
-OnComponentDrawFunc ComponentManager::GetOnDraw( string_view componentName )
+OnComponentDrawFunc ComponentManager::GetOnDraw( size_t componentID )
 {
-    return GetComponentTable( componentName ).mOnDraw;
+    return GetComponentTable( componentID ).mOnDraw;
 }
 
-void ComponentManager::AddFromJson( string_view componentName, ComponentFromJson fromJson )
+void ComponentManager::AddFromJson( size_t componentID, ComponentFromJson fromJson )
 {
-    auto& table = GetComponentTable( componentName );
+    auto& table = GetComponentTable( componentID );
     table.mFromJson = fromJson;
 }
 
-ComponentFromJson ComponentManager::GetFromJson( string_view componentName )
+ComponentFromJson ComponentManager::GetFromJson( size_t componentID )
 {
-    return GetComponentTable( componentName ).mFromJson;
+    return GetComponentTable( componentID ).mFromJson;
 }
 
-void ComponentManager::AddToJson( string_view componentName, ComponentToJson toJson )
+void ComponentManager::AddToJson( size_t componentID, ComponentToJson toJson )
 {
-    auto& table = GetComponentTable( componentName );
+    auto& table = GetComponentTable( componentID );
     table.mToJson = toJson;
 }
 
-ComponentToJson ComponentManager::GetToJson( string_view componentName )
+ComponentToJson ComponentManager::GetToJson( size_t componentID )
 {
-    return GetComponentTable( componentName ).mToJson;
+    return GetComponentTable( componentID ).mToJson;
 }
 
-void ComponentManager::AddCreateLuaBinding( string_view componentName, ComponentCreateLuaBinding CreateLuaBindingFunc )
+void ComponentManager::AddCreateLuaBinding( size_t componentID, ComponentCreateLuaBinding CreateLuaBindingFunc )
 {
-    auto& table = GetComponentTable( componentName );
+    auto& table = GetComponentTable( componentID );
     table.mCreateLuaBinding = CreateLuaBindingFunc;
 }
 
-ComponentCreateLuaBinding ComponentManager::GetCreateLuaBinding( string_view componentName )
+ComponentCreateLuaBinding ComponentManager::GetCreateLuaBinding( size_t componentID )
 {
-    return GetComponentTable( componentName ).mCreateLuaBinding;
+    return GetComponentTable( componentID ).mCreateLuaBinding;
 }
 
 }

@@ -7,12 +7,12 @@
 
 namespace bubble
 {
-constexpr auto COLOR_YELLOW = ImVec4( 1, 1, 0, 1 );
+constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
 
 // TagComponent
 void TagComponent::OnComponentDraw( const Loader& loader, TagComponent& tagComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "TagComponent" );
+    ImGui::TextColored( TEXT_COLOR, "TagComponent" );
     ImGui::InputText( tagComponent.mName );
 }
 
@@ -44,7 +44,7 @@ TagComponent::TagComponent( string name )
 // TransformComponent
 void TransformComponent::OnComponentDraw( const Loader& loader, TransformComponent& transformComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "TransformComponent" );
+    ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
     ImGui::DragFloat3( "Scale", (float*)&transformComponent.mScale, 0.01f, 0.01f );
     ImGui::DragFloat3( "Rotation", (float*)&transformComponent.mRotation, 0.01f );
     ImGui::DragFloat3( "Position", (float*)&transformComponent.mPosition, 0.1f );
@@ -110,7 +110,7 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
 // LightComponent
 void LightComponent::OnComponentDraw( const Loader& loader, LightComponent& lightComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "LightComponent" );
+    ImGui::TextColored( TEXT_COLOR, "LightComponent" );
 }
 
 void LightComponent::ToJson( const Loader& loader, json& json, const LightComponent& raw )
@@ -133,7 +133,7 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
 // ModelComponent
 void ModelComponent::OnComponentDraw( const Loader& loader, ModelComponent& modelComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "ModelComponent" );
+    ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
     auto modelComponentName = modelComponent ? modelComponent->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "models", modelComponentName ) )
@@ -150,13 +150,19 @@ void ModelComponent::OnComponentDraw( const Loader& loader, ModelComponent& mode
 
 void ModelComponent::ToJson( const Loader& loader, json& json, const ModelComponent& modelComponent )
 {
+    if ( not modelComponent )
+    {
+        json = nullptr;
+        return;
+    }
     auto [relPath, _] = loader.RelAbsFromProjectPath( modelComponent->mPath );
     json = relPath;
 }
 
 void ModelComponent::FromJson( Loader& loader, const json& json, ModelComponent& modelComponent )
 {
-    modelComponent = loader.LoadModel( json );
+    if ( not json.is_null() )
+        modelComponent = loader.LoadModel( json );
 }
 
 void ModelComponent::CreateLuaBinding( sol::state& lua )
@@ -171,7 +177,7 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
 // ShaderComponent
 void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& shaderComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "ShaderComponent" );
+    ImGui::TextColored( TEXT_COLOR, "ShaderComponent" );
 
     auto shaderComponentName = shaderComponent ? shaderComponent->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "shaders", shaderComponentName ) )
@@ -188,13 +194,20 @@ void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& sh
 
 void ShaderComponent::ToJson( const Loader& loader, json& json, const ShaderComponent& shaderComponent )
 {
+    if ( not shaderComponent )
+    {
+        json = nullptr;
+        return;
+    }
+
     auto [relPath, _] = loader.RelAbsFromProjectPath( shaderComponent->mPath );
     json = relPath;
 }
 
 void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponent& shaderComponent )
 {
-    shaderComponent = loader.LoadShader( json );
+    if ( not json.is_null() )
+        shaderComponent = loader.LoadShader( json );
 }
 
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
@@ -209,7 +222,7 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
 // ScriptComponent
 void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& scriptComponent )
 {
-    ImGui::TextColored( COLOR_YELLOW, "ScriptComponent" );
+    ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
 
     auto scriptComponentName = scriptComponent.mScript ? 
                                scriptComponent.mScript->mName.c_str() :
@@ -228,13 +241,20 @@ void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& sc
 
 void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComponent& scriptComponent )
 {
+    if ( not scriptComponent.mScript )
+    {
+        json = nullptr;
+        return;
+    }
+
     auto [relPath, _] = loader.RelAbsFromProjectPath( scriptComponent.mScript->mPath );
     json = relPath;
 }
 
 void ScriptComponent::FromJson( Loader& loader, const json& json, ScriptComponent& scriptComponent )
 {
-    scriptComponent.mScript = loader.LoadScript( json );
+    if ( not json.is_null() )
+        scriptComponent.mScript = loader.LoadScript( json );
 }
 
 void ScriptComponent::CreateLuaBinding( sol::state& lua )

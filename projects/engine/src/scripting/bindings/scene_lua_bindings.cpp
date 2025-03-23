@@ -1,14 +1,13 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
-#include <format>
-#include <print>
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
-#include "engine/scene/components_manager.hpp"
+#include "engine/scene/component_manager.hpp"
+#include "engine/scene/scene.hpp"
 #include "engine/utils/filesystem.hpp"
 
 namespace bubble
 {
-void CreateSceneBindings( sol::state& lua )
+void CreateSceneBindings( Scene& scene, sol::state& lua )
 {
     for ( const auto& [name, commpFuncTable] : ComponentManager::Instance() )
         commpFuncTable.mCreateLuaBinding( lua );
@@ -18,44 +17,44 @@ void CreateSceneBindings( sol::state& lua )
         
         // Add
         "AddTagComponent",
-        &Entity::AddComponent<TagComponent, string>,
+        [&]( Entity& entity, string tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
         "AddTransformComponent", 
-        []( Entity& entity, TransformComponent trasform ) { entity.AddComponent<TransformComponent>( trasform ); },
+        [&]( Entity& entity, TransformComponent trasform ) { scene.AddComponent<TransformComponent>( entity, trasform ); },
         "AddModelComponent",
-        []( Entity& entity, Ref<Model> model ){ entity.AddComponent<ModelComponent>( model ); },
+        [&]( Entity& entity, Ref<Model> model ) { scene.AddComponent<ModelComponent>( entity, model ); },
         "AddShaderComponent",
-        []( Entity& entity, Ref<Shader> shader ) { entity.AddComponent<ShaderComponent>( shader ); },
+        [&]( Entity& entity, Ref<Shader> shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
         
         // Get
         "GetTagComponent",
-        []( Entity& entity )->TagComponent& { return entity.GetComponent<TagComponent>(); },
+        [&]( Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "GetTransformComponent",
-        []( Entity& entity )->TransformComponent& { return entity.GetComponent<TransformComponent>(); },
+        [&]( Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
-        []( Entity& entity )->Ref<Model>& { return entity.GetComponent<ModelComponent>(); },
+        [&]( Entity& entity ) ->Ref<Model>& { return scene.GetComponent<ModelComponent>( entity ); },
         "GetShaderComponent",
-        []( Entity& entity )->Ref<Shader>& { return entity.GetComponent<ShaderComponent>(); },
+        [&]( Entity& entity ) ->Ref<Shader>& { return scene.GetComponent<ShaderComponent>( entity ); },
 
         // Has
         "HasTagComponent",
-        &Entity::HasComponent<TagComponent>,
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<TagComponent>( entity ); },
         "HasTransformComponent",
-        &Entity::HasComponent<TransformComponent>,
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<TransformComponent>( entity ); },
         "HasModelComponent",
-        &Entity::HasComponent<ModelComponent>,
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
         "HasShaderComponent",
-        &Entity::HasComponent<ShaderComponent>
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); }
     );
 
     lua.new_usertype<Scene>(
         "Scene",
         "CreateEntity",
-        &Scene::CreateEntity,
-        "GetRuntimeView",
-        []( Scene& scene, const sol::table& table )
-        {
-            return scene.GetRuntimeView( table.as<vector<string_view>>() );
-        }
+        &Scene::CreateEntity
+        //"GetRuntimeView",
+        //[]( Scene& scene, const sol::table& table )
+        //{
+        //    return scene.GetRuntimeView( table.as<vector<string_view>>() );
+        //}
     );
 }
 

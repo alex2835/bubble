@@ -13,14 +13,12 @@ void Project::LoadDefaultResources()
     mLoader.LoadShader( PHONG_SHADER );
     mLoader.LoadShader( WHITE_SHADER );
     mLoader.LoadShader( ONLY_DIFFUSE_SHADER );
-} 
+}
 
-Project::Project()
+Project::Project( Loader& loader )
+    : mLoader( loader )
 {
-    // Order is strict
-    mScene.AddComponent<TagComponent>()
-          .AddComponent<ModelComponent>()
-          .AddComponent<TransformComponent>();
+
 }
 
 void Project::Create( const path& rootDir, const string& projectName )

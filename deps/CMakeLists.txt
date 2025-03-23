@@ -39,6 +39,7 @@ add_subdirectory(glm-aabb)
 
 add_subdirectory(lua)
 add_subdirectory(sol2-3.5.0)
+add_subdirectory(glm_lua_bindings)
 add_subdirectory(json)
 add_subdirectory(recs)
 #add_subdirectory(hot_reloader)

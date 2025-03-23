@@ -23,6 +23,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC assimp)
 target_link_libraries(${TARGET_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${TARGET_NAME} PUBLIC lua)
 target_link_libraries(${TARGET_NAME} PUBLIC sol2)
+target_link_libraries(${TARGET_NAME} PUBLIC glm_lua_bindings)
 
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 add_definitions(-DGLM_FORCE_SWIZZLE)

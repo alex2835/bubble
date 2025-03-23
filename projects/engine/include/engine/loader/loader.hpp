@@ -10,7 +10,6 @@
 #include "engine/renderer/model.hpp"
 #include "engine/renderer/skybox.hpp"
 #include "engine/scripting/script.hpp"
-#include <mutex>
 
 namespace bubble
 {
@@ -57,15 +56,23 @@ struct Loader
     void LoadModels( const vector<path>& paths );
     Ref<Skybox> LoadSkybox( const path& path );
 
-    // rel, abs
-    pair<path, path> RelAbsFromProjectPath( const path& resPath ) const
+    
+    struct RelAbsPaths
+    {
+        path rel;
+        path abs;
+    };
+
+    RelAbsPaths RelAbsFromProjectPath( const path& resPath ) const
     {
         // engine resource
         if ( resPath.string().starts_with( "." ) )
             return { resPath, resPath };
 
-        return { resPath.is_relative() ? resPath : filesystem::relative( resPath, mProjectRootPath ),
-                 resPath.is_absolute() ? resPath : mProjectRootPath / resPath };
+        auto relPath = resPath.is_relative() ? resPath : filesystem::relative( resPath, mProjectRootPath );
+        auto absPath = resPath.is_absolute() ? resPath : mProjectRootPath / resPath;
+        return RelAbsPaths{ .rel=relPath.generic_string(),
+                            .abs=absPath.generic_string() };
     }
 };
 

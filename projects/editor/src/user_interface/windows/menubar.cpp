@@ -79,7 +79,7 @@ void Menubar::ModalCreateProject()
 
 void Menubar::ModalOpenProject()
 {
-    if ( !mFileDialog.IsOpened() )
+    if ( not mFileDialog.IsOpened() )
     {
         mFileDialog = ImGui::FileBrowser( cFileDialogChooseFileFlags );
         mFileDialog.SetTypeFilters( { ".bubble" } );
@@ -88,6 +88,9 @@ void Menubar::ModalOpenProject()
 
     // File dialog
     mFileDialog.Display();
+    if ( not mFileDialog.IsOpened() )
+        mOpenProjectModal = false;
+
     if ( mFileDialog.HasSelected() )
     {
         try
@@ -123,9 +126,6 @@ void Menubar::DrawMenubar()
 
             ImGui::EndMenu();
         }
-
-        if ( ImGui::BeginMenu( "test" ) )
-            ImGui::EndMenu();
 
         if ( ImGui::BeginMenu( "Options" ) )
         {

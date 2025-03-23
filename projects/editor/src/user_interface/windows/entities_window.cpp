@@ -33,7 +33,7 @@ void EntitiesWindow::DrawEntities()
             if ( ImGui::MenuItem( "Create Entity" ) )
             {
                 auto entity = mProject.mScene.CreateEntity();
-                entity.AddComponent<TagComponent>( "New entity" );
+                mProject.mScene.AddComponent<TagComponent>( entity, "New entity" );
             }
             ImGui::EndPopup();
         }
@@ -42,7 +42,7 @@ void EntitiesWindow::DrawEntities()
         Entity entityToDelete;
         mProject.mScene.ForEachEntity( [&]( Entity entity )
         {
-            auto& tag = entity.GetComponent<TagComponent>();
+            auto& tag = mProject.mScene.GetComponent<TagComponent>( entity );
             ImGui::Selectable( ( tag.mName + "##TAG" ).c_str(), entity == mSelectedEntity );
             if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
                  ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
@@ -76,8 +76,8 @@ void EntitiesWindow::DrawSelectedEntityProperties()
 
     ImGui::BeginChild( "Components" );
     {
-        const auto& allComponents = mProject.mScene.AllComponentTypeIdsMap();
-        const auto& entityComponents = mSelectedEntity.EntityComponentTypeIds();
+        const auto& componentIDs = mProject.mScene.AllComponentTypeIds();
+        const auto& entityComponents = mProject.mScene.EntityComponentTypeIds( mSelectedEntity );
 
         // Entity components popups
         if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
@@ -87,26 +87,31 @@ void EntitiesWindow::DrawSelectedEntityProperties()
         {
             if ( ImGui::BeginMenu( "Add component" ) )
             {
-                for ( const auto& [name, id] : allComponents )
+                for ( auto componentID : componentIDs )
                 {
-                    if ( entityComponents.contains( id ) )
+                    if ( entityComponents.contains( componentID ) )
                         continue;
 
-                    if ( ImGui::MenuItem( name.c_str() ) )
-                        mSelectedEntity.EntityAddComponentId( id );
+                    auto name = ComponentManager::GetName( componentID );
+                    if ( ImGui::MenuItem( name.data() ) )
+                        mProject.mScene.EntityAddComponentId( mSelectedEntity, componentID );
                 }
                 ImGui::EndMenu();
             }
 
-            if ( ImGui::BeginMenu( "Remove component" ) )
+            
+            if ( entityComponents.size() > 1 and // More then tag component
+                 ImGui::BeginMenu( "Remove component" ) )
             {
-                for ( const auto& [name, id] : allComponents )
+                for ( auto componentID : componentIDs )
                 {
-                    if ( not entityComponents.contains( id ) )
+                    if ( not entityComponents.contains( componentID ) or
+                         componentID == TagComponent::ID() ) // Can't remove tag
                         continue;
 
-                    if ( ImGui::MenuItem( name.c_str() ) )
-                        mSelectedEntity.EntityRemoveComponentId( id );
+                    auto name = ComponentManager::GetName( componentID );
+                    if ( ImGui::MenuItem( name.data() ) )
+                        mProject.mScene.EntityRemoveComponentId( mSelectedEntity, componentID );
                 }
                 ImGui::EndMenu();
             }
@@ -115,13 +120,13 @@ void EntitiesWindow::DrawSelectedEntityProperties()
 
         // Entity components
         mProject.mScene.ForEachEntityComponentRaw( mSelectedEntity,
-                                                   [&]( std::string_view componentName, void* componentRaw )
+                                                   [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {
-            auto onDrawFunc = ComponentManager::GetOnDraw( componentName );
+            auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
                 onDrawFunc( mProject.mLoader, componentRaw );
             else
-                ImGui::Text( format( "Component {} not drawable", componentName ).c_str() );
+                ImGui::Text( std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();
         } );
     }

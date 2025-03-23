@@ -8,18 +8,23 @@ constexpr uvec2 WINDOW_SIZE{ 1920, 1080 };
 constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
-    : mEditorMode( EditorMode::Editing ),
-      mWindow( Window( "Bubble", WINDOW_SIZE ) ),
+    : mWindow( Window( "Bubble", WINDOW_SIZE ) ),
+      mEditorMode( EditorMode::Editing ),
       mSceneViewport( Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
                                    Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       mObjectIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) ),
       mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
+      mProject( mLoader ),
+      mEngine( mScriptingEngine ),
       mEditorUserInterface( *this ),
-      mResourcesHotReloader( mProject.mLoader ),
-      mEngine( mWindow.GetWindowInput(), mProject.mLoader )
-{}
+      mResourcesHotReloader( mLoader )
+{
+    mScriptingEngine.bindInput( mWindow.GetWindowInput() );
+    mScriptingEngine.bindLoader( mLoader );
+    mScriptingEngine.bindScene( mEngine.mScene );
+}
 
 void BubbleEditor::Run()
 {
@@ -36,7 +41,7 @@ void BubbleEditor::Run()
         if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) )
         {
             mEditorMode = EditorMode::Running;
-            mProject.mScene.CloneInto( mEngine.mScene );
+            StartGame();
         }
         if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 ) )
         {
@@ -55,6 +60,7 @@ void BubbleEditor::Run()
 			}
             case EditorMode::Running:
             {
+                // temp
                 mSceneCamera.OnUpdate( deltaTime );
                 mEngine.mActiveCamera = mSceneCamera;
 
@@ -113,5 +119,17 @@ void BubbleEditor::DrawProjectScene()
         mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mObjectIdShader );
     } );
 }
+
+void BubbleEditor::StartGame()
+{
+    mEngine.mScene = mProject.mScene;
+    mEngine.OnStart();
+}
+
+void BubbleEditor::StartEditing()
+{
+    //mScriptingEngine.bindScene( mProject.mScene );
+}
+
 
 }

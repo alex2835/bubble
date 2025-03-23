@@ -230,7 +230,7 @@ Ref<Model> LoadModel( const path& path )
 
 Ref<Model> Loader::LoadModel( const path& modelPath )
 {
-    auto[relPath,absPath] = RelAbsFromProjectPath( modelPath );
+    auto [relPath, absPath] = RelAbsFromProjectPath( modelPath );
 
     auto iter = mModels.find( relPath );
     if ( iter != mModels.end() )

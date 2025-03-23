@@ -1,5 +1,6 @@
 #pragma once
 #include <sol/forward.hpp>
+#include <sol/function.hpp>
 #include "engine/types/string.hpp"
 #include "engine/types/number.hpp"
 #include "engine/types/json.hpp"
@@ -11,12 +12,23 @@
 // Basic components
 namespace bubble
 {
+enum class ComponentID
+{
+	Tag,
+	Transform,
+	Camera,
+	Model,
+	Light,
+	Shader,
+	Script
+};
+
+
 struct TagComponent
 {
-	static string_view Name()
-	{
-		return "TagComponent"sv;
-	}
+    static size_t ID() { return static_cast<size_t>( ComponentID::Tag ); }
+	static string_view Name() { return "Tag"sv; }
+
 	static void OnComponentDraw( const Loader& loader, TagComponent& component );
 	static void ToJson( const Loader& loader, json& json, const TagComponent& component );
 	static void FromJson( Loader& loader, const json& json, TagComponent& component );
@@ -31,10 +43,9 @@ public:
 
 struct TransformComponent
 {
-	static string_view Name()
-	{
-		return "TransformComponent"sv;
-	}
+    static size_t ID() { return static_cast<size_t>( ComponentID::Transform ); }
+	static string_view Name() { return "Transform"sv; }
+
 	static void OnComponentDraw( const Loader& loader, TransformComponent& component );
 	static void ToJson( const Loader& loader, json& json, const TransformComponent& component );
 	static void FromJson( Loader& loader, const json& json, TransformComponent& component );
@@ -52,10 +63,9 @@ public:
 
 struct CameraComponent : Camera
 {
-    static string_view Name()
-    {
-        return "CameraComponent"sv;
-    }
+    static size_t ID() { return static_cast<size_t>( ComponentID::Camera ); }
+	static string_view Name() { return "Camera"sv; }
+
     static void OnComponentDraw( const Loader& loader, CameraComponent& component );
     static void ToJson( const Loader& loader, json& json, const CameraComponent& component );
     static void FromJson( Loader& loader, const json& json, CameraComponent& component );
@@ -65,10 +75,9 @@ struct CameraComponent : Camera
 
 struct LightComponent : public Light
 {
-	static string_view Name()
-	{
-		return "LightComponent"sv;
-	}
+    static size_t ID() { return static_cast<size_t>( ComponentID::Light ); }
+	static string_view Name() { return "Light"sv; }
+
 	static void OnComponentDraw( const Loader& loader, LightComponent& component );
 	static void ToJson( const Loader& loader, json& json, const LightComponent& component );
 	static void FromJson( Loader& loader, const json& json, LightComponent& component );
@@ -79,11 +88,9 @@ struct LightComponent : public Light
 struct ModelComponent : public Ref<Model>
 {
 	using Ref<Model>::operator=;
+    static size_t ID() { return static_cast<size_t>( ComponentID::Model ); }
+	static string_view Name() { return "Model"sv; }
 
-	static string_view Name()
-	{
-		return "ModelComponent"sv;
-	}
 	static void OnComponentDraw( const Loader& loader, ModelComponent& component );
 	static void ToJson( const Loader& loader, json& json, const ModelComponent& component );
 	static void FromJson( Loader& loader, const json& json, ModelComponent& component );
@@ -95,10 +102,9 @@ struct ShaderComponent : public Ref<Shader>
 {
 	using Ref<Shader>::operator=;
 
-	static string_view Name()
-	{
-		return "ShaderComponent"sv;
-	}
+    static size_t ID() { return static_cast<size_t>( ComponentID::Shader ); }
+	static string_view Name() { return "Shader"sv; }
+
 	static void OnComponentDraw( const Loader& loader, ShaderComponent& component );
 	static void ToJson( const Loader& loader, json& json, const ShaderComponent& component );
 	static void FromJson( Loader& loader, const json& json, ShaderComponent& component );
@@ -108,10 +114,9 @@ struct ShaderComponent : public Ref<Shader>
 
 struct ScriptComponent
 {
-    static string_view Name()
-    {
-        return "ScriptComponent"sv;
-    }
+    static size_t ID() { return static_cast<size_t>( ComponentID::Script ); }
+	static string_view Name() { return "Script"sv; }
+
     static void OnComponentDraw( const Loader& loader, ScriptComponent& component );
     static void ToJson( const Loader& loader, json& json, const ScriptComponent& component );
     static void FromJson( Loader& loader, const json& json, ScriptComponent& component );
@@ -122,7 +127,8 @@ public:
 	ScriptComponent( const Ref<Script>& scirpt );
 	~ScriptComponent();
 	Ref<Script> mScript;
-	//Ref<sol::table> mState;
+	sol::function mOnUpdate;
+	//Ref<sol::lua_value> mState;
 };
 
 }

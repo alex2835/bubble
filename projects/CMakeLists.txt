@@ -6,8 +6,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	    -Werror\
 		-Wno-format-security\
 		-Wno-unused-variable\
-		-Wno-misleading-indentation\
-		-stdlib=libc++")
+		-Wno-misleading-indentation")
+	if(APPLE)
+		SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+	endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 	SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} /WX")
 endif()

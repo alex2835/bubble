@@ -1,22 +1,32 @@
+
 #include "engine/engine.hpp"
+#include "engine/scripting/scripting_engine.hpp"
 
 namespace bubble
 {
+Engine::Engine( ScriptingEngine& scriptingEngine )
+    : mScriptingEngine( scriptingEngine )
+{}
 
-Engine::Engine( WindowInput& input, Loader& loader )
-    : mScriptingEngine( input, loader, mScene )
+void Engine::OnStart()
 {
-
+    // Extract scripts functions
+    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    {
+        if ( not scriptComponent.mOnUpdate )
+            scriptComponent.mOnUpdate = mScriptingEngine.ExtractOnUpdate( scriptComponent.mScript );
+    } );
 }
 
 void Engine::OnUpdate() 
 {
     mTimer.OnUpdate();
 
-    // Update scripts
+    // Call scripts
     mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& script )
     {
-        mScriptingEngine.OnUpdate( script.mScript );
+        if ( script.mOnUpdate )
+            script.mOnUpdate();
     });
 }
 

@@ -10,14 +10,14 @@ class Project
 {
     void LoadDefaultResources();
 public:
-    Project();
+    Project( Loader& loader );
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& filePath );
     void Save();
 
     string mName;
     path mRootFile;
-    Loader mLoader;
+    Loader& mLoader;
     Scene mScene;
 };
 
