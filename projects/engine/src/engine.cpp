@@ -1,20 +1,25 @@
 
 #include "engine/engine.hpp"
+#include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 
 namespace bubble
 {
-Engine::Engine( ScriptingEngine& scriptingEngine )
-    : mScriptingEngine( scriptingEngine )
+Engine::Engine( Project& project )
+    : mProject( project ),
+      mScene( project.mGameRunningScene )
 {}
 
 void Engine::OnStart()
 {
+    // Game running scene that is binded to scripting engine
+    mScene = mProject.mScene;
+
     // Extract scripts functions
     mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
     {
         if ( not scriptComponent.mOnUpdate )
-            scriptComponent.mOnUpdate = mScriptingEngine.ExtractOnUpdate( scriptComponent.mScript );
+            scriptComponent.mOnUpdate = mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mScript );
     } );
 }
 

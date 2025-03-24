@@ -1,12 +1,13 @@
 #pragma once
 #include "engine/types/map.hpp"
-#include "engine/utils/chrono.hpp"
 #include "engine/loader/loader.hpp"
 #include <thread>
 
 namespace bubble
 {
-class ResourcesHotReloader
+class Project;
+
+class ProjectResourcesHotReloader
 {
     struct UpdateInfo 
     {
@@ -15,15 +16,15 @@ class ResourcesHotReloader
     };
 
 public:
-    ResourcesHotReloader( Loader& loader );
-    ~ResourcesHotReloader();
+    ProjectResourcesHotReloader( Project& project );
+    ~ProjectResourcesHotReloader();
     void OnUpdate();
 
 private:
     void StopThread();
     void CreateUpdater();
 
-    Loader& mLoader;
+    Project& mProject;
     map<path, UpdateInfo> mUpdateInfoMap;
     std::thread mUpdater;
     bool mStop = true;

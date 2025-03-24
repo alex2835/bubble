@@ -15,10 +15,11 @@ void Project::LoadDefaultResources()
     mLoader.LoadShader( ONLY_DIFFUSE_SHADER );
 }
 
-Project::Project( Loader& loader )
-    : mLoader( loader )
+Project::Project( WindowInput& input )
 {
-
+    mScriptingEngine.bindInput( input );
+    mScriptingEngine.bindLoader( mLoader );
+    mScriptingEngine.bindScene( mGameRunningScene );
 }
 
 void Project::Create( const path& rootDir, const string& projectName )

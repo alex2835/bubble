@@ -1,25 +1,25 @@
 #pragma once
-#include "engine/log/log.hpp"
-#include "engine/window/window.hpp"
-#include "engine/loader/loader.hpp"
+#include "engine/renderer/camera.hpp"
 #include "engine/renderer/renderer.hpp"
-#include "engine/scene/scene.hpp"
-#include "engine/project/project.hpp"
 
 namespace bubble
 {
-class ScriptingEngine;
+class Project;
+class Scene;
 
 struct Engine
 {
     Timer mTimer;
-    Scene mScene;
     Camera mActiveCamera;
     Renderer mRenderer;
-    ScriptingEngine& mScriptingEngine;
+    
+    // Attached project to run
+    Project& mProject;
+    Scene& mScene;
 
-    Engine( ScriptingEngine& scriptingEngine );
+    Engine( Project& project );
     void OnStart();
+    void OnEnd();
     void OnUpdate();
     void DrawScene( Framebuffer& framebuffer );
 };

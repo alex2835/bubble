@@ -16,14 +16,11 @@ BubbleEditor::BubbleEditor()
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) ),
       mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
-      mProject( mLoader ),
-      mEngine( mScriptingEngine ),
-      mEditorUserInterface( *this ),
-      mResourcesHotReloader( mLoader )
+      mProject( mWindow.GetWindowInput() ),
+      mEngine( mProject ),
+      mProjectResourcesHotReloader( mProject ),
+      mEditorUserInterface( *this )
 {
-    mScriptingEngine.bindInput( mWindow.GetWindowInput() );
-    mScriptingEngine.bindLoader( mLoader );
-    mScriptingEngine.bindScene( mEngine.mScene );
 }
 
 void BubbleEditor::Run()
@@ -41,7 +38,7 @@ void BubbleEditor::Run()
         if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) )
         {
             mEditorMode = EditorMode::Running;
-            StartGame();
+            mEngine.OnStart();
         }
         if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 ) )
         {
@@ -53,9 +50,9 @@ void BubbleEditor::Run()
 			case EditorMode::Editing:
 			{
 				mSceneCamera.OnUpdate( deltaTime );
-				mResourcesHotReloader.OnUpdate();
+				mProjectResourcesHotReloader.OnUpdate();
 				mEditorUserInterface.OnUpdate( deltaTime );
-				DrawProjectScene();            
+				DrawProjectScene();
 				break;
 			}
             case EditorMode::Running:
@@ -119,17 +116,5 @@ void BubbleEditor::DrawProjectScene()
         mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mObjectIdShader );
     } );
 }
-
-void BubbleEditor::StartGame()
-{
-    mEngine.mScene = mProject.mScene;
-    mEngine.OnStart();
-}
-
-void BubbleEditor::StartEditing()
-{
-    //mScriptingEngine.bindScene( mProject.mScene );
-}
-
 
 }

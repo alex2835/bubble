@@ -1,5 +1,7 @@
 #pragma once
 #include "engine/engine.hpp"
+#include "engine/window/window.hpp"
+#include "engine/project/project.hpp"
 #include "editor_user_interface/editor_user_interface.hpp"
 #include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 
@@ -19,9 +21,6 @@ public:
     void Run();
     void DrawProjectScene();
 
-    void StartGame();
-    void StartEditing();
-
 public:
     Timer mTimer;
     Window mWindow;
@@ -34,8 +33,6 @@ public:
     SceneCamera mSceneCamera;
     Entity mSelectedEntity;
 
-    ScriptingEngine mScriptingEngine;
-    Loader mLoader;
     // Game to edit
     Project mProject;
     // Game runner 
@@ -44,9 +41,8 @@ public:
     // UI global state
     bool mUINeedUpdateProjectWindow = false;
 
-    // Editor's user interface and resource hot reloader
+    ProjectResourcesHotReloader mProjectResourcesHotReloader;
     EditorUserInterface mEditorUserInterface;
-    ResourcesHotReloader mResourcesHotReloader;
 };
 
 }

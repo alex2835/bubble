@@ -1,4 +1,6 @@
 
+#include "engine/utils/chrono.hpp"
+#include "engine/project/project.hpp"
 #include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 
 namespace bubble
@@ -19,17 +21,17 @@ filesystem::file_time_type ReadShaderLastFileTime( const path& shaderPath )
 
 
 
-ResourcesHotReloader::ResourcesHotReloader( Loader& loader ) 
-    : mLoader( loader )
+ProjectResourcesHotReloader::ProjectResourcesHotReloader( Project& project )
+    : mProject( project )
 {}
 
-ResourcesHotReloader::~ResourcesHotReloader()
+ProjectResourcesHotReloader::~ProjectResourcesHotReloader()
 {
     StopThread();
 }
 
 
-void ResourcesHotReloader::StopThread()
+void ProjectResourcesHotReloader::StopThread()
 {
     mStop = true;
     if ( mUpdater.joinable() )
@@ -38,12 +40,12 @@ void ResourcesHotReloader::StopThread()
 }
 
 
-void ResourcesHotReloader::CreateUpdater()
+void ProjectResourcesHotReloader::CreateUpdater()
 {
     StopThread();
 
     mUpdateInfoMap.clear();
-    for ( const auto& [path, _] : mLoader.mShaders )
+    for ( const auto& [path, _] : mProject.mLoader.mShaders )
         mUpdateInfoMap[path].mFileLastUpdateTime = ReadShaderLastFileTime( path );
 
     mUpdater = std::thread( [&]()
@@ -65,9 +67,9 @@ void ResourcesHotReloader::CreateUpdater()
 }
 
 
-void ResourcesHotReloader::OnUpdate()
+void ProjectResourcesHotReloader::OnUpdate()
 {
-    if ( mLoader.mShaders.size() != mUpdateInfoMap.size() )
+    if ( mProject.mLoader.mShaders.size() != mUpdateInfoMap.size() )
         CreateUpdater();
 
     for ( auto& [path, info] : mUpdateInfoMap )
@@ -79,7 +81,7 @@ void ResourcesHotReloader::OnUpdate()
             try
             {
                 auto newShader = LoadShader( path );
-                mLoader.mShaders[path]->Swap( *newShader );
+                mProject.mLoader.mShaders[path]->Swap( *newShader );
             }
             catch ( const std::exception& )
             {

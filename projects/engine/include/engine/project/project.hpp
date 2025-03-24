@@ -10,15 +10,17 @@ class Project
 {
     void LoadDefaultResources();
 public:
-    Project( Loader& loader );
+    Project( WindowInput& input );
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& filePath );
     void Save();
 
     string mName;
     path mRootFile;
-    Loader& mLoader;
+    ScriptingEngine mScriptingEngine;
+    Loader mLoader;
     Scene mScene;
+    Scene mGameRunningScene;
 };
 
 }
