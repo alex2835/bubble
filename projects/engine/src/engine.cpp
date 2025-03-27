@@ -6,20 +6,18 @@
 namespace bubble
 {
 Engine::Engine( Project& project )
-    : mProject( project ),
-      mScene( project.mGameRunningScene )
+    : mProject( project )
 {}
 
 void Engine::OnStart()
 {
     // Game running scene that is binded to scripting engine
-    mScene = mProject.mScene;
+    mProject.mGameRunningScene = mProject.mScene;
 
     // Extract scripts functions
-    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    mProject.mGameRunningScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
     {
-        if ( not scriptComponent.mOnUpdate )
-            scriptComponent.mOnUpdate = mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mScript );
+        mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
     } );
 }
 
@@ -28,7 +26,7 @@ void Engine::OnUpdate()
     mTimer.OnUpdate();
 
     // Call scripts
-    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& script )
+    mProject.mGameRunningScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& script )
     {
         if ( script.mOnUpdate )
             script.mOnUpdate();
@@ -42,7 +40,7 @@ void Engine::DrawScene( Framebuffer& framebuffer )
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
     mRenderer.SetUniformBuffers( mActiveCamera, framebuffer );
     
-    mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
+    mProject.mGameRunningScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
     [&]( Entity _,
          ModelComponent& model,
          ShaderComponent& shader,

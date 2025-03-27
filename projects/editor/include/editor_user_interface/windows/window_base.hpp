@@ -5,6 +5,7 @@
 
 namespace bubble
 {
+class Window;
 class BubbleEditor;
 
 class UserInterfaceWindowBase

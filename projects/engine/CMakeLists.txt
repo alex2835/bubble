@@ -27,6 +27,7 @@ target_link_libraries(${TARGET_NAME} PUBLIC glm_lua_bindings)
 
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 add_definitions(-DGLM_FORCE_SWIZZLE)
+add_definitions(-DSOL_ALL_SAFETIES_ON)
 
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)

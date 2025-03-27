@@ -15,7 +15,6 @@ struct Engine
     
     // Attached project to run
     Project& mProject;
-    Scene& mScene;
 
     Engine( Project& project );
     void OnStart();

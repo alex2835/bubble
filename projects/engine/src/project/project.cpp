@@ -17,9 +17,9 @@ void Project::LoadDefaultResources()
 
 Project::Project( WindowInput& input )
 {
-    mScriptingEngine.bindInput( input );
-    mScriptingEngine.bindLoader( mLoader );
-    mScriptingEngine.bindScene( mGameRunningScene );
+    mScriptingEngine.BindInput( input );
+    mScriptingEngine.BindLoader( mLoader );
+    mScriptingEngine.BindScene( mGameRunningScene );
 }
 
 void Project::Create( const path& rootDir, const string& projectName )

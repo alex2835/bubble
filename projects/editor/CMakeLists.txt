@@ -14,6 +14,7 @@ target_link_libraries(${TARGET_NAME} bubble_engine)
 target_link_libraries(${TARGET_NAME} argagg)
 
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
+add_definitions(-DSOL_ALL_SAFETIES_ON)
 
 add_custom_command(
     TARGET ${TARGET_NAME} PRE_BUILD

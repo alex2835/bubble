@@ -1,5 +1,4 @@
 
-#define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 #include "engine/scene/scene.hpp"
 #include "engine/scripting/script.hpp"
@@ -40,7 +39,7 @@ ScriptingEngine::~ScriptingEngine()
 
 }
 
-void ScriptingEngine::bindInput( WindowInput& input )
+void ScriptingEngine::BindInput( WindowInput& input )
 {
     CreateWindowInputBindings( *mLua );
 
@@ -57,21 +56,20 @@ void ScriptingEngine::bindInput( WindowInput& input )
     } );
 }
 
-void ScriptingEngine::bindLoader( Loader& loader )
+void ScriptingEngine::BindLoader( Loader& loader )
 {
     CreateLoaderBidnings( *mLua );
     mLua->set( "bLoader", &loader );
 
 }
 
-void ScriptingEngine::bindScene( Scene& scene )
+void ScriptingEngine::BindScene( Scene& scene )
 {
     CreateSceneBindings( scene, *mLua );
     mLua->set( "bScene", &scene );
 }
 
-
-sol::function ScriptingEngine::ExtractOnUpdate( Ref<Script>& script )
+void ScriptingEngine::ExtractOnUpdate( sol::function& func, const Ref<Script>& script )
 {
     mLua->set( ON_UPDATE_FUNC, sol::nil );
     RunScript( script );
@@ -80,8 +78,7 @@ sol::function ScriptingEngine::ExtractOnUpdate( Ref<Script>& script )
     // Save function in lua state with script name to don't overlap with other
     auto newName = script->mName + string( ON_UPDATE_FUNC );
     mLua->set( newName, onUpdate );
-    auto renamedOnUpdate = mLua->get<sol::function>( newName );
-    return renamedOnUpdate;
+    func = mLua->get<sol::function>( newName );
 }
 
 void ScriptingEngine::RunScript( const Script& script )

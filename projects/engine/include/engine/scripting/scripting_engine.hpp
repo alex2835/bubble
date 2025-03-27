@@ -1,5 +1,5 @@
 #pragma once
-#include <sol/function.hpp>
+#include <sol/forward.hpp>
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/types/map.hpp"
@@ -20,22 +20,16 @@ public:
     ScriptingEngine& operator=( ScriptingEngine&& ) = delete;
     ~ScriptingEngine();
 
-    void bindInput( WindowInput& input );
-    void bindLoader( Loader& loader );
-    void bindScene( Scene& scene );
+    void BindInput( WindowInput& input );
+    void BindLoader( Loader& loader );
+    void BindScene( Scene& scene );
 
     void RunScript( const Script& script );
     void RunScript( const Ref<Script>& script );
-    sol::function ExtractOnUpdate( Ref<Script>& script );
+    void ExtractOnUpdate( sol::function& func, const Ref<Script>& script );
 
 private:
     Scope<sol::state> mLua;
-
-    //struct FunctionCache
-    //{
-    //    sol::unsafe_function mOnUpdate;
-    //};
-    //str_hash_map<FunctionCache> mCache;
 };
 
 }
