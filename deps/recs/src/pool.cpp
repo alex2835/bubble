@@ -120,7 +120,7 @@ void Pool::Realloc( size_t new_capacity )
     {
         char* new_data = new char[new_capacity * mComponentSize];
         if ( mData )
-            memmove( new_data, mData.get(), mComponentSize * mSize );
+            std::memmove( new_data, mData.get(), mComponentSize * mSize );
         mData.reset( new_data );
         mCapacity = new_capacity;
     }
