@@ -116,14 +116,11 @@ const void* Pool::GetRaw( size_t index ) const
 
 void Pool::Realloc( size_t new_capacity )
 {
-    if ( mCapacity < new_capacity )
-    {
-        char* new_data = new char[new_capacity * mComponentSize];
-        if ( mData )
-            std::memmove( new_data, mData.get(), mComponentSize * mSize );
-        mData.reset( new_data );
-        mCapacity = new_capacity;
-    }
+    char* new_data = new char[new_capacity * mComponentSize];
+    if ( mData )
+        std::memmove( new_data, mData.get(), mComponentSize * mSize );
+    mData.reset( new_data );
+    mCapacity = new_capacity;
 }
 
 void* Pool::GetElemAddress( size_t size )
