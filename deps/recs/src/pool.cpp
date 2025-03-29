@@ -36,8 +36,8 @@ void Pool::Clone( Pool& pool ) const
     pool.mDoCopy = mDoCopy;
 
     pool.mComponentSize = mComponentSize;
-    pool.Realloc( mCapacity );
     pool.mSize = mSize;
+    pool.Realloc( mCapacity );
 
     for ( size_t i = 0; i < pool.mSize; i++ )
         pool.mDoCopy( GetElemAddressConst( i ), pool.GetElemAddress( i ) );
