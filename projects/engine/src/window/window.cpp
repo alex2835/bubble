@@ -265,7 +265,9 @@ void Window::OnUpdate()
 {
     mWindowInput.mMouseInput.OnUpdate();
     mWindowInput.mKeyboardInput.OnUpdate();
-    glfwSwapBuffers( mWindow );
+    // Window is hidden so no need rendering
+    if ( Size() != uvec2( 0u ) )
+        glfwSwapBuffers( mWindow );
 }
 
 bool Window::IsKeyPressed( KeyboardKey key )

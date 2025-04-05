@@ -8,6 +8,7 @@
 #include "engine/renderer/light.hpp"
 #include "engine/renderer/camera.hpp"
 #include "engine/loader/loader.hpp"
+#include "engine/physics/physics_engine.hpp"
 
 // Basic components
 namespace bubble
@@ -20,7 +21,8 @@ enum class ComponentID
 	Model,
 	Light,
 	Shader,
-	Script
+	Script,
+	Physics
 };
 
 
@@ -129,6 +131,25 @@ public:
 	Ref<Script> mScript;
 	sol::function mOnUpdate;
 	//Ref<sol::lua_value> mState;
+};
+
+
+struct PhysicsComponent
+{
+    static size_t ID() { return static_cast<size_t>( ComponentID::Physics ); }
+    static string_view Name() { return "Physics"sv; }
+
+    static void OnComponentDraw( const Loader& loader, PhysicsComponent& component );
+    static void ToJson( const Loader& loader, json& json, const PhysicsComponent& component );
+    static void FromJson( Loader& loader, const json& json, PhysicsComponent& component );
+    static void CreateLuaBinding( sol::state& lua );
+
+public:
+    PhysicsComponent() = default;
+    PhysicsComponent( const Ref<PhysicsObject>& physicsObject );
+    ~PhysicsComponent();
+
+	Ref<PhysicsObject> mPhysicsObject;
 };
 
 }

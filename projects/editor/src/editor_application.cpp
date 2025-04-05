@@ -1,6 +1,7 @@
 
 #include "editor_application/editor_application.hpp"
 #include <sol/sol.hpp>
+#include <print>
 
 namespace bubble
 {
@@ -15,7 +16,7 @@ BubbleEditor::BubbleEditor()
       mObjectIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) ),
-      mSceneCamera( SceneCamera( mWindow.GetWindowInput() ) ),
+      mSceneCamera( SceneCamera( mWindow.GetWindowInput(), vec3( 0, 0, 100 ) ) ),
       mProject( mWindow.GetWindowInput() ),
       mEngine( mProject ),
       mProjectResourcesHotReloader( mProject ),
@@ -25,6 +26,20 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
+    PhysicsEngine physicsEngine;
+    auto entity = mProject.mScene.CreateEntity();
+
+    auto tag = mProject.mScene.AddComponent<TagComponent>( entity, "physics test" );
+    auto& trans = mProject.mScene.AddComponent<TransformComponent>( entity );
+    mProject.mScene.AddComponent<ModelComponent>( entity, mProject.mLoader.LoadModel( "models/gribok/gribok.obj" ) );
+    mProject.mScene.AddComponent<ShaderComponent>( entity, mProject.mLoader.LoadShader( "./resources/shaders/only_diffuse" ) );
+    
+    trans.mPosition = vec3(10, 20, 0);
+    auto sphere = physicsEngine.CreateSphere( trans.mPosition, 1.0, 5.0 );
+    auto physicsComp = mProject.mScene.AddComponent<PhysicsComponent>( entity, sphere );
+
+
+
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
@@ -44,6 +59,15 @@ void BubbleEditor::Run()
         {
             mEditorMode = EditorMode::Editing;
         }
+
+
+        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::SPACE ) )
+            physicsComp.mPhysicsObject->ApplyCentralImpulse( vec3( 0, 2, 0 ) );
+
+        physicsEngine.Update( deltaTime );
+        trans.mPosition = physicsComp.mPhysicsObject->GetPosition();
+        trans.mRotation = physicsComp.mPhysicsObject->GetRotation();
+
 
         switch ( mEditorMode )
 		{
@@ -66,15 +90,9 @@ void BubbleEditor::Run()
                 break;
             }
         }
-
-        // Window is hidden so no need rendering
-        if ( mWindow.Size() == uvec2( 0u ) )
-            continue;
-
         mWindow.ImGuiBegin();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();
-
         mWindow.OnUpdate();
     }
 #ifdef __EMSCRIPTEN__

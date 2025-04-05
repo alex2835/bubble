@@ -2,6 +2,7 @@
 #include "engine/engine.hpp"
 #include "engine/window/window.hpp"
 #include "engine/project/project.hpp"
+#include "engine/physics/physics_engine.hpp"
 #include "editor_user_interface/editor_user_interface.hpp"
 #include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 

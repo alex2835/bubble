@@ -10,6 +10,10 @@ target_include_directories(${TARGET_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
+add_definitions(-DGLM_FORCE_SWIZZLE)
+add_definitions(-DSOL_ALL_SAFETIES_ON)
+
 target_link_libraries(${TARGET_NAME} PUBLIC imgui)
 target_link_libraries(${TARGET_NAME} PUBLIC imgui_gizmo)
 target_link_libraries(${TARGET_NAME} PUBLIC imguifilebrowser)
@@ -24,10 +28,10 @@ target_link_libraries(${TARGET_NAME} PUBLIC nlohmann_json)
 target_link_libraries(${TARGET_NAME} PUBLIC lua)
 target_link_libraries(${TARGET_NAME} PUBLIC sol2)
 target_link_libraries(${TARGET_NAME} PUBLIC glm_lua_bindings)
-
-add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
-add_definitions(-DGLM_FORCE_SWIZZLE)
-add_definitions(-DSOL_ALL_SAFETIES_ON)
+target_link_libraries(${TARGET_NAME} PUBLIC BulletIncludeFile)
+target_link_libraries(${TARGET_NAME} PUBLIC LinearMath)
+target_link_libraries(${TARGET_NAME} PUBLIC BulletCollision)
+target_link_libraries(${TARGET_NAME} PUBLIC BulletDynamics)
 
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)

@@ -11,6 +11,7 @@ Scene::Scene()
     ComponentManager::Add<TransformComponent>( *this );
     ComponentManager::Add<ShaderComponent>( *this );
     ComponentManager::Add<ScriptComponent>( *this );
+    ComponentManager::Add<PhysicsComponent>( *this );
 }
 
 }

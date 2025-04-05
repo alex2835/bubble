@@ -10,11 +10,11 @@ target_include_directories(${TARGET_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(${TARGET_NAME} bubble_engine)
-target_link_libraries(${TARGET_NAME} argagg)
-
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
 add_definitions(-DSOL_ALL_SAFETIES_ON)
+
+target_link_libraries(${TARGET_NAME} bubble_engine)
+target_link_libraries(${TARGET_NAME} argagg)
 
 add_custom_command(
     TARGET ${TARGET_NAME} PRE_BUILD

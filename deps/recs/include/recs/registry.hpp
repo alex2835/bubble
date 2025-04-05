@@ -34,7 +34,7 @@ public:
     Registry& AddComponent();
 
     template <ComponentType Component, typename ...Args>
-    Registry& AddComponent( Entity entity, Args&& ...args );
+    Component& AddComponent( Entity entity, Args&& ...args );
 
     template <ComponentType Component>
     Component& GetComponent( Entity entity );
@@ -127,7 +127,7 @@ Registry& Registry::AddComponent()
 }
 
 template <ComponentType Component, typename ...Args>
-Registry& Registry::AddComponent( Entity entity, Args&& ...args )
+Component& Registry::AddComponent( Entity entity, Args&& ...args )
 {
     assert( entity != INVALID_ENTITY and "Invalid entity" );
     
@@ -138,14 +138,15 @@ Registry& Registry::AddComponent( Entity entity, Args&& ...args )
     {
         auto& component = EntityGetComponent<Component>( entity );
         component = Component( std::forward<Args>( args )... );
+        return component;
     }
     else
     {
         EntityAddComponent( entity, Component::ID() );
         Pool& pool = mPools[Component::ID()];
-        pool.Push<Component>( entity, std::forward<Args>( args )... );
+        auto& component = pool.Push<Component>( entity, std::forward<Args>( args )... );
+        return component;
     }
-    return *this;
 }
 
 template <ComponentType Component>

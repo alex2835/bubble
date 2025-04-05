@@ -273,4 +273,36 @@ ScriptComponent::~ScriptComponent()
 
 }
 
+
+void PhysicsComponent::OnComponentDraw( const Loader& loader, PhysicsComponent& component )
+{
+
+}
+
+void PhysicsComponent::ToJson( const Loader& loader, json& json, const PhysicsComponent& component )
+{
+
+}
+
+void PhysicsComponent::FromJson( Loader& loader, const json& json, PhysicsComponent& component )
+{
+
+}
+
+void PhysicsComponent::CreateLuaBinding( sol::state& lua )
+{
+
+}
+
+PhysicsComponent::PhysicsComponent( const Ref<PhysicsObject>& physicsObject )
+    : mPhysicsObject( physicsObject )
+{
+
+}
+
+PhysicsComponent::~PhysicsComponent()
+{
+
+}
+
 }
