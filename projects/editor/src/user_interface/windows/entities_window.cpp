@@ -125,7 +125,7 @@ void EntitiesWindow::DrawSelectedEntityProperties()
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
-                onDrawFunc( mProject.mLoader, componentRaw );
+                onDrawFunc( mProject, componentRaw );
             else
                 ImGui::Text( std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();

@@ -26,20 +26,6 @@ BubbleEditor::BubbleEditor()
 
 void BubbleEditor::Run()
 {
-    PhysicsEngine physicsEngine;
-    auto entity = mProject.mScene.CreateEntity();
-
-    auto tag = mProject.mScene.AddComponent<TagComponent>( entity, "physics test" );
-    auto& trans = mProject.mScene.AddComponent<TransformComponent>( entity );
-    mProject.mScene.AddComponent<ModelComponent>( entity, mProject.mLoader.LoadModel( "models/gribok/gribok.obj" ) );
-    mProject.mScene.AddComponent<ShaderComponent>( entity, mProject.mLoader.LoadShader( "./resources/shaders/only_diffuse" ) );
-    
-    trans.mPosition = vec3(10, 20, 0);
-    auto sphere = physicsEngine.CreateSphere( trans.mPosition, 1.0, 5.0 );
-    auto physicsComp = mProject.mScene.AddComponent<PhysicsComponent>( entity, sphere );
-
-
-
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_BEGIN
 #else
@@ -50,23 +36,21 @@ void BubbleEditor::Run()
         mTimer.OnUpdate();
         auto deltaTime = mTimer.GetDeltaTime();
 
-        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) )
+        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) 
+             and mEditorMode == EditorMode::Editing )
         {
+            std::println("onstart");
             mEditorMode = EditorMode::Running;
+            mSceneSave = mProject.mScene;
             mEngine.OnStart();
         }
-        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 ) )
+
+        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 )
+             and mEditorMode == EditorMode::Running )
         {
+            mProject.mScene = mSceneSave;
             mEditorMode = EditorMode::Editing;
         }
-
-
-        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::SPACE ) )
-            physicsComp.mPhysicsObject->ApplyCentralImpulse( vec3( 0, 2, 0 ) );
-
-        physicsEngine.Update( deltaTime );
-        trans.mPosition = physicsComp.mPhysicsObject->GetPosition();
-        trans.mRotation = physicsComp.mPhysicsObject->GetRotation();
 
 
         switch ( mEditorMode )

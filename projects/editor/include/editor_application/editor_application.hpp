@@ -36,7 +36,8 @@ public:
 
     // Game to edit
     Project mProject;
-    // Game runner 
+    // Game runner
+    Scene mSceneSave;
     Engine mEngine;
 
     // UI global state

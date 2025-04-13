@@ -1,7 +1,10 @@
 
 #include "engine/scene/components.hpp"
+#include "engine/project/project.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/serialization/types_serialization.hpp"
+#include "engine/types/array.hpp"
+#include "engine/types/string.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 
@@ -10,18 +13,18 @@ namespace bubble
 constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
 
 // TagComponent
-void TagComponent::OnComponentDraw( const Loader& loader, TagComponent& tagComponent )
+void TagComponent::OnComponentDraw( const Project& project, TagComponent& tagComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
     ImGui::InputText( tagComponent.mName );
 }
 
-void TagComponent::ToJson( const Loader& loader, json& json, const TagComponent& tagComponent )
+void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )
 {
     json = tagComponent.mName;
 }
 
-void TagComponent::FromJson( Loader& loader, const json& json, TagComponent& tagComponent )
+void TagComponent::FromJson( const json& json, Project& project, TagComponent& tagComponent )
 {
     tagComponent.mName = json;
 }
@@ -31,18 +34,19 @@ void TagComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<TagComponent>(
         "Tag",
         sol::call_constructor,
-        sol::constructors<TagComponent(), TagComponent(string)>(),
+        sol::constructors<TagComponent(), TagComponent( string )>(),
         "Name",
         &TagComponent::mName
     );
 }
 
-TagComponent::TagComponent( string name ) 
+TagComponent::TagComponent( string name )
     : mName( std::move( name ) )
-{}
+{
+}
 
 // TransformComponent
-void TransformComponent::OnComponentDraw( const Loader& loader, TransformComponent& transformComponent )
+void TransformComponent::OnComponentDraw( const Project& project, TransformComponent& transformComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
     ImGui::DragFloat3( "Scale", (float*)&transformComponent.mScale, 0.01f, 0.01f );
@@ -52,9 +56,10 @@ void TransformComponent::OnComponentDraw( const Loader& loader, TransformCompone
 
 TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
     : mPosition( pos ),
-      mRotation( rot ),
-      mScale( scale )
-{}
+    mRotation( rot ),
+    mScale( scale )
+{
+}
 
 mat4 TransformComponent::TransformMat()
 {
@@ -67,14 +72,14 @@ mat4 TransformComponent::TransformMat()
     return transform;
 }
 
-void TransformComponent::ToJson( const Loader& loader, json& json, const TransformComponent& transformComponent )
+void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )
 {
     json["Position"] = transformComponent.mPosition;
     json["Rotation"] = transformComponent.mRotation;
     json["Scale"] = transformComponent.mScale;
 }
 
-void TransformComponent::FromJson( Loader& loader, const json& json, TransformComponent& transformComponent )
+void TransformComponent::FromJson( const json& json, Project& project, TransformComponent& transformComponent )
 {
     transformComponent.mPosition = json["Position"];
     transformComponent.mRotation = json["Rotation"];
@@ -95,8 +100,8 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<TransformComponent>(
         "Transform",
         sol::call_constructor,
-        sol::constructors<TransformComponent(), TransformComponent(vec3, vec3, vec3)>(),
-        "Position", 
+        sol::constructors<TransformComponent(), TransformComponent( vec3, vec3, vec3 )>(),
+        "Position",
         &TransformComponent::mPosition,
         "Rotation",
         &TransformComponent::mRotation,
@@ -108,17 +113,17 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // LightComponent
-void LightComponent::OnComponentDraw( const Loader& loader, LightComponent& lightComponent )
+void LightComponent::OnComponentDraw( const Project& project, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );
 }
 
-void LightComponent::ToJson( const Loader& loader, json& json, const LightComponent& raw )
+void LightComponent::ToJson( json& json, const Project& project, const LightComponent& raw )
 {
 
 }
 
-void LightComponent::FromJson( Loader& loader, const json& json, LightComponent& lightComponent )
+void LightComponent::FromJson( const json& json, Project& project, LightComponent& lightComponent )
 {
 
 }
@@ -131,14 +136,14 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // ModelComponent
-void ModelComponent::OnComponentDraw( const Loader& loader, ModelComponent& modelComponent )
+void ModelComponent::OnComponentDraw( const Project& project, ModelComponent& modelComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
     auto modelComponentName = modelComponent ? modelComponent->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "models", modelComponentName ) )
     {
-        for ( const auto& [modelPath, model] : loader.mModels )
+        for ( const auto& [modelPath, model] : project.mLoader.mModels )
         {
             auto modelName = modelPath.stem().string();
             if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponentName ) )
@@ -148,21 +153,21 @@ void ModelComponent::OnComponentDraw( const Loader& loader, ModelComponent& mode
     }
 }
 
-void ModelComponent::ToJson( const Loader& loader, json& json, const ModelComponent& modelComponent )
+void ModelComponent::ToJson( json& json, const Project& project, const ModelComponent& modelComponent )
 {
     if ( not modelComponent )
     {
         json = nullptr;
         return;
     }
-    auto [relPath, _] = loader.RelAbsFromProjectPath( modelComponent->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( modelComponent->mPath );
     json = relPath;
 }
 
-void ModelComponent::FromJson( Loader& loader, const json& json, ModelComponent& modelComponent )
+void ModelComponent::FromJson( const json& json, Project& project, ModelComponent& modelComponent )
 {
     if ( not json.is_null() )
-        modelComponent = loader.LoadModel( json );
+        modelComponent = project.mLoader.LoadModel( json );
 }
 
 void ModelComponent::CreateLuaBinding( sol::state& lua )
@@ -175,14 +180,14 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // ShaderComponent
-void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& shaderComponent )
+void ShaderComponent::OnComponentDraw( const Project& project, ShaderComponent& shaderComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ShaderComponent" );
 
     auto shaderComponentName = shaderComponent ? shaderComponent->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "shaders", shaderComponentName ) )
     {
-        for ( const auto& [shaderPath, shader] : loader.mShaders )
+        for ( const auto& [shaderPath, shader] : project.mLoader.mShaders )
         {
             auto shaderName = shaderPath.stem().string();
             if ( ImGui::Selectable( shaderName.c_str(), shaderName == shaderComponentName ) )
@@ -192,7 +197,7 @@ void ShaderComponent::OnComponentDraw( const Loader& loader, ShaderComponent& sh
     }
 }
 
-void ShaderComponent::ToJson( const Loader& loader, json& json, const ShaderComponent& shaderComponent )
+void ShaderComponent::ToJson( json& json, const Project& project, const ShaderComponent& shaderComponent )
 {
     if ( not shaderComponent )
     {
@@ -200,14 +205,14 @@ void ShaderComponent::ToJson( const Loader& loader, json& json, const ShaderComp
         return;
     }
 
-    auto [relPath, _] = loader.RelAbsFromProjectPath( shaderComponent->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent->mPath );
     json = relPath;
 }
 
-void ShaderComponent::FromJson( Loader& loader, const json& json, ShaderComponent& shaderComponent )
+void ShaderComponent::FromJson( const json& json, Project& project, ShaderComponent& shaderComponent )
 {
     if ( not json.is_null() )
-        shaderComponent = loader.LoadShader( json );
+        shaderComponent = project.mLoader.LoadShader( json );
 }
 
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
@@ -215,21 +220,21 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<Shader>(
         "Shader",
         sol::meta_function::to_string,
-        []( const Shader& shader ){ return shader.mName; }
+        []( const Shader& shader ) { return shader.mName; }
     );
 }
 
 // ScriptComponent
-void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& scriptComponent )
+void ScriptComponent::OnComponentDraw( const Project& project, ScriptComponent& scriptComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
 
-    auto scriptComponentName = scriptComponent.mScript ? 
-                               scriptComponent.mScript->mName.c_str() :
-                               "Not selected";
+    auto scriptComponentName = scriptComponent.mScript ?
+        scriptComponent.mScript->mName.c_str() :
+        "Not selected";
     if ( ImGui::BeginCombo( "scripts", scriptComponentName ) )
     {
-        for ( const auto& [scriptPath, shader] : loader.mScripts )
+        for ( const auto& [scriptPath, shader] : project.mLoader.mScripts )
         {
             auto scriptName = scriptPath.stem().string();
             if ( ImGui::Selectable( scriptName.c_str(), scriptName == scriptComponentName ) )
@@ -239,7 +244,7 @@ void ScriptComponent::OnComponentDraw( const Loader& loader, ScriptComponent& sc
     }
 }
 
-void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComponent& scriptComponent )
+void ScriptComponent::ToJson( json& json, const Project& project, const ScriptComponent& scriptComponent )
 {
     if ( not scriptComponent.mScript )
     {
@@ -247,14 +252,14 @@ void ScriptComponent::ToJson( const Loader& loader, json& json, const ScriptComp
         return;
     }
 
-    auto [relPath, _] = loader.RelAbsFromProjectPath( scriptComponent.mScript->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( scriptComponent.mScript->mPath );
     json = relPath;
 }
 
-void ScriptComponent::FromJson( Loader& loader, const json& json, ScriptComponent& scriptComponent )
+void ScriptComponent::FromJson( const json& json, Project& project, ScriptComponent& scriptComponent )
 {
     if ( not json.is_null() )
-        scriptComponent.mScript = loader.LoadScript( json );
+        scriptComponent.mScript = project.mLoader.LoadScript( json );
 }
 
 void ScriptComponent::CreateLuaBinding( sol::state& lua )
@@ -274,17 +279,66 @@ ScriptComponent::~ScriptComponent()
 }
 
 
-void PhysicsComponent::OnComponentDraw( const Loader& loader, PhysicsComponent& component )
+
+void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent& component )
+{
+    ImGui::TextColored( TEXT_COLOR, "Physics component" );
+
+    const static map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv } };
+                                             //{ BOX_SHAPE_PROXYTYPE, "box"sv } };
+
+    string_view curShapeName = "empty"sv;
+    if ( component.mPhysicsObject )
+    {
+        auto iter = shapes.find( component.mPhysicsObject->getShape()->getShapeType() );
+        if ( iter != shapes.end() )
+            curShapeName = iter->second;
+    }
+
+    if ( ImGui::BeginCombo( "Collision shape", curShapeName.data() ) )
+    {
+        for ( const auto& [id, name] : shapes )
+        {
+            bool isSelected = curShapeName == name;
+            if ( ImGui::Selectable( name.data(), isSelected ) )
+            {
+                if ( id == SPHERE_SHAPE_PROXYTYPE )
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), 0, 1 );
+            }
+        }
+        ImGui::EndCombo();
+    }
+    if ( not component.mPhysicsObject )
+        return;
+
+    auto body = component.mPhysicsObject->getBody();
+    auto shape = component.mPhysicsObject->getShape();
+    switch ( shape->getShapeType() )
+    {
+        case SPHERE_SHAPE_PROXYTYPE:
+        {
+            auto sphereShape = static_cast<btSphereShape*>( shape );
+
+            float mass = body->getMass();
+            if ( ImGui::DragFloat( "Mass", &mass ) )
+            {
+                btVector3 inertia( 0, 0, 0 );
+                body->setMassProps( mass, inertia );
+            }
+
+            float radius = sphereShape->getRadius();
+            if ( ImGui::DragFloat( "Radius", &radius ) )
+                component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
+        }
+    }
+}
+
+void PhysicsComponent::ToJson( json& json, const Project& project, const PhysicsComponent& component )
 {
 
 }
 
-void PhysicsComponent::ToJson( const Loader& loader, json& json, const PhysicsComponent& component )
-{
-
-}
-
-void PhysicsComponent::FromJson( Loader& loader, const json& json, PhysicsComponent& component )
+void PhysicsComponent::FromJson( const json& json, Project& project, PhysicsComponent& component )
 {
 
 }

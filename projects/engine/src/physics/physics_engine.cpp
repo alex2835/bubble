@@ -40,41 +40,16 @@ PhysicsEngine::PhysicsEngine()
 
 void PhysicsEngine::AddPhysicsObject( const Ref<PhysicsObject>& obj )
 {
-    dynamicsWorld->addRigidBody( obj->body.get() );
-}
-
-Ref<PhysicsObject> PhysicsEngine::CreateSphere( vec3 pos, f32 mass, f32 radius )
-{
-    auto object = CreateRef<PhysicsObject>();
-
-    object->colShape = CreateScope<btSphereShape>( radius );
-
-    /// Create Dynamic Objects
-    btTransform startTransform;
-    startTransform.setIdentity();
-    startTransform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
-
-    //rigidbody is dynamic if and only if mass is non zero, otherwise static
-    bool isDynamic = ( mass != 0.f );
-    btVector3 localInertia( 0, 0, 0 );
-    if ( isDynamic )
-        object->colShape->calculateLocalInertia( mass, localInertia );
-
-    //using motionstate is recommended, it provides interpolation capabilities, and only synchronizes 'active' objects
-    btDefaultMotionState* myMotionState = new btDefaultMotionState( startTransform );
-    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object->colShape.get(), localInertia );
-    object->body = CreateScope<btRigidBody>( rbInfo );
-
-    AddPhysicsObject( object );
-    return object;
+    dynamicsWorld->addRigidBody( obj->mBody.get() );
+    obj->mBody->activate();
 }
 
 void PhysicsEngine::ClearWorld()
 {
-    for ( int i = 0; i < dynamicsWorld->getNumCollisionObjects(); i++ )
+    for ( int i = dynamicsWorld->getNumCollisionObjects() - 1; i >= 0; i-- )
     {
         btCollisionObject* obj = dynamicsWorld->getCollisionObjectArray()[i];
-        btRigidBody* body = btRigidBody::upcast( obj );
+        //btRigidBody* body = btRigidBody::upcast( obj );
         //if ( body && body->getMotionState() )
         //{
         //    delete body->getMotionState();

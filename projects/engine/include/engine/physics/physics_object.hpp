@@ -7,10 +7,6 @@ namespace bubble
 {
 class PhysicsObject
 {
-    //btCollisionShape* colShape = nullptr;
-    Scope<btSphereShape> colShape;
-    Scope<btRigidBody> body;
-    friend class PhysicsEngine;
 public:
     PhysicsObject();
     PhysicsObject( const PhysicsObject& other );
@@ -20,12 +16,21 @@ public:
 
     void ApplyCentralImpulse( const vec3 impulse );
 
-    vec3 GetPosition();
-    vec3 GetRotation();
+    void SetTransform( const vec3& pos, const vec3& rot );
+    void GetTransform( vec3& pos, vec3& rot ) const;
 
+    void ClearForces();
+
+    btRigidBody* getBody();
+    btCollisionShape* getShape();
+
+    static Ref<PhysicsObject> CreateSphere( vec3 pos, f32 mass, f32 radius );
+
+public:
+    Scope<btCollisionShape> mColisionShape;
+    Scope<btRigidBody> mBody;
 private:
     void CopyFrom( const PhysicsObject& other );
-
 };
 
 }

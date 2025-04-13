@@ -9,8 +9,7 @@ class Scene : public Registry
 {
 public:
     Scene();
-    void ToJson( const Loader& loader, json& j );
-    void FromJson( Loader& loader, const json& j );
+    friend Project;
 };
 
 }

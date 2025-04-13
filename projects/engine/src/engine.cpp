@@ -3,6 +3,8 @@
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 
+#include <print>
+
 namespace bubble
 {
 Engine::Engine( Project& project )
@@ -11,12 +13,26 @@ Engine::Engine( Project& project )
 
 void Engine::OnStart()
 {
-    // Game running scene that is binded to scripting engine
-    mProject.mGameRunningScene = mProject.mScene;
+    /// Physics
+    mProject.mPhysicsEngine.ClearWorld();
 
-    // Extract scripts functions
-    mProject.mGameRunningScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    // Set physics init transform
+    mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
+    [&]( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
     {
+        std::println( "entity:{}", u64(entity) );
+
+        physics.mPhysicsObject->SetTransform( transform.mPosition, transform.mRotation );
+        physics.mPhysicsObject->ClearForces();
+        mProject.mPhysicsEngine.AddPhysicsObject( physics.mPhysicsObject );
+    } );
+
+    /// Scripts
+    // Extract scripts functions
+    mProject.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    {
+        if ( not scriptComponent.mScript )
+            std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
         mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
     } );
 }
@@ -24,9 +40,19 @@ void Engine::OnStart()
 void Engine::OnUpdate() 
 {
     mTimer.OnUpdate();
+    auto dt = mTimer.GetDeltaTime();
+
+    mProject.mPhysicsEngine.Update( dt );
+
+    // Update transforms
+    mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
+    []( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
+    {
+         physics.mPhysicsObject->GetTransform( transform.mPosition, transform.mRotation );
+    } );
 
     // Call scripts
-    mProject.mGameRunningScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& script )
+    mProject.mScene.ForEach<ScriptComponent>( []( Entity entity, ScriptComponent& script )
     {
         if ( script.mOnUpdate )
             script.mOnUpdate();
@@ -40,7 +66,7 @@ void Engine::DrawScene( Framebuffer& framebuffer )
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
     mRenderer.SetUniformBuffers( mActiveCamera, framebuffer );
     
-    mProject.mGameRunningScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
+    mProject.mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
     [&]( Entity _,
          ModelComponent& model,
          ShaderComponent& shader,

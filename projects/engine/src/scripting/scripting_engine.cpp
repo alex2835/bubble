@@ -1,14 +1,13 @@
 
 #include <sol/sol.hpp>
+#include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/scripting/script.hpp"
 #include "engine/scripting/scripting_engine.hpp"
-#include "glm_lua_bindings.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
-
-#include <print>
+#include "glm_lua_bindings.hpp"
 
 namespace bubble
 {

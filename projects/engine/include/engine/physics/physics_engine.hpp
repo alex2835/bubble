@@ -22,7 +22,6 @@ public:
 
     void Update( DeltaTime dt );
 
-    Ref<PhysicsObject> CreateSphere( vec3 pos, f32 mass, f32 radius );
     void AddPhysicsObject( const Ref<PhysicsObject>& obj );
     void ClearWorld();
 };
