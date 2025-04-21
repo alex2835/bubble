@@ -273,6 +273,12 @@ ScriptComponent::ScriptComponent( const Ref<Script>& scirpt )
 
 }
 
+PhysicsComponent::PhysicsComponent()
+    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 1, 1 ) )
+{
+
+}
+
 ScriptComponent::~ScriptComponent()
 {
 
@@ -320,14 +326,11 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
             auto sphereShape = static_cast<btSphereShape*>( shape );
 
             float mass = body->getMass();
-            if ( ImGui::DragFloat( "Mass", &mass ) )
-            {
-                btVector3 inertia( 0, 0, 0 );
-                body->setMassProps( mass, inertia );
-            }
-
             float radius = sphereShape->getRadius();
-            if ( ImGui::DragFloat( "Radius", &radius ) )
+            bool needRecreation = false;
+            needRecreation |= ImGui::DragFloat( "Mass", &mass );
+            needRecreation |= ImGui::DragFloat( "Radius", &radius );
+            if ( needRecreation )
                 component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
         }
     }
@@ -355,12 +358,12 @@ void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsCom
 
 void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsComponent& component )
 {
-    if ( j["Type"sv] == "Sphere"sv )
+    if ( j["Type"sv] == "Sphere"s )
     {
         component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), j["Mass"sv], j["Radius"sv] );
         return;
     }
-    throw std::runtime_error( "Undefiend physics component" );
+    throw std::runtime_error( "Undefined physics component" );
 }
 
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )

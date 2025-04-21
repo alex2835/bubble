@@ -20,8 +20,6 @@ void Engine::OnStart()
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
     [&]( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
     {
-        std::println( "entity:{}", u64(entity) );
-
         physics.mPhysicsObject->SetTransform( transform.mPosition, transform.mRotation );
         physics.mPhysicsObject->ClearForces();
         mProject.mPhysicsEngine.AddPhysicsObject( physics.mPhysicsObject );

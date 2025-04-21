@@ -131,5 +131,24 @@ Ref<PhysicsObject> PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
     return object;
 }
 
+Ref<PhysicsObject> PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
+{
+    auto object = CreateRef<PhysicsObject>();
+    object->mColisionShape = CreateScope<btBoxShape>( btVector3( halfExtends.x,
+                                                                 halfExtends.y, 
+                                                                 halfExtends.z ) );
+    btTransform groundTransform;
+    groundTransform.setIdentity();
+    groundTransform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
+    bool isDynamic = ( mass != 0.f );
+    btVector3 localInertia( 0, 0, 0 );
+    if ( isDynamic )
+        object->mColisionShape->calculateLocalInertia( mass, localInertia );
+    btDefaultMotionState* myMotionState = new btDefaultMotionState( groundTransform );
+    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object->mColisionShape.get(), localInertia );
+    object->mBody = CreateScope<btRigidBody>( rbInfo );
+    return object;
+}
+
 }
 

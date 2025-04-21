@@ -39,7 +39,6 @@ void BubbleEditor::Run()
         if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) 
              and mEditorMode == EditorMode::Editing )
         {
-            std::println("onstart");
             mEditorMode = EditorMode::Running;
             mSceneSave = mProject.mScene;
             mEngine.OnStart();

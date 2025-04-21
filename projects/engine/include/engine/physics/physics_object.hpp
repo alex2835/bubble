@@ -25,7 +25,7 @@ public:
     btCollisionShape* getShape();
 
     static Ref<PhysicsObject> CreateSphere( vec3 pos, f32 mass, f32 radius );
-
+    static Ref<PhysicsObject> CreateBox( vec3 pos, f32 mass, vec3 halfExtends );
 public:
     Scope<btCollisionShape> mColisionShape;
     Scope<btRigidBody> mBody;

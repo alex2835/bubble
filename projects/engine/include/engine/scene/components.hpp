@@ -148,7 +148,7 @@ struct PhysicsComponent
     static void CreateLuaBinding( sol::state& lua );
 
 public:
-    PhysicsComponent() = default;
+    PhysicsComponent();
     PhysicsComponent( const Ref<PhysicsObject>& physicsObject );
     ~PhysicsComponent();
 
