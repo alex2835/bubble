@@ -333,14 +333,34 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
     }
 }
 
-void PhysicsComponent::ToJson( json& json, const Project& project, const PhysicsComponent& component )
+void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsComponent& component )
 {
-
+    auto body = component.mPhysicsObject->getBody();
+    auto shape = component.mPhysicsObject->getShape();
+    switch ( shape->getShapeType() )
+    {
+        case SPHERE_SHAPE_PROXYTYPE:
+        {
+            auto sphereShape = static_cast<btSphereShape*>( shape );
+            float mass = body->getMass();
+            float radius = sphereShape->getRadius();
+            j["Type"sv] = "Sphere"sv;
+            j["Radius"sv] = radius;
+            j["Mass"sv] = mass;
+            return;
+        }
+    }
+    throw std::runtime_error( "Invalid enum type" );
 }
 
-void PhysicsComponent::FromJson( const json& json, Project& project, PhysicsComponent& component )
+void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsComponent& component )
 {
-
+    if ( j["Type"sv] == "Sphere"sv )
+    {
+        component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), j["Mass"sv], j["Radius"sv] );
+        return;
+    }
+    throw std::runtime_error( "Undefiend physics component" );
 }
 
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )
