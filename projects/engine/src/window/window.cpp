@@ -21,7 +21,6 @@
 #include "engine/types/number.hpp"
 #include "engine/log/log.hpp"
 
-
 namespace bubble
 {
 void Window::ErrorCallback( i32 error, const char* description )
@@ -33,13 +32,6 @@ void Window::KeyCallback( GLFWwindow* window, i32 key, i32 scancode, i32 action,
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
 
-    //if ( key == GLFW_KEY_ESCAPE && action == GLFW_PRESS )
-    //{
-    //    glfwSetWindowShouldClose( window, GL_TRUE );
-    //    Event event = win->CreateEvent();
-    //    event.mType = EventType::ShouldClose;
-    //    win->mEvents.push_back( event );
-    //}
     win->mWindowInput.mKeyboardInput.mKeyState[key] = action;
     win->mWindowInput.mKeyboardInput.mKeyMods.SHIFT = mods & GLFW_MOD_SHIFT;
     win->mWindowInput.mKeyboardInput.mKeyMods.CONTROL = mods & GLFW_MOD_CONTROL;

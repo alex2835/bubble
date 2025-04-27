@@ -20,6 +20,9 @@ public:
     BubbleEditor();
     void OpenProject( const path& projectPath );
     void Run();
+
+private:
+    void OnUpdate();
     void DrawProjectScene();
 
 public:
@@ -34,9 +37,9 @@ public:
     SceneCamera mSceneCamera;
     Entity mSelectedEntity;
 
-    // Game to edit
+    // Game editing
     Project mProject;
-    // Game runner
+    // Game running
     Scene mSceneSave;
     Engine mEngine;
 

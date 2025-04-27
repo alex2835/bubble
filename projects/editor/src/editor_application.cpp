@@ -33,24 +33,9 @@ void BubbleEditor::Run()
 #endif
     {
         mWindow.PollEvents();
+        OnUpdate();
         mTimer.OnUpdate();
         auto deltaTime = mTimer.GetDeltaTime();
-
-        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 ) 
-             and mEditorMode == EditorMode::Editing )
-        {
-            mEditorMode = EditorMode::Running;
-            mSceneSave = mProject.mScene;
-            mEngine.OnStart();
-        }
-
-        if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 )
-             and mEditorMode == EditorMode::Running )
-        {
-            mProject.mScene = mSceneSave;
-            mEditorMode = EditorMode::Editing;
-        }
-
 
         switch ( mEditorMode )
 		{
@@ -88,6 +73,43 @@ void BubbleEditor::OpenProject( const path& projectPath )
     LogInfo( "Open project {}", projectPath.string() );
     mUINeedUpdateProjectWindow = true;
     mProject.Open( projectPath );
+}
+
+void BubbleEditor::OnUpdate()
+{
+    /// Switch Editing/GameRunning modes
+    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 )
+         and mEditorMode == EditorMode::Editing )
+    {
+        mEditorMode = EditorMode::Running;
+        mSceneSave = mProject.mScene;
+        mEngine.OnStart();
+    }
+
+    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 )
+         and mEditorMode == EditorMode::Running )
+    {
+        mProject.mScene = mSceneSave;
+        mEditorMode = EditorMode::Editing;
+    }
+
+
+    /// Copy entity
+    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::V ) and
+         mWindow.GetWindowInput().KeyMods().CONTROL and
+         mEditorMode == EditorMode::Editing and
+         mSelectedEntity )
+    {
+        auto newEntity = mProject.mScene.CopyEntity( mSelectedEntity );
+        auto& tag = mProject.mScene.GetComponent<TagComponent>( newEntity );
+        tag.mName = tag.mName + " Copy";
+
+        auto& trans = mProject.mScene.GetComponent<TransformComponent>( newEntity );
+        trans.mPosition += vec3(1);
+
+        mSelectedEntity = newEntity;
+    }
+
 }
 
 void BubbleEditor::DrawProjectScene()

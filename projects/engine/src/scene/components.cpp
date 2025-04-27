@@ -56,8 +56,8 @@ void TransformComponent::OnComponentDraw( const Project& project, TransformCompo
 
 TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
     : mPosition( pos ),
-    mRotation( rot ),
-    mScale( scale )
+      mRotation( rot ),
+      mScale( scale )
 {
 }
 
@@ -290,17 +290,14 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
 {
     ImGui::TextColored( TEXT_COLOR, "Physics component" );
 
-    const static map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv } };
-                                             //{ BOX_SHAPE_PROXYTYPE, "box"sv } };
+    static map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv },
+                                         { BOX_SHAPE_PROXYTYPE, "box"sv } };
 
-    string_view curShapeName = "empty"sv;
-    if ( component.mPhysicsObject )
-    {
-        auto iter = shapes.find( component.mPhysicsObject->getShape()->getShapeType() );
-        if ( iter != shapes.end() )
-            curShapeName = iter->second;
-    }
+    auto body = component.mPhysicsObject.getBody();
+    auto shape = component.mPhysicsObject.getShape();
 
+    /// Physics shape selection
+    string_view curShapeName = shapes[component.mPhysicsObject.getShape()->getShapeType()];
     if ( ImGui::BeginCombo( "Collision shape", curShapeName.data() ) )
     {
         for ( const auto& [id, name] : shapes )
@@ -308,17 +305,17 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
             bool isSelected = curShapeName == name;
             if ( ImGui::Selectable( name.data(), isSelected ) )
             {
+                float mass = component.mPhysicsObject.getBody()->getMass();
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), 0, 1 );
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3( 0 ), mass, 1 );
+                if ( id == BOX_SHAPE_PROXYTYPE )
+                    component.mPhysicsObject = PhysicsObject::CreateBox( vec3( 0 ), mass, vec3( 1 ) );
             }
         }
         ImGui::EndCombo();
     }
-    if ( not component.mPhysicsObject )
-        return;
 
-    auto body = component.mPhysicsObject->getBody();
-    auto shape = component.mPhysicsObject->getShape();
+    /// Selected physics shape control
     switch ( shape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
@@ -332,23 +329,51 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
             needRecreation |= ImGui::DragFloat( "Radius", &radius );
             if ( needRecreation )
                 component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
-        }
+        } break;
+
+        case BOX_SHAPE_PROXYTYPE:
+        {
+            auto boxShape = static_cast<btBoxShape*>( shape );
+
+            float mass = body->getMass();
+            btVector3 halfExtends = boxShape->getHalfExtentsWithMargin();
+            float halfExtendsArray[3] = { halfExtends.x(), halfExtends.y(), halfExtends.z() };
+
+            bool needRecreation = false;
+            needRecreation |= ImGui::DragFloat( "Mass", &mass );
+            needRecreation |= ImGui::DragFloat3( "Half Extends", halfExtendsArray );
+            if ( needRecreation )
+                component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, vec3( halfExtendsArray[0], 
+                                                                                         halfExtendsArray[1], 
+                                                                                         halfExtendsArray[2] ) );
+        } break;
     }
 }
 
 void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsComponent& component )
 {
-    auto body = component.mPhysicsObject->getBody();
-    auto shape = component.mPhysicsObject->getShape();
+    auto body = component.mPhysicsObject.getBody();
+    auto shape = component.mPhysicsObject.getShape();
     switch ( shape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
         {
-            auto sphereShape = static_cast<btSphereShape*>( shape );
+            auto sphereShape = static_cast<const btSphereShape*>( shape );
             float mass = body->getMass();
             float radius = sphereShape->getRadius();
             j["Type"sv] = "Sphere"sv;
             j["Radius"sv] = radius;
+            j["Mass"sv] = mass;
+            return;
+        }
+
+        case BOX_SHAPE_PROXYTYPE:
+        {
+            auto boxShape = static_cast<const btBoxShape*>( shape );
+            float mass = body->getMass();
+            btVector3 halfExtends = boxShape->getHalfExtentsWithoutMargin();
+            j["Type"sv] = "Box"sv;
+            j["HalfExtends"sv] = vec3( halfExtends.x(), halfExtends.y(), halfExtends.z() );
             j["Mass"sv] = mass;
             return;
         }
@@ -363,6 +388,11 @@ void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsCompone
         component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), j["Mass"sv], j["Radius"sv] );
         return;
     }
+    if ( j["Type"sv] == "Box"s )
+    {
+        component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), j["Mass"sv], j["HalfExtends"sv] );
+        return;
+    }
     throw std::runtime_error( "Undefined physics component" );
 }
 
@@ -371,7 +401,7 @@ void PhysicsComponent::CreateLuaBinding( sol::state& lua )
 
 }
 
-PhysicsComponent::PhysicsComponent( const Ref<PhysicsObject>& physicsObject )
+PhysicsComponent::PhysicsComponent( const PhysicsObject& physicsObject )
     : mPhysicsObject( physicsObject )
 {
 

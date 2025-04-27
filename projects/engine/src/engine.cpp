@@ -20,8 +20,8 @@ void Engine::OnStart()
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
     [&]( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
     {
-        physics.mPhysicsObject->SetTransform( transform.mPosition, transform.mRotation );
-        physics.mPhysicsObject->ClearForces();
+        physics.mPhysicsObject.SetTransform( transform.mPosition, transform.mRotation );
+        physics.mPhysicsObject.ClearForces();
         mProject.mPhysicsEngine.AddPhysicsObject( physics.mPhysicsObject );
     } );
 
@@ -46,7 +46,7 @@ void Engine::OnUpdate()
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
     []( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
     {
-         physics.mPhysicsObject->GetTransform( transform.mPosition, transform.mRotation );
+         physics.mPhysicsObject.GetTransform( transform.mPosition, transform.mRotation );
     } );
 
     // Call scripts

@@ -8,7 +8,6 @@ namespace bubble
 class PhysicsObject
 {
 public:
-    PhysicsObject();
     PhysicsObject( const PhysicsObject& other );
     PhysicsObject& operator=( const PhysicsObject& other );
     PhysicsObject( PhysicsObject&& ) = default;
@@ -22,10 +21,17 @@ public:
     void ClearForces();
 
     btRigidBody* getBody();
+    const btRigidBody* getBody() const;
     btCollisionShape* getShape();
+    const btCollisionShape* getShape() const;
 
-    static Ref<PhysicsObject> CreateSphere( vec3 pos, f32 mass, f32 radius );
-    static Ref<PhysicsObject> CreateBox( vec3 pos, f32 mass, vec3 halfExtends );
+    static PhysicsObject CreateSphere( vec3 pos, f32 mass, f32 radius );
+    static PhysicsObject CreateBox( vec3 pos, f32 mass, vec3 halfExtends );
+
+
+private:
+    PhysicsObject();
+
 public:
     Scope<btCollisionShape> mColisionShape;
     Scope<btRigidBody> mBody;

@@ -62,7 +62,17 @@ btRigidBody* PhysicsObject::getBody()
     return mBody.get();
 }
 
+const btRigidBody* PhysicsObject::getBody() const
+{
+    return mBody.get();
+}
+
 btCollisionShape* PhysicsObject::getShape()
+{
+    return mColisionShape.get();
+}
+
+const btCollisionShape* PhysicsObject::getShape() const
 {
     return mColisionShape.get();
 }
@@ -107,11 +117,11 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
 
 
 
-Ref<PhysicsObject> PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
+PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
 {
-    auto object = CreateRef<PhysicsObject>();
+    PhysicsObject object;
 
-    object->mColisionShape = CreateScope<btSphereShape>( radius );
+    object.mColisionShape = CreateScope<btSphereShape>( radius );
 
     /// Create Dynamic Objects
     btTransform startTransform;
@@ -122,19 +132,19 @@ Ref<PhysicsObject> PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
-        object->mColisionShape->calculateLocalInertia( mass, localInertia );
+        object.mColisionShape->calculateLocalInertia( mass, localInertia );
 
     //using motion state is recommended, it provides interpolation capabilities, and only synchronizes 'active' objects
     btDefaultMotionState* myMotionState = new btDefaultMotionState( startTransform );
-    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object->mColisionShape.get(), localInertia );
-    object->mBody = CreateScope<btRigidBody>( rbInfo );
+    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object.mColisionShape.get(), localInertia );
+    object.mBody = CreateScope<btRigidBody>( rbInfo );
     return object;
 }
 
-Ref<PhysicsObject> PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
+PhysicsObject PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
 {
-    auto object = CreateRef<PhysicsObject>();
-    object->mColisionShape = CreateScope<btBoxShape>( btVector3( halfExtends.x,
+    PhysicsObject object;
+    object.mColisionShape = CreateScope<btBoxShape>( btVector3( halfExtends.x,
                                                                  halfExtends.y, 
                                                                  halfExtends.z ) );
     btTransform groundTransform;
@@ -143,10 +153,10 @@ Ref<PhysicsObject> PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtend
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
-        object->mColisionShape->calculateLocalInertia( mass, localInertia );
+        object.mColisionShape->calculateLocalInertia( mass, localInertia );
     btDefaultMotionState* myMotionState = new btDefaultMotionState( groundTransform );
-    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object->mColisionShape.get(), localInertia );
-    object->mBody = CreateScope<btRigidBody>( rbInfo );
+    btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object.mColisionShape.get(), localInertia );
+    object.mBody = CreateScope<btRigidBody>( rbInfo );
     return object;
 }
 

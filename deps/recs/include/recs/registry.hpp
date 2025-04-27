@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <unordered_set>
+#include <set>
 #include <string_view>
 #include <format>
 #include <string>
@@ -17,7 +18,6 @@ namespace recs
 {
 class RECS_EXPORT Registry
 {
-
 public:
     Registry() = default;
     Registry( const Registry& ) = default;
@@ -28,6 +28,7 @@ public:
     Entity CreateEntity();
     Entity GetEntityById( size_t id );
     void RemoveEntity( Entity& entity );
+    Entity CopyEntity( Entity entity );
 
     // Component types API
     template <ComponentType Component>
@@ -52,8 +53,8 @@ public:
     void RemoveComponent( Entity entity );
     
     // ComponentTypeIds API
-    const std::unordered_set<ComponentTypeId>& AllComponentTypeIds();
-    const std::unordered_set<ComponentTypeId>& EntityComponentTypeIds( Entity entity );
+    const std::set<ComponentTypeId>& AllComponentTypeIds();
+    const std::set<ComponentTypeId>& EntityComponentTypeIds( Entity entity );
     void EntityAddComponentId( Entity entity, ComponentTypeId componentId );
     void EntityRemoveComponentId( Entity entity, ComponentTypeId componentId );
 
@@ -71,13 +72,15 @@ public:
     void ForEachEntityComponentRaw( Entity entity, F&& func );
 
 private:
+    Pool& GetPool( ComponentTypeId componentId );
+
     template <ComponentType Component>
     Component& EntityGetComponent( Entity entity );
 
     void EntityAddComponent( Entity entity, ComponentTypeId component );
     bool EntityHasComponent( Entity entity, ComponentTypeId component );
     void EntityRemoveComponent( Entity entity, ComponentTypeId component );
-    std::unordered_set<ComponentTypeId>& GetEntityComponentsIds( Entity entity );
+    std::set<ComponentTypeId>& GetEntityComponentsIds( Entity entity );
 
     // For each
     template <ComponentType ...Components, typename F>
@@ -94,8 +97,8 @@ private:
 
 protected:
     size_t mEntityCounter = 1;
-    std::unordered_set<ComponentTypeId> mComponents;
-    std::unordered_map<Entity, std::unordered_set<ComponentTypeId>> mEntitiesComponentTypeIds;
+    std::set<ComponentTypeId> mComponents;
+    std::unordered_map<Entity, std::set<ComponentTypeId>> mEntitiesComponentTypeIds;
     std::unordered_map<ComponentTypeId, Pool> mPools;
 };
 

@@ -96,7 +96,7 @@ void Project::LoadScene( const json& j )
     const json& entityComponentsJson = j["Entity components"];
     for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )
     {
-        hash_set<ComponentTypeId> components;
+        set<ComponentTypeId> components;
         for ( ComponentTypeId component : componentsJson )
             components.insert( component );
 

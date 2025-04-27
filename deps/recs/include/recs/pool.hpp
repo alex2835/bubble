@@ -119,7 +119,7 @@ T& Pool::Get( Entity entity )
     void* raw_data = GetRaw( entity );
     if ( raw_data )
         return *static_cast<T*>( raw_data );
-    throw std::runtime_error( "Entity has component, but pool doesn't (Incorrent working)" );
+    throw std::runtime_error( "Entity has component, but pool doesn't (Incorrect working)" );
 }
 
 template <ComponentType T>

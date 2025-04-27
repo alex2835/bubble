@@ -149,10 +149,10 @@ struct PhysicsComponent
 
 public:
     PhysicsComponent();
-    PhysicsComponent( const Ref<PhysicsObject>& physicsObject );
+    PhysicsComponent( const PhysicsObject& physicsObject );
     ~PhysicsComponent();
 
-	Ref<PhysicsObject> mPhysicsObject;
+	PhysicsObject mPhysicsObject;
 };
 
 }
