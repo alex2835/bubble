@@ -71,6 +71,11 @@ public:
     template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
 
+    size_t Size()
+    {
+        return mEntitiesComponentTypeIds.size();
+    }
+
 private:
     Pool& GetPool( ComponentTypeId componentId );
 

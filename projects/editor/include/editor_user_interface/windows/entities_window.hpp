@@ -1,6 +1,5 @@
 #pragma once
 #include "engine/types/set.hpp"
-#include "engine/scene/component_manager.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
@@ -16,8 +15,9 @@ public:
     void OnDraw( DeltaTime );
 
 private:
+    void DrawSelectedEntityComponents();
     void DrawEntities();
-    void DrawSelectedEntityProperties();
+
 
     str_hash_set mNoCompDrawFuncWarnings;
 };

@@ -9,25 +9,26 @@ Renderer::Renderer()
     glDisable( GL_BLEND );
     glEnable( GL_DEPTH_TEST );
     glEnable( GL_CULL_FACE );
+    //glDisable( GL_CULL_FACE );
 
     // Uniform buffers
-    BufferLayout vertexUniformBufferLayout{
+    VertexBufferLayout vertexUniformVertexBufferLayout{
         { "uProjection", GLSLDataType::Mat4  },
         { "uView", GLSLDataType::Mat4  }
     };
     mVertexUniformBuffer = CreateRef<UniformBuffer>( 0, 
                                                      "VertexUniformBuffer",
-                                                     std::move( vertexUniformBufferLayout ) );
+                                                     std::move( vertexUniformVertexBufferLayout ) );
 
-    BufferLayout lightsInfoUniformBufferLayout{
+    VertexBufferLayout lightsInfoUniformVertexBufferLayout{
         { "uNumLights", GLSLDataType::Int },
         { "uViewPos", GLSLDataType::Float3 }
     };
     mLightsInfoUniformBuffer = CreateRef<UniformBuffer>( 1,
                                                        "LightsInfoUniformBuffer",
-                                                       std::move( lightsInfoUniformBufferLayout ) );
+                                                       std::move( lightsInfoUniformVertexBufferLayout ) );
     
-    BufferLayout lightsUniformBufferLayout{
+    VertexBufferLayout lightsUniformVertexBufferLayout{
         { "Type", GLSLDataType::Int },
         { "Brightness", GLSLDataType::Float },
         { "Constant", GLSLDataType::Float },    
@@ -42,7 +43,7 @@ Renderer::Renderer()
     int nLights = 30;
     mLightsUniformBuffer = CreateRef<UniformBuffer>( 2,
                                                      "LightUniformBuffer",
-                                                     std::move( lightsUniformBufferLayout ),
+                                                     std::move( lightsUniformVertexBufferLayout ),
                                                      nLights );
 }
 
@@ -77,21 +78,39 @@ void Renderer::ClearScreenUint( uvec4 color )
     glClear( GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
 }
 
-
-void Renderer::DrawMesh( const Mesh& mesh, 
-                         const Ref<Shader>& shader,
-                         const mat4& transform )
+void Renderer::DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, DrawingPrimitive drawingPrimitive )
 {
     mesh.BindVertexArray();
     if ( shader->mModules.test( ShaderModule::Material ) )
         mesh.ApplyMaterial( shader );
-    glDrawElements( GL_TRIANGLES, (i32)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
+    glDrawElements( (GLenum)drawingPrimitive, (i32)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
+}
+
+
+
+void Renderer::DrawMesh( const Mesh& mesh,
+                         const Ref<Shader>& shader,
+                         const mat4& transform,
+                         DrawingPrimitive drawingPrimitive )
+{
+    if ( not shader )
+        return;
+
+    // Set uniform buffers
+    shader->SetUniformBuffer( mVertexUniformBuffer );
+    if ( shader->mModules.test( ShaderModule::Light ) )
+        shader->SetUniformBuffer( mLightsInfoUniformBuffer );
+
+    // Draw model
+    shader->SetUniMat4( "uModel", transform );
+    DrawMesh( mesh, shader, drawingPrimitive );
 }
 
 
 void Renderer::DrawModel( const Ref<Model>& model,
                           const mat4& transform,
-                          const Ref<Shader>& shader )
+                          const Ref<Shader>& shader,
+                          DrawingPrimitive drawingPrimitive )
 {
     if ( not model or not shader )
         return;
@@ -104,7 +123,7 @@ void Renderer::DrawModel( const Ref<Model>& model,
     // Draw model
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
-        Renderer::DrawMesh( mesh, shader, transform );
+        Renderer::DrawMesh( mesh, shader, drawingPrimitive );
 }
 
 }

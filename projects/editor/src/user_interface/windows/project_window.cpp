@@ -183,9 +183,9 @@ void ProjectWindow::OnDraw( DeltaTime )
     {
         ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
         {
-            if ( mUINeedUpdateProjectWindow )
+            if ( mUIGlobals.mNeedUpdateProjectWindow )
             {
-                mUINeedUpdateProjectWindow = false;
+                mUIGlobals.mNeedUpdateProjectWindow = false;
                 FillFilesystemTree();
             }
 

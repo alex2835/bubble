@@ -9,9 +9,15 @@
 #include "engine/renderer/camera.hpp"
 #include "engine/physics/physics_engine.hpp"
 
+namespace recs
+{
+class Entity;
+}
+
 // Basic components
 namespace bubble
 {
+using namespace recs;
 class Project;
 struct Model;
 struct Script;
@@ -34,7 +40,7 @@ struct TagComponent
     static size_t ID() { return static_cast<size_t>( ComponentID::Tag ); }
 	static string_view Name() { return "Tag"sv; }
 
-	static void OnComponentDraw( const Project& project, TagComponent& component );
+	static void OnComponentDraw( const Project& project, const Entity& entity, TagComponent& component );
 	static void ToJson( json& json, const Project& project, const TagComponent& component );
 	static void FromJson( const json& json, Project& project, TagComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
@@ -51,7 +57,7 @@ struct TransformComponent
     static size_t ID() { return static_cast<size_t>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
 
-    static void OnComponentDraw( const Project& project, TransformComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, TransformComponent& component );
     static void ToJson( json& json, const Project& project, const TransformComponent& component );
     static void FromJson( const json& json, Project& project, TransformComponent& component );
     static void CreateLuaBinding( sol::state& lua );
@@ -60,6 +66,8 @@ public:
 	TransformComponent() = default;
     TransformComponent( vec3 pos, vec3 rot, vec3 scale );
 	mat4 TransformMat();
+	mat4 TranslationMat();
+	mat4 TranslationRotationMat();
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );
 	vec3 mScale = vec3( 1 );
@@ -71,7 +79,7 @@ struct CameraComponent : Camera
     static size_t ID() { return static_cast<size_t>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 
-    static void OnComponentDraw( const Project& project, CameraComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, CameraComponent& component );
 	static void ToJson( json& json, const Project& project, const CameraComponent& component );
 	static void FromJson( const json& json, Project& project, CameraComponent& component );
     static void CreateLuaBinding( sol::state& lua );
@@ -83,7 +91,7 @@ struct LightComponent : public Light
     static size_t ID() { return static_cast<size_t>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }
 
-    static void OnComponentDraw( const Project& project, LightComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, LightComponent& component );
 	static void ToJson( json& json, const Project& project, const LightComponent& component );
 	static void FromJson( const json& json, Project& project, LightComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
@@ -96,7 +104,7 @@ struct ModelComponent : public Ref<Model>
     static size_t ID() { return static_cast<size_t>( ComponentID::Model ); }
 	static string_view Name() { return "Model"sv; }
 
-	static void OnComponentDraw( const Project& project, ModelComponent& component );
+	static void OnComponentDraw( const Project& project, const Entity& entity, ModelComponent& component );
 	static void ToJson( json& json, const Project& project, const ModelComponent& component );
 	static void FromJson( const json& json, Project& project, ModelComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
@@ -110,7 +118,7 @@ struct ShaderComponent : public Ref<Shader>
     static size_t ID() { return static_cast<size_t>( ComponentID::Shader ); }
 	static string_view Name() { return "Shader"sv; }
 
-    static void OnComponentDraw( const Project& project, ShaderComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, ShaderComponent& component );
 	static void ToJson( json& json, const Project& project, const ShaderComponent& component );
 	static void FromJson( const json& json, Project& project, ShaderComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
@@ -122,7 +130,7 @@ struct ScriptComponent
     static size_t ID() { return static_cast<size_t>( ComponentID::Script ); }
 	static string_view Name() { return "Script"sv; }
 
-    static void OnComponentDraw( const Project& project, ScriptComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& component );
 	static void ToJson( json& json, const Project& project, const ScriptComponent& component );
 	static void FromJson( const json& json, Project& project, ScriptComponent& component );
     static void CreateLuaBinding( sol::state& lua );
@@ -142,7 +150,7 @@ struct PhysicsComponent
     static size_t ID() { return static_cast<size_t>( ComponentID::Physics ); }
     static string_view Name() { return "Physics"sv; }
 
-    static void OnComponentDraw( const Project& project, PhysicsComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component );
 	static void ToJson( json& json, const Project& project, const PhysicsComponent& component );
 	static void FromJson( const json& json, Project& project, PhysicsComponent& component );
     static void CreateLuaBinding( sol::state& lua );

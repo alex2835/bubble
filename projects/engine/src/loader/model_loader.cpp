@@ -139,7 +139,7 @@ Mesh ProcessMesh( const aiMesh* mesh,
                   const aiScene* scene,
                   const path& modelPath )
 {
-    VertexData vertices;
+    VertexBufferData vertices;
 
     vertices.mPositions.resize( mesh->mNumVertices );
     vertices.mNormals.resize( mesh->mNumVertices );
@@ -216,7 +216,7 @@ Ref<Model> LoadModel( const ModelData& modelData )
     model->mPath = modelData.mPath;
     model->mMeshes.reserve( scene->mNumMeshes );
     model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, modelData.mPath );
-    //model->CreateBoundingBox();
+    model->mBBox = Model::CreateBoundingBox( *model );
     return model;
 }
 

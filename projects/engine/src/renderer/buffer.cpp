@@ -165,55 +165,96 @@ u32 Std140DataTypeAligment( GLSLDataType type )
 }
 
 
+auto VerteBufferDataLayout( const VertexBufferData& vbd )
+{
+    return VertexBufferLayout
+    {
+        { "Position",  GLSLDataType::Float3, vbd.mPositions.size()  },
+        { "Normal",    GLSLDataType::Float3, vbd.mNormals.size()    },
+        { "TexCoords", GLSLDataType::Float2, vbd.mTexCoords.size()  },
+        { "Tangent",   GLSLDataType::Float3, vbd.mTangents.size()   },
+        { "Bitangent", GLSLDataType::Float3, vbd.mBitangents.size() }
+    };
+}
+
+vector<u8> VertexBufferDataFlat( const VertexBufferData& vbd )
+{
+    u64 size = sizeof( vec3 ) * vbd.mPositions.size() +
+        sizeof( vec3 ) * vbd.mNormals.size() +
+        sizeof( vec2 ) * vbd.mTexCoords.size() +
+        sizeof( vec3 ) * vbd.mTangents.size() +
+        sizeof( vec3 ) * vbd.mBitangents.size();
+
+    vector<u8> data( size );
+    u64 offset = 0;
+    memmove( data.data(), vbd.mPositions.data(), sizeof( vec3 ) * vbd.mPositions.size() );
+    offset += sizeof( vec3 ) * vbd.mPositions.size();
+
+    memmove( data.data() + offset, vbd.mNormals.data(), sizeof( vec3 ) * vbd.mNormals.size() );
+    offset += sizeof( vec3 ) * vbd.mNormals.size();
+
+    memmove( data.data() + offset, vbd.mTexCoords.data(), sizeof( vec2 ) * vbd.mTexCoords.size() );
+    offset += sizeof( vec2 ) * vbd.mTexCoords.size();
+
+    memmove( data.data() + offset, vbd.mTangents.data(), sizeof( vec3 ) * vbd.mTangents.size() );
+    offset += sizeof( vec3 ) * vbd.mTangents.size();
+
+    memmove( data.data() + offset, vbd.mBitangents.data(), sizeof( vec3 ) * vbd.mBitangents.size() );
+
+    return data;
+}
+
+
+
 // Buffer layout
-BufferLayout::BufferLayout( const std::initializer_list<BufferElement>& elements )
+VertexBufferLayout::VertexBufferLayout( const std::initializer_list<BufferElement>& elements )
     : mElements( elements )
 {
     CalculateOffsetsAndStride();
 }
 
-BufferLayout::~BufferLayout()
+VertexBufferLayout::~VertexBufferLayout()
 {
 }
 
-void BufferLayout::SetStride( u64 stride )
+void VertexBufferLayout::SetStride( u64 stride )
 {
     mStride = stride;
 }
 
-u64 BufferLayout::Stride() const
+u64 VertexBufferLayout::Stride() const
 {
     return mStride;
 }
 
-u64 BufferLayout::Size() const
+u64 VertexBufferLayout::Size() const
 {
     return mElements.size();
 }
 
-const vector<BufferElement>& BufferLayout::Elements() const
+const vector<BufferElement>& VertexBufferLayout::Elements() const
 {
     return mElements;
 }
 
-vector<BufferElement>::iterator BufferLayout::begin()
+vector<BufferElement>::iterator VertexBufferLayout::begin()
 {
     return mElements.begin();
 }
-vector<BufferElement>::iterator BufferLayout::end()
+vector<BufferElement>::iterator VertexBufferLayout::end()
 {
     return mElements.end();
 }
-vector<BufferElement>::const_iterator BufferLayout::begin() const
+vector<BufferElement>::const_iterator VertexBufferLayout::begin() const
 {
     return mElements.begin();
 }
-vector<BufferElement>::const_iterator BufferLayout::end() const
+vector<BufferElement>::const_iterator VertexBufferLayout::end() const
 {
     return mElements.end();
 }
 
-void BufferLayout::CalculateOffsetsAndStride()
+void VertexBufferLayout::CalculateOffsetsAndStride()
 {
     u64 offset = 0;
     for ( auto& element : mElements )
@@ -232,27 +273,25 @@ void BufferLayout::CalculateOffsetsAndStride()
 
 
 // Vertex buffer 
-VertexBuffer::VertexBuffer( const BufferLayout& layout, u64 size )
+VertexBuffer::VertexBuffer( const VertexBufferLayout& layout, u64 size )
     : mLayout( layout ), 
-      mSize( size )
+      mSize( size ),
+      mType( BufferType::Dynamic )
 {
     glcall( glGenBuffers( 1, &mRendererID ) );
     glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
     glcall( glBufferData( GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW ) );
 }
 
-VertexBuffer::VertexBuffer( const BufferLayout& layout, void* vertices, u64 size )
-    : mLayout( layout ),
-      mSize( size )
-{
-    glcall( glGenBuffers( 1, &mRendererID ) );
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW ) );
-}
-
 VertexBuffer::VertexBuffer( VertexBuffer&& other ) noexcept
 {
     Swap( other );
+}
+
+VertexBuffer::VertexBuffer( const VertexBufferData& vbd, BufferType type )
+{
+    glcall( glGenBuffers( 1, &mRendererID ) );
+    Reallocate( vbd, type );
 }
 
 VertexBuffer& VertexBuffer::operator=( VertexBuffer&& other ) noexcept
@@ -272,6 +311,7 @@ void VertexBuffer::Swap( VertexBuffer& other ) noexcept
     std::swap( mRendererID, other.mRendererID );
     std::swap( mSize, other.mSize );
     std::swap( mLayout, other.mLayout );
+    std::swap( mType, other.mType );
 }
 
 void VertexBuffer::Bind() const
@@ -284,20 +324,28 @@ void VertexBuffer::Unbind() const
     glcall( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
 }
 
-void VertexBuffer::SetData( const void* data, u32 size )
+void VertexBuffer::SetData( const vector<u8>& data )
 {
+    BUBBLE_ASSERT( mType == BufferType::Dynamic, "Set vertex buffer data works only with Dynamic buffers" );
+    BUBBLE_ASSERT( data.size() == mSize, "Set data of different size is forbidden" );
+
     glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferSubData( GL_ARRAY_BUFFER, 0, size, data ) );
+    glcall( glBufferSubData( GL_ARRAY_BUFFER, 0, data.size(), data.data() ) );
 }
 
-const BufferLayout& VertexBuffer::Layout() const
+void VertexBuffer::Reallocate( const VertexBufferData& vbd, BufferType type )
+{
+    mLayout = VerteBufferDataLayout( vbd );
+    auto data = VertexBufferDataFlat( vbd );
+    mSize = data.size();
+    mType = type;
+    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
+    glcall( glBufferData( GL_ARRAY_BUFFER, data.size(), data.data(), (GLenum)type ) );
+}
+
+const VertexBufferLayout& VertexBuffer::Layout() const
 {
     return mLayout;
-}
-
-void VertexBuffer::SetLayout( const BufferLayout& layout )
-{
-    mLayout = layout;
 }
 
 u64 VertexBuffer::Size()
@@ -307,12 +355,12 @@ u64 VertexBuffer::Size()
 
 
 // Index buffer
-IndexBuffer::IndexBuffer( u32* indices, u64 count )
-    : mCount( count )
+IndexBuffer::IndexBuffer( const vector<u32>& indices, BufferType type )
+    : mCount( indices.size() ),
+      mType( type )
 {
     glcall( glGenBuffers( 1, &mRendererID ) );
-    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ELEMENT_ARRAY_BUFFER, count * sizeof( u32 ), indices, GL_STATIC_DRAW ) );
+    Realocate( indices, mType );
 }
 
 IndexBuffer::IndexBuffer( IndexBuffer&& other ) noexcept
@@ -336,6 +384,22 @@ void IndexBuffer::Swap( IndexBuffer& other ) noexcept
 {
     std::swap( mRendererID, other.mRendererID );
     std::swap( mCount, other.mCount );
+}
+
+void IndexBuffer::SetData( const vector<u32>& indices )
+{
+    BUBBLE_ASSERT( mType == BufferType::Dynamic, "Set vertex buffer data works only with Dynamic buffers" );
+    BUBBLE_ASSERT( indices.size() == mCount, "Set data of different size is forbidden" );
+
+    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
+    glcall( glBufferSubData( GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof( u32 ), indices.data() ) );
+}
+
+void IndexBuffer::Realocate( const vector<u32>& indices, BufferType type )
+{
+    mType = type;
+    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
+    glcall( glBufferData( GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof( u32 ), indices.data(), (GLenum)type ) );
 }
 
 void IndexBuffer::Bind() const
@@ -382,7 +446,7 @@ void VertexArray::Swap( VertexArray& other ) noexcept
 {
     std::swap( mRendererID, other.mRendererID );
     std::swap( mVertexBufferIndex, other.mVertexBufferIndex );
-    std::swap( mVertexBuffers, other.mVertexBuffers );
+    std::swap( mVertexBuffer, other.mVertexBuffer );
     std::swap( mIndexBuffer, other.mIndexBuffer );
 }
 
@@ -396,61 +460,13 @@ void VertexArray::Unbind() const
     glcall( glBindVertexArray( 0 ) );
 }
 
-void VertexArray::AddVertexBuffer( VertexBuffer&& vertexBuffer )
+void VertexArray::SetVertexBuffer( VertexBuffer&& vertexBuffer )
 {
-    BUBBLE_ASSERT( vertexBuffer.Layout().Size(), "VertexBuffer has no layout!" );
-
     Bind();
+    BUBBLE_ASSERT( vertexBuffer.Layout().Size(), "VertexBuffer has no layout!" );
     vertexBuffer.Bind();
-
-    const auto& layout = vertexBuffer.Layout();
-    for ( const auto& element : layout )
-    {
-        switch ( element.mType )
-        {
-        case GLSLDataType::Float:
-        case GLSLDataType::Float2:
-        case GLSLDataType::Float3:
-        case GLSLDataType::Float4:
-        case GLSLDataType::Int:
-        case GLSLDataType::Int2:
-        case GLSLDataType::Int3:
-        case GLSLDataType::Int4:
-        case GLSLDataType::Bool:
-        {
-            glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
-            glcall( glVertexAttribPointer( mVertexBufferIndex,
-                    GLSLDataComponentCount( element.mType ),
-                    GLSLDataTypeToOpenGLBasemType( element.mType ),
-                    element.mNormalized ? GL_TRUE : GL_FALSE,
-                    i32( layout.Stride() ? layout.Stride() : element.mSize ),
-                    (const void*)element.mOffset ) );
-            VertexBufferIndex( mVertexBufferIndex + 1 );
-        }break;
-        case GLSLDataType::Mat3:
-        case GLSLDataType::Mat4:
-        {
-            u32 count = GLSLDataComponentCount( element.mType );
-            for ( u32 i = 0; i < count; i++ )
-            {
-                glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
-                glcall( glVertexAttribPointer( mVertexBufferIndex,
-                        count,
-                        GLSLDataTypeToOpenGLBasemType( element.mType ),
-                        element.mNormalized ? GL_TRUE : GL_FALSE,
-                        i32( layout.Stride() ? layout.Stride() : element.mSize ),
-                        (const void*)( sizeof( f32 ) * count * i ) ) );
-                glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
-                VertexBufferIndex( mVertexBufferIndex + 1 );
-            }
-        }break;
-        default:
-        {
-            BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
-        }
-        }
-    }
-    mVertexBuffers.push_back( std::move( vertexBuffer ) );
+    mVertexBuffer = std::move( vertexBuffer );
+    UpdateVerteBufferLayout();
     Unbind();
 }
 
@@ -462,14 +478,88 @@ void VertexArray::SetIndexBuffer( IndexBuffer&& indexBuffer )
     Unbind();
 }
 
+void VertexArray::SetBufferData( const VertexBufferData& vbd,
+                                 const vector<u32>& indices,
+                                 BufferType type )
+{
+    Bind();
+    auto layout = VerteBufferDataLayout( vbd );
+    if ( mVertexBuffer.Layout() == layout and
+         mIndexBuffer.GetCount() == indices.size() )
+    {
+        mVertexBuffer.SetData( VertexBufferDataFlat( vbd ) );
+        mIndexBuffer.SetData( indices );
+    }
+    else
+    {
+        mVertexBuffer.Reallocate( vbd, type );
+        mIndexBuffer.Realocate( indices, type );
+        UpdateVerteBufferLayout();
+    }
+    Unbind();
+}
+
+void VertexArray::UpdateVerteBufferLayout()
+{
+    VertexBufferIndex( 0 );
+    const auto& layout = mVertexBuffer.Layout();
+    for ( const auto& element : layout )
+    {
+        switch ( element.mType )
+        {
+            case GLSLDataType::Float:
+            case GLSLDataType::Float2:
+            case GLSLDataType::Float3:
+            case GLSLDataType::Float4:
+            case GLSLDataType::Int:
+            case GLSLDataType::Int2:
+            case GLSLDataType::Int3:
+            case GLSLDataType::Int4:
+            case GLSLDataType::Bool:
+            {
+                glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
+                glcall( glVertexAttribPointer( mVertexBufferIndex,
+                                               GLSLDataComponentCount( element.mType ),
+                                               GLSLDataTypeToOpenGLBasemType( element.mType ),
+                                               element.mNormalized ? GL_TRUE : GL_FALSE,
+                                               i32( layout.Stride() ? layout.Stride() : element.mSize ),
+                                               (const void*)element.mOffset ) );
+                VertexBufferIndex( mVertexBufferIndex + 1 );
+            }break;
+            case GLSLDataType::Mat3:
+            case GLSLDataType::Mat4:
+            {
+                u32 count = GLSLDataComponentCount( element.mType );
+                for ( u32 i = 0; i < count; i++ )
+                {
+                    glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
+                    glcall( glVertexAttribPointer( mVertexBufferIndex,
+                                                   count,
+                                                   GLSLDataTypeToOpenGLBasemType( element.mType ),
+                                                   element.mNormalized ? GL_TRUE : GL_FALSE,
+                                                   i32( layout.Stride() ? layout.Stride() : element.mSize ),
+                                                   (const void*)( sizeof( f32 ) * count * i ) ) );
+                    glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
+                    VertexBufferIndex( mVertexBufferIndex + 1 );
+                }
+            }break;
+            default:
+            {
+                BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
+            }
+        }
+    }
+}
+
+
 u32 VertexArray::RendererID() const
 {
     return mRendererID;
 }
 
-vector<VertexBuffer>& VertexArray::GetVertexBuffers()
+VertexBuffer& VertexArray::GetVertexBuffer()
 {
-    return mVertexBuffers;
+    return mVertexBuffer;
 }
 
 IndexBuffer& VertexArray::GetIndexBuffer()
@@ -486,7 +576,7 @@ void VertexArray::VertexBufferIndex( u32 val )
 // UniformBuffer 
 UniformBuffer::UniformBuffer( i32 index, 
                               string name,
-                              const BufferLayout& layout,
+                              const VertexBufferLayout& layout,
                               u32 size )
     : mName( std::move( name ) ),
       mLayout( layout ),
@@ -589,7 +679,7 @@ void UniformBuffer::CalculateOffsetsAndStride()
     mLayout.SetStride( offset );
 }
 
-const BufferLayout& UniformBuffer::Layout() const
+const VertexBufferLayout& UniformBuffer::Layout() const
 {
     return mLayout;
 };

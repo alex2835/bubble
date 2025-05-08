@@ -13,7 +13,7 @@ namespace bubble
 constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
 
 // TagComponent
-void TagComponent::OnComponentDraw( const Project& project, TagComponent& tagComponent )
+void TagComponent::OnComponentDraw( const Project& project, const Entity& entity, TagComponent& tagComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
     ImGui::InputText( tagComponent.mName );
@@ -46,7 +46,7 @@ TagComponent::TagComponent( string name )
 }
 
 // TransformComponent
-void TransformComponent::OnComponentDraw( const Project& project, TransformComponent& transformComponent )
+void TransformComponent::OnComponentDraw( const Project& project, const Entity& entity, TransformComponent& transformComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
     ImGui::DragFloat3( "Scale", (float*)&transformComponent.mScale, 0.01f, 0.01f );
@@ -65,10 +65,27 @@ mat4 TransformComponent::TransformMat()
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
-    transform = glm::rotate( transform, glm::radians( mRotation.x ), vec3( 1, 0, 0 ) );
-    transform = glm::rotate( transform, glm::radians( mRotation.y ), vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, glm::radians( mRotation.z ), vec3( 0, 0, 1 ) );
+    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
+    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
     transform = glm::scale( transform, mScale );
+    return transform;
+}
+
+mat4 TransformComponent::TranslationMat()
+{
+    auto transform = mat4( 1.0f );
+    transform = glm::translate( transform, mPosition );
+    return transform;
+}
+
+mat4 TransformComponent::TranslationRotationMat()
+{
+    auto transform = mat4( 1.0f );
+    transform = glm::translate( transform, mPosition );
+    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
+    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
     return transform;
 }
 
@@ -113,7 +130,7 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // LightComponent
-void LightComponent::OnComponentDraw( const Project& project, LightComponent& lightComponent )
+void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );
 }
@@ -136,7 +153,7 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // ModelComponent
-void ModelComponent::OnComponentDraw( const Project& project, ModelComponent& modelComponent )
+void ModelComponent::OnComponentDraw( const Project& project, const Entity& entity, ModelComponent& modelComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
@@ -161,13 +178,13 @@ void ModelComponent::ToJson( json& json, const Project& project, const ModelComp
         return;
     }
     auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( modelComponent->mPath );
-    json = relPath;
+    json["Path"] = relPath;
 }
 
 void ModelComponent::FromJson( const json& json, Project& project, ModelComponent& modelComponent )
 {
     if ( not json.is_null() )
-        modelComponent = project.mLoader.LoadModel( json );
+        modelComponent = project.mLoader.LoadModel( json["Path"] );
 }
 
 void ModelComponent::CreateLuaBinding( sol::state& lua )
@@ -180,7 +197,7 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // ShaderComponent
-void ShaderComponent::OnComponentDraw( const Project& project, ShaderComponent& shaderComponent )
+void ShaderComponent::OnComponentDraw( const Project& project, const Entity& entity, ShaderComponent& shaderComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ShaderComponent" );
 
@@ -206,13 +223,13 @@ void ShaderComponent::ToJson( json& json, const Project& project, const ShaderCo
     }
 
     auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent->mPath );
-    json = relPath;
+    json["Path"] = relPath;
 }
 
 void ShaderComponent::FromJson( const json& json, Project& project, ShaderComponent& shaderComponent )
 {
     if ( not json.is_null() )
-        shaderComponent = project.mLoader.LoadShader( json );
+        shaderComponent = project.mLoader.LoadShader( json["Path"] );
 }
 
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
@@ -225,7 +242,7 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
 }
 
 // ScriptComponent
-void ScriptComponent::OnComponentDraw( const Project& project, ScriptComponent& scriptComponent )
+void ScriptComponent::OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& scriptComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
 
@@ -274,7 +291,7 @@ ScriptComponent::ScriptComponent( const Ref<Script>& scirpt )
 }
 
 PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 1, 1 ) )
+    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 0, 1 ) )
 {
 
 }
@@ -286,7 +303,7 @@ ScriptComponent::~ScriptComponent()
 
 
 
-void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent& component )
+void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "Physics component" );
 
@@ -329,6 +346,19 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
             needRecreation |= ImGui::DragFloat( "Radius", &radius );
             if ( needRecreation )
                 component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
+
+            //if ( modelBBox )
+            //{
+            //    if ( ImGui::Button( "Create by model", ImVec2( 100, 60 ) ) )
+            //    {
+            //        float modelRadius = glm::length( modelBBox->getDiagonal() ) / 2;
+            //        physicsComp.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, modelRadius );
+            //    }
+            //}
+
+            //vec3 he = ( modelBBox->getMax() + modelBBox->getMin() ) * 0.5f;
+            //physicsComp.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, he );
+
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
@@ -336,16 +366,14 @@ void PhysicsComponent::OnComponentDraw( const Project& project, PhysicsComponent
             auto boxShape = static_cast<btBoxShape*>( shape );
 
             float mass = body->getMass();
-            btVector3 halfExtends = boxShape->getHalfExtentsWithMargin();
-            float halfExtendsArray[3] = { halfExtends.x(), halfExtends.y(), halfExtends.z() };
+            btVector3 he = boxShape->getHalfExtentsWithMargin();
+            auto halfExtends = vec3( he.x(), he.y(), he.z() );
 
             bool needRecreation = false;
             needRecreation |= ImGui::DragFloat( "Mass", &mass );
-            needRecreation |= ImGui::DragFloat3( "Half Extends", halfExtendsArray );
+            needRecreation |= ImGui::DragFloat3( "Half Extends", &halfExtends.x );
             if ( needRecreation )
-                component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, vec3( halfExtendsArray[0], 
-                                                                                         halfExtendsArray[1], 
-                                                                                         halfExtendsArray[2] ) );
+                component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, halfExtends );
         } break;
     }
 }

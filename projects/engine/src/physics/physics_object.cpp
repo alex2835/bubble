@@ -1,6 +1,7 @@
 
 #include "engine/physics/physics_object.hpp"
 #include <stdexcept>
+#include <iostream>
 
 namespace bubble
 {
@@ -31,7 +32,7 @@ void PhysicsObject::SetTransform( const vec3& pos, const vec3& rot )
     transform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
 
     btQuaternion q;
-    q.setEuler( rot.z, rot.y, rot.x );
+    q.setEulerZYX( rot.z, rot.y, rot.x );
     transform.setRotation( q );
 
     mBody->setWorldTransform( transform );
@@ -40,14 +41,15 @@ void PhysicsObject::SetTransform( const vec3& pos, const vec3& rot )
 
 void PhysicsObject::GetTransform( vec3& pos, vec3& rot ) const
 {
-    btTransform trans;
-    mBody->getMotionState()->getWorldTransform( trans );
-    pos = vec3( trans.getOrigin().getX(), trans.getOrigin().getY(), trans.getOrigin().getZ() );
+    btTransform transform;
+    mBody->getMotionState()->getWorldTransform( transform );
+    pos = vec3( transform.getOrigin().getX(), 
+                transform.getOrigin().getY(),
+                transform.getOrigin().getZ() );
 
-    vec3 rads;
-    trans.getRotation().getEulerZYX( rads.z, rads.y, rads.x );
-    rot = vec3( glm::degrees( rads.x ), glm::degrees( rads.y ), glm::degrees( rads.z ) );
-
+    btVector3 rads;
+    transform.getRotation().getEulerZYX( rads[0], rads[1], rads[2] );
+    rot = vec3( rads.z(), rads.y(), rads.x() );
 }
 
 void PhysicsObject::ClearForces()

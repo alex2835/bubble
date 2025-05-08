@@ -4,15 +4,14 @@
 
 namespace bubble
 {
-UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editorState )
-    : mWindow( editorState.mWindow ),
-      mSceneViewport( editorState.mSceneViewport ),
-      mObjectIdViewport( editorState.mObjectIdViewport ),
-      mSceneCamera( editorState.mSceneCamera ),
-      //mEngine( editorState.mEngine ),
-      mSelectedEntity( editorState.mSelectedEntity ),
-      mProject( editorState.mProject ),
-      mUINeedUpdateProjectWindow( editorState.mUINeedUpdateProjectWindow )
+UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
+    : mWindow( editor.mWindow ),
+      mSceneViewport( editor.mSceneViewport ),
+      mObjectIdViewport( editor.mObjectIdViewport ),
+      mSceneCamera( editor.mSceneCamera ),
+      mSelectedEntity( editor.mSelectedEntity ),
+      mProject( editor.mProject ),
+      mUIGlobals( editor.mUIGlobals )
 {}
 
 }

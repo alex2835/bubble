@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/types/pointer.hpp"
 #include "engine/types/glm.hpp"
+#include "engine/types/number.hpp"
 #include "btBulletDynamicsCommon.h"
 
 namespace bubble

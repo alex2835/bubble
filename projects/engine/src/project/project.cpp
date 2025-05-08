@@ -24,6 +24,11 @@ Project::Project( WindowInput& input )
     mScriptingEngine.BindScene( mScene );
 }
 
+Project::~Project()
+{
+    mPhysicsEngine.ClearWorld();
+}
+
 void Project::Create( const path& rootDir, const string& projectName )
 {
     auto projectDir = rootDir / projectName;

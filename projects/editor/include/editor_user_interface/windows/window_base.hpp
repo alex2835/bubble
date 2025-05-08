@@ -1,17 +1,18 @@
 #pragma once
 #include "engine/engine.hpp"
+#include "engine/scene/scene.hpp"
 #include "utils/scene_camera.hpp"
-
 
 namespace bubble
 {
 class Window;
 class BubbleEditor;
+struct UIGlobals;
 
 class UserInterfaceWindowBase
 {
 public:
-    UserInterfaceWindowBase( BubbleEditor& editorState );
+    UserInterfaceWindowBase( BubbleEditor& editor );
 
 protected:
     bool mOpen = true;
@@ -21,12 +22,11 @@ protected:
     Framebuffer& mObjectIdViewport;
     SceneCamera& mSceneCamera;
     Entity& mSelectedEntity;
-    // Engine
-    //Engine& mEngine;
-    // Project
+    
     Project& mProject;
+
     // UI global state
-    bool& mUINeedUpdateProjectWindow;
+    UIGlobals& mUIGlobals;
 };
 
 }

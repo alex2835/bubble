@@ -19,7 +19,7 @@ mat4 Camera::GetLookatMat() const
 mat4 Camera::GetPprojectionMat( i32 window_width, i32 window_height ) const
 {
     f32 aspect = (f32)window_width / window_height;
-    return perspective<f32>( mFov, aspect, mNear, mFar );
+    return glm::perspective<f32>( mFov, aspect, mNear, mFar );
 }
 
 

@@ -15,6 +15,7 @@ class Project
     void LoadScene( const json& j );
 public:
     Project( WindowInput& input );
+    ~Project();
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& filePath );
     void Save();

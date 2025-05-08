@@ -57,7 +57,7 @@ void Menubar::ModalCreateProject()
             ImGui::CloseCurrentPopup();
             mCreateProjectModal = false;
 
-            mUINeedUpdateProjectWindow = true;
+            mUIGlobals.mNeedUpdateProjectWindow = true;
         }
         ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
 
@@ -101,7 +101,7 @@ void Menubar::ModalOpenProject()
             mOpenProjectModal = false;
             mProject.Open( projectPath );
 
-            mUINeedUpdateProjectWindow = true;
+            mUIGlobals.mNeedUpdateProjectWindow = true;
         }
         catch ( const std::exception& e )
         {

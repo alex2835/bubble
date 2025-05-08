@@ -6,7 +6,7 @@
 
 namespace bubble
 {
-class BufferLayout;
+class VertexBufferLayout;
 class VertexBuffer;
 struct UniformArrayElement;
 class UniformArray;
@@ -32,6 +32,12 @@ u32 Std140DataTypeAligment( GLSLDataType type );
 i32 GLSLDataTypeToOpenGLBasemType( GLSLDataType mType );
 
 
+enum class BufferType
+{
+    Static = 0x88E4,
+    Dynamic = 0x88E8
+};
+
 struct BufferElement
 {
     std::string_view mName;
@@ -40,21 +46,23 @@ struct BufferElement
     bool mNormalized = false;
     u64 mSize = 0;
     u64 mOffset = 0;
+
+    bool operator ==( const BufferElement&) const = default;
 };
 
-
-class BufferLayout
+class VertexBufferLayout
 {
 public:
-    BufferLayout() = default;
-    BufferLayout( const std::initializer_list<BufferElement>& elements );
-    ~BufferLayout();
+    VertexBufferLayout() = default;
+    VertexBufferLayout( const std::initializer_list<BufferElement>& elements );
+    ~VertexBufferLayout();
 
     void SetStride( u64 stride );
     u64 Stride() const;
     u64 Size() const;
     const vector<BufferElement>& Elements() const;
 
+    bool operator == ( const VertexBufferLayout& ) const = default;
     vector<BufferElement>::iterator begin();
     vector<BufferElement>::iterator end();
     vector<BufferElement>::const_iterator begin() const;
@@ -66,12 +74,32 @@ private:
     u64 mStride = 0;
 };
 
+struct VertexBufferData
+{
+    vector<vec3> mPositions;
+    vector<vec3> mNormals;
+    vector<vec2> mTexCoords;
+    vector<vec3> mTangents;
+    vector<vec3> mBitangents;
+
+    void Clear()
+    {
+        mPositions.clear();
+        mNormals.clear();
+        mTexCoords.clear();
+        mTangents.clear();
+        mBitangents.clear();
+    }
+};
 
 class VertexBuffer
 {
 public:
-    VertexBuffer( const BufferLayout& layout, u64 size );
-    VertexBuffer( const BufferLayout& layout, void* vertices, u64 size );
+    VertexBuffer() = default;
+
+    VertexBuffer( const VertexBufferLayout& layout, u64 size );
+    VertexBuffer( const VertexBufferData& vbd, BufferType type = BufferType::Static );
+
     VertexBuffer( const VertexBuffer& ) = delete;
     VertexBuffer& operator=( const VertexBuffer& ) = delete;
     VertexBuffer( VertexBuffer&& ) noexcept;
@@ -82,15 +110,16 @@ public:
 
     void Bind() const;
     void Unbind() const;
-    void SetData( const void* data, u32 size );
-    void SetLayout( const BufferLayout& layout );
-    const BufferLayout& Layout() const;
+    void SetData( const vector<u8>& data );
+    void Reallocate( const VertexBufferData& vbd, BufferType type );
+    const VertexBufferLayout& Layout() const;
     u64 Size();
 
 //private:
     u32 mRendererID = 0;
-    BufferLayout mLayout;
+    VertexBufferLayout mLayout;
     u64 mSize = 0;
+    BufferType mType = BufferType::Static;
 };
 
 
@@ -98,7 +127,7 @@ class IndexBuffer
 {
 public:
     IndexBuffer() = default;
-    IndexBuffer( u32* indices, u64 count );
+    IndexBuffer( const vector<u32>& indices, BufferType type = BufferType::Static );
     IndexBuffer( const IndexBuffer& ) = delete;
     IndexBuffer& operator=( const IndexBuffer& ) = delete;
     IndexBuffer( IndexBuffer&& ) noexcept;
@@ -106,6 +135,8 @@ public:
     ~IndexBuffer();
 
     void Swap( IndexBuffer& other ) noexcept;
+    void SetData( const vector<u32>& indices );
+    void Realocate( const vector<u32>& indices, BufferType type );
 
     void Bind() const;
     void Unbind() const;
@@ -114,6 +145,7 @@ public:
 //private:
     u32 mRendererID = 0;
     u64 mCount = 0;
+    BufferType mType = BufferType::Static;
 };
 
 
@@ -132,18 +164,21 @@ public:
     void Bind() const;
     void Unbind() const;
 
-    void AddVertexBuffer( VertexBuffer&& vertexBuffer );
+    void SetVertexBuffer( VertexBuffer&& vertexBuffer );
     void SetIndexBuffer( IndexBuffer&& indexBuffer );
+    
+    void SetBufferData( const VertexBufferData& vbd, const vector<u32>& indices, BufferType type );
+    void UpdateVerteBufferLayout();
 
     u32 RendererID() const;
-    vector<VertexBuffer>& GetVertexBuffers();
+    VertexBuffer& GetVertexBuffer();
     IndexBuffer& GetIndexBuffer();
     void VertexBufferIndex( u32 val );
 
 private:
     u32 mRendererID = 0;
     u32 mVertexBufferIndex = 0;
-    vector<VertexBuffer> mVertexBuffers;
+    VertexBuffer mVertexBuffer;
     IndexBuffer mIndexBuffer;
 };
 
@@ -153,7 +188,7 @@ class UniformBuffer
 {
 public:
     // additional size necessary if buffer contain more then one array (for example nLights)
-    UniformBuffer( i32 index, string name, const BufferLayout& layout, u32 size = 1);
+    UniformBuffer( i32 index, string name, const VertexBufferLayout& layout, u32 size = 1);
     UniformBuffer( const UniformBuffer& ) = delete;
     UniformBuffer& operator=( const UniformBuffer& ) = delete;
     UniformBuffer( UniformBuffer&& ) noexcept;
@@ -172,7 +207,7 @@ public:
     UniformArrayElement operator[] ( u64 index );
     UniformArrayElement Element ( u64 index );
 
-    const BufferLayout& Layout() const;
+    const VertexBufferLayout& Layout() const;
     // Return size in bytes
     u64 BufferSize();
     // Return size of elements
@@ -184,7 +219,7 @@ private:
 
     u32 mRendererID = 0;
     string mName;
-    BufferLayout mLayout;
+    VertexBufferLayout mLayout;
     u64 mBufferSize = 0;
     u64 mSize = 0; // elements in array
     u64 mIndex = 0;
@@ -198,7 +233,7 @@ struct UniformArrayElement
 {
     u32 mRendererID = 0;
     u64 mArrayIndex = 0;
-    const BufferLayout& mLayout;
+    const VertexBufferLayout& mLayout;
 
     UniformArrayElement( const UniformBuffer& uniform_buffer, u64 index );
 

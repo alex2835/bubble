@@ -7,6 +7,14 @@
 
 namespace bubble
 {
+enum class DrawingPrimitive
+{
+    Triangles = 0x0004,
+    Lines = 0x0001,
+    Points = 0x0000
+};
+
+
 
 class Renderer
 {
@@ -15,8 +23,20 @@ public:
     void ClearScreen( vec4 color );
     void ClearScreenUint( uvec4 color );
     void SetUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
-    void DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, const mat4& transform );
-    void DrawModel( const Ref<Model>& model, const mat4& transform, const Ref<Shader>& shader = {} );
+
+    void DrawMesh( const Mesh& mesh, 
+                   const Ref<Shader>& shader, 
+                   DrawingPrimitive drawingPrimitive );
+
+    void DrawMesh( const Mesh& mesh, 
+                   const Ref<Shader>& shader, 
+                   const mat4& transform, 
+                   DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
+
+    void DrawModel( const Ref<Model>& model, 
+                    const mat4& transform, 
+                    const Ref<Shader>& shader, 
+                    DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
 
 //private:
     Ref<UniformBuffer> mVertexUniformBuffer;

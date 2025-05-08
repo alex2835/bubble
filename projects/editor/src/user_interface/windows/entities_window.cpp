@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include "editor_user_interface/windows/entities_window.hpp"
 #include "editor_application/editor_application.hpp"
+#include "engine/scene/component_manager.hpp"
 
 namespace bubble
 {
@@ -70,7 +71,7 @@ void EntitiesWindow::DrawEntities()
     ImGui::EndChild();
 }
 
-void EntitiesWindow::DrawSelectedEntityProperties()
+void EntitiesWindow::DrawSelectedEntityComponents()
 {
     if ( mSelectedEntity == INVALID_ENTITY )
         return;
@@ -125,10 +126,11 @@ void EntitiesWindow::DrawSelectedEntityProperties()
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
-                onDrawFunc( mProject, componentRaw );
+                onDrawFunc( mProject, mSelectedEntity, componentRaw );
             else
                 ImGui::Text( std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();
+            ImGui::Dummy( ImVec2( 0, 10 ) );
         } );
     }
     ImGui::EndChild();
@@ -142,7 +144,7 @@ void EntitiesWindow::OnDraw( DeltaTime )
         ImGui::Separator();
         ImGui::Text( "Entity components" );
         ImGui::Separator();
-        DrawSelectedEntityProperties();
+        DrawSelectedEntityComponents();
     }
     ImGui::End();
 }

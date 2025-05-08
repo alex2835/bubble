@@ -25,4 +25,13 @@ void to_json( json& j, const mat3& m );
 void from_json( const json& j, mat3& m );
 void to_json( json& j, const mat4& m );
 void from_json( const json& j, mat4& m );
+
+}
+
+namespace CPM_GLM_AABB_NS
+{
+using namespace bubble;
+
+void to_json( json& j, const AABB& bbox );
+void from_json( const json& j, AABB& bbox );
 }

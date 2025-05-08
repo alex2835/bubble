@@ -40,7 +40,8 @@ string_view GLErrorString( i32 errorCode )
 
 void GLClearError()
 {
-    while ( glGetError() != GL_NO_ERROR );
+    int i = 0;
+    while ( glGetError() != GL_NO_ERROR and i++ < 100 );
 }
 
 

@@ -10,21 +10,22 @@ namespace bubble
 {
 template <typename Component>
 concept ComponentConcept = requires( Component component,
-                                     Component & componentRef,
-                                     const Component & componentCRef,
+                                     Component& componentRef,
+                                     const Component& componentCRef,
+                                     const Entity& entity,
                                      sol::state& lua,
                                      Project& project,
                                      json& json )
 {
     { Component::ID() } -> std::same_as<size_t>;
     { Component::Name() } -> std::same_as<string_view>;
-    { Component::OnComponentDraw( project, componentRef ) } -> std::same_as<void>;
+    { Component::OnComponentDraw( project, entity, componentRef ) } -> std::same_as<void>;
     { Component::ToJson( json, project, componentCRef ) } -> std::same_as<void>;
     { Component::FromJson( json, project, componentRef ) } -> std::same_as<void>;
     { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
 };
 
-typedef void ( *OnComponentDrawFunc )( Project& project, void* rawData );
+typedef void ( *OnComponentDrawFunc )( Project& project, const Entity& entity, void* rawData );
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
 typedef void ( *ComponentFromJson )( const json& json, Project& project, void* rawData );
 typedef void ( *ComponentCreateLuaBinding )( sol::state& lua );
@@ -52,8 +53,8 @@ public:
         {
             AddName( Component::ID(), Component::Name() );
 
-            AddOnDraw( Component::ID(), []( Project& project, void* rawData )
-            { Component::OnComponentDraw( project, *reinterpret_cast<Component*>( rawData ) ); } );
+            AddOnDraw( Component::ID(), []( Project& project, const Entity& entity, void* rawData )
+            { Component::OnComponentDraw( project, entity, *reinterpret_cast<Component*>( rawData ) ); } );
 
             AddToJson( Component::ID(), []( json& json, const Project& project, const void* rawData )
             { Component::ToJson( json, project, *reinterpret_cast<const Component*>( rawData ) ); } );

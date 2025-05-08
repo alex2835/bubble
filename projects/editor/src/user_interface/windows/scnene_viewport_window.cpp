@@ -89,8 +89,9 @@ void SceneViewportInterface::DrawGizmo()
     auto lookAt = mSceneCamera.GetLookatMat();
     auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
+    auto rotaion = glm::degrees( entityTransform.mRotation );
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
-                                             glm::value_ptr( entityTransform.mRotation ),
+                                             glm::value_ptr( rotaion ),
                                              glm::value_ptr( entityTransform.mScale ),
                                              glm::value_ptr( transformMat ) );
 
@@ -102,8 +103,10 @@ void SceneViewportInterface::DrawGizmo()
 
     ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformMat ),
                                            glm::value_ptr( entityTransform.mPosition ),
-                                           glm::value_ptr( entityTransform.mRotation ),
+                                           glm::value_ptr( rotaion ),
                                            glm::value_ptr( entityTransform.mScale ) );
+
+    entityTransform.mRotation = glm::radians( rotaion );
 }
 
 

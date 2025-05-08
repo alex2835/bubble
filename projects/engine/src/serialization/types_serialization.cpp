@@ -52,4 +52,26 @@ void from_json( const json& j, mat4& m )
             m[row][col] = j[row * m.length() + col];
 }
 
+} // namespace glm
+
+
+
+
+namespace CPM_GLM_AABB_NS
+{
+using namespace bubble;
+
+void to_json( json& j, const AABB& bbox )
+{
+    j["Min"] = bbox.getMin();
+    j["Max"] = bbox.getMax();
 }
+
+void from_json( const json& j, AABB& bbox )
+{
+    bbox = AABB( vec3( j["Min"] ), vec3( j["Max"] ) );
+}
+} // namespace CPM_GLM_AABB_NS
+
+
+
