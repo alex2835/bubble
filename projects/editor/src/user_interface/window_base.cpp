@@ -6,8 +6,9 @@ namespace bubble
 {
 UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
     : mWindow( editor.mWindow ),
+      mEditorMode( editor.mEditorMode ),
       mSceneViewport( editor.mSceneViewport ),
-      mObjectIdViewport( editor.mObjectIdViewport ),
+      mEntityIdViewport( editor.mEntityIdViewport ),
       mSceneCamera( editor.mSceneCamera ),
       mSelectedEntity( editor.mSelectedEntity ),
       mProject( editor.mProject ),

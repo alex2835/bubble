@@ -96,4 +96,27 @@ AABB CalculateTransformedBBox( const AABB& box, const mat4& transform )
     return newBox;
 }
 
+BBoxShapeData CalculateBBoxShapeData( AABB box )
+{
+    vec3 min = box.getMin();
+    vec3 max = box.getMax();
+    array<vec3, 8> vertices{ 
+        vec3( min.x, min.y, min.z ),
+        vec3( max.x, min.y, min.z ),
+        vec3( max.x, max.y, min.z ),
+        vec3( min.x, max.y, min.z ),
+        vec3( min.x, min.y, max.z ),
+        vec3( max.x, min.y, max.z ),
+        vec3( max.x, max.y, max.z ),
+        vec3( min.x, max.y, max.z )
+    };
+
+    array<u32, 24> indices = {
+        0, 1,  1, 2,  2, 3,  3, 0,// bottom lines
+        4, 5,  5, 6,  6, 7,  7, 4,// top lines
+        0, 4,  1, 5,  2, 6,  3, 7 // vertical edges lines
+    };
+    return BBoxShapeData{ vertices, indices };
+}
+
 }

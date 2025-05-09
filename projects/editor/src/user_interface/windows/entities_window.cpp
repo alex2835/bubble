@@ -25,6 +25,7 @@ void EntitiesWindow::OnUpdate( DeltaTime )
 void EntitiesWindow::DrawEntities()
 {
     ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
+    if ( mEditorMode == EditorMode::Editing )
     {
         // Create entity popup
         if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
@@ -77,6 +78,7 @@ void EntitiesWindow::DrawSelectedEntityComponents()
         return;
 
     ImGui::BeginChild( "Components" );
+    if ( mEditorMode == EditorMode::Editing )
     {
         const auto& componentIDs = mProject.mScene.AllComponentTypeIds();
         const auto& entityComponents = mProject.mScene.EntityComponentTypeIds( mSelectedEntity );

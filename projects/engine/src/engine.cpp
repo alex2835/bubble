@@ -8,7 +8,10 @@
 namespace bubble
 {
 Engine::Engine( Project& project )
-    : mProject( project )
+    : mProject( project ),
+      mWhiteShader( LoadShader( WHITE_SHADER ) ),
+      mBoudingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) }
 {}
 
 void Engine::OnStart()
@@ -59,19 +62,82 @@ void Engine::OnUpdate()
 
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
-    // Scene rendering
+    DrawScene( framebuffer, mProject.mScene );
+}
+
+void Engine::DrawScene( Framebuffer& framebuffer,
+                        Scene& scene )
+{
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
     mRenderer.SetUniformBuffers( mActiveCamera, framebuffer );
-    
-    mProject.mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-    [&]( Entity _,
-         ModelComponent& model,
-         ShaderComponent& shader,
-         TransformComponent& transform )
+
+    scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
+        [&]( Entity _,
+             ModelComponent& model,
+             ShaderComponent& shader,
+             TransformComponent& transform )
     {
         mRenderer.DrawModel( model, transform.TransformMat(), shader );
     } );
 }
+
+
+void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
+{
+    framebuffer.Bind();
+    if ( scene.Size() == 0 )
+        return;
+
+    u32 elementIndexStride = 0;
+    mBoudingBoxes.mVertices.Clear();
+    mBoudingBoxes.mIndices.clear();
+
+    scene.ForEach<ModelComponent, TransformComponent>(
+        [&]( Entity _,
+             ModelComponent& model,
+             TransformComponent& transform )
+    {
+        const mat4 trans = transform.TransformMat();
+        const AABB box = CalculateTransformedBBox( model->mBBox, trans );
+        const auto [vertices, indices] = CalculateBBoxShapeData( box );
+        for ( vec3 vertex : vertices )
+            mBoudingBoxes.mVertices.mPositions.push_back( vertex );
+        for ( u32 index : indices  )
+            mBoudingBoxes.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mBoudingBoxes.mVertices.mPositions.size();
+    } );
+    mBoudingBoxes.mMesh.UpdateDynamicVertexBufferData( mBoudingBoxes.mVertices, mBoudingBoxes.mIndices );
+    mRenderer.DrawMesh( mBoudingBoxes.mMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
+}
+
+
+void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
+{
+    framebuffer.Bind();
+    if ( scene.Size() == 0 )
+        return;
+
+    u32 elementIndexStride = 0;
+    mPhysicsObjects.mVertices.Clear();
+    mPhysicsObjects.mIndices.clear();
+
+    scene.ForEach<PhysicsComponent, TransformComponent>(
+        [&]( Entity _,
+             PhysicsComponent& physics,
+             TransformComponent& transform )
+    {
+        const mat4 trans = transform.TranslationRotationMat();
+        const auto& [vertices, indices] = physics.mPhysicsObject.mShapeData;
+        for ( auto vertex : vertices )
+            mPhysicsObjects.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
+        for ( auto index : indices )
+            mPhysicsObjects.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mPhysicsObjects.mVertices.mPositions.size();
+    } );
+    mPhysicsObjects.mMesh.UpdateDynamicVertexBufferData( mPhysicsObjects.mVertices, mPhysicsObjects.mIndices );
+    mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
+}
+
 
 }

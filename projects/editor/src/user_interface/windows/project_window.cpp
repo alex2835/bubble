@@ -180,6 +180,7 @@ void ProjectWindow::OnDraw( DeltaTime )
 {
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
+    if ( mEditorMode == EditorMode::Editing )
     {
         ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
         {

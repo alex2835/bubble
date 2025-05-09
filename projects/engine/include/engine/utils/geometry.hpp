@@ -17,6 +17,12 @@ ShapeData GenerateCubeLinesShape( vec3 he = vec3( 1.0f ) );
 
 
 // BBox
+struct BBoxShapeData
+{
+    array<vec3, 8> vertices;
+    array<u32, 24> indices;
+};
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform );
+BBoxShapeData CalculateBBoxShapeData( AABB box );
 
 }

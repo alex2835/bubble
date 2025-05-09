@@ -11,24 +11,21 @@ constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
     : mWindow( Window( "Bubble", WINDOW_SIZE ) ),
-    mEditorMode( EditorMode::Editing ),
-    mSceneCamera( SceneCamera( mWindow.GetWindowInput(), vec3( 0, 0, 100 ) ) ),
+      mEditorMode( EditorMode::Editing ),
+      mSceneCamera( SceneCamera( mWindow.GetWindowInput(), vec3( 0, 0, 100 ) ) ),
 
-    mSceneViewport( Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
-                                 Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
-    mObjectIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
-                                    Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
-    mObjectIdShader( LoadShader( OBJECT_PICKING_SHADER ) ),
+      mSceneViewport( Framebuffer( Texture2DSpecification::CreateRGBA8( VIEWPORT_SIZE ),
+                                   Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
 
-    mProject( mWindow.GetWindowInput() ),
-    mEngine( mProject ),
+      mEntityIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
+                                      Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
+      mEntityIdShader( LoadShader( ENTITY_PICKING_SHADER ) ),
 
-    mWhiteShader( LoadShader( WHITE_SHADER ) ),
-    mBBoxsMesh( Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) ),
-    mPhysicsObjectsMesh( Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) ),
-
-    mProjectResourcesHotReloader( mProject ),
-    mEditorUserInterface( *this )
+      mProject( mWindow.GetWindowInput() ),
+      mEngine( mProject ),
+      
+      mProjectResourcesHotReloader( mProject ),
+      mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
 }
@@ -54,10 +51,12 @@ void BubbleEditor::Run()
                 mSceneCamera.OnUpdate( deltaTime );
                 mProjectResourcesHotReloader.OnUpdate();
                 mEditorUserInterface.OnUpdate( deltaTime );
-                DrawProjectScene();
 
-                DrawBBoxes();
-                DrawPhysics();
+                mEngine.mActiveCamera = mSceneCamera;
+                mEngine.DrawScene( mSceneViewport, mProject.mScene );
+                mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
+                mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
+                DrawEntityIds();
                 break;
             }
             case EditorMode::Running:
@@ -125,100 +124,19 @@ void BubbleEditor::OnUpdate()
 
 }
 
-void BubbleEditor::DrawProjectScene()
+void BubbleEditor::DrawEntityIds()
 {
-    // Draw scene's objectId 
-    mObjectIdViewport.Bind();
+    // Draw scene's entity ids to buffer
+    mEntityIdViewport.Bind();
     mEngine.mRenderer.ClearScreenUint( uvec4( 0 ) );
     mProject.mScene.ForEach<ModelComponent, TransformComponent>(
         [&]( Entity entity,
              ModelComponent& model,
              TransformComponent& transform )
     {
-        mObjectIdShader->SetUni1ui( "uObjectId", (u32)entity );
-        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mObjectIdShader );
+        mEntityIdShader->SetUni1ui( "uObjectId", (u32)entity );
+        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mEntityIdShader );
     } );
-
-
-    // Draw scene
-    mSceneViewport.Bind();
-    mEngine.mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-    mEngine.mRenderer.SetUniformBuffers( mSceneCamera, mSceneViewport );
-    mProject.mScene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-        [&]( Entity _,
-             ModelComponent& model,
-             ShaderComponent& shader,
-             TransformComponent& transform )
-    {
-        // Draw model
-        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), shader );
-    } );
-}
-
-
-void BubbleEditor::DrawBBoxes()
-{
-    if ( mProject.mScene.Size() == 0 )
-        return;
-
-    mBBoxesVerts.Clear();
-    mBBoxesIndices.clear();
-
-    u32 elementIndexStride = 0;
-    mProject.mScene.ForEach<ModelComponent, TransformComponent>(
-        [&]( Entity _,
-             ModelComponent& model,
-             TransformComponent& transform )
-    {
-        const mat4 trans = transform.TransformMat();
-        AABB box = CalculateTransformedBBox( model->mBBox, trans );
-        vec3 min = box.getMin();
-        vec3 max = box.getMax();
-
-        mBBoxesVerts.mPositions.push_back( vec3( min.x, min.y, min.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( max.x, min.y, min.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( max.x, max.y, min.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( min.x, max.y, min.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( min.x, min.y, max.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( max.x, min.y, max.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( max.x, max.y, max.z ) );
-        mBBoxesVerts.mPositions.push_back( vec3( min.x, max.y, max.z ) );
-
-        array<u32, 24> indices = {
-            0, 1,  1, 2,  2, 3,  3, 0,// bottom lines
-            4, 5,  5, 6,  6, 7,  7, 4,// top lines
-            0, 4,  1, 5,  2, 6,  3, 7 // vertical edges lines
-        };
-        mBBoxesIndices.append_range( indices | std::views::transform( [&]( u32 idx ) { return idx + elementIndexStride; } ) );
-        elementIndexStride = (u32)mBBoxesVerts.mPositions.size();
-    } );
-    mBBoxsMesh.UpdateDynamicVertexBufferData( mBBoxesVerts, mBBoxesIndices );
-    mEngine.mRenderer.DrawMesh( mBBoxsMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
-}
-
-
-void BubbleEditor::DrawPhysics()
-{
-    if ( mProject.mScene.Size() == 0 )
-        return;
-
-    mPhysicsObjectsVerts.Clear();
-    mPhysicsObjectsIndices.clear();
-
-    u32 elementIndexStride = 0;
-    mProject.mScene.ForEach<PhysicsComponent, TransformComponent>(
-        [&]( Entity _,
-             PhysicsComponent& physics,
-             TransformComponent& transform )
-    {
-        const mat4 trans = transform.TranslationRotationMat();
-        const auto& [vertices, indices] = physics.mPhysicsObject.mShapeData;
-        mPhysicsObjectsVerts.mPositions.append_range( vertices | std::views::transform( [&]( vec3 vert ) { return vec3( trans * vec4( vert, 1 ) ); } ) );
-        mPhysicsObjectsIndices.append_range( indices | std::views::transform( [&]( u32 idx ) { return idx + elementIndexStride; } ) );
-        elementIndexStride = (u32)mPhysicsObjectsVerts.mPositions.size();
-    } );
-    mPhysicsObjectsMesh.UpdateDynamicVertexBufferData( mPhysicsObjectsVerts, mPhysicsObjectsIndices );
-    mEngine.mRenderer.DrawMesh( mPhysicsObjectsMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
 }
 
 }

@@ -14,7 +14,7 @@
 namespace bubble
 {
 // Object id shader to select entity from screen
-constexpr string_view OBJECT_PICKING_SHADER = "./resources/shaders/object_picking"sv;
+constexpr string_view ENTITY_PICKING_SHADER = "./resources/shaders/object_picking"sv;
 constexpr string_view WHITE_SHADER = "./resources/shaders/white"sv;
 constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
 constexpr string_view ONLY_DIFFUSE_SHADER = "./resources/shaders/only_diffuse"sv;

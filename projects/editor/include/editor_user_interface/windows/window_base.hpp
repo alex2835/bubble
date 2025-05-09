@@ -8,6 +8,7 @@ namespace bubble
 class Window;
 class BubbleEditor;
 struct UIGlobals;
+enum class EditorMode;
 
 class UserInterfaceWindowBase
 {
@@ -18,8 +19,9 @@ protected:
     bool mOpen = true;
 
     Window& mWindow;
+    EditorMode& mEditorMode;
     Framebuffer& mSceneViewport;
-    Framebuffer& mObjectIdViewport;
+    Framebuffer& mEntityIdViewport;
     SceneCamera& mSceneCamera;
     Entity& mSelectedEntity;
     

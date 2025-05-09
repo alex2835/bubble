@@ -29,7 +29,7 @@ void SceneViewportInterface::OnUpdate( DeltaTime )
 {
     if ( mNewSize != mSceneViewport.Size() )
     {
-        mObjectIdViewport.Resize( mNewSize );
+        mEntityIdViewport.Resize( mNewSize );
         mSceneViewport.Resize( mNewSize );
     }
 }
@@ -50,7 +50,7 @@ void SceneViewportInterface::ProcessScreenSelectedEntity()
     if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
     {
         auto clickPos = CaptureWidnowMousePos();
-        auto pixel = mObjectIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
+        auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
         mSelectedEntity = mProject.mScene.GetEntityById( pixel );
     }
 }
@@ -164,19 +164,22 @@ void SceneViewportInterface::OnDraw( DeltaTime )
     {
         DrawViewport();
 
-        ImGuizmo::SetDrawlist();
-        auto windowPos = ImGui::GetWindowPos();
-        ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
+        if ( mEditorMode == EditorMode::Editing )
+        {
+            ImGuizmo::SetDrawlist();
+            auto windowPos = ImGui::GetWindowPos();
+            ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
 
-        if ( mSelectedEntity and mProject.mScene.HasComponent<TransformComponent>( mSelectedEntity ) )
-            DrawGizmo();
-        
-        //bool viewManipulatorUsing = DrawViewManipulator();
+            if ( mSelectedEntity and mProject.mScene.HasComponent<TransformComponent>( mSelectedEntity ) )
+                DrawGizmo();
 
-        // Select entity on click by pixel
-        if ( not ImGuizmo::IsUsing() and 
-             ImGui::IsWindowHovered() )
-            ProcessScreenSelectedEntity();
+            //bool viewManipulatorUsing = DrawViewManipulator();
+
+            // Select entity on click by pixel
+            if ( not ImGuizmo::IsUsing() and
+                 ImGui::IsWindowHovered() )
+                ProcessScreenSelectedEntity();
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar();

@@ -8,6 +8,12 @@
 
 namespace bubble
 {
+enum class EditorMode
+{
+    Editing,
+    Running
+};
+
 // UI global state (Common variables for all interface windows)
 struct UIGlobals
 {
@@ -18,23 +24,13 @@ struct UIGlobals
 class BubbleEditor
 {
 public:
-    enum class EditorMode
-    {
-        Editing,
-        Running
-    };
-
     BubbleEditor();
     void OpenProject( const path& projectPath );
     void Run();
 
 private:
     void OnUpdate();
-    void DrawProjectScene();
-
-    void DrawBBoxes();
-    void DrawPhysics();
-
+    void DrawEntityIds();
 public:
     Timer mTimer;
     Window mWindow;
@@ -46,27 +42,15 @@ public:
     
     // Viewport
     Framebuffer mSceneViewport;
-    // Entity picking
-    Framebuffer mObjectIdViewport; // Handles object picking in viewport
-    Ref<Shader> mObjectIdShader;
+    // Entity picking (Handles object picking in viewport)
+    Framebuffer mEntityIdViewport;
+    Ref<Shader> mEntityIdShader;
 
     // Game editing
     Project mProject;
     // Game running
     Scene mSceneSave;
     Engine mEngine;
-
-
-    Ref<Shader> mWhiteShader;
-    // Draw all bouding boxes as single mesh
-    VertexBufferData mBBoxesVerts;
-    vector<u32> mBBoxesIndices;
-    Mesh mBBoxsMesh;
-
-    // Draw all physics as single mesh
-    VertexBufferData mPhysicsObjectsVerts;
-    vector<u32> mPhysicsObjectsIndices;
-    Mesh mPhysicsObjectsMesh;
 
 
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
