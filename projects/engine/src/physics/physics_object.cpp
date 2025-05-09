@@ -99,7 +99,6 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
             throw std::runtime_error( "Not supported collision shape type");
     }
 
-
     btScalar mass( other.mBody->getMass() );
 
     // Rigid body is dynamic if and only if mass is non zero, otherwise static
@@ -115,6 +114,7 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
     btDefaultMotionState* myMotionState = new btDefaultMotionState( transform );
     btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, mColisionShape.get(), localInertia );
     mBody = CreateScope<btRigidBody>( rbInfo );
+    mShapeData = other.mShapeData;
 }
 
 
@@ -122,7 +122,7 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
 PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
 {
     PhysicsObject object;
-
+    object.mShapeData = GenerateSphereLinesShape( radius );
     object.mColisionShape = CreateScope<btSphereShape>( radius );
 
     /// Create Dynamic Objects
@@ -146,9 +146,10 @@ PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
 PhysicsObject PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
 {
     PhysicsObject object;
+    object.mShapeData = GenerateCubeLinesShape( halfExtends );
     object.mColisionShape = CreateScope<btBoxShape>( btVector3( halfExtends.x,
-                                                                 halfExtends.y, 
-                                                                 halfExtends.z ) );
+                                                                halfExtends.y, 
+                                                                halfExtends.z ) );
     btTransform groundTransform;
     groundTransform.setIdentity();
     groundTransform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );

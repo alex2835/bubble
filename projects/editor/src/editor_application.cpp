@@ -30,6 +30,7 @@ BubbleEditor::BubbleEditor()
     mProjectResourcesHotReloader( mProject ),
     mEditorUserInterface( *this )
 {
+    mWindow.SetVSync( false );
 }
 
 
@@ -211,27 +212,9 @@ void BubbleEditor::DrawPhysics()
              TransformComponent& transform )
     {
         const mat4 trans = transform.TranslationRotationMat();
-
-        auto body = physics.mPhysicsObject.getBody();
-        auto shape = physics.mPhysicsObject.getShape();
-        switch ( shape->getShapeType() )
-        {
-            case SPHERE_SHAPE_PROXYTYPE:
-            {
-                auto sphereShape = static_cast<const btSphereShape*>( shape );
-                auto [vertices, indices] = GenerateSphereLinesShape( sphereShape->getRadius() );
-                mPhysicsObjectsVerts.mPositions.append_range( vertices | std::views::transform( [&]( vec3 vert ) { return vec3( trans * vec4( vert, 1 ) ); } ) );
-                mPhysicsObjectsIndices.append_range( indices | std::views::transform( [&]( u32 idx ) { return idx + elementIndexStride; } ) );
-            } break;
-            case BOX_SHAPE_PROXYTYPE:
-            {
-                auto boxShape = static_cast<const btBoxShape*>( shape );
-                auto he = boxShape->getHalfExtentsWithMargin();
-                auto [vertices, indices] = GenerateCubeLinesShape( vec3( he.x(), he.y(), he.z() ) );
-                mPhysicsObjectsVerts.mPositions.append_range( vertices | std::views::transform( [&]( vec3 vert ) { return vec3( trans * vec4( vert, 1 ) ); } ) );
-                mPhysicsObjectsIndices.append_range( indices | std::views::transform( [&]( u32 idx ) { return idx + elementIndexStride; } ) );
-            } break;
-        }
+        const auto& [vertices, indices] = physics.mPhysicsObject.mShapeData;
+        mPhysicsObjectsVerts.mPositions.append_range( vertices | std::views::transform( [&]( vec3 vert ) { return vec3( trans * vec4( vert, 1 ) ); } ) );
+        mPhysicsObjectsIndices.append_range( indices | std::views::transform( [&]( u32 idx ) { return idx + elementIndexStride; } ) );
         elementIndexStride = (u32)mPhysicsObjectsVerts.mPositions.size();
     } );
     mPhysicsObjectsMesh.UpdateDynamicVertexBufferData( mPhysicsObjectsVerts, mPhysicsObjectsIndices );

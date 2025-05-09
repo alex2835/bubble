@@ -2,6 +2,7 @@
 #include "engine/types/pointer.hpp"
 #include "engine/types/glm.hpp"
 #include "engine/types/number.hpp"
+#include "engine/utils/geometry.hpp"
 #include "btBulletDynamicsCommon.h"
 
 namespace bubble
@@ -36,6 +37,7 @@ private:
 public:
     Scope<btCollisionShape> mColisionShape;
     Scope<btRigidBody> mBody;
+    ShapeData mShapeData;
 private:
     void CopyFrom( const PhysicsObject& other );
 };
