@@ -5,12 +5,27 @@
 #include "engine/serialization/types_serialization.hpp"
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
+#include "engine/utils/geometry.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 
+constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
+
 namespace bubble
 {
-constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
+//============= Helpers =============
+
+template <typename T>
+const T* TryGetComponent( const Project& project, Entity entity )
+{
+    if ( not project.mScene.HasComponent<T>( entity ) )
+        return nullptr;
+    return &project.mScene.GetComponent<T>( entity );
+}
+
+
+
+//============= Components =============
 
 // TagComponent
 void TagComponent::OnComponentDraw( const Project& project, const Entity& entity, TagComponent& tagComponent )
@@ -61,7 +76,7 @@ TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
 {
 }
 
-mat4 TransformComponent::TransformMat()
+mat4 TransformComponent::TransformMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
@@ -72,14 +87,21 @@ mat4 TransformComponent::TransformMat()
     return transform;
 }
 
-mat4 TransformComponent::TranslationMat()
+mat4 TransformComponent::ScaleMat() const
+{
+    auto transform = mat4( 1.0f );
+    transform = glm::scale( transform, mScale );
+    return transform;
+}
+
+mat4 TransformComponent::TranslationMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
     return transform;
 }
 
-mat4 TransformComponent::TranslationRotationMat()
+mat4 TransformComponent::TranslationRotationMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
@@ -312,6 +334,8 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
 
     auto body = component.mPhysicsObject.getBody();
     auto shape = component.mPhysicsObject.getShape();
+    auto modelComp = TryGetComponent<ModelComponent>( project, entity );
+    auto transComp = TryGetComponent<TransformComponent>( project, entity );
 
     /// Physics shape selection
     string_view curShapeName = shapes[component.mPhysicsObject.getShape()->getShapeType()];
@@ -324,9 +348,27 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             {
                 float mass = component.mPhysicsObject.getBody()->getMass();
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3( 0 ), mass, 1 );
+                {
+                    f32 radius = 1.0f;
+                    if ( modelComp and transComp )
+                    {
+                        auto box = CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
+                        radius = box.getShortestEdge() / 2;
+                    }
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3( 0 ), mass, radius );
+                }
                 if ( id == BOX_SHAPE_PROXYTYPE )
-                    component.mPhysicsObject = PhysicsObject::CreateBox( vec3( 0 ), mass, vec3( 1 ) );
+                {
+                    vec3 halfExtend(1);
+                    if ( modelComp and transComp )
+                    {
+                        auto box = CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
+                        auto min = box.getMin();
+                        auto max = box.getMax();
+                        halfExtend = ( max - min ) * 0.5f;
+                    }
+                    component.mPhysicsObject = PhysicsObject::CreateBox( vec3( 0 ), mass, halfExtend );
+                }
             }
         }
         ImGui::EndCombo();
@@ -399,7 +441,7 @@ void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsCom
         {
             auto boxShape = static_cast<const btBoxShape*>( shape );
             float mass = body->getMass();
-            btVector3 halfExtends = boxShape->getHalfExtentsWithoutMargin();
+            btVector3 halfExtends = boxShape->getHalfExtentsWithMargin();
             j["Type"sv] = "Box"sv;
             j["HalfExtends"sv] = vec3( halfExtends.x(), halfExtends.y(), halfExtends.z() );
             j["Mass"sv] = mass;

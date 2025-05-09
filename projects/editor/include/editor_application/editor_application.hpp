@@ -18,6 +18,10 @@ enum class EditorMode
 struct UIGlobals
 {
     bool mNeedUpdateProjectWindow = false;
+    bool mViewportHovered = false;
+
+    bool mDrawBoundingBoxes = false;
+    bool mDrawPhysicsShapes = false;
 };
 
 

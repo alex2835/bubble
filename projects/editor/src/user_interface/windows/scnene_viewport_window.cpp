@@ -162,6 +162,8 @@ void SceneViewportInterface::OnDraw( DeltaTime )
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
     {
+        mUIGlobals.mViewportHovered = ImGui::IsWindowHovered();
+
         DrawViewport();
 
         if ( mEditorMode == EditorMode::Editing )

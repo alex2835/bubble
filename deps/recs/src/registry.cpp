@@ -68,9 +68,12 @@ void Registry::EntityAddComponent( Entity entity, ComponentTypeId componentId )
     entityComponents.insert( componentId );
 }
 
-bool Registry::EntityHasComponent( Entity entity, ComponentTypeId componentId )
+bool Registry::EntityHasComponent( Entity entity, ComponentTypeId componentId ) const
 {
-    auto& entityComponents = mEntitiesComponentTypeIds[entity];
+    auto iter = mEntitiesComponentTypeIds.find( entity );
+    if ( iter == mEntitiesComponentTypeIds.end() )
+        return false;
+    const auto& entityComponents = iter->second;
     return entityComponents.count( componentId );
 }
 

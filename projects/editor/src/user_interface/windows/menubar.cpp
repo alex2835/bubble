@@ -135,13 +135,10 @@ void Menubar::DrawMenubar()
                 ImGui::EndMenu();
             }
 
-            // Rendering type
             if ( ImGui::BeginMenu( "Rendering" ) )
             {
-                //Renderer::Wareframe(mWireframeOption);
-                //
-                //// BoundingBox
-                //ImGui::Checkbox("BoundingBox", (bool*)&mBoundingBoxOption);
+                ImGui::Checkbox( "BoundingBoxes", (bool*)&mUIGlobals.mDrawBoundingBoxes );
+                ImGui::Checkbox( "PhysicsShapse", (bool*)&mUIGlobals.mDrawPhysicsShapes );
                 ImGui::EndMenu();
             }
             ImGui::EndMenu();

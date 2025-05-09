@@ -40,14 +40,17 @@ public:
     template <ComponentType Component>
     Component& GetComponent( Entity entity );
 
+    template <ComponentType Component>
+    const Component& GetComponent( Entity entity ) const;
+
     template <ComponentType ...Components>
     std::tuple<Components&...> GetComponents( Entity entity );
 
     template <ComponentType Component>
-    bool HasComponent( Entity entity );
+    bool HasComponent( Entity entity ) const;
 
     template <ComponentType ...Components>
-    bool HasComponents( Entity entity );
+    bool HasComponents( Entity entity ) const;
 
     template <ComponentType Component>
     void RemoveComponent( Entity entity );
@@ -83,7 +86,7 @@ private:
     Component& EntityGetComponent( Entity entity );
 
     void EntityAddComponent( Entity entity, ComponentTypeId component );
-    bool EntityHasComponent( Entity entity, ComponentTypeId component );
+    bool EntityHasComponent( Entity entity, ComponentTypeId component ) const;
     void EntityRemoveComponent( Entity entity, ComponentTypeId component );
     std::set<ComponentTypeId>& GetEntityComponentsIds( Entity entity );
 
@@ -166,6 +169,12 @@ Component& Registry::GetComponent( Entity entity )
     return pool.Get<Component>( entity );
 }
 
+template <ComponentType Component>
+const Component& Registry::GetComponent( Entity entity ) const
+{
+    return const_cast<Registry*>( this )->GetComponent<Component>( entity );
+}
+
 template <ComponentType ...Components>
 std::tuple<Components&...> Registry::GetComponents( Entity entity )
 {
@@ -175,14 +184,14 @@ std::tuple<Components&...> Registry::GetComponents( Entity entity )
 }
 
 template <ComponentType Component>
-bool Registry::HasComponent( Entity entity )
+bool Registry::HasComponent( Entity entity ) const
 {
     assert( entity != INVALID_ENTITY and "Invalid entity" );
     return EntityHasComponent( entity, Component::ID() );
 }
 
 template <ComponentType ...Components>
-bool Registry::HasComponents( Entity entity )
+bool Registry::HasComponents( Entity entity ) const
 {
     assert( entity != INVALID_ENTITY and "Invalid entity" );
     return ( EntityHasComponent( entity, GetComponentTypeId<Components>() ) && ... );

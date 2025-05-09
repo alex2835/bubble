@@ -92,7 +92,7 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
         case BOX_SHAPE_PROXYTYPE:
         {
             auto box = static_cast<btBoxShape*>( other.mColisionShape.get() );
-            mColisionShape = CreateScope<btBoxShape>( box->getHalfExtentsWithoutMargin() );
+            mColisionShape = CreateScope<btBoxShape>( box->getHalfExtentsWithMargin() );
         	break;
         }
         default:
