@@ -39,7 +39,7 @@ void Menubar::ModalCreateProject()
 
     if ( ImGui::BeginPopupModal( "Create project", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
     {
-        ImGui::InputText( mCreateProjectName );
+        ImGui::InputText( "##menu", mCreateProjectName);
 
         if ( ImGui::Button( "Browse", ImVec2( 100, 30 ) ) )
         {

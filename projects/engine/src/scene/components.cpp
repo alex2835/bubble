@@ -23,6 +23,15 @@ const T* TryGetComponent( const Project& project, Entity entity )
     return &project.mScene.GetComponent<T>( entity );
 }
 
+opt<AABB> TryGetEntityBBox( const Project& project, Entity entity )
+{
+    auto modelComp = TryGetComponent<ModelComponent>( project, entity );
+    auto transComp = TryGetComponent<TransformComponent>( project, entity );
+    if ( modelComp and transComp )
+        return CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
+    return std::nullopt;
+}
+
 
 
 //============= Components =============
@@ -31,7 +40,7 @@ const T* TryGetComponent( const Project& project, Entity entity )
 void TagComponent::OnComponentDraw( const Project& project, const Entity& entity, TagComponent& tagComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
-    ImGui::InputText( tagComponent.mName );
+    ImGui::InputText( "##tag", tagComponent.mName );
 }
 
 void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )
@@ -59,6 +68,8 @@ TagComponent::TagComponent( string name )
     : mName( std::move( name ) )
 {
 }
+
+
 
 // TransformComponent
 void TransformComponent::OnComponentDraw( const Project& project, const Entity& entity, TransformComponent& transformComponent )
@@ -151,6 +162,8 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
     );
 }
 
+
+
 // LightComponent
 void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
 {
@@ -173,6 +186,9 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
         "Light"
     );
 }
+
+
+
 
 // ModelComponent
 void ModelComponent::OnComponentDraw( const Project& project, const Entity& entity, ModelComponent& modelComponent )
@@ -218,6 +234,9 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
     );
 }
 
+
+
+
 // ShaderComponent
 void ShaderComponent::OnComponentDraw( const Project& project, const Entity& entity, ShaderComponent& shaderComponent )
 {
@@ -262,6 +281,9 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
         []( const Shader& shader ) { return shader.mName; }
     );
 }
+
+
+
 
 // ScriptComponent
 void ScriptComponent::OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& scriptComponent )
@@ -312,18 +334,19 @@ ScriptComponent::ScriptComponent( const Ref<Script>& scirpt )
 
 }
 
-PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 0, 1 ) )
-{
-
-}
-
 ScriptComponent::~ScriptComponent()
 {
 
 }
 
 
+
+// PhysicsComponent
+PhysicsComponent::PhysicsComponent()
+    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 0, 1 ) )
+{
+
+}
 
 void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component )
 {
@@ -334,8 +357,7 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
 
     auto body = component.mPhysicsObject.getBody();
     auto shape = component.mPhysicsObject.getShape();
-    auto modelComp = TryGetComponent<ModelComponent>( project, entity );
-    auto transComp = TryGetComponent<TransformComponent>( project, entity );
+    auto box = TryGetEntityBBox( project, entity );
 
     /// Physics shape selection
     string_view curShapeName = shapes[component.mPhysicsObject.getShape()->getShapeType()];
@@ -350,23 +372,15 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
                 {
                     f32 radius = 1.0f;
-                    if ( modelComp and transComp )
-                    {
-                        auto box = CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
-                        radius = box.getShortestEdge() / 2;
-                    }
+                    if ( box )
+                        radius = box->getShortestEdge() / 2;
                     component.mPhysicsObject = PhysicsObject::CreateSphere( vec3( 0 ), mass, radius );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
-                    vec3 halfExtend(1);
-                    if ( modelComp and transComp )
-                    {
-                        auto box = CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
-                        auto min = box.getMin();
-                        auto max = box.getMax();
-                        halfExtend = ( max - min ) * 0.5f;
-                    }
+                    vec3 halfExtend( 1 );
+                    if ( box )
+                        halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
                     component.mPhysicsObject = PhysicsObject::CreateBox( vec3( 0 ), mass, halfExtend );
                 }
             }
@@ -388,19 +402,6 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             needRecreation |= ImGui::DragFloat( "Radius", &radius );
             if ( needRecreation )
                 component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
-
-            //if ( modelBBox )
-            //{
-            //    if ( ImGui::Button( "Create by model", ImVec2( 100, 60 ) ) )
-            //    {
-            //        float modelRadius = glm::length( modelBBox->getDiagonal() ) / 2;
-            //        physicsComp.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, modelRadius );
-            //    }
-            //}
-
-            //vec3 he = ( modelBBox->getMax() + modelBBox->getMin() ) * 0.5f;
-            //physicsComp.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, he );
-
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
@@ -481,5 +482,195 @@ PhysicsComponent::~PhysicsComponent()
 {
 
 }
+
+
+
+// StateComponent
+StateComponent::StateComponent()
+{
+    mState = CreateScope<Any>( Any{} );
+}
+
+StateComponent::StateComponent( const StateComponent& other )
+{
+
+}
+
+StateComponent::~StateComponent()
+{
+
+}
+
+void DrawFieldsAdding( Table table )
+{
+    static string fieldName;
+    ImGui::SetNextItemWidth( 100.0f );
+    ImGui::InputText( "##state", fieldName );
+
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth( 100.0f );
+    constexpr string_view types = "Int\0Float\0String\0Bool\0Table"sv;
+    static enum class Types{ Int, Float, String, Bool, Table } selectedType;
+    ImGui::Combo( "##type", (int*)&selectedType, types.data() );
+
+    ImGui::SameLine();
+    if ( ImGui::Button( "+", ImVec2( 20, 20 ) ) )
+    {
+        if ( fieldName.empty() )
+            return;
+
+        switch ( selectedType )
+        {
+            case Types::Int:
+                table[fieldName] = 0;
+                break;
+            case Types::Float:
+                table[fieldName] = 0.0f;
+                break;
+            case Types::String:
+                table[fieldName] = ""s;
+                break;
+            case Types::Bool:
+                table[fieldName] = false;
+                break;
+            case Types::Table:
+                table[fieldName] = Any{};
+                break;
+        }
+    }
+}
+
+void DrawTable( Table any )
+{
+    if ( any.is<Table>() )
+    {
+        int i = 0;
+        auto table = any.as<Table>();
+        for ( auto& [k, v] : table )
+        {
+            ImGui::PushID( (i32)reinterpret_cast<i64>( table.pointer() ) + i++ );
+
+            const auto& name = k.as<string>();
+
+            if ( v.is<Table>() )
+            {
+                auto value = v.as<Table>();
+                if ( ImGui::TreeNode( name.c_str() ) )
+                {
+                    DrawTable( value );
+                    ImGui::TreePop();
+                }
+            }
+            else
+            {
+                ImGui::Text( name.c_str() );
+                ImGui::SameLine( 100.0f );
+
+                if ( v.is<int>() )
+                {
+                    auto value = v.as<int>();
+                    ImGui::SetNextItemWidth( 60.0f );
+                    ImGui::DragInt( "##int", &value );
+                    table[name] = value;
+                }
+                else if ( v.is<float>() )
+                {
+                    auto value = v.as<float>();
+                    ImGui::SetNextItemWidth( 60.0f );
+                    ImGui::DragFloat( "##float", &value );
+                    table[name] = value;
+                }
+                else if ( v.is<std::string>() )
+                {
+                    auto value = v.as<string>();
+                    ImGui::SetNextItemWidth( 100.0f );
+                    ImGui::InputText( "##any", value );
+                    table[name] = value;
+                }
+                else if ( v.is<bool>() )
+                {
+                    auto value = v.as<bool>();
+                    ImGui::Checkbox( "##bool", &value );
+                    table[name] = value;
+                }
+                else
+                    throw std::runtime_error( "Invalid Any value type" );
+            }
+            ImGui::PopID();
+        }
+        DrawFieldsAdding( table );
+    }
+    else
+        throw std::runtime_error( "Draw value expects tables" );
+}
+
+
+void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
+{
+    ImGui::TextColored( TEXT_COLOR, "State component" );
+    DrawTable( component.mState->as<Table>() );
+}
+
+
+
+void SaveTable( json& j, Table table )
+{
+    for ( auto& [k, v] : table )
+    {
+        auto name = k.as<string>();
+        if ( v.is<int>() )
+            j[name] = v.as<int>();
+        else if ( v.is<float>() )
+            j[name] = v.as<float>();
+        else if ( v.is<string>() )
+            j[name] = v.as<string>();
+        else if ( v.is<bool>() )
+            j[name] = v.as<bool>();
+        else if ( v.is<Table>() )
+            SaveTable( j[name], v.as<Table>() );
+        else
+            throw std::runtime_error( "Value of not supported type: " + name );
+    }
+}
+
+void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
+{
+    SaveTable( json, component.mState->as<Table>() );
+}
+
+
+void LoadTable( const json& j, Table table )
+{
+    for ( auto& [k, v] : j.items() )
+    {
+        if ( v.is_number_integer() )
+            table[k] = v.get<int>();
+        else if ( v.is_number_float() )
+            table[k] = v.get<float>();
+        else if ( v.is_string() )
+            table[k] = v.get<string>();
+        else if ( v.is_boolean() )
+            table[k] = v.get<bool>();
+        else if ( v.is_object() )
+        {
+            auto val = Any{};
+            table[k] = val;
+            LoadTable( j[k], val.as<Table>() );
+        }
+        else
+            throw std::runtime_error( "Value of not supported type: " + k );
+    }
+}
+
+void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )
+{
+    LoadTable(json, component.mState->as<Table>() );
+}
+
+void StateComponent::CreateLuaBinding( sol::state& lua )
+{
+
+}
+
 
 }

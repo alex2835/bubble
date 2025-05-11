@@ -74,6 +74,7 @@ void BubbleEditor::Run()
             }
         }
         mWindow.ImGuiBegin();
+        //ImGui::ShowDemoWindow();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();
         mWindow.OnUpdate();

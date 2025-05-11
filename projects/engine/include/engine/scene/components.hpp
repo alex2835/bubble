@@ -5,6 +5,7 @@
 #include "engine/types/number.hpp"
 #include "engine/types/json.hpp"
 #include "engine/types/glm.hpp"
+#include "engine/types/dynamic.hpp"
 #include "engine/renderer/light.hpp"
 #include "engine/renderer/camera.hpp"
 #include "engine/physics/physics_engine.hpp"
@@ -31,7 +32,8 @@ enum class ComponentID
 	Light,
 	Shader,
 	Script,
-	Physics
+	Physics,
+	State
 };
 
 
@@ -50,6 +52,7 @@ public:
 	TagComponent( string name );
 	string mName;
 };
+
 
 
 struct TransformComponent
@@ -75,6 +78,7 @@ public:
 };
 
 
+
 struct CameraComponent : Camera
 {
     static size_t ID() { return static_cast<size_t>( ComponentID::Camera ); }
@@ -85,6 +89,7 @@ struct CameraComponent : Camera
 	static void FromJson( const json& json, Project& project, CameraComponent& component );
     static void CreateLuaBinding( sol::state& lua );
 };
+
 
 
 struct LightComponent : public Light
@@ -99,6 +104,7 @@ struct LightComponent : public Light
 };
 
 
+
 struct ModelComponent : public Ref<Model>
 {
 	using Ref<Model>::operator=;
@@ -110,6 +116,7 @@ struct ModelComponent : public Ref<Model>
 	static void FromJson( const json& json, Project& project, ModelComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
 };
+
 
 
 struct ShaderComponent : public Ref<Shader>
@@ -126,6 +133,7 @@ struct ShaderComponent : public Ref<Shader>
 };
 
 
+
 struct ScriptComponent
 {
     static size_t ID() { return static_cast<size_t>( ComponentID::Script ); }
@@ -137,13 +145,13 @@ struct ScriptComponent
     static void CreateLuaBinding( sol::state& lua );
 
 public:
-	ScriptComponent() = default;
-	ScriptComponent( const Ref<Script>& scirpt );
-	~ScriptComponent();
-	Ref<Script> mScript;
-	sol::function mOnUpdate;
-	//Ref<sol::lua_value> mState;
+    ScriptComponent() = default;
+    ScriptComponent( const Ref<Script>& scirpt );
+    ~ScriptComponent();
+    Ref<Script> mScript;
+    sol::function mOnUpdate;
 };
+
 
 
 struct PhysicsComponent
@@ -152,8 +160,8 @@ struct PhysicsComponent
     static string_view Name() { return "Physics"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component );
-	static void ToJson( json& json, const Project& project, const PhysicsComponent& component );
-	static void FromJson( const json& json, Project& project, PhysicsComponent& component );
+    static void ToJson( json& json, const Project& project, const PhysicsComponent& component );
+    static void FromJson( const json& json, Project& project, PhysicsComponent& component );
     static void CreateLuaBinding( sol::state& lua );
 
 public:
@@ -161,7 +169,27 @@ public:
     PhysicsComponent( const PhysicsObject& physicsObject );
     ~PhysicsComponent();
 
-	PhysicsObject mPhysicsObject;
+    PhysicsObject mPhysicsObject;
 };
+
+
+
+struct StateComponent
+{
+    static size_t ID() { return static_cast<size_t>( ComponentID::State ); }
+    static string_view Name() { return "State"sv; }
+
+    static void OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component );
+    static void ToJson( json& json, const Project& project, const StateComponent& component );
+    static void FromJson( const json& json, Project& project, StateComponent& component );
+    static void CreateLuaBinding( sol::state& lua );
+
+public:
+    StateComponent();
+	StateComponent( const StateComponent& );
+	~StateComponent();
+    Scope<Any> mState;
+};
+
 
 }

@@ -4,11 +4,11 @@
 
 namespace ImGui
 {
-inline void InputText( bubble::string& str )
+inline void InputText( std::string_view label, std::string& str )
 {
-    char buffer[64] = { 0 };
+    char buffer[128] = { 0 };
     str.copy( buffer, sizeof( buffer ) );
-    ImGui::InputText( "##Tag", buffer, sizeof( buffer ) );
+    ImGui::InputText( label.data(), buffer, sizeof( buffer ) );
     str.assign( buffer );
 }
 

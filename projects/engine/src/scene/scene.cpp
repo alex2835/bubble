@@ -12,6 +12,7 @@ Scene::Scene()
     ComponentManager::Add<ShaderComponent>( *this );
     ComponentManager::Add<ScriptComponent>( *this );
     ComponentManager::Add<PhysicsComponent>( *this );
+    ComponentManager::Add<StateComponent>( *this );
 }
 
 }
