@@ -503,11 +503,24 @@ StateComponent::~StateComponent()
 
 void DrawFieldsAdding( Table table )
 {
-    static string fieldName;
-    ImGui::SetNextItemWidth( 100.0f );
-    ImGui::InputText( "##state", fieldName );
+    auto isEmpty = table.empty();
+    auto isArray = IsArray( table );
+    int newId = (int)table.size() + 1;
 
-    ImGui::SameLine();
+    static string fieldName;
+    if ( not isArray )
+    {
+        ImGui::SetNextItemWidth( 100.0f );
+        ImGui::InputText( "##state", fieldName );
+        ImGui::SameLine();
+    }
+    if ( auto val = TryParseInt( fieldName ); 
+         isEmpty and val and val >= 1 )
+    {
+        isArray = true;
+        newId = *val;
+    }
+
     ImGui::SetNextItemWidth( 100.0f );
     constexpr string_view types = "Int\0Float\0String\0Bool\0Table"sv;
     static enum class Types{ Int, Float, String, Bool, Table } selectedType;
@@ -522,16 +535,28 @@ void DrawFieldsAdding( Table table )
         switch ( selectedType )
         {
             case Types::Int:
-                table[fieldName] = 0;
+                if ( isArray )
+                    table[newId] = 0;
+                else
+                    table[fieldName] = 0;
                 break;
             case Types::Float:
-                table[fieldName] = 0.0f;
+                if ( isArray )
+                    table[newId] = 0.0f;
+                else
+                    table[fieldName] = 0.0f;
                 break;
             case Types::String:
-                table[fieldName] = ""s;
+                if ( isArray )
+                    table[newId] = ""s;
+                else
+                    table[fieldName] = ""s;
                 break;
             case Types::Bool:
-                table[fieldName] = false;
+                if ( isArray )
+                    table[newId] = false;
+                else
+                    table[fieldName] = false;
                 break;
             case Types::Table:
                 table[fieldName] = Any{};
@@ -540,136 +565,179 @@ void DrawFieldsAdding( Table table )
     }
 }
 
-void DrawTable( Table any )
+opt<Any> DrawAnyValue( Any any )
 {
-    if ( any.is<Table>() )
+    if ( any.is<int>() )
+    {
+        auto value = any.as<int>();
+        ImGui::SetNextItemWidth( 60.0f );
+        ImGui::DragInt( "int", &value );
+        return value;
+    }
+    else if ( any.is<float>() )
+    {
+        auto value = any.as<float>();
+        ImGui::SetNextItemWidth( 60.0f );
+        ImGui::DragFloat( "float", &value );
+        return value;
+    }
+    else if ( any.is<std::string>() )
+    {
+        auto value = any.as<string>();
+        ImGui::SetNextItemWidth( 100.0f );
+        ImGui::InputText( "string", value );
+        return value;
+    }
+    else if ( any.is<bool>() )
+    {
+        auto value = any.as<bool>();
+        ImGui::Checkbox( "bool", &value );
+        return value;
+    }
+    else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
     {
         int i = 0;
         auto table = any.as<Table>();
-        for ( auto& [k, v] : table )
+        if ( ImGui::TreeNode( "array" ) )
         {
-            ImGui::PushID( (i32)reinterpret_cast<i64>( table.pointer() ) + i++ );
-
-            const auto& name = k.as<string>();
-
-            if ( v.is<Table>() )
+            for ( auto& [k, v] : table )
             {
-                auto value = v.as<Table>();
-                if ( ImGui::TreeNode( name.c_str() ) )
-                {
-                    DrawTable( value );
-                    ImGui::TreePop();
-                }
-            }
-            else
-            {
+                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
+
+                auto name = std::to_string( k.as<int>() );
                 ImGui::Text( name.c_str() );
                 ImGui::SameLine( 100.0f );
 
-                if ( v.is<int>() )
-                {
-                    auto value = v.as<int>();
-                    ImGui::SetNextItemWidth( 60.0f );
-                    ImGui::DragInt( "##int", &value );
-                    table[name] = value;
-                }
-                else if ( v.is<float>() )
-                {
-                    auto value = v.as<float>();
-                    ImGui::SetNextItemWidth( 60.0f );
-                    ImGui::DragFloat( "##float", &value );
-                    table[name] = value;
-                }
-                else if ( v.is<std::string>() )
-                {
-                    auto value = v.as<string>();
-                    ImGui::SetNextItemWidth( 100.0f );
-                    ImGui::InputText( "##any", value );
-                    table[name] = value;
-                }
-                else if ( v.is<bool>() )
-                {
-                    auto value = v.as<bool>();
-                    ImGui::Checkbox( "##bool", &value );
-                    table[name] = value;
-                }
-                else
-                    throw std::runtime_error( "Invalid Any value type" );
+                table[k] = DrawAnyValue( v );
+                ImGui::SameLine();
+
+                if ( ImGui::Button( "-" ) )
+                    table[k] = sol::nil;
+
+                ImGui::Separator();
+                ImGui::PopID();
+                i++;
             }
-            ImGui::PopID();
+            DrawFieldsAdding( table );
+            ImGui::TreePop();
         }
-        DrawFieldsAdding( table );
+        return table;
     }
-    else
-        throw std::runtime_error( "Draw value expects tables" );
+    else if ( any.is<Table>() )
+    {
+        int i = 0;
+        auto table = any.as<Table>();
+        if ( ImGui::TreeNode( "table" ) )
+        {
+            for ( auto& [k, v] : table )
+            {
+                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
+
+                auto name = k.as<string>();
+                ImGui::Text( name.c_str() );
+                ImGui::SameLine( 100.0f );
+
+                table[k] = DrawAnyValue( v );
+                ImGui::SameLine();
+
+                if ( ImGui::Button( "-" ) )
+                    table[k] = sol::nil;
+
+                ImGui::Separator();
+                ImGui::PopID();
+                i++;
+            }
+            DrawFieldsAdding( table );
+            ImGui::TreePop();
+        }
+        return table;
+    }
+    throw std::runtime_error( "Invalid Any value type" );
 }
 
 
 void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    DrawTable( component.mState->as<Table>() );
+    DrawAnyValue( *component.mState );
 }
 
 
-
-void SaveTable( json& j, Table table )
+json SaveAnyValue( Any v )
 {
-    for ( auto& [k, v] : table )
+    if ( v.is<int>() )
+        return v.as<int>();
+    else if ( v.is<float>() )
+        return v.as<float>();
+    else if ( v.is<string>() )
+        return v.as<string>();
+    else if ( v.is<bool>() )
+        return  v.as<bool>();
+    else if ( v.is<Table>() and IsArray( v.as<Table>() ) )
     {
-        auto name = k.as<string>();
-        if ( v.is<int>() )
-            j[name] = v.as<int>();
-        else if ( v.is<float>() )
-            j[name] = v.as<float>();
-        else if ( v.is<string>() )
-            j[name] = v.as<string>();
-        else if ( v.is<bool>() )
-            j[name] = v.as<bool>();
-        else if ( v.is<Table>() )
-            SaveTable( j[name], v.as<Table>() );
-        else
-            throw std::runtime_error( "Value of not supported type: " + name );
+        json j;
+        auto table = v.as<Table>();
+        for ( auto& [k, v] : table )
+            j.push_back( SaveAnyValue( v ) );
+        return std::move( j );
     }
+    else if ( v.is<Table>() )
+    {
+        json j;
+        auto table = v.as<Table>();
+        for ( auto& [k, v] : table )
+            j[k.as<string>()] = SaveAnyValue( v );
+        return std::move( j );
+    }
+    else
+        throw std::runtime_error( "Value of not supported type: " );
+
 }
 
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
 {
-    SaveTable( json, component.mState->as<Table>() );
+    json = SaveAnyValue( *component.mState );
 }
 
 
-void LoadTable( const json& j, Table table )
+Any LoadAnyValue( const json& j )
 {
-    for ( auto& [k, v] : j.items() )
+    if ( j.is_number_integer() )
+        return j.get<int>();
+    else if ( j.is_number_float() )
+        return j.get<float>();
+    else if ( j.is_string() )
+        return j.get<string>();
+    else if ( j.is_boolean() )
+        return j.get<bool>();
+    else if ( j.is_array() )
     {
-        if ( v.is_number_integer() )
-            table[k] = v.get<int>();
-        else if ( v.is_number_float() )
-            table[k] = v.get<float>();
-        else if ( v.is_string() )
-            table[k] = v.get<string>();
-        else if ( v.is_boolean() )
-            table[k] = v.get<bool>();
-        else if ( v.is_object() )
-        {
-            auto val = Any{};
-            table[k] = val;
-            LoadTable( j[k], val.as<Table>() );
-        }
-        else
-            throw std::runtime_error( "Value of not supported type: " + k );
+        auto val = Any{};
+        auto table = val.as<Table>();
+        int i = 1;
+        for ( const auto& v : j )
+           table[i++] = LoadAnyValue( v );
+        return val;
     }
+    else if ( j.is_object() )
+    {
+        auto val = Any{};
+        auto table = val.as<Table>();
+        for ( const auto& [k, v] : j.items() )
+            table[k] = LoadAnyValue( v );
+        return val;
+    }
+    throw std::runtime_error( "Value of not supported type: " );
 }
 
 void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )
 {
-    LoadTable(json, component.mState->as<Table>() );
+    component.mState = CreateScope<Any>( LoadAnyValue( json ) );
 }
 
 void StateComponent::CreateLuaBinding( sol::state& lua )
 {
-
+    // It is native lua type
 }
 
 

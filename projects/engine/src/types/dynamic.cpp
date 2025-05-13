@@ -6,19 +6,19 @@
 
 namespace bubble
 {
-bool IsObject( const sol::table& tbl )
+bool IsClass( const Table& tbl )
 {
     return tbl.valid() and tbl[sol::metatable_key] != sol::nil;
 }
 
-bool IsArray( const sol::table& tbl )
+bool IsArray( const Table& tbl )
 {
-    int lastKey = 0;
+    if ( tbl.empty() )
+        return false;
+
     for ( auto& [key, value] : tbl )
     {
-        // Found a non-integer key or not sequential 
-        if ( not key.is<int>() or
-             key.as<int>() - lastKey != 1 )
+        if ( not key.is<int>() or key.as<int>() < 1 )
             return false;
     }
     return true;
@@ -29,10 +29,10 @@ void bubble::PrintAnyValue( const Any& value )
 {
     if ( value.is<sol::nil_t>() )
         std::print( "nil" );
-    else if ( value.is<sol::table>() )
+    else if ( value.is<Table>() )
     {
-        const auto& table = value.as<sol::table>();
-        if ( IsObject( table ) )
+        const auto& table = value.as<Table>();
+        if ( IsClass( table ) )
         {
             auto metatable = table[sol::metatable_key];
             sol::optional<sol::function> tostring_fn = metatable["__tostring"];
