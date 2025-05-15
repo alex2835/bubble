@@ -6,7 +6,7 @@
 namespace bubble
 {
 string_view keyboardKeys = R"(
-bKeyboard =
+KeyboardKey =
 {
     UNKNOWN = -1,
     SPACE = 32,
@@ -134,7 +134,7 @@ bKeyboard =
 )";
 
 string_view mouseKeys = R"(
-bMouse = 
+MouseKey = 
 {
     UNKNOWN   = -1,
     ONE       = 0,
@@ -152,8 +152,20 @@ bMouse =
 }
 )";
 
-void CreateWindowInputBindings( sol::state& lua )
+void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
 {
+    lua.set( "IsKeyCliked", [&]( int key ) {
+        if ( key <= (int)MouseKey::LAST )
+            return input.IsKeyCliked( MouseKey( key ) );
+        return input.IsKeyCliked( KeyboardKey( key ) );
+    } );
+
+    lua.set( "IsKeyPressed", [&]( int key ) {
+        if ( key <= (int)MouseKey::LAST )
+            return input.IsKeyPressed( MouseKey( key ) );
+        return input.IsKeyPressed( KeyboardKey( key ) );
+    } );
+
     lua.safe_script( keyboardKeys );
     lua.safe_script( mouseKeys );
 }

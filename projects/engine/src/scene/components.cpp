@@ -491,9 +491,25 @@ StateComponent::StateComponent()
     mState = CreateScope<Any>( Any{} );
 }
 
+
+Any DeepCopy( Any any )
+{
+    if ( any.is<Table>() )
+    {
+        auto newAny = Any{};
+        auto newTable = newAny.as<Table>();
+
+        auto table = any.as<Table>();
+        for ( auto& [k, v] : table )
+            newTable[k] = v.is<Table>() ? DeepCopy( v.as<Table>() ) : v;
+        return newAny;
+    }
+    return any;
+}
+
 StateComponent::StateComponent( const StateComponent& other )
 {
-
+    mState = CreateScope<Any>( DeepCopy( *other.mState ) );
 }
 
 StateComponent::~StateComponent()

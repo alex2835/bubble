@@ -4,5 +4,5 @@
 
 namespace bubble
 {
-void CreateWindowInputBindings( sol::state& lua );
+void CreateWindowInputBindings( WindowInput& input, sol::state& lua );
 }

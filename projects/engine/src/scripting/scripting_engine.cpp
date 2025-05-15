@@ -40,32 +40,17 @@ ScriptingEngine::~ScriptingEngine()
 
 void ScriptingEngine::BindInput( WindowInput& input )
 {
-    CreateWindowInputBindings( *mLua );
-
-    mLua->set( "bIsKeyCliked", [&]( int key ) {
-        if ( key <= (int)MouseKey::LAST )
-            return input.IsKeyCliked( MouseKey( key ) );
-        return input.IsKeyCliked( KeyboardKey( key ) );
-    } );
-
-    mLua->set( "bIsKeyPressed", [&]( int key ) {
-        if ( key <= (int)MouseKey::LAST )
-            return input.IsKeyPressed( MouseKey( key ) );
-        return input.IsKeyPressed( KeyboardKey( key ) );
-    } );
+    CreateWindowInputBindings( input, *mLua );
 }
 
 void ScriptingEngine::BindLoader( Loader& loader )
 {
-    CreateLoaderBidnings( *mLua );
-    mLua->set( "bLoader", &loader );
-
+    CreateLoaderBidnings( loader, *mLua );
 }
 
 void ScriptingEngine::BindScene( Scene& scene )
 {
     CreateSceneBindings( scene, *mLua );
-    mLua->set( "bScene", &scene );
 }
 
 void ScriptingEngine::ExtractOnUpdate( sol::function& func, const Ref<Script>& script )

@@ -8,6 +8,7 @@ namespace bubble
 {
 void CreateSceneBindings( Scene& scene, sol::state& lua )
 {
+    // Component bindings
     for ( const auto& [name, commpFuncTable] : ComponentManager::Instance() )
         commpFuncTable.mCreateLuaBinding( lua );
 
@@ -45,16 +46,14 @@ void CreateSceneBindings( Scene& scene, sol::state& lua )
         [&]( Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); }
     );
 
-    lua.new_usertype<Scene>(
-        "Scene",
-        "CreateEntity",
-        &Scene::CreateEntity
+
+    lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
+
         //"GetRuntimeView",
         //[]( Scene& scene, const sol::table& table )
         //{
         //    return scene.GetRuntimeView( table.as<vector<string_view>>() );
         //}
-    );
 }
 
 } // namespace bubble

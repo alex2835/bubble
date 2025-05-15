@@ -4,18 +4,11 @@
 
 namespace bubble
 {
-void CreateLoaderBidnings( sol::state& lua )
+void CreateLoaderBidnings( Loader& loader, sol::state& lua )
 {
-    lua.new_usertype<Loader>(
-        "Loader",
-        "LoadTexture",
-        []( Loader& loader, const string& str ) { return loader.LoadTexture2D( str ); },
-        "LoadModel",
-        []( Loader& loader, const string& str ) { return loader.LoadModel( str ); },
-        "LoadShader",
-        []( Loader& loader, const string& str ) { return loader.LoadShader( str ); },
-        "LoadScript",
-        []( Loader& loader, const string& str ) { return loader.LoadScript( str ); }
-    );
+    lua["LoadTexture"] = [&]( const string& str ) { return loader.LoadTexture2D( str ); };
+    lua["LoadModel"] = [&]( const string& str ) { return loader.LoadModel( str ); };
+    lua["LoadShader"] = [&]( const string& str ) { return loader.LoadShader( str ); };
+    lua["LoadScript"] = [&]( const string& str ) { return loader.LoadScript( str ); };
 }
 }

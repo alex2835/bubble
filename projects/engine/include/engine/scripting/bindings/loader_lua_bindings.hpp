@@ -3,5 +3,5 @@
 
 namespace bubble
 {
-void CreateLoaderBidnings( sol::state& lua );
+void CreateLoaderBidnings( Loader& loader, sol::state& lua );
 }
