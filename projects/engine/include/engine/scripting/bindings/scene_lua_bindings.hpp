@@ -4,6 +4,9 @@
 namespace bubble
 {
 class Scene;
+class PhysicsEngine;
 
-void CreateSceneBindings( Scene& scene, sol::state& lua );
+void CreateSceneBindings( Scene& scene, 
+                          PhysicsEngine& physicsEngine, 
+                          sol::state& lua );
 }

@@ -6,7 +6,9 @@
 
 namespace bubble
 {
-void CreateSceneBindings( Scene& scene, sol::state& lua )
+void CreateSceneBindings( Scene& scene,
+                          PhysicsEngine& physicsEngine,
+                          sol::state& lua )
 {
     // Component bindings
     for ( const auto& [name, commpFuncTable] : ComponentManager::Instance() )
@@ -24,6 +26,13 @@ void CreateSceneBindings( Scene& scene, sol::state& lua )
         [&]( Entity& entity, Ref<Model> model ) { scene.AddComponent<ModelComponent>( entity, model ); },
         "AddShaderComponent",
         [&]( Entity& entity, Ref<Shader> shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
+        "AddPhysicsComponent",
+        [&]( Entity& entity, const PhysicsObject& object ) 
+        {
+            auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
+            physicsEngine.AddPhysicsObject( physicsComponent.mPhysicsObject );
+        },
+
         
         // Get
         "GetTagComponent",

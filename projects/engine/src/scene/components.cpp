@@ -343,7 +343,7 @@ ScriptComponent::~ScriptComponent()
 
 // PhysicsComponent
 PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( vec3(), 0, 1 ) )
+    : mPhysicsObject( PhysicsObject::CreateSphere( 0, 1 ) )
 {
 
 }
@@ -374,14 +374,14 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
                     f32 radius = 1.0f;
                     if ( box )
                         radius = box->getShortestEdge() / 2;
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( vec3( 0 ), mass, radius );
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
                     vec3 halfExtend( 1 );
                     if ( box )
                         halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    component.mPhysicsObject = PhysicsObject::CreateBox( vec3( 0 ), mass, halfExtend );
+                    component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtend );
                 }
             }
         }
@@ -401,7 +401,7 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             needRecreation |= ImGui::DragFloat( "Mass", &mass );
             needRecreation |= ImGui::DragFloat( "Radius", &radius );
             if ( needRecreation )
-                component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), mass, radius );
+                component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
@@ -416,7 +416,7 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             needRecreation |= ImGui::DragFloat( "Mass", &mass );
             needRecreation |= ImGui::DragFloat3( "Half Extends", &halfExtends.x );
             if ( needRecreation )
-                component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), mass, halfExtends );
+                component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtends );
         } break;
     }
 }
@@ -456,12 +456,12 @@ void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsCompone
 {
     if ( j["Type"sv] == "Sphere"s )
     {
-        component.mPhysicsObject = PhysicsObject::CreateSphere( vec3(), j["Mass"sv], j["Radius"sv] );
+        component.mPhysicsObject = PhysicsObject::CreateSphere( j["Mass"sv], j["Radius"sv] );
         return;
     }
     if ( j["Type"sv] == "Box"s )
     {
-        component.mPhysicsObject = PhysicsObject::CreateBox( vec3(), j["Mass"sv], j["HalfExtends"sv] );
+        component.mPhysicsObject = PhysicsObject::CreateBox( j["Mass"sv], j["HalfExtends"sv] );
         return;
     }
     throw std::runtime_error( "Undefined physics component" );
@@ -469,7 +469,27 @@ void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsCompone
 
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )
 {
+    lua.new_usertype<PhysicsObject>(
+        "PhysicsObject"
+    );
 
+    lua.new_usertype<PhysicsComponent>(
+        "PhysicsComponent",
+        sol::call_constructor,
+        sol::constructors<PhysicsComponent( const PhysicsObject& )>()
+    );
+
+    lua["CreatePhysicsSphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ){ 
+        auto physicsSphere = PhysicsObject::CreateSphere( mass, radius );
+        physicsSphere.SetTransform( trans.mPosition, trans.mPosition );
+        return physicsSphere;
+    };
+
+    lua["CreatePhysicsBox"] = []( const TransformComponent& trans, f32 mass, vec3 he ) {
+        auto physicsBox = PhysicsObject::CreateBox( mass, he );
+        physicsBox.SetTransform( trans.mPosition, trans.mPosition );
+        return physicsBox;
+    };
 }
 
 PhysicsComponent::PhysicsComponent( const PhysicsObject& physicsObject )
@@ -492,7 +512,7 @@ StateComponent::StateComponent()
 }
 
 
-Any DeepCopy( Any any )
+Any AnyDeepCopy( Any any )
 {
     if ( any.is<Table>() )
     {
@@ -501,7 +521,8 @@ Any DeepCopy( Any any )
 
         auto table = any.as<Table>();
         for ( auto& [k, v] : table )
-            newTable[k] = v.is<Table>() ? DeepCopy( v.as<Table>() ) : v;
+            newTable[k] = v.is<Table>() ? AnyDeepCopy( v ) : v;
+
         return newAny;
     }
     return any;
@@ -509,7 +530,7 @@ Any DeepCopy( Any any )
 
 StateComponent::StateComponent( const StateComponent& other )
 {
-    mState = CreateScope<Any>( DeepCopy( *other.mState ) );
+    mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
 }
 
 StateComponent::~StateComponent()

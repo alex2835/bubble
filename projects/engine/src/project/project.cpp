@@ -21,7 +21,7 @@ Project::Project( WindowInput& input )
 {
     mScriptingEngine.BindInput( input );
     mScriptingEngine.BindLoader( mLoader );
-    mScriptingEngine.BindScene( mScene );
+    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
 }
 
 Project::~Project()

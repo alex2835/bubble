@@ -7,8 +7,9 @@
 
 namespace bubble
 {
-class Scene;
 struct Loader;
+class Scene;
+class PhysicsEngine;
 
 class ScriptingEngine
 {
@@ -22,7 +23,7 @@ public:
 
     void BindInput( WindowInput& input );
     void BindLoader( Loader& loader );
-    void BindScene( Scene& scene );
+    void BindScene( Scene& scene, PhysicsEngine& physicsEngine );
 
     void RunScript( const Script& script );
     void RunScript( const Ref<Script>& script );

@@ -119,7 +119,7 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
 
 
 
-PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
+PhysicsObject PhysicsObject::CreateSphere( f32 mass, f32 radius )
 {
     PhysicsObject object;
     object.mShapeData = GenerateSphereLinesShape( radius );
@@ -128,7 +128,7 @@ PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
     /// Create Dynamic Objects
     btTransform startTransform;
     startTransform.setIdentity();
-    startTransform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
+    startTransform.setOrigin( btVector3( 0, 0, 0 ) );
 
     // rigid body is dynamic if and only if mass is non zero, otherwise static
     bool isDynamic = ( mass != 0.f );
@@ -143,7 +143,7 @@ PhysicsObject PhysicsObject::CreateSphere( vec3 pos, f32 mass, f32 radius )
     return object;
 }
 
-PhysicsObject PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
+PhysicsObject PhysicsObject::CreateBox( f32 mass, vec3 halfExtends )
 {
     PhysicsObject object;
     object.mShapeData = GenerateCubeLinesShape( halfExtends );
@@ -152,7 +152,7 @@ PhysicsObject PhysicsObject::CreateBox( vec3 pos, f32 mass, vec3 halfExtends )
                                                                 halfExtends.z ) );
     btTransform groundTransform;
     groundTransform.setIdentity();
-    groundTransform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
+    groundTransform.setOrigin( btVector3( 0, 0, 0 ) );
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
