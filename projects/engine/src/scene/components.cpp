@@ -60,7 +60,9 @@ void TagComponent::CreateLuaBinding( sol::state& lua )
         sol::call_constructor,
         sol::constructors<TagComponent(), TagComponent( string )>(),
         "Name",
-        &TagComponent::mName
+        &TagComponent::mName,
+        sol::meta_function::to_string,
+        []( const TagComponent& tag ) { return tag.mName; }
     );
 }
 
@@ -531,6 +533,18 @@ Any AnyDeepCopy( Any any )
 StateComponent::StateComponent( const StateComponent& other )
 {
     mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
+}
+
+StateComponent& StateComponent::operator= ( const StateComponent& other )
+{
+    if ( this != &other )
+        mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
+    return *this;
+}
+
+StateComponent::StateComponent( Any any )
+{
+    mState = CreateScope<Any>( AnyDeepCopy( any ) );
 }
 
 StateComponent::~StateComponent()

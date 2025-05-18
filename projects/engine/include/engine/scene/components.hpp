@@ -39,7 +39,7 @@ enum class ComponentID
 
 struct TagComponent
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Tag ); }
+    static int ID() { return static_cast<int>( ComponentID::Tag ); }
 	static string_view Name() { return "Tag"sv; }
 
 	static void OnComponentDraw( const Project& project, const Entity& entity, TagComponent& component );
@@ -57,7 +57,7 @@ public:
 
 struct TransformComponent
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Transform ); }
+    static int ID() { return static_cast<int>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, TransformComponent& component );
@@ -81,7 +81,7 @@ public:
 
 struct CameraComponent : Camera
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Camera ); }
+    static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, CameraComponent& component );
@@ -94,7 +94,7 @@ struct CameraComponent : Camera
 
 struct LightComponent : public Light
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Light ); }
+    static int ID() { return static_cast<int>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, LightComponent& component );
@@ -108,7 +108,7 @@ struct LightComponent : public Light
 struct ModelComponent : public Ref<Model>
 {
 	using Ref<Model>::operator=;
-    static size_t ID() { return static_cast<size_t>( ComponentID::Model ); }
+    static int ID() { return static_cast<int>( ComponentID::Model ); }
 	static string_view Name() { return "Model"sv; }
 
 	static void OnComponentDraw( const Project& project, const Entity& entity, ModelComponent& component );
@@ -123,7 +123,7 @@ struct ShaderComponent : public Ref<Shader>
 {
 	using Ref<Shader>::operator=;
 
-    static size_t ID() { return static_cast<size_t>( ComponentID::Shader ); }
+    static int ID() { return static_cast<int>( ComponentID::Shader ); }
 	static string_view Name() { return "Shader"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, ShaderComponent& component );
@@ -136,7 +136,7 @@ struct ShaderComponent : public Ref<Shader>
 
 struct ScriptComponent
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Script ); }
+    static int ID() { return static_cast<int>( ComponentID::Script ); }
 	static string_view Name() { return "Script"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& component );
@@ -156,7 +156,7 @@ public:
 
 struct PhysicsComponent
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::Physics ); }
+    static int ID() { return static_cast<int>( ComponentID::Physics ); }
     static string_view Name() { return "Physics"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component );
@@ -176,7 +176,7 @@ public:
 
 struct StateComponent
 {
-    static size_t ID() { return static_cast<size_t>( ComponentID::State ); }
+    static int ID() { return static_cast<int>( ComponentID::State ); }
     static string_view Name() { return "State"sv; }
 
     static void OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component );
@@ -186,7 +186,9 @@ struct StateComponent
 
 public:
     StateComponent();
+	StateComponent( Any any );
 	StateComponent( const StateComponent& );
+	StateComponent& operator= ( const StateComponent& );
 	~StateComponent();
     Scope<Any> mState;
 };

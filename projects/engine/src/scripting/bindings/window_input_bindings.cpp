@@ -5,7 +5,7 @@
 
 namespace bubble
 {
-string_view keyboardKeys = R"(
+constexpr string_view keyboardKeys = R"(
 KeyboardKey =
 {
     UNKNOWN = -1,
@@ -133,7 +133,7 @@ KeyboardKey =
 }
 )";
 
-string_view mouseKeys = R"(
+constexpr string_view mouseKeys = R"(
 MouseKey = 
 {
     UNKNOWN   = -1,
@@ -154,10 +154,10 @@ MouseKey =
 
 void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
 {
-    lua.set( "IsKeyCliked", [&]( int key ) {
+    lua.set( "IsKeyClicked", [&]( int key ) {
         if ( key <= (int)MouseKey::LAST )
-            return input.IsKeyCliked( MouseKey( key ) );
-        return input.IsKeyCliked( KeyboardKey( key ) );
+            return input.IsKeyClicked( MouseKey( key ) );
+        return input.IsKeyClicked( KeyboardKey( key ) );
     } );
 
     lua.set( "IsKeyPressed", [&]( int key ) {

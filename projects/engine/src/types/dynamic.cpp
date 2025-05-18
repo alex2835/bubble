@@ -25,7 +25,7 @@ bool IsArray( const Table& tbl )
 }
 
 
-void bubble::PrintAnyValue( const Any& value )
+void PrintAnyValue( const Any& value )
 {
     if ( value.is<sol::nil_t>() )
         std::print( "nil" );

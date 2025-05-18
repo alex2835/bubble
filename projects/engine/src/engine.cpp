@@ -56,7 +56,14 @@ void Engine::OnUpdate()
     mProject.mScene.ForEach<ScriptComponent>( []( Entity entity, ScriptComponent& script )
     {
         if ( script.mOnUpdate )
-            script.mOnUpdate();
+        {
+            sol::protected_function_result result = script.mOnUpdate();
+            if ( !result.valid() )
+            {   
+                sol::error err = result;
+                throw std::runtime_error( err.what() );
+            }
+        }
     });
 }
 

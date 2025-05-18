@@ -4,18 +4,41 @@
 #include "engine/scene/scene.hpp"
 #include "engine/utils/filesystem.hpp"
 
+#include <print>
+
 namespace bubble
 {
+constexpr string_view componentEnum = R"(
+Component = 
+{
+    Tag = 0,
+    Transform = 1,
+    Camera = 2,
+    Model = 3,
+    Light = 4,
+    Shader = 5,
+    Script = 6,
+    Physics = 7,
+    State = 8
+}
+)";
+
+
 void CreateSceneBindings( Scene& scene,
                           PhysicsEngine& physicsEngine,
                           sol::state& lua )
 {
-    // Component bindings
-    for ( const auto& [name, commpFuncTable] : ComponentManager::Instance() )
-        commpFuncTable.mCreateLuaBinding( lua );
+    lua.script( componentEnum );
 
+    // Component bindings
+    for ( const auto& [name, compFuncTable] : ComponentManager::Instance() )
+        compFuncTable.mCreateLuaBinding( lua );
+
+    // Entity
     lua.new_usertype<Entity>(
         "Entity",
+        sol::meta_function::to_string,
+        []( const Entity& entity ){ return std::to_string( (size_t)entity ); },
         
         // Add
         "AddTagComponent",
@@ -32,8 +55,9 @@ void CreateSceneBindings( Scene& scene,
             auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
             physicsEngine.AddPhysicsObject( physicsComponent.mPhysicsObject );
         },
+        "AddStateComponent",
+        [&]( Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
 
-        
         // Get
         "GetTagComponent",
         [&]( Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
@@ -43,6 +67,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( Entity& entity ) ->Ref<Model>& { return scene.GetComponent<ModelComponent>( entity ); },
         "GetShaderComponent",
         [&]( Entity& entity ) ->Ref<Shader>& { return scene.GetComponent<ShaderComponent>( entity ); },
+        "GetPhysicsComponent",
+        [&]( Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
+        "GetStateComponent",
+        [&]( Entity& entity ) ->Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
         // Has
         "HasTagComponent",
@@ -52,17 +80,84 @@ void CreateSceneBindings( Scene& scene,
         "HasModelComponent",
         [&]( Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
         "HasShaderComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); }
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); },
+        "HasPhysicsComponent",
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<PhysicsComponent>( entity ); },
+        "HasStateComponent",
+        [&]( Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
     );
 
 
+    // Scene
     lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
 
-        //"GetRuntimeView",
-        //[]( Scene& scene, const sol::table& table )
-        //{
-        //    return scene.GetRuntimeView( table.as<vector<string_view>>() );
-        //}
+    lua["ForEachEntity"] = [&]( sol::table components, sol::function func )
+    {
+        constexpr size_t componentsCount = magic_enum::enum_count<ComponentID>();
+        using ComponentsIdsArray = std::array<ComponentTypeId, componentsCount>;
+        using ComponentsDataArray = std::array<void*, componentsCount>;
+
+        // Fill component ids
+        ComponentsIdsArray componentsIds;
+        componentsIds.fill( INVALID_COMPONENT_TYPE_ID );
+        int i = 0;
+        for ( auto [k, v] : components )
+        {
+            if ( not v.is<int>() )
+                throw std::runtime_error( "RuntimeView expects array of components liKe Component.Tag" );
+            componentsIds[i++] = (ComponentTypeId)v.as<int>();
+        }
+
+        // For each entity's components
+        scene.RuntimeForEach( componentsIds,
+        [&]( Entity entity, ComponentsDataArray componentsData )
+        {
+            auto componentsAny = Any{};
+            auto componentsTable = componentsAny.as<Table>();
+
+            for ( size_t i = 0; i < componentsCount; i++ )
+            {
+                if ( componentsIds[i] == INVALID_COMPONENT_TYPE_ID )
+                    continue;
+
+                switch ( (ComponentID)componentsIds[i] )
+                {
+                    case ComponentID::Tag:
+                        componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                        break;
+                    case ComponentID::Transform:
+                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentsData[i];
+                        break;
+                    //case ComponentID::Camera:
+                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                    //    break;
+                    //case ComponentID::Model:
+                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                    //    break;
+                    //case ComponentID::Light:
+                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                    //    break;
+                    //case ComponentID::Shader:
+                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                    //    break;
+                    //case ComponentID::Script:
+                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                    //    break;
+                    case ComponentID::Physics:
+                        componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentsData[i])->mPhysicsObject;
+                        break;
+                    case ComponentID::State:
+                        componentsTable[ComponentID::State] = *((StateComponent*)componentsData[i])->mState;
+                        break;
+
+                }
+            }
+            func( entity, componentsAny );
+
+        } );
+
+    };
+
 }
 
 } // namespace bubble

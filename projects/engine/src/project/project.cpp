@@ -112,7 +112,7 @@ void Project::LoadScene( const json& j )
 
     for ( const auto& [componentNameString, poolJson] : j["Component pools"].items() )
     {
-        size_t componentID = ComponentManager::GetID( componentNameString );
+        int componentID = ComponentManager::GetID( componentNameString );
         auto componentsIter = mScene.mComponents.find( componentID );
         if ( componentsIter == mScene.mComponents.end() )
             throw std::runtime_error( std::format( "Scene from_json failed. No such component: {}", componentID ) );

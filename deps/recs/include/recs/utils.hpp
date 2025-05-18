@@ -4,12 +4,13 @@
 
 namespace recs
 {
-using ComponentTypeId = size_t;
+using ComponentTypeId = int;
+constexpr ComponentTypeId INVALID_COMPONENT_TYPE_ID = -1;
 
 template<typename T>
 concept ComponentType = requires( T component )
 {
-    { T::ID() } -> std::same_as<size_t>;
+    { T::ID() } -> std::same_as<int>;
 };
 
 // Tuples

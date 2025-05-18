@@ -87,7 +87,10 @@ void Registry::EntityRemoveComponent( Entity entity, ComponentTypeId componentId
 
 Pool& Registry::GetComponentPool( ComponentTypeId id )
 {
-    return mPools[id];
+    auto iter = mPools.find( id );
+    if ( iter == mPools.end() )
+        throw std::runtime_error( "Registry::GetComponentPool failed due to invalid component id" );
+    return iter->second;
 }
 
 const std::set<ComponentTypeId>& Registry::AllComponentTypeIds()

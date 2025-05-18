@@ -18,7 +18,7 @@ void MouseInput::OnUpdate()
             mKeyState[key] = (i32)KeyAction::REPEAT;
 }
 
-bool MouseInput::IsKeyCliked( MouseKey key ) const
+bool MouseInput::IsKeyClicked( MouseKey key ) const
 {
     return mKeyState[(i32)key] == (i32)KeyAction::PRESS;
 }
@@ -44,7 +44,7 @@ void KeyboardInput::OnUpdate()
             mKeyState[key] = (i32)KeyAction::REPEAT;
 }
 
-bool KeyboardInput::IsKeyCliked( KeyboardKey key ) const
+bool KeyboardInput::IsKeyClicked( KeyboardKey key ) const
 {
     return mKeyState[(i32)key] == (i32)KeyAction::PRESS;
 }

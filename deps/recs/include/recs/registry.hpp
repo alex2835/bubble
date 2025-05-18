@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <unordered_set>
+#include <bitset>
 #include <set>
 #include <string_view>
 #include <format>
@@ -65,8 +66,11 @@ public:
     template <ComponentType ...Components, typename F>
     void ForEach( F&& func );
 
-    //template <typename F>
-    //void RuntimeForEach( const std::vector<std::string_view>& components, F&& func );
+    // For each on provided components Ids
+    // If id is INVALID_COMPONENT_TYPE_ID(=-1) this component will be 
+    // skipped while iteration and filled just with nullptr 
+    template <size_t SIZE, typename F>
+    void RuntimeForEach( const std::array<ComponentTypeId, SIZE>& components, F&& func );
 
     template <typename F>
     void ForEachEntity( F&& func );
@@ -274,14 +278,14 @@ void Registry::ForEachTuple( F&& func )
                 maxId = pools[i]->mEntities[indicies[i]].mId;
         }
 
-        bool next = false;
+        bool skip = false;
         for ( int i = 0; i < size; i++ )
         {
             while ( pools[i]->mEntities[indicies[i]].mId < maxId )
             {
                 if ( pools[i]->mEntities[indicies[i]].mId > maxId )
                 {
-                    next = true;
+                    skip = true;
                     break;
                 }
 
@@ -290,7 +294,7 @@ void Registry::ForEachTuple( F&& func )
                     return;
             }
         }
-        if ( next ) 
+        if ( skip ) 
             continue;
 
         func( Entity( maxId ), MakeTupleFromPoolsAndIndicies<Components...>( pools, indicies, std::make_index_sequence<size>{} ) );
@@ -300,51 +304,91 @@ void Registry::ForEachTuple( F&& func )
     }
 }
 
-//template <typename F>
-//void Registry::RuntimeForEach( const std::vector<std::string_view>& components, F&& func )
-//{
-//    std::vector<Pool*> pools( components.size() );
-//    for ( size_t i = 0; i < components.size(); i++ )
-//        pools[i] = &GetComponentPool( components[i] );
-//
-//    size_t maxId = 0;
-//    std::vector<size_t> indicies( components.size(), 0u );
-//    while ( true )
-//    {
-//        for ( size_t i = 0; i < components.size(); i++ )
-//        {
-//            if ( indicies[i] >= pools[i]->Size() )
-//                return;
-//
-//            if ( maxId < pools[i]->mEntities[indicies[i]].mId )
-//                maxId = pools[i]->mEntities[indicies[i]].mId;
-//        }
-//
-//        bool next = false;
-//        for ( size_t i = 0; i < components.size(); i++ )
-//        {
-//            while ( pools[i]->mEntities[indicies[i]].mId < maxId )
-//            {
-//                if ( pools[i]->mEntities[indicies[i]].mId > maxId )
-//                {
-//                    next = true;
-//                    break;
-//                }
-//
-//                indicies[i]++;
-//                if ( indicies[i] >= pools[i]->Size() )
-//                    return;
-//            }
-//        }
-//        if ( next )
-//            continue;
-//
-//        func( Entity( maxId, this ) );
-//
-//        for ( int i = 0; i < components.size(); i++ )
-//            indicies[i]++;
-//    }
-//}
+template <size_t SIZE, typename F>
+void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componentIds, F&& func )
+{
+    // valid set of components
+    std::bitset<SIZE> validBS;
+    for ( size_t i = 0; i < SIZE; i++ )
+        validBS.set( i, componentIds[i] != INVALID_COMPONENT_TYPE_ID );
+
+    // pools
+    std::array<Pool*, SIZE> pools;
+    pools.fill( nullptr );
+    for ( size_t i = 0; i < SIZE; i++ )
+    {
+        if ( validBS.test( i ) )
+            pools[i] = &GetComponentPool( componentIds[i] );
+    }
+
+    std::array<size_t, SIZE> indicies;
+    indicies.fill( 0 );
+
+    size_t maxId = 0;
+    while ( true )
+    {
+        // update max entity id
+        for ( size_t i = 0; i < SIZE; i++ )
+        {
+            if ( not validBS.test( i ) )
+                continue;
+
+            const auto& pool = pools[i];
+            auto& entityIndex = indicies[i];
+
+            if ( entityIndex >= pool->Size() )
+                return;
+
+            const auto& poolEntities = pool->mEntities;
+            if ( maxId < poolEntities[entityIndex].mId )
+                maxId = poolEntities[entityIndex].mId;
+        }
+
+        // find indices in pools of max entity id
+        bool skip = false;
+        for ( size_t i = 0; i < SIZE; i++ )
+        {
+            if ( not validBS.test( i ) )
+                continue;
+
+            const auto& pool = pools[i];
+            const auto& poolEntities = pool->mEntities;
+            auto& entityIndex = indicies[i];
+
+            while ( poolEntities[entityIndex].mId < maxId )
+            {
+                if ( poolEntities[entityIndex].mId > maxId )
+                {
+                    skip = true;
+                    break;
+                }
+
+                entityIndex++;
+                if ( entityIndex >= pool->Size() )
+                    return;
+            }
+        }
+        if ( skip )
+            continue;
+
+
+        // Fill components pointers
+        std::array<void*, SIZE> components;
+        components.fill( nullptr );
+
+        for ( size_t i = 0; i < SIZE; i++ )
+        {
+            if ( validBS.test( i ) )
+                components[i] = pools[i]->GetElemAddress( indicies[i] );
+        }
+
+        // Call functor callback
+        func( Entity( maxId ), components );
+
+        for ( int i = 0; i < componentIds.size(); i++ )
+            indicies[i]++;
+    }
+}
 
 
 }

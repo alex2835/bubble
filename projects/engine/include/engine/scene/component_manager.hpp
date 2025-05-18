@@ -17,7 +17,7 @@ concept ComponentConcept = requires( Component component,
                                      Project& project,
                                      json& json )
 {
-    { Component::ID() } -> std::same_as<size_t>;
+    { Component::ID() } -> std::same_as<int>;
     { Component::Name() } -> std::same_as<string_view>;
     { Component::OnComponentDraw( project, entity, componentRef ) } -> std::same_as<void>;
     { Component::ToJson( json, project, componentCRef ) } -> std::same_as<void>;
@@ -66,29 +66,29 @@ public:
         }
     }
 
-    static void AddName( size_t size_t, string_view name );
-    static string_view GetName( size_t size_t );
-    static size_t GetID( string_view name );
+    static void AddName( int componentId, string_view name );
+    static string_view GetName( int componentId );
+    static int GetID( string_view name );
 
-    static void AddOnDraw( size_t size_t, OnComponentDrawFunc drawFunc );
-    static OnComponentDrawFunc GetOnDraw( size_t size_t );
+    static void AddOnDraw( int componentId, OnComponentDrawFunc drawFunc );
+    static OnComponentDrawFunc GetOnDraw( int componentId );
 
-    static void AddFromJson( size_t size_t, ComponentFromJson drawFunc );
-    static ComponentFromJson GetFromJson( size_t size_t );
+    static void AddFromJson( int componentId, ComponentFromJson drawFunc );
+    static ComponentFromJson GetFromJson( int componentId );
 
-    static void AddToJson( size_t size_t, ComponentToJson drawFunc );
-    static ComponentToJson GetToJson( size_t size_t );
+    static void AddToJson( int componentId, ComponentToJson drawFunc );
+    static ComponentToJson GetToJson( int componentId );
 
-    static void AddCreateLuaBinding( size_t size_t, ComponentCreateLuaBinding CreateLuaBindingFunc );
-    static ComponentCreateLuaBinding GetCreateLuaBinding( size_t size_t );
+    static void AddCreateLuaBinding( int componentId, ComponentCreateLuaBinding CreateLuaBindingFunc );
+    static ComponentCreateLuaBinding GetCreateLuaBinding( int componentId );
 
     const auto begin(){ return mComponentFuncTable.begin(); }
     const auto end() { return mComponentFuncTable.end(); }
 private:
-    static bool CreateComponentTable( size_t size_t );
-    static ComponentFunctionsTable& GetComponentTable( size_t size_t );
+    static bool CreateComponentTable( int componentId );
+    static ComponentFunctionsTable& GetComponentTable( int componentId );
 
-    hash_map<size_t, ComponentFunctionsTable> mComponentFuncTable;
+    hash_map<int, ComponentFunctionsTable> mComponentFuncTable;
 };
 
 }

@@ -94,7 +94,7 @@ void BubbleEditor::OpenProject( const path& projectPath )
 void BubbleEditor::OnUpdate()
 {
     /// Switch Editing/GameRunning modes
-    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F5 )
+    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F5 )
          and mEditorMode == EditorMode::Editing )
     {
         mEditorMode = EditorMode::Running;
@@ -102,7 +102,7 @@ void BubbleEditor::OnUpdate()
         mEngine.OnStart();
     }
 
-    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::F6 )
+    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F6 )
          and mEditorMode == EditorMode::Running )
     {
         mProject.mScene = mSceneSave;
@@ -111,7 +111,7 @@ void BubbleEditor::OnUpdate()
 
 
     /// Copy selected entity
-    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::V ) and
+    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::V ) and
          mWindow.GetWindowInput().KeyMods().CONTROL and
          mEditorMode == EditorMode::Editing and
          mUIGlobals.mViewportHovered and
@@ -140,7 +140,7 @@ void BubbleEditor::OnUpdate()
     }
 
     /// Remove selected entity
-    if ( mWindow.GetWindowInput().IsKeyCliked( KeyboardKey::DEL ) and
+    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) and
          mEditorMode == EditorMode::Editing and
          mUIGlobals.mViewportHovered and
          mSelectedEntity )
