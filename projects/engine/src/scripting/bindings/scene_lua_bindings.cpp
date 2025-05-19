@@ -128,21 +128,15 @@ void CreateSceneBindings( Scene& scene,
                     case ComponentID::Transform:
                         componentsTable[ComponentID::Transform] = (TransformComponent*)componentsData[i];
                         break;
-                    //case ComponentID::Camera:
-                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
-                    //    break;
-                    //case ComponentID::Model:
-                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
-                    //    break;
-                    //case ComponentID::Light:
-                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
-                    //    break;
-                    //case ComponentID::Shader:
-                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
-                    //    break;
-                    //case ComponentID::Script:
-                    //    componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
-                    //    break;
+                    case ComponentID::Model:
+                        componentsTable[ComponentID::Model] = *(Ref<Model>*)componentsData[i];
+                        break;
+                    case ComponentID::Shader:
+                        componentsTable[ComponentID::Shader] = *(Ref<Shader>*)componentsData[i];
+                        break;
+                    case ComponentID::Script:
+                        componentsTable[ComponentID::Script] = ((ScriptComponent*)componentsData[i])->mScript;
+                        break;
                     case ComponentID::Physics:
                         componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentsData[i])->mPhysicsObject;
                         break;

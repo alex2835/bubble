@@ -40,7 +40,8 @@ opt<AABB> TryGetEntityBBox( const Project& project, Entity entity )
 void TagComponent::OnComponentDraw( const Project& project, const Entity& entity, TagComponent& tagComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
-    ImGui::InputText( "##tag", tagComponent.mName );
+    ImGui::InputText( "Name", tagComponent.mName );
+    ImGui::InputText( "Class", tagComponent.mClass );
 }
 
 void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )
@@ -58,19 +59,21 @@ void TagComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<TagComponent>(
         "Tag",
         sol::call_constructor,
-        sol::constructors<TagComponent(), TagComponent( string )>(),
+        sol::constructors<TagComponent(), TagComponent( string ), TagComponent( string, string )>(),
         "Name",
         &TagComponent::mName,
+        "Class",
+        &TagComponent::mClass,
         sol::meta_function::to_string,
-        []( const TagComponent& tag ) { return tag.mName; }
+        []( const TagComponent& tag ) { return std::format( "Name: {} Class:{}", tag.mName, tag.mClass ); }
     );
 }
 
-TagComponent::TagComponent( string name )
-    : mName( std::move( name ) )
+TagComponent::TagComponent( string name, string cls )
+    : mName( std::move( name ) ),
+      mClass( std::move( cls ) )
 {
 }
-
 
 
 // TransformComponent
@@ -558,6 +561,9 @@ void DrawFieldsAdding( Table table )
     auto isArray = IsArray( table );
     int newId = (int)table.size() + 1;
 
+    bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
+    ImGui::SameLine();
+
     static string fieldName;
     if ( not isArray )
     {
@@ -577,8 +583,7 @@ void DrawFieldsAdding( Table table )
     static enum class Types{ Int, Float, String, Bool, Table } selectedType;
     ImGui::Combo( "##type", (int*)&selectedType, types.data() );
 
-    ImGui::SameLine();
-    if ( ImGui::Button( "+", ImVec2( 20, 20 ) ) )
+    if ( addValue )
     {
         if ( fieldName.empty() )
             return;
@@ -616,54 +621,60 @@ void DrawFieldsAdding( Table table )
     }
 }
 
-opt<Any> DrawAnyValue( Any any )
+opt<Any> DrawAnyValue( const string& name, Any any )
 {
+    ImGui::SetNextItemWidth( 100.0f );
     if ( any.is<int>() )
     {
         auto value = any.as<int>();
-        ImGui::SetNextItemWidth( 60.0f );
-        ImGui::DragInt( "int", &value );
+        ImGui::DragInt( name.c_str(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(int)" );
         return value;
     }
     else if ( any.is<float>() )
     {
         auto value = any.as<float>();
-        ImGui::SetNextItemWidth( 60.0f );
-        ImGui::DragFloat( "float", &value );
+        ImGui::DragFloat( name.c_str(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(float)" );
         return value;
     }
     else if ( any.is<std::string>() )
     {
         auto value = any.as<string>();
-        ImGui::SetNextItemWidth( 100.0f );
-        ImGui::InputText( "string", value );
+        ImGui::InputText( name.c_str(), value );
+        ImGui::SameLine();
+        ImGui::Text( "(string)" );
         return value;
     }
     else if ( any.is<bool>() )
     {
         auto value = any.as<bool>();
-        ImGui::Checkbox( "bool", &value );
+        ImGui::Checkbox( name.c_str(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(bool)" );
         return value;
     }
     else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
     {
         int i = 0;
         auto table = any.as<Table>();
-        if ( ImGui::TreeNode( "array" ) )
+        if ( ImGui::TreeNode( "##array", "%s (array)", name.c_str() ) )
         {
             for ( auto& [k, v] : table )
             {
                 ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
 
-                auto name = std::to_string( k.as<int>() );
-                ImGui::Text( name.c_str() );
-                ImGui::SameLine( 100.0f );
-
-                table[k] = DrawAnyValue( v );
+                if ( ImGui::Button( "-" ) )
+                {
+                    table[k] = sol::nil;
+                    continue;
+                }
                 ImGui::SameLine();
 
-                if ( ImGui::Button( "-" ) )
-                    table[k] = sol::nil;
+                auto name = std::to_string( k.as<int>() );
+                table[k] = DrawAnyValue( name, v );
 
                 ImGui::Separator();
                 ImGui::PopID();
@@ -678,21 +689,21 @@ opt<Any> DrawAnyValue( Any any )
     {
         int i = 0;
         auto table = any.as<Table>();
-        if ( ImGui::TreeNode( "table" ) )
+        if ( ImGui::TreeNode( "##table", "%s (table)", name.c_str() ) )
         {
             for ( auto& [k, v] : table )
             {
                 ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
 
-                auto name = k.as<string>();
-                ImGui::Text( name.c_str() );
-                ImGui::SameLine( 100.0f );
-
-                table[k] = DrawAnyValue( v );
+                if ( ImGui::Button( "-" ) )
+                {
+                    table[k] = sol::nil;
+                    continue;
+                }
                 ImGui::SameLine();
 
-                if ( ImGui::Button( "-" ) )
-                    table[k] = sol::nil;
+                auto name = k.as<string>();
+                table[k] = DrawAnyValue( name, v );
 
                 ImGui::Separator();
                 ImGui::PopID();
@@ -710,7 +721,7 @@ opt<Any> DrawAnyValue( Any any )
 void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    DrawAnyValue( *component.mState );
+    DrawAnyValue( "State"s, *component.mState );
 }
 
 

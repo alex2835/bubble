@@ -49,8 +49,9 @@ struct TagComponent
 
 public:
 	TagComponent() = default;
-	TagComponent( string name );
+	TagComponent( string name, string cls = "Object"s );
 	string mName;
+	string mClass;
 };
 
 
