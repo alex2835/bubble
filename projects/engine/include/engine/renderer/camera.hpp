@@ -53,7 +53,7 @@ struct Camera
     f32 mDeltaFov = camera::DELTA_FOV;
 
 
-    // Free camera
+    /// Free camera
     // Euler Angles
     f32 mYaw = camera::YAW;
     f32 mPitch = camera::PITCH;
@@ -66,7 +66,7 @@ struct Camera
     bool mIsMovingForward = false;
     bool mIsMovingRight = false;
 
-    // Third person camera
+    /// Third person camera
     vec3 mCenter;
     f32 mRadius = 20.0f;
     bool mIsRotatingRight = false;

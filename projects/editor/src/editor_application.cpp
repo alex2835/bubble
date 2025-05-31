@@ -54,12 +54,8 @@ void BubbleEditor::Run()
                 mEditorUserInterface.OnUpdate( deltaTime );
 
                 mEngine.mActiveCamera = mSceneCamera;
-                mEngine.DrawScene( mSceneViewport, mProject.mScene );
-                if ( mUIGlobals.mDrawBoundingBoxes )
-                    mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
-                if ( mUIGlobals.mDrawPhysicsShapes )
-                    mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
                 DrawEntityIds();
+                mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 break;
             }
             case EditorMode::Running:
@@ -73,6 +69,12 @@ void BubbleEditor::Run()
                 break;
             }
         }
+
+        if ( mUIGlobals.mDrawBoundingBoxes )
+            mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
+        if ( mUIGlobals.mDrawPhysicsShapes )
+            mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
+
         mWindow.ImGuiBegin();
         //ImGui::ShowDemoWindow();
         mEditorUserInterface.OnDraw( deltaTime );
@@ -148,6 +150,17 @@ void BubbleEditor::OnUpdate()
         mProject.mScene.RemoveEntity( mSelectedEntity );
     }
 
+    // Save project
+    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
+         mWindow.GetWindowInput().KeyMods().CONTROL and
+         mEditorMode == EditorMode::Editing and
+         mUIGlobals.mViewportHovered and
+         mSelectedEntity )
+    {
+        if ( mProject.IsValid() )
+            mProject.Save();
+    }
+
 }
 
 void BubbleEditor::DrawEntityIds()
@@ -157,11 +170,11 @@ void BubbleEditor::DrawEntityIds()
     mEngine.mRenderer.ClearScreenUint( uvec4( 0 ) );
     mProject.mScene.ForEach<ModelComponent, TransformComponent>(
         [&]( Entity entity,
-             ModelComponent& model,
-             TransformComponent& transform )
+             ModelComponent& modelComponent,
+             TransformComponent& transformComponent )
     {
         mEntityIdShader->SetUni1ui( "uObjectId", (u32)entity );
-        mEngine.mRenderer.DrawModel( model, transform.TransformMat(), mEntityIdShader );
+        mEngine.mRenderer.DrawModel( modelComponent.mModel, transformComponent.TransformMat(), mEntityIdShader );
     } );
 }
 

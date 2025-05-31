@@ -25,10 +25,10 @@ const T* TryGetComponent( const Project& project, Entity entity )
 
 opt<AABB> TryGetEntityBBox( const Project& project, Entity entity )
 {
-    auto modelComp = TryGetComponent<ModelComponent>( project, entity );
-    auto transComp = TryGetComponent<TransformComponent>( project, entity );
-    if ( modelComp and transComp )
-        return CalculateTransformedBBox( modelComp->get()->mBBox, transComp->ScaleMat() );
+    auto modelComponet = TryGetComponent<ModelComponent>( project, entity );
+    auto transComponet = TryGetComponent<TransformComponent>( project, entity );
+    if ( modelComponet->mModel and transComponet )
+        return CalculateTransformedBBox( modelComponet->mModel->mBBox, transComponet->ScaleMat() );
     return std::nullopt;
 }
 
@@ -46,12 +46,14 @@ void TagComponent::OnComponentDraw( const Project& project, const Entity& entity
 
 void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )
 {
-    json = tagComponent.mName;
+    json["Tag"] = tagComponent.mName;
+    json["Class"] = tagComponent.mClass;
 }
 
 void TagComponent::FromJson( const json& json, Project& project, TagComponent& tagComponent )
 {
-    tagComponent.mName = json;
+    tagComponent.mName = json["Tag"];
+    tagComponent.mClass = json["Class"];
 }
 
 void TagComponent::CreateLuaBinding( sol::state& lua )
@@ -200,7 +202,7 @@ void ModelComponent::OnComponentDraw( const Project& project, const Entity& enti
 {
     ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
-    auto modelComponentName = modelComponent ? modelComponent->mName.c_str() : "Not selected";
+    auto modelComponentName = modelComponent.mModel ? modelComponent.mModel->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "models", modelComponentName ) )
     {
         for ( const auto& [modelPath, model] : project.mLoader.mModels )
@@ -215,12 +217,12 @@ void ModelComponent::OnComponentDraw( const Project& project, const Entity& enti
 
 void ModelComponent::ToJson( json& json, const Project& project, const ModelComponent& modelComponent )
 {
-    if ( not modelComponent )
+    if ( not modelComponent.mModel )
     {
         json = nullptr;
         return;
     }
-    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( modelComponent->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( modelComponent.mModel->mPath );
     json["Path"] = relPath;
 }
 
@@ -239,7 +241,15 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
     );
 }
 
+ModelComponent::ModelComponent( const Ref<Model>& model )
+    : mModel( model )
+{
+}
 
+ModelComponent::~ModelComponent()
+{
+
+}
 
 
 // ShaderComponent
@@ -287,6 +297,16 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
     );
 }
 
+ShaderComponent::ShaderComponent( const Ref<Shader>& shader )
+    : mShader( shader )
+{
+
+}
+
+ShaderComponent::~ShaderComponent()
+{
+
+}
 
 
 
@@ -669,6 +689,7 @@ opt<Any> DrawAnyValue( const string& name, Any any )
                 if ( ImGui::Button( "-" ) )
                 {
                     table[k] = sol::nil;
+                    ImGui::PopID();
                     continue;
                 }
                 ImGui::SameLine();
@@ -698,6 +719,7 @@ opt<Any> DrawAnyValue( const string& name, Any any )
                 if ( ImGui::Button( "-" ) )
                 {
                     table[k] = sol::nil;
+                    ImGui::PopID();
                     continue;
                 }
                 ImGui::SameLine();

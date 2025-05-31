@@ -25,7 +25,7 @@ void Engine::OnStart()
     {
         physics.mPhysicsObject.SetTransform( transform.mPosition, transform.mRotation );
         physics.mPhysicsObject.ClearForces();
-        mProject.mPhysicsEngine.AddPhysicsObject( physics.mPhysicsObject );
+        mProject.mPhysicsEngine.Add( physics.mPhysicsObject );
     } );
 
     /// Scripts
@@ -33,7 +33,7 @@ void Engine::OnStart()
     mProject.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
     {
         if ( not scriptComponent.mScript )
-            std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
+            throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
         mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
     } );
 }
@@ -81,11 +81,11 @@ void Engine::DrawScene( Framebuffer& framebuffer,
 
     scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
         [&]( Entity _,
-             ModelComponent& model,
-             ShaderComponent& shader,
+             ModelComponent& modelComponent,
+             ShaderComponent& shaderComponent,
              TransformComponent& transform )
     {
-        mRenderer.DrawModel( model, transform.TransformMat(), shader );
+        mRenderer.DrawModel( modelComponent.mModel, transform.TransformMat(), shaderComponent.mShader );
     } );
 }
 
@@ -106,7 +106,7 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
              TransformComponent& transform )
     {
         const mat4 trans = transform.TransformMat();
-        const AABB box = CalculateTransformedBBox( model->mBBox, trans );
+        const AABB box = CalculateTransformedBBox( model.mModel->mBBox, trans );
         const auto [vertices, indices] = CalculateBBoxShapeData( box );
         for ( vec3 vertex : vertices )
             mBoudingBoxes.mVertices.mPositions.push_back( vertex );

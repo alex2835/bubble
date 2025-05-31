@@ -22,10 +22,15 @@ PhysicsEngine::PhysicsEngine()
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
 }
 
-void PhysicsEngine::AddPhysicsObject( const PhysicsObject& obj )
+void PhysicsEngine::Add( const PhysicsObject& obj )
 {
     dynamicsWorld->addRigidBody( obj.mBody.get() );
     obj.mBody->activate();
+}
+
+void PhysicsEngine::Remove( const PhysicsObject& obj )
+{
+    dynamicsWorld->removeRigidBody( obj.mBody.get() );
 }
 
 void PhysicsEngine::ClearWorld()

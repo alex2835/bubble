@@ -19,6 +19,7 @@ public:
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& filePath );
     void Save();
+    bool IsValid();
 
     string mName;
     path mRootFile;

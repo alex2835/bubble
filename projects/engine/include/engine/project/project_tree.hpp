@@ -1,16 +1,18 @@
 #pragma once
-#include "engine/engine.hpp"
+#include "engine/types/string.hpp"
+#include "engine/scene/scene.hpp"
 #include <variant>
 
 namespace bubble
 {
 enum class ProjectNodeType
 {
-    ProjectMain,
+    Level,
     Folder,
-    Camera,
+    MainCharacter,
     GameObject,
-    MainCharacter
+    Camera,
+    Script,
 };
 
 struct ProjectNode
@@ -18,7 +20,7 @@ struct ProjectNode
     ProjectNodeType mType = ProjectNodeType::Folder;
     vector<ProjectNode> mChildren;
 
-    //std::variant<Entity> mState;
+    std::variant<Entity, string> mState;
 };
 
 }

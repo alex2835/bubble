@@ -106,9 +106,8 @@ struct LightComponent : public Light
 
 
 
-struct ModelComponent : public Ref<Model>
+struct ModelComponent
 {
-	using Ref<Model>::operator=;
     static int ID() { return static_cast<int>( ComponentID::Model ); }
 	static string_view Name() { return "Model"sv; }
 
@@ -116,6 +115,12 @@ struct ModelComponent : public Ref<Model>
 	static void ToJson( json& json, const Project& project, const ModelComponent& component );
 	static void FromJson( const json& json, Project& project, ModelComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
+
+public:
+	ModelComponent() = default;
+	ModelComponent( const Ref<Model>& model );
+    ~ModelComponent();
+	Ref<Model> mModel;
 };
 
 
@@ -131,6 +136,12 @@ struct ShaderComponent : public Ref<Shader>
 	static void ToJson( json& json, const Project& project, const ShaderComponent& component );
 	static void FromJson( const json& json, Project& project, ShaderComponent& component );
 	static void CreateLuaBinding( sol::state& lua );
+
+public:
+	ShaderComponent() = default;
+	ShaderComponent( const Ref<Shader>& shader );
+    ~ShaderComponent();
+    Ref<Shader> mShader;
 };
 
 

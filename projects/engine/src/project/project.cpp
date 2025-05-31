@@ -67,6 +67,11 @@ void Project::Save()
 }
 
 
+bool Project::IsValid()
+{
+    return not mRootFile.empty();
+}
+
 void Project::SaveScene( json& j )
 {
     j["Entity counter"] = mScene.mEntityCounter;

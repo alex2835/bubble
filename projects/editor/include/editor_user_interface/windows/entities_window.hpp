@@ -17,9 +17,6 @@ public:
 private:
     void DrawSelectedEntityComponents();
     void DrawEntities();
-
-
-    str_hash_set mNoCompDrawFuncWarnings;
 };
 
 }

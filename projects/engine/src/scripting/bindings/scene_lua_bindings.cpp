@@ -53,7 +53,7 @@ void CreateSceneBindings( Scene& scene,
         [&]( Entity& entity, const PhysicsObject& object ) 
         {
             auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
-            physicsEngine.AddPhysicsObject( physicsComponent.mPhysicsObject );
+            physicsEngine.Add( physicsComponent.mPhysicsObject );
         },
         "AddStateComponent",
         [&]( Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
@@ -64,7 +64,7 @@ void CreateSceneBindings( Scene& scene,
         "GetTransformComponent",
         [&]( Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
-        [&]( Entity& entity ) ->Ref<Model>& { return scene.GetComponent<ModelComponent>( entity ); },
+        [&]( Entity& entity ) ->Ref<Model>& { return scene.GetComponent<ModelComponent>( entity ).mModel; },
         "GetShaderComponent",
         [&]( Entity& entity ) ->Ref<Shader>& { return scene.GetComponent<ShaderComponent>( entity ); },
         "GetPhysicsComponent",
@@ -90,6 +90,12 @@ void CreateSceneBindings( Scene& scene,
 
     // Scene
     lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
+
+    lua["RemoveEntity"] = [&]( Entity entity ) { 
+        if ( scene.HasComponent<PhysicsComponent>( entity ) )
+            physicsEngine.Remove( scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject );
+        scene.RemoveEntity( entity );
+    };
 
     lua["ForEachEntity"] = [&]( sol::table components, sol::function func )
     {

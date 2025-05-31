@@ -22,7 +22,8 @@ public:
 
     void Update( DeltaTime dt );
 
-    void AddPhysicsObject( const PhysicsObject& obj );
+    void Add( const PhysicsObject& obj );
+    void Remove( const PhysicsObject& obj );
     void ClearWorld();
 };
 
