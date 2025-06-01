@@ -105,6 +105,9 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
              ModelComponent& model,
              TransformComponent& transform )
     {
+        if ( not model.mModel )
+            return;
+
         const mat4 trans = transform.TransformMat();
         const AABB box = CalculateTransformedBBox( model.mModel->mBBox, trans );
         const auto [vertices, indices] = CalculateBBoxShapeData( box );

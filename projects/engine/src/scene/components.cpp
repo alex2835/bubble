@@ -10,6 +10,9 @@
 #include <sol/sol.hpp>
 
 constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
+constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
+                             ImGuiTreeNodeFlags_SpanAllColumns |
+                             ImGuiTreeNodeFlags_Framed;
 
 namespace bubble
 {
@@ -86,14 +89,7 @@ void TransformComponent::OnComponentDraw( const Project& project, const Entity& 
     ImGui::DragFloat3( "Rotation", (float*)&transformComponent.mRotation, 0.01f );
     ImGui::DragFloat3( "Position", (float*)&transformComponent.mPosition, 0.1f );
 }
-
-TransformComponent::TransformComponent( vec3 pos, vec3 rot, vec3 scale )
-    : mPosition( pos ),
-      mRotation( rot ),
-      mScale( scale )
-{
-}
-
+ 
 mat4 TransformComponent::TransformMat() const
 {
     auto transform = mat4( 1.0f );
@@ -202,13 +198,14 @@ void ModelComponent::OnComponentDraw( const Project& project, const Entity& enti
 {
     ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
-    auto modelComponentName = modelComponent.mModel ? modelComponent.mModel->mName.c_str() : "Not selected";
-    if ( ImGui::BeginCombo( "models", modelComponentName ) )
+    const auto& model = modelComponent.mModel;
+    auto modelName = model ? model->mName.c_str() : "Not selected";
+    if ( ImGui::BeginCombo( "models", modelName ) )
     {
         for ( const auto& [modelPath, model] : project.mLoader.mModels )
         {
-            auto modelName = modelPath.stem().string();
-            if ( ImGui::Selectable( modelName.c_str(), modelName == modelComponentName ) )
+            auto modelComboName = modelPath.stem().string();
+            if ( ImGui::Selectable( modelComboName.c_str(), modelComboName == modelName ) )
                 modelComponent = model;
         }
         ImGui::EndCombo();
@@ -257,13 +254,14 @@ void ShaderComponent::OnComponentDraw( const Project& project, const Entity& ent
 {
     ImGui::TextColored( TEXT_COLOR, "ShaderComponent" );
 
-    auto shaderComponentName = shaderComponent ? shaderComponent->mName.c_str() : "Not selected";
-    if ( ImGui::BeginCombo( "shaders", shaderComponentName ) )
+    const auto& shader = shaderComponent.mShader;
+    auto shaderName = shader ? shader->mName.c_str() : "Not selected";
+    if ( ImGui::BeginCombo( "shaders", shaderName ) )
     {
         for ( const auto& [shaderPath, shader] : project.mLoader.mShaders )
         {
-            auto shaderName = shaderPath.stem().string();
-            if ( ImGui::Selectable( shaderName.c_str(), shaderName == shaderComponentName ) )
+            auto shaderComboName = shaderPath.stem().string();
+            if ( ImGui::Selectable( shaderComboName.c_str(), shaderComboName == shaderName ) )
                 shaderComponent = shader;
         }
         ImGui::EndCombo();
@@ -272,13 +270,13 @@ void ShaderComponent::OnComponentDraw( const Project& project, const Entity& ent
 
 void ShaderComponent::ToJson( json& json, const Project& project, const ShaderComponent& shaderComponent )
 {
-    if ( not shaderComponent )
+    if ( not shaderComponent.mShader )
     {
         json = nullptr;
         return;
     }
 
-    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent.mShader->mPath );
     json["Path"] = relPath;
 }
 
@@ -680,9 +678,9 @@ opt<Any> DrawAnyValue( const string& name, Any any )
     {
         int i = 0;
         auto table = any.as<Table>();
-        if ( ImGui::TreeNode( "##array", "%s (array)", name.c_str() ) )
-        {
-            for ( auto& [k, v] : table )
+        if ( ImGui::TreeNodeEx( "##array", TABLE_FLAGS, "%s (array)", name.c_str() ) )
+        {                                                                
+            for ( auto& [k, v] : table )                                 
             {
                 ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
 
@@ -710,7 +708,7 @@ opt<Any> DrawAnyValue( const string& name, Any any )
     {
         int i = 0;
         auto table = any.as<Table>();
-        if ( ImGui::TreeNode( "##table", "%s (table)", name.c_str() ) )
+        if ( ImGui::TreeNodeEx( "##table", TABLE_FLAGS, "%s (table)", name.c_str() ) )
         {
             for ( auto& [k, v] : table )
             {

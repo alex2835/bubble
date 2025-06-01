@@ -18,6 +18,7 @@ void Project::LoadDefaultResources()
 }
 
 Project::Project( WindowInput& input )
+    : mProjectTreeRoot( CreateRef<ProjectTreeNode>() )
 {
     mScriptingEngine.BindInput( input );
     mScriptingEngine.BindLoader( mLoader );
@@ -42,38 +43,9 @@ void Project::Create( const path& rootDir, const string& projectName )
     Save();
 }
 
-void Project::Open( const path& rootFile )
+json Project::SaveScene()
 {
-    if ( !is_regular_file( rootFile ) || rootFile.extension() != ROOT_FILE_EXT )
-        throw std::runtime_error( "Invalid project path: " + rootFile.string() );
-    
-    mRootFile = rootFile;
-    mLoader.mProjectRootPath = rootFile.parent_path();
-
-    std::ifstream stream( mRootFile );
-    json projectJson = json::parse( stream );
-    from_json( projectJson["Loader"], mLoader );
-    LoadScene( projectJson["Scene"] );
-}
-
-void Project::Save()
-{
-    json projectJson;
-    projectJson["Loader"] = mLoader;
-    SaveScene( projectJson["Scene"] );
-
-    std::ofstream projectFile( mRootFile );
-    projectFile << projectJson.dump( 1 );
-}
-
-
-bool Project::IsValid()
-{
-    return not mRootFile.empty();
-}
-
-void Project::SaveScene( json& j )
-{
+    json j;
     j["Entity counter"] = mScene.mEntityCounter;
     // Entity components
     auto& entityComponentsJson = j["Entity components"];
@@ -97,7 +69,10 @@ void Project::SaveScene( json& j )
             componentToJson( poolJson[entityStr], *this, pool.GetRaw( i ) );
         }
     }
+    return j;
 }
+
+
 
 void Project::LoadScene( const json& j )
 {
@@ -136,5 +111,98 @@ void Project::LoadScene( const json& j )
         }
     }
 }
+
+
+json Project::SaveProjectTreeNode( const Ref<ProjectTreeNode>& node )
+{
+    json j;
+    j["ID"] = node->mID;
+    j["Type"] = magic_enum::enum_name( node->mType );
+
+    if ( node->mType == ProjectTreeNodeType::Level or
+         node->mType == ProjectTreeNodeType::Folder )
+        j["State"] = std::get<string>( node->mState );
+    else 
+        j["State"] = (u64)std::get<Entity>( node->mState );
+
+    json& children = j["Children"];
+    for ( const auto& child : node->mChildren )
+        children.push_back( SaveProjectTreeNode( child ) );
+    
+    return j;
+}
+
+json Project::SaveProjectTree()
+{
+    json j;
+    j["Counter"] = ProjectTreeNode::mIDCounter;
+    j["Tree"] = SaveProjectTreeNode( mProjectTreeRoot );
+    return j;
+}
+
+
+Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, ProjectTreeNode* parent )
+{
+    auto node = CreateRef<ProjectTreeNode>();
+
+    node->mID = j["ID"];
+    auto optType = magic_enum::enum_cast<ProjectTreeNodeType>( string( j["Type"] ) );
+    if ( not optType )
+        throw std::runtime_error( std::format( "Failed to read project tree node type: {}", string(j["Type"]) ) );
+    node->mType = *optType;
+
+    if ( node->mType == ProjectTreeNodeType::Level or
+         node->mType == ProjectTreeNodeType::Folder )
+        node->mState = string( j["State"] );
+    else
+        node->mState = mScene.GetEntityById( j["State"] );
+
+    const json& children = j["Children"];
+    for ( const auto& child : children )
+        node->mChildren.emplace_back( LoadProjectTreeNode( child, node.get() ) );
+
+    node->mParent = parent;
+    return node;
+}
+
+void Project::LoadProjectTree( const json& j )
+{
+    ProjectTreeNode::mIDCounter = j["Counter"];
+    mProjectTreeRoot = LoadProjectTreeNode( j["Tree"], nullptr );
+}
+
+void Project::Save()
+{
+    json projectJson;
+    projectJson["Loader"] = mLoader;
+    projectJson["Scene"] = SaveScene();
+    projectJson["ProjectTree"] = SaveProjectTree();
+
+    std::ofstream projectFile( mRootFile );
+    projectFile << projectJson.dump( 1 );
+}
+
+
+void Project::Open( const path& rootFile )
+{
+    if ( !is_regular_file( rootFile ) || rootFile.extension() != ROOT_FILE_EXT )
+        throw std::runtime_error( "Invalid project path: " + rootFile.string() );
+
+    mRootFile = rootFile;
+    mLoader.mProjectRootPath = rootFile.parent_path();
+
+    std::ifstream stream( mRootFile );
+    json projectJson = json::parse( stream );
+    from_json( projectJson["Loader"], mLoader );
+    LoadScene( projectJson["Scene"] );
+    LoadProjectTree( projectJson["ProjectTree"] );
+}
+
+
+bool Project::IsValid()
+{
+    return not mRootFile.empty();
+}
+
 
 }

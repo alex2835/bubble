@@ -113,42 +113,26 @@ void BubbleEditor::OnUpdate()
 
 
     /// Copy selected entity
-    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::V ) and
-         mWindow.GetWindowInput().KeyMods().CONTROL and
-         mEditorMode == EditorMode::Editing and
-         mUIGlobals.mViewportHovered and
-         mSelectedEntity )
-    {
-        auto createCopyName = []( string name )
-        {
-            static std::regex pattern( R"(\(\d+\))" );
-            static std::smatch match;
-            if ( std::regex_search( name, match, pattern ) )
-            {
-                auto str = match[0].str().substr( 1 );
-                int copyId = 0;
-                std::from_chars( str.data(), str.data() + str.size(), copyId );
-                return std::regex_replace( name, pattern, std::format( "({})", ( copyId + 1 ) ) );
-            }
-            return name + "(1)";
-        } ;
-
-        auto newEntity = mProject.mScene.CopyEntity( mSelectedEntity );
-        auto& tag = mProject.mScene.GetComponent<TagComponent>( newEntity );
-        tag.mName = createCopyName( tag.mName );
-        auto& trans = mProject.mScene.GetComponent<TransformComponent>( newEntity );
-        trans.mPosition += vec3( 1 );
-        mSelectedEntity = newEntity;
-    }
+    //if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::V ) and
+    //     mWindow.GetWindowInput().KeyMods().CONTROL and
+    //     mEditorMode == EditorMode::Editing and
+    //     mUIGlobals.mViewportHovered and
+    //     mSelectedEntity )
+    //{
+    //    auto newEntity = mProject.mScene.CopyEntity( mSelectedEntity );
+    //    auto& trans = mProject.mScene.GetComponent<TransformComponent>( newEntity );
+    //    trans.mPosition += vec3( 1 );
+    //    mSelectedEntity = newEntity;
+    //}
 
     /// Remove selected entity
-    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) and
-         mEditorMode == EditorMode::Editing and
-         mUIGlobals.mViewportHovered and
-         mSelectedEntity )
-    {
-        mProject.mScene.RemoveEntity( mSelectedEntity );
-    }
+    //if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) and
+    //     mEditorMode == EditorMode::Editing and
+    //     mUIGlobals.mViewportHovered and
+    //     mSelectedEntity )
+    //{
+    //    mProject.mScene.RemoveEntity( mSelectedEntity );
+    //}
 
     // Save project
     if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and

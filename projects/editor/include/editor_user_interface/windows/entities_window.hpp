@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/types/set.hpp"
+#include "engine/project/project_tree.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
@@ -15,6 +16,10 @@ public:
     void OnDraw( DeltaTime );
 
 private:
+    void DrawSceneTreeNode( Ref<ProjectTreeNode>& node );
+
+    void DrawCreateEntityPopup( Ref<ProjectTreeNode>& node );
+
     void DrawSelectedEntityComponents();
     void DrawEntities();
 };

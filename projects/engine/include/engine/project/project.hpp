@@ -5,14 +5,20 @@
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/loader/loader.hpp"
+#include "project_tree.hpp"
 
 namespace bubble
 {
 class Project
 {
     void LoadDefaultResources();
-    void SaveScene( json& j );
+    json SaveScene();
     void LoadScene( const json& j );
+    
+    json SaveProjectTreeNode( const Ref<ProjectTreeNode>& node );
+    json SaveProjectTree();
+    Ref<ProjectTreeNode> LoadProjectTreeNode( const json& j, ProjectTreeNode* parent );
+    void LoadProjectTree( const json& j );
 public:
     Project( WindowInput& input );
     ~Project();
@@ -27,6 +33,8 @@ public:
     PhysicsEngine mPhysicsEngine;
     Loader mLoader;
     Scene mScene;
+    // Just tree view for scene
+    Ref<ProjectTreeNode> mProjectTreeRoot;
 };
 
 }

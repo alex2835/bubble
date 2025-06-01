@@ -67,8 +67,6 @@ struct TransformComponent
     static void CreateLuaBinding( sol::state& lua );
 	
 public:
-	TransformComponent() = default;
-    TransformComponent( vec3 pos, vec3 rot, vec3 scale );
 	mat4 TransformMat() const;
 	mat4 ScaleMat() const;
 	mat4 TranslationMat() const;
@@ -125,10 +123,8 @@ public:
 
 
 
-struct ShaderComponent : public Ref<Shader>
+struct ShaderComponent
 {
-	using Ref<Shader>::operator=;
-
     static int ID() { return static_cast<int>( ComponentID::Shader ); }
 	static string_view Name() { return "Shader"sv; }
 
