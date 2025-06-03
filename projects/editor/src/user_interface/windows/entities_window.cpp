@@ -10,6 +10,18 @@ constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
                                          ImGuiTreeNodeFlags_SpanAllColumns |
                                          ImGuiTreeNodeFlags_Framed;
 
+EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
+    : UserInterfaceWindowBase( editor )
+{
+    mLevelIcon = LoadTexture2D( "./resources/images/icons/scene.png" );
+    mFolerIcon = LoadTexture2D( "./resources/images/icons/folder.png" );
+    mObjectIcon = LoadTexture2D( "./resources/images/icons/object.png" );
+    mLightIcon = LoadTexture2D( "./resources/images/icons/light.png" );
+    mCameraIcon = LoadTexture2D( "./resources/images/icons/camera.png" );
+    mPlayerIcon = LoadTexture2D( "./resources/images/icons/player.png" );
+    mScriptIcon = LoadTexture2D( "./resources/images/icons/script.png" );
+}
+
 EntitiesWindow::~EntitiesWindow()
 {
 
@@ -123,13 +135,40 @@ bool RenamableTreeNode( string& name,
     return false;
 }
 
+const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
+{
+    switch ( node->Type() )
+    {
+        case ProjectTreeNodeType::Level:
+            return mLevelIcon;
+        case ProjectTreeNodeType::Folder:
+            return mFolerIcon;
+        case ProjectTreeNodeType::ModelObject:
+            return mObjectIcon;
+        case ProjectTreeNodeType::PhysicsObject:
+            return mObjectIcon;
+        case ProjectTreeNodeType::GameObject:
+            return mPlayerIcon;
+        case ProjectTreeNodeType::Camera:
+            return mCameraIcon;
+        case ProjectTreeNodeType::Script:
+            return mScriptIcon;
+    }
+    throw std::runtime_error( std::format( "Invalid enum type {}", (u32)node->Type() ) );
+}
+
 void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
 {
+    const auto& icon = GetProjectTreeNodeIcon( node );
+
     switch ( node->Type() )
     {
         case ProjectTreeNodeType::Level:
         case ProjectTreeNodeType::Folder:
         {
+            ImGui::Image( icon->RendererID(), ImVec2{ 20, 20 } );
+            ImGui::SameLine();
+
             string& name = std::get<string>( node->State() );
             if ( RenamableTreeNode( name, node->mEditing, PROJECT_TREE_NODE_FLAGS ) )
             {
@@ -152,6 +191,9 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
         case ProjectTreeNodeType::Camera:
         case ProjectTreeNodeType::Script:
         {
+            ImGui::Image( icon->RendererID(), ImVec2{ 18, 17 } );
+            ImGui::SameLine();
+
             auto entity = std::get<Entity>( node->State() );
             auto& tag = mProject.mScene.GetComponent<TagComponent>( entity );
             auto displayEntity = std::format( "{} (Enity:{})", tag.mName, (u64)entity );
@@ -201,9 +243,6 @@ void EntitiesWindow::DrawEntities()
         //} );
         //if ( entityToDelete )
         //    mProject.mScene.RemoveEntity( entityToDelete );
-
-
-
 
     }
     ImGui::EndChild();
