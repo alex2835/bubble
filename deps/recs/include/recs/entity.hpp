@@ -22,8 +22,6 @@ public:
     Entity( const Entity& ) = default;
     Entity& operator = ( const Entity& ) = default;
 
-    bool operator == ( const Entity& ) const = default;
-    bool operator < ( const Entity& ) const = default;
     operator size_t() const
     {
         return mId;

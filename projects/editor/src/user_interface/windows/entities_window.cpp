@@ -1,5 +1,6 @@
 
 #include <imgui.h>
+#include <cstring>
 #include "editor_user_interface/windows/entities_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
@@ -111,8 +112,7 @@ bool RenamableTreeNode( string& name,
         auto isNodeHovered = ImGui::IsItemHovered();
         if ( isNodeHovered and ImGui::IsKeyPressed( ImGuiKey_F2 ) )
         {
-            editing = true;
-            strcpy_s( nameBuffer, bufferSize, name.data() );
+            std::strncpy( nameBuffer, name.data(), bufferSize );
             ImGui::SetKeyboardFocusHere();
         }
 

@@ -149,7 +149,12 @@ void CreateSceneBindings( Scene& scene,
                     case ComponentID::State:
                         componentsTable[ComponentID::State] = *((StateComponent*)componentsData[i])->mState;
                         break;
-
+                    case ComponentID::Camera:
+                        // Camera component not handled
+                        break;
+                    case ComponentID::Light:
+                        // Light component not handled
+                        break;
                 }
             }
             func( entity, componentsAny );
