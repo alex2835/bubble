@@ -94,9 +94,9 @@ mat4 TransformComponent::TransformMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
-    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
     transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
+    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
     transform = glm::scale( transform, mScale );
     return transform;
 }
@@ -119,9 +119,9 @@ mat4 TransformComponent::TranslationRotationMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
-    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
     transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
+    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
     return transform;
 }
 
@@ -757,7 +757,7 @@ json SaveAnyValue( Any v )
         return  v.as<bool>();
     else if ( v.is<Table>() and IsArray( v.as<Table>() ) )
     {
-        json j;
+        json j = json::array();
         auto table = v.as<Table>();
         for ( auto& [k, v] : table )
             j.push_back( SaveAnyValue( v ) );
@@ -765,14 +765,17 @@ json SaveAnyValue( Any v )
     }
     else if ( v.is<Table>() )
     {
-        json j;
+        json j = json::object();
         auto table = v.as<Table>();
         for ( auto& [k, v] : table )
             j[k.as<string>()] = SaveAnyValue( v );
         return std::move( j );
     }
     else
-        throw std::runtime_error( "Value of not supported type: " );
+    {
+        PrintAnyValue( v );
+        throw std::runtime_error( "Value of not supported type" );
+    }
 
 }
 
@@ -809,7 +812,7 @@ Any LoadAnyValue( const json& j )
             table[k] = LoadAnyValue( v );
         return val;
     }
-    throw std::runtime_error( "Value of not supported type: " );
+    throw std::runtime_error( std::format( "Value of not supported type: {}", string( j ) ) );
 }
 
 void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )

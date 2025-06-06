@@ -114,13 +114,14 @@ void CreateSceneBindings( Scene& scene,
             componentsIds[i++] = (ComponentTypeId)v.as<int>();
         }
 
+
         // For each entity's components
+        auto componentsAny = Any{};
+        auto componentsTable = componentsAny.as<Table>();
+
         scene.RuntimeForEach( componentsIds,
         [&]( Entity entity, ComponentsDataArray componentsData )
         {
-            auto componentsAny = Any{};
-            auto componentsTable = componentsAny.as<Table>();
-
             for ( size_t i = 0; i < componentsCount; i++ )
             {
                 if ( componentsIds[i] == INVALID_COMPONENT_TYPE_ID )
@@ -146,15 +147,17 @@ void CreateSceneBindings( Scene& scene,
                     case ComponentID::Physics:
                         componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentsData[i])->mPhysicsObject;
                         break;
-                    case ComponentID::State:
-                        componentsTable[ComponentID::State] = *((StateComponent*)componentsData[i])->mState;
-                        break;
                     case ComponentID::Camera:
                         // Camera component not handled
                         break;
                     case ComponentID::Light:
                         // Light component not handled
                         break;
+                    case ComponentID::State:
+                        componentsTable[ComponentID::State] = *( (StateComponent*)componentsData[i] )->mState;
+                        break;
+                    default:
+                        throw std::runtime_error( "ForEachEntity: invalid set of componets provided" );
                 }
             }
             func( entity, componentsAny );

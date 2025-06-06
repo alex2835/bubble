@@ -28,6 +28,7 @@ private:
     Ref<Texture2D> mFolerIcon;
 
     Ref<Texture2D> mObjectIcon;
+    Ref<Texture2D> mPhysicsObjectIcon;
     Ref<Texture2D> mLightIcon;
     Ref<Texture2D> mCameraIcon;
     Ref<Texture2D> mPlayerIcon;

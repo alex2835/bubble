@@ -60,12 +60,21 @@ void BubbleEditor::Run()
             }
             case EditorMode::Running:
             {
-                // temp
-                mSceneCamera.OnUpdate( deltaTime );
-                mEngine.mActiveCamera = mSceneCamera;
+                try
+                {
+                    // temp
+                    mSceneCamera.OnUpdate( deltaTime );
+                    mEngine.mActiveCamera = mSceneCamera;
 
-                mEngine.OnUpdate();
-                mEngine.DrawScene( mSceneViewport );
+                    mEngine.OnUpdate();
+                    mEngine.DrawScene( mSceneViewport );
+                }
+                catch ( const std::exception& e )
+                {
+                    LogError( e.what() );
+                    mEditorMode = EditorMode::Editing;
+                    mProject.mScene = mSceneSave;
+                };
                 break;
             }
         }
@@ -96,19 +105,28 @@ void BubbleEditor::OpenProject( const path& projectPath )
 void BubbleEditor::OnUpdate()
 {
     /// Switch Editing/GameRunning modes
-    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F5 )
-         and mEditorMode == EditorMode::Editing )
+    if ( mEditorMode == EditorMode::Editing and
+         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F5 ) )
     {
-        mEditorMode = EditorMode::Running;
-        mSceneSave = mProject.mScene;
-        mEngine.OnStart();
+        try
+        {
+            mEditorMode = EditorMode::Running;
+            mSceneSave = mProject.mScene;
+            mEngine.OnStart();
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( e.what() );
+            mEditorMode = EditorMode::Editing;
+            mProject.mScene = mSceneSave;
+        };
     }
 
-    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F6 )
-         and mEditorMode == EditorMode::Running )
+    if ( mEditorMode == EditorMode::Running and
+         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F6 ) )
     {
-        mProject.mScene = mSceneSave;
         mEditorMode = EditorMode::Editing;
+        mProject.mScene = mSceneSave;
     }
 
 

@@ -47,9 +47,9 @@ void PhysicsObject::GetTransform( vec3& pos, vec3& rot ) const
                 transform.getOrigin().getY(),
                 transform.getOrigin().getZ() );
 
-    btVector3 rads;
-    transform.getRotation().getEulerZYX( rads[0], rads[1], rads[2] );
-    rot = vec3( rads.z(), rads.y(), rads.x() );
+    btScalar x, y, z;
+    transform.getRotation().getEulerZYX( x, y, z );
+    rot = vec3( z, y, x );
 }
 
 void PhysicsObject::ClearForces()

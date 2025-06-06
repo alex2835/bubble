@@ -17,7 +17,8 @@ void BasicMaterial::Apply( const Ref<Shader>& shader ) const
         shader->SetUni1i( "uMaterial.diffuseMap", 0 );
         mDiffuseMap->Bind( 0 );
     }
-    shader->SetUni1i( "uMaterial.hasDiffuseMap", false );
+    else
+        shader->SetUni1i( "uMaterial.hasDiffuseMap", false );
 
     if ( mSpecularMap )
     {

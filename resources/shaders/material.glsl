@@ -2,7 +2,7 @@
 // Material
 struct Material
 {
-    bool hasDeffuseMap;
+    bool hasDiffuseMap;
     bool hasSpecularMap;
     bool hasNormalMap;
 

@@ -327,7 +327,7 @@ IF (APPLE)
   FIND_LIBRARY(COCOA_LIBRARY Cocoa)
 ENDIF()
 
-OPTION(BUILD_BULLET3 "Set when you want to build Bullet 3" ON)
+OPTION(BUILD_BULLET3 "Set when you want to build Bullet 3" OFF)
 
 # Optional Python configuration
 # Will not probe environment for Python configuration (which can abort the

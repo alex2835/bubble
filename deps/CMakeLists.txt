@@ -49,5 +49,6 @@ add_subdirectory(magic_enum)
 add_subdirectory(thread_pool)
 
 
+option(BUILD_BULLET3 OFF)
 add_subdirectory(bullet)
 

@@ -8,8 +8,7 @@
 namespace bubble
 {
 constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                                         ImGuiTreeNodeFlags_SpanAllColumns |
-                                         ImGuiTreeNodeFlags_Framed;
+                                         ImGuiTreeNodeFlags_SpanAllColumns;
 
 EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
     : UserInterfaceWindowBase( editor )
@@ -17,6 +16,7 @@ EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
     mLevelIcon = LoadTexture2D( "./resources/images/icons/scene.png" );
     mFolerIcon = LoadTexture2D( "./resources/images/icons/folder.png" );
     mObjectIcon = LoadTexture2D( "./resources/images/icons/object.png" );
+    mPhysicsObjectIcon = LoadTexture2D( "./resources/images/icons/physics.png" );
     mLightIcon = LoadTexture2D( "./resources/images/icons/light.png" );
     mCameraIcon = LoadTexture2D( "./resources/images/icons/camera.png" );
     mPlayerIcon = LoadTexture2D( "./resources/images/icons/player.png" );
@@ -112,6 +112,7 @@ bool RenamableTreeNode( string& name,
         auto isNodeHovered = ImGui::IsItemHovered();
         if ( isNodeHovered and ImGui::IsKeyPressed( ImGuiKey_F2 ) )
         {
+            editing = true;
             std::strncpy( nameBuffer, name.data(), bufferSize );
             ImGui::SetKeyboardFocusHere();
         }
@@ -146,7 +147,7 @@ const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectT
         case ProjectTreeNodeType::ModelObject:
             return mObjectIcon;
         case ProjectTreeNodeType::PhysicsObject:
-            return mObjectIcon;
+            return mPhysicsObjectIcon;
         case ProjectTreeNodeType::GameObject:
             return mPlayerIcon;
         case ProjectTreeNodeType::Camera:
@@ -166,11 +167,14 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
         case ProjectTreeNodeType::Level:
         case ProjectTreeNodeType::Folder:
         {
-            ImGui::Image( icon->RendererID(), ImVec2{ 20, 20 } );
+            ImGui::Dummy( ImVec2( 0, 1 ) );
+
+            ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
             ImGui::SameLine();
 
             string& name = std::get<string>( node->State() );
-            if ( RenamableTreeNode( name, node->mEditing, PROJECT_TREE_NODE_FLAGS ) )
+            const auto flags = PROJECT_TREE_NODE_FLAGS; // if selected | ImGuiTreeNodeFlags_Framed;
+            if ( RenamableTreeNode( name, node->mEditing, flags ) )
             {
                 if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
                     ImGui::OpenPopup( "Create entity popup" );
@@ -191,7 +195,7 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
         case ProjectTreeNodeType::Camera:
         case ProjectTreeNodeType::Script:
         {
-            ImGui::Image( icon->RendererID(), ImVec2{ 18, 17 } );
+            ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
             ImGui::SameLine();
 
             auto entity = std::get<Entity>( node->State() );
