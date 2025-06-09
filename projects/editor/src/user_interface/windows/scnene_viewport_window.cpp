@@ -1,8 +1,8 @@
-
-#include <imgui.h>
+#include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/scnene_viewport_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/project/project_tree.hpp"
+#include <imgui.h>
 #include <glm/gtc/epsilon.hpp>
 
 namespace bubble
@@ -209,7 +209,7 @@ void SceneViewportInterface::OnDraw( DeltaTime )
 
             if ( not mSelection.mEntities.empty() )
             {
-                if ( ImGui::IsWindowFocused() )
+                if ( ImGui::IsWindowHovered() )
                 {
                     if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
                         mCurrentGizmoOperation = ImGuizmo::TRANSLATE;

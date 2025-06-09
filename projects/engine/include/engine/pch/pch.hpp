@@ -1,4 +1,8 @@
 #pragma once
+#include <future>
+#include <ranges>
+#include <string>
+
 #include "engine/types/glm.hpp"
 #include "engine/types/array.hpp"
 #include "engine/types/map.hpp"
@@ -10,5 +14,6 @@
 #include "engine/utils/algorihms.hpp"
 #include "engine/utils/chrono.hpp"
 #include "engine/log/log.hpp"
-#include <future>
-#include <ranges>
+
+#include "engine/scene/scene.hpp"
+#include "engine/renderer/renderer.hpp"

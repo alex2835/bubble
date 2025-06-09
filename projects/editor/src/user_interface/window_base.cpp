@@ -1,4 +1,4 @@
-
+#include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 #include "editor_application/editor_application.hpp"
 
@@ -20,22 +20,23 @@ void UserInterfaceWindowBase::SetSeleciton( const Ref<ProjectTreeNode>& node )
     mSelection.mPrejectTreeNode = node;
     mSelection.mEntities.clear();
     FillProjectTreeNodeEntities( mSelection.mEntities, node );
-
-    mSelection.mGroupTransform = TransformComponent();
-    // Single entity selected
+    
     // Group selected
     if ( not mSelection.mEntities.empty() )
     {
         float count = 0;
-        TransformComponent avgTransform;
+        auto avgPos = vec3( 0 );
         for ( auto entity : mSelection.mEntities )
         {
             if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
                 continue;
+            avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
             count++;
-            avgTransform = avgTransform + mProject.mScene.GetComponent<TransformComponent>( entity );
         }
-        mSelection.mGroupTransform = avgTransform * ( 1.0f / count );
+        avgPos *= ( 1.0f / count );
+        mSelection.mGroupTransform = TransformComponent{
+            .mPosition=avgPos,
+        };
     }
 }
 

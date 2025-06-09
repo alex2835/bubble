@@ -70,8 +70,6 @@ public:
 	mat4 ScaleMat() const;
 	mat4 TranslationMat() const;
 	mat4 TranslationRotationMat() const;
-	TransformComponent operator + ( const TransformComponent& other );
-	TransformComponent operator * ( float factor );
 
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );

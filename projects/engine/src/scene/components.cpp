@@ -125,23 +125,6 @@ mat4 TransformComponent::TranslationRotationMat() const
     return transform;
 }
 
-TransformComponent TransformComponent::operator + ( const TransformComponent& other )
-{
-    return TransformComponent{
-        .mPosition = mPosition + other.mPosition,
-        .mRotation = mRotation + other.mRotation,
-        .mScale = mScale + other.mScale,
-    };
-}
-
-TransformComponent TransformComponent::operator * ( float factor )
-{
-    return TransformComponent{
-        .mPosition = mPosition * factor,
-        .mRotation = mRotation * factor,
-        .mScale = mScale * factor,
-    };
-}
 
 void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )
 {
