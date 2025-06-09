@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/types/string.hpp"
+#include "engine/types/set.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/log/log.hpp"
 #include <variant>

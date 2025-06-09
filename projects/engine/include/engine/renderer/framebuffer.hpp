@@ -42,6 +42,7 @@ public:
     opt<Texture2D>& StencilAttachment();
 
     u32 ReadColorAttachmentPixelRedUint( uvec2 pos );
+    const vector<u32>& ReadColorAttachmentPixelRedUint( uvec2 start, uvec2 end );
     
     void Bind();
     void Unbind();

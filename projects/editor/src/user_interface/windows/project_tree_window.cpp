@@ -273,6 +273,8 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
     BUBBLE_ASSERT( mSelection.mEntities.size() == 1, "Draw only one entity selected" );
     auto selectedEntity = *mSelection.mEntities.begin();
+    if ( selectedEntity == INVALID_ENTITY )
+        return;
 
     ImGui::BeginChild( "Components" );
     if ( mEditorMode == EditorMode::Editing )

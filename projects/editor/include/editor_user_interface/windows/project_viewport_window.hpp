@@ -19,10 +19,11 @@ public:
 
     void OnUpdate( DeltaTime );
 
-    void SetSelection( Entity selectedEtnity );
-
+    uvec2 GlobalToWindowPos( ImVec2 pos );
     uvec2 CaptureWidnowMousePos();
+
     void ProcessScreenSelectedEntity();
+    void ProcessSreenSelectionRect();
 
     void DrawViewport();
     void DrawGizmoOneEntity( Entity entity );
@@ -30,10 +31,15 @@ public:
     //bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 
+
 private:
     uvec2 mNewSize;
     ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
+
+    // Screen selection
+    bool mIsSelecting = false;
+    ImVec2 mStartSelection;
 };
 
 }

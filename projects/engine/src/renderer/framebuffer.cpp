@@ -58,15 +58,36 @@ opt<Texture2D>& Framebuffer::StencilAttachment()
     return mStencilAttachment;
 }
 
-glm::u32 Framebuffer::ReadColorAttachmentPixelRedUint( uvec2 pos )
+u32 Framebuffer::ReadColorAttachmentPixelRedUint( uvec2 pos )
 {
+    u32 pixel = 0;
     Bind();
     glcall( glReadBuffer( GL_COLOR_ATTACHMENT0 ) );
-    u32 pixel = 0;
     glcall( glReadPixels( pos.x, pos.y, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &pixel ) );
     glcall( glReadBuffer( GL_NONE ) );
     glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+    Unbind();
+
     return pixel;
+}
+
+const vector<u32>& Framebuffer::ReadColorAttachmentPixelRedUint( uvec2 start, uvec2 end )
+{
+    auto x = std::min( start.x, end.x );
+    auto y = std::min( start.y, end.y );
+    auto width = std::max( start.x, end.x ) - x;
+    auto height = std::max( start.y, end.y ) - y;
+
+    static vector<u32> pixels;
+    pixels.resize( width * height, 0 );
+    Bind();
+    glcall( glReadBuffer( GL_COLOR_ATTACHMENT0 ) );
+    glcall( glReadPixels( x, y, width, height, GL_RED_INTEGER, GL_UNSIGNED_INT, pixels.data() ) );
+    glcall( glReadBuffer( GL_NONE ) );
+    glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+    Unbind();
+
+    return pixels;
 }
 
 Framebuffer::~Framebuffer()

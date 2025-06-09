@@ -2,8 +2,8 @@
 #include "editor_user_interface/windows/project_viewport_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/project/project_tree.hpp"
-#include <imgui.h>
 #include <glm/gtc/epsilon.hpp>
+#include <imgui.h>
 
 namespace bubble
 {
@@ -35,24 +35,16 @@ void ProjectViewportWindow::OnUpdate( DeltaTime )
     }
 }
 
-void ProjectViewportWindow::SetSelection( Entity selectedEtnity )
+uvec2 ProjectViewportWindow::GlobalToWindowPos( ImVec2 pos )
 {
-    if ( not selectedEtnity )
-    {
-        mSelection = {};
-        return;
-    }
-
-    auto node = FindNodeByEntity( selectedEtnity, mProject.mProjectTreeRoot );
-    if ( not node )
-        throw std::runtime_error( "Failed to find node by entity" );
-
-    UserInterfaceWindowBase::SetSeleciton( node );
+    auto windowPos = ImGui::GetCursorScreenPos();
+    auto mouseInWindowPos = uvec2{ std::max( 0, i32(pos.x - windowPos.x) ),
+                                   std::max( 0, i32(windowPos.y - pos.y) ) };
+    return mouseInWindowPos;
 }
 
 uvec2 ProjectViewportWindow::CaptureWidnowMousePos()
 {
-    auto windowSize = ImGui::GetWindowSize();
     auto windowPos = ImGui::GetCursorScreenPos();
     auto mousePos = ImGui::GetMousePos();
     auto mouseInWindowPos = uvec2{ mousePos.x - windowPos.x, windowPos.y - mousePos.y };
@@ -62,11 +54,71 @@ uvec2 ProjectViewportWindow::CaptureWidnowMousePos()
 
 void ProjectViewportWindow::ProcessScreenSelectedEntity()
 {
-    if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
+    if ( not ImGuizmo::IsUsing() and 
+         ImGui::IsWindowHovered() and
+         ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
     {
         const auto clickPos = CaptureWidnowMousePos();
         const auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
-        SetSelection( mProject.mScene.GetEntityById( pixel ) );
+
+        mSelection = {};
+        if ( pixel > 0 )
+            mSelection.mEntities.insert( mProject.mScene.GetEntityById( pixel ) );
+    }
+}
+
+void ProjectViewportWindow::ProcessSreenSelectionRect()
+{
+    // Start
+    if ( not ImGuizmo::IsUsing() and
+         ImGui::IsWindowHovered() and
+         ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
+    {
+        mIsSelecting = true;
+        mStartSelection = ImGui::GetMousePos();
+    }
+
+    // End
+    if ( mIsSelecting and
+         ( not ImGui::IsWindowHovered() or
+           ImGui::IsMouseReleased( ImGuiMouseButton_Left ) ) )
+    {
+        mIsSelecting = false;
+        auto startPos = GlobalToWindowPos( mStartSelection );
+        auto endPos = GlobalToWindowPos( ImGui::GetMousePos() );
+        const auto& pixels = mEntityIdViewport.ReadColorAttachmentPixelRedUint( startPos, endPos );
+        if ( pixels.empty() )
+            return;
+
+        float count = 0;
+        auto avgPos = vec3( 0 );
+        mSelection = {};
+        for ( int i = 0; i < pixels.size(); i+=3 )
+        {
+            auto pixel = pixels[i];
+            // Ignore invalid entities
+            if ( pixel > 0 )
+            {
+                auto entity = mProject.mScene.GetEntityById( pixel );
+                if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+                {
+                    count++;
+                    avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
+                }
+                mSelection.mEntities.insert( entity );
+            }
+        }
+        mSelection.mGroupTransform.mPosition = avgPos * ( 1.0f / count );
+    }
+
+    // selection rect
+    if ( mIsSelecting )
+    {
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 p1 = mStartSelection;
+        ImVec2 p2 = ImGui::GetMousePos();
+        ImU32 color = IM_COL32( 255, 100, 20, 100 );
+        drawList->AddRectFilled( p1, p2, color, 0.0f );
     }
 }
 
@@ -203,9 +255,9 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
         mUIGlobals.mViewportHovered = ImGui::IsWindowHovered();
         DrawViewport();
 
-        // Gizmo
         if ( mEditorMode == EditorMode::Editing )
         {
+            /// Gizmo
             ImGuizmo::SetDrawlist();
             auto windowPos = ImGui::GetWindowPos();
             ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
@@ -230,9 +282,9 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
 
             //bool viewManipulatorUsing = DrawViewManipulator();
 
-            // Select entity on click by pixel
-            if ( not ImGuizmo::IsUsing() and ImGui::IsWindowHovered() )
-                ProcessScreenSelectedEntity();
+            ProcessScreenSelectedEntity();
+            ProcessSreenSelectionRect();
+
         }
     }
     ImGui::End();
