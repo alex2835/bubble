@@ -1,6 +1,6 @@
 #pragma once
 #include "editor_user_interface/windows/menubar.hpp"
-#include "editor_user_interface/windows/scnene_viewport_window.hpp"
+#include "editor_user_interface/windows/project_viewport_window.hpp"
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
 
@@ -17,9 +17,9 @@ public:
 
 private:
     Menubar mMenubar;
-    EntitiesWindow mEntitiesWindow;
-    SceneViewportInterface mSceneViewportWindow;
-    ProjectWindow mProjectWindow;
+    ProjectTreeWindow mEntitiesWindow;
+    ProjectViewportWindow mSceneViewportWindow;
+    ProjectFilesWindow mProjectWindow;
 };
 
 }

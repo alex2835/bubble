@@ -50,7 +50,7 @@ public:
 
 Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>& node );
 
-void FillProjectTreeNodeEntities( vector<Entity>& entities, const Ref<ProjectTreeNode>& node );
+void FillProjectTreeNodeEntities( set<Entity>& entities, const Ref<ProjectTreeNode>& node );
 
 
 }

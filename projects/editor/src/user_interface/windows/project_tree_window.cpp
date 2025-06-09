@@ -53,7 +53,7 @@ bool RenamableTreeNode( string& name,
 
 
 
-EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
+ProjectTreeWindow::ProjectTreeWindow( BubbleEditor& editor )
     : UserInterfaceWindowBase( editor )
 {
     mLevelIcon = LoadTexture2D( "./resources/images/icons/scene.png" );
@@ -66,22 +66,22 @@ EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
     mScriptIcon = LoadTexture2D( "./resources/images/icons/script.png" );
 }
 
-EntitiesWindow::~EntitiesWindow()
+ProjectTreeWindow::~ProjectTreeWindow()
 {
 
 }
 
-magic_enum::string_view EntitiesWindow::Name()
+magic_enum::string_view ProjectTreeWindow::Name()
 {
     return "Entities"sv;
 }
 
-void EntitiesWindow::OnUpdate( DeltaTime )
+void ProjectTreeWindow::OnUpdate( DeltaTime )
 {
 }
 
 
-const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
+const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
 {
     switch ( node->Type() )
     {
@@ -104,7 +104,7 @@ const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectT
 }
 
 
-void EntitiesWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
+void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
 {
     // Create entities popup
     if ( ImGui::BeginPopup( "Create entity popup" ) )
@@ -167,11 +167,14 @@ void EntitiesWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
     }
 }
 
-void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected )
+void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected )
 {
-    const auto& icon = GetProjectTreeNodeIcon( node );
-    isSelected = isSelected or mSelection.mPrejectTreeNode == node;
+    // Selected by parent / selected in project tree / entities that were selected on screen
+    isSelected = isSelected or 
+        mSelection.mProjectTreeNode == node or
+        ( node->IsEntity() and mSelection.mEntities.count( node->AsEntity() ) );
 
+    const auto& icon = GetProjectTreeNodeIcon( node );
     switch ( node->Type() )
     {
         case ProjectTreeNodeType::Level:
@@ -225,7 +228,7 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelec
 
 }
 
-void EntitiesWindow::DrawEntities()
+void ProjectTreeWindow::DrawEntities()
 {
     ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
     if ( mEditorMode == EditorMode::Editing )
@@ -266,11 +269,10 @@ void EntitiesWindow::DrawEntities()
     ImGui::EndChild();
 }
 
-void EntitiesWindow::DrawSelectedEntityComponents()
+void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
-    if ( mSelection.mEntities.size() != 1 )
-        return;
-    auto selectedEntity = mSelection.mEntities.front();
+    BUBBLE_ASSERT( mSelection.mEntities.size() == 1, "Draw only one entity selected" );
+    auto selectedEntity = *mSelection.mEntities.begin();
 
     ImGui::BeginChild( "Components" );
     if ( mEditorMode == EditorMode::Editing )
@@ -333,15 +335,17 @@ void EntitiesWindow::DrawSelectedEntityComponents()
     ImGui::EndChild();
 }
 
-void EntitiesWindow::OnDraw( DeltaTime )
+void ProjectTreeWindow::OnDraw( DeltaTime )
 {
     ImGui::Begin( Name().data(), &mOpen );
     {
         DrawEntities();
         ImGui::Separator();
+
         ImGui::Text( "Entity components" );
         ImGui::Separator();
-        DrawSelectedEntityComponents();
+        if ( mSelection.mEntities.size() == 1 )
+            DrawSelectedEntityComponents();
     }
     ImGui::End();
 }

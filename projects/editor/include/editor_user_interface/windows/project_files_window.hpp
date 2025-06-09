@@ -14,7 +14,7 @@ enum class FilesystemNodeType
     Texture
 };
 
-class ProjectWindow : public UserInterfaceWindowBase
+class ProjectFilesWindow : public UserInterfaceWindowBase
 {
     struct FilesystemNode
     {
@@ -24,8 +24,8 @@ class ProjectWindow : public UserInterfaceWindowBase
     };
 
 public:
-    ProjectWindow( BubbleEditor& editorState );
-    ~ProjectWindow();
+    ProjectFilesWindow( BubbleEditor& editorState );
+    ~ProjectFilesWindow();
 
     string_view Name();
 

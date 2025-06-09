@@ -29,9 +29,9 @@ struct UIGlobals
 struct Selection
 {
     // Selected node in project tree
-    Ref<ProjectTreeNode> mPrejectTreeNode;
-    // All entities in this sub tree
-    vector<Entity> mEntities;
+    Ref<ProjectTreeNode> mProjectTreeNode;
+    // All entities selected (Selected in project tree or on screen)
+    set<Entity> mEntities;
     // Used when selected more then one entity
     TransformComponent mGroupTransform;
 };

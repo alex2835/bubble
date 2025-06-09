@@ -17,7 +17,7 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
 
 void UserInterfaceWindowBase::SetSeleciton( const Ref<ProjectTreeNode>& node )
 {
-    mSelection.mPrejectTreeNode = node;
+    mSelection.mProjectTreeNode = node;
     mSelection.mEntities.clear();
     FillProjectTreeNodeEntities( mSelection.mEntities, node );
     

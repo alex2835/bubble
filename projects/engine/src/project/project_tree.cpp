@@ -62,10 +62,10 @@ Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>
     return nullptr;
 }
 
-void FillProjectTreeNodeEntities( vector<Entity>& entities, const Ref<ProjectTreeNode>& node )
+void FillProjectTreeNodeEntities( set<Entity>& entities, const Ref<ProjectTreeNode>& node )
 {
     if ( node->IsEntity() )
-        entities.push_back( node->AsEntity() );
+        entities.insert( node->AsEntity() );
 
     for ( const auto& child : node->Children() )
         FillProjectTreeNodeEntities( entities, child );

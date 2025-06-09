@@ -5,11 +5,11 @@
 
 namespace bubble
 {
-class EntitiesWindow : public UserInterfaceWindowBase
+class ProjectTreeWindow : public UserInterfaceWindowBase
 {
 public:
-    EntitiesWindow( BubbleEditor& editor );
-    ~EntitiesWindow();
+    ProjectTreeWindow( BubbleEditor& editor );
+    ~ProjectTreeWindow();
 
     string_view Name();
     void OnUpdate( DeltaTime );

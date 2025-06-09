@@ -1,5 +1,5 @@
 #include "engine/pch/pch.hpp"
-#include "editor_user_interface/windows/scnene_viewport_window.hpp"
+#include "editor_user_interface/windows/project_viewport_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/project/project_tree.hpp"
 #include <imgui.h>
@@ -7,26 +7,26 @@
 
 namespace bubble
 {
-SceneViewportInterface::SceneViewportInterface( BubbleEditor& editorState )
+ProjectViewportWindow::ProjectViewportWindow( BubbleEditor& editorState )
     : UserInterfaceWindowBase( editorState )
 {
     mNewSize = mSceneViewport.Size();
 }
 
 
-SceneViewportInterface::~SceneViewportInterface()
+ProjectViewportWindow::~ProjectViewportWindow()
 {
 
 }
 
 
-string_view SceneViewportInterface::Name()
+string_view ProjectViewportWindow::Name()
 {
     return "Viewport"sv;
 }
 
 
-void SceneViewportInterface::OnUpdate( DeltaTime )
+void ProjectViewportWindow::OnUpdate( DeltaTime )
 {
     if ( mNewSize != mSceneViewport.Size() )
     {
@@ -35,7 +35,7 @@ void SceneViewportInterface::OnUpdate( DeltaTime )
     }
 }
 
-void SceneViewportInterface::SetSelection( Entity selectedEtnity )
+void ProjectViewportWindow::SetSelection( Entity selectedEtnity )
 {
     if ( not selectedEtnity )
     {
@@ -50,7 +50,7 @@ void SceneViewportInterface::SetSelection( Entity selectedEtnity )
     UserInterfaceWindowBase::SetSeleciton( node );
 }
 
-uvec2 SceneViewportInterface::CaptureWidnowMousePos()
+uvec2 ProjectViewportWindow::CaptureWidnowMousePos()
 {
     auto windowSize = ImGui::GetWindowSize();
     auto windowPos = ImGui::GetCursorScreenPos();
@@ -60,7 +60,7 @@ uvec2 SceneViewportInterface::CaptureWidnowMousePos()
 }
 
 
-void SceneViewportInterface::ProcessScreenSelectedEntity()
+void ProjectViewportWindow::ProcessScreenSelectedEntity()
 {
     if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
     {
@@ -71,7 +71,7 @@ void SceneViewportInterface::ProcessScreenSelectedEntity()
 }
 
 
-void SceneViewportInterface::DrawViewport()
+void ProjectViewportWindow::DrawViewport()
 {
     vec2 viewportSize = mSceneViewport.Size();
     ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
@@ -88,8 +88,11 @@ void SceneViewportInterface::DrawViewport()
 }
 
 
-void SceneViewportInterface::DrawGizmoOneEntity( Entity entity )
+void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 {
+    if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
+        return;
+
     const auto lookAt = mSceneCamera.GetLookatMat();
     const auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
@@ -116,7 +119,7 @@ void SceneViewportInterface::DrawGizmoOneEntity( Entity entity )
 }
 
 
-void SceneViewportInterface::DrawGizmoManyEntities( vector<Entity>& entities, 
+void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, 
                                                     TransformComponent& transform )
 {
     mat4 transformNew;
@@ -192,7 +195,7 @@ void SceneViewportInterface::DrawGizmoManyEntities( vector<Entity>& entities,
 //}
 
 
-void SceneViewportInterface::OnDraw( DeltaTime )
+void ProjectViewportWindow::OnDraw( DeltaTime )
 {
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
@@ -221,7 +224,7 @@ void SceneViewportInterface::OnDraw( DeltaTime )
             }
 
             if ( mSelection.mEntities.size() == 1 )
-                DrawGizmoOneEntity( mSelection.mEntities.front() );
+                DrawGizmoOneEntity( *mSelection.mEntities.begin() );
             else if ( mSelection.mEntities.size() > 1 )
                 DrawGizmoManyEntities( mSelection.mEntities, mSelection.mGroupTransform );
 

@@ -9,11 +9,11 @@
 
 namespace bubble
 {
-class SceneViewportInterface : public UserInterfaceWindowBase
+class ProjectViewportWindow : public UserInterfaceWindowBase
 {
 public:
-    SceneViewportInterface( BubbleEditor& editorState );
-    ~SceneViewportInterface();
+    ProjectViewportWindow( BubbleEditor& editorState );
+    ~ProjectViewportWindow();
 
     string_view Name();
 
@@ -26,7 +26,7 @@ public:
 
     void DrawViewport();
     void DrawGizmoOneEntity( Entity entity );
-    void DrawGizmoManyEntities( vector<Entity>& entities, TransformComponent& transform );
+    void DrawGizmoManyEntities( set<Entity>& entities, TransformComponent& transform );
     //bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 
