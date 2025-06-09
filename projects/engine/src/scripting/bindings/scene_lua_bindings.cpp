@@ -1,10 +1,11 @@
-#include <sol/sol.hpp>
+#include "engine/pch/pch.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/utils/filesystem.hpp"
-
+#include <sol/sol.hpp>
 #include <print>
+
 
 namespace bubble
 {

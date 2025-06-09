@@ -19,13 +19,15 @@ public:
 
     void OnUpdate( DeltaTime );
 
+    void SetSelection( Entity selectedEtnity );
+
     uvec2 CaptureWidnowMousePos();
     void ProcessScreenSelectedEntity();
 
     void DrawViewport();
-    void DrawGizmo();
-    void DrawGrid();
-    bool DrawViewManipulator();
+    void DrawGizmoOneEntity( Entity entity );
+    void DrawGizmoManyEntities( vector<Entity>& entities, TransformComponent& transform );
+    //bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 
 private:

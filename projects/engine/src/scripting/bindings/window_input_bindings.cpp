@@ -1,7 +1,7 @@
-
-#include <sol/sol.hpp>
+#include "engine/pch/pch.hpp"
 #include "engine/types/string.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
+#include <sol/sol.hpp>
 
 namespace bubble
 {

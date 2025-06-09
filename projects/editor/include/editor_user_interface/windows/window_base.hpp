@@ -1,19 +1,22 @@
 #pragma once
 #include "engine/engine.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/project/project_tree.hpp"
 #include "utils/scene_camera.hpp"
 
 namespace bubble
 {
-class Window;
 class BubbleEditor;
+class Window;
 struct UIGlobals;
+struct Selection;
 enum class EditorMode;
 
 class UserInterfaceWindowBase
 {
 public:
     UserInterfaceWindowBase( BubbleEditor& editor );
+    void SetSeleciton( const Ref<ProjectTreeNode>& node );
 
 protected:
     bool mOpen = true;
@@ -23,7 +26,8 @@ protected:
     Framebuffer& mSceneViewport;
     Framebuffer& mEntityIdViewport;
     SceneCamera& mSceneCamera;
-    Entity& mSelectedEntity;
+
+    Selection& mSelection;
     
     Project& mProject;
 

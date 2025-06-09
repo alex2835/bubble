@@ -8,96 +8,10 @@
 namespace bubble
 {
 constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                                         ImGuiTreeNodeFlags_SpanAllColumns;
+                                         ImGuiTreeNodeFlags_SpanAllColumns |
+                                         ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
-EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
-    : UserInterfaceWindowBase( editor )
-{
-    mLevelIcon = LoadTexture2D( "./resources/images/icons/scene.png" );
-    mFolerIcon = LoadTexture2D( "./resources/images/icons/folder.png" );
-    mObjectIcon = LoadTexture2D( "./resources/images/icons/object.png" );
-    mPhysicsObjectIcon = LoadTexture2D( "./resources/images/icons/physics.png" );
-    mLightIcon = LoadTexture2D( "./resources/images/icons/light.png" );
-    mCameraIcon = LoadTexture2D( "./resources/images/icons/camera.png" );
-    mPlayerIcon = LoadTexture2D( "./resources/images/icons/player.png" );
-    mScriptIcon = LoadTexture2D( "./resources/images/icons/script.png" );
-}
-
-EntitiesWindow::~EntitiesWindow()
-{
-
-}
-
-magic_enum::string_view EntitiesWindow::Name()
-{
-    return "Entities"sv;
-}
-
-void EntitiesWindow::OnUpdate( DeltaTime )
-{
-}
-
-
-void EntitiesWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
-{
-    // Create entities popup
-    if ( ImGui::BeginPopup( "Create entity popup" ) )
-    {
-        // Temp: creation position. TODO: test raycast
-        auto newEntityPos = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
-
-        if ( ImGui::MenuItem( "Create folder" ) )
-            node->CreateChild( ProjectTreeNodeType::Folder, "folder"s );
-
-        if ( ImGui::MenuItem( "Create Model Object" ) )
-        {
-            auto entity = mProject.mScene.CreateEntity();
-            mProject.mScene.AddComponent<TagComponent>( entity, "Model object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
-            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mScene.AddComponent<ShaderComponent>( entity );
-            mSelectedEntity = entity;
-            node->CreateChild( ProjectTreeNodeType::ModelObject, entity );
-        }
-        if ( ImGui::MenuItem( "Create Physics Object" ) )
-        {
-            auto entity = mProject.mScene.CreateEntity();
-            mProject.mScene.AddComponent<TagComponent>( entity, "Physics object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
-            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mScene.AddComponent<PhysicsComponent>( entity );
-            mSelectedEntity = entity;
-            node->CreateChild( ProjectTreeNodeType::PhysicsObject, entity );
-        }
-        if ( ImGui::MenuItem( "Create Game Object" ) )
-        {
-            auto entity = mProject.mScene.CreateEntity();
-            mProject.mScene.AddComponent<TagComponent>( entity, "Game object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
-            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mScene.AddComponent<PhysicsComponent>( entity );
-            mProject.mScene.AddComponent<StateComponent>( entity );
-            mProject.mScene.AddComponent<ScriptComponent>( entity );
-            mSelectedEntity = entity;
-            node->CreateChild( ProjectTreeNodeType::GameObject, entity );
-        }
-        if ( ImGui::MenuItem( "Create Script" ) )
-        {
-            auto entity = mProject.mScene.CreateEntity();
-            mProject.mScene.AddComponent<TagComponent>( entity, "Script" );
-            mProject.mScene.AddComponent<StateComponent>( entity );
-            mProject.mScene.AddComponent<ScriptComponent>( entity );
-            mSelectedEntity = entity;
-            node->CreateChild( ProjectTreeNodeType::Script, entity );
-        }
-        ImGui::EndPopup();
-    }
-}
+constexpr auto SELECTED_PROJECT_TREE_NODE_FLAGS = PROJECT_TREE_NODE_FLAGS | ImGuiTreeNodeFlags_Framed;
 
 
 bool RenamableTreeNode( string& name,
@@ -136,6 +50,36 @@ bool RenamableTreeNode( string& name,
     return false;
 }
 
+
+
+EntitiesWindow::EntitiesWindow( BubbleEditor& editor )
+    : UserInterfaceWindowBase( editor )
+{
+    mLevelIcon = LoadTexture2D( "./resources/images/icons/scene.png" );
+    mFolerIcon = LoadTexture2D( "./resources/images/icons/folder.png" );
+    mObjectIcon = LoadTexture2D( "./resources/images/icons/object.png" );
+    mPhysicsObjectIcon = LoadTexture2D( "./resources/images/icons/physics.png" );
+    mLightIcon = LoadTexture2D( "./resources/images/icons/light.png" );
+    mCameraIcon = LoadTexture2D( "./resources/images/icons/camera.png" );
+    mPlayerIcon = LoadTexture2D( "./resources/images/icons/player.png" );
+    mScriptIcon = LoadTexture2D( "./resources/images/icons/script.png" );
+}
+
+EntitiesWindow::~EntitiesWindow()
+{
+
+}
+
+magic_enum::string_view EntitiesWindow::Name()
+{
+    return "Entities"sv;
+}
+
+void EntitiesWindow::OnUpdate( DeltaTime )
+{
+}
+
+
 const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
 {
     switch ( node->Type() )
@@ -158,9 +102,74 @@ const Ref<Texture2D>& EntitiesWindow::GetProjectTreeNodeIcon( const Ref<ProjectT
     throw std::runtime_error( std::format( "Invalid enum type {}", (u32)node->Type() ) );
 }
 
-void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
+
+void EntitiesWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
+{
+    // Create entities popup
+    if ( ImGui::BeginPopup( "Create entity popup" ) )
+    {
+        // Temp: creation position. TODO: test raycast
+        auto newEntityPos = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
+
+        if ( ImGui::MenuItem( "Create folder" ) )
+        {
+            auto child = node->CreateChild( ProjectTreeNodeType::Folder, "folder"s );
+            SetSeleciton( child );
+        }
+        if ( ImGui::MenuItem( "Create Model Object" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Model object" );
+            TransformComponent trans{ .mPosition = newEntityPos };
+            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
+            mProject.mScene.AddComponent<ModelComponent>( entity );
+            mProject.mScene.AddComponent<ShaderComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::ModelObject, entity );
+            SetSeleciton( child );
+        }
+        if ( ImGui::MenuItem( "Create Physics Object" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Physics object" );
+            TransformComponent trans{ .mPosition = newEntityPos };
+            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
+            mProject.mScene.AddComponent<ModelComponent>( entity );
+            mProject.mScene.AddComponent<ShaderComponent>( entity );
+            mProject.mScene.AddComponent<PhysicsComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::PhysicsObject, entity );
+            SetSeleciton( child );
+        }
+        if ( ImGui::MenuItem( "Create Game Object" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Game object" );
+            TransformComponent trans{ .mPosition = newEntityPos };
+            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
+            mProject.mScene.AddComponent<ModelComponent>( entity );
+            mProject.mScene.AddComponent<ShaderComponent>( entity );
+            mProject.mScene.AddComponent<PhysicsComponent>( entity );
+            mProject.mScene.AddComponent<StateComponent>( entity );
+            mProject.mScene.AddComponent<ScriptComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::GameObject, entity );
+            SetSeleciton( child );
+        }
+        if ( ImGui::MenuItem( "Create Script" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Script" );
+            mProject.mScene.AddComponent<StateComponent>( entity );
+            mProject.mScene.AddComponent<ScriptComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::Script, entity );
+            SetSeleciton( child );
+        }
+        ImGui::EndPopup();
+    }
+}
+
+void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected )
 {
     const auto& icon = GetProjectTreeNodeIcon( node );
+    isSelected = isSelected or mSelection.mPrejectTreeNode == node;
 
     switch ( node->Type() )
     {
@@ -173,9 +182,13 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
             ImGui::SameLine();
 
             string& name = std::get<string>( node->State() );
-            const auto flags = PROJECT_TREE_NODE_FLAGS; // if selected | ImGuiTreeNodeFlags_Framed;
+            const auto flags = isSelected ? SELECTED_PROJECT_TREE_NODE_FLAGS : PROJECT_TREE_NODE_FLAGS;
             if ( RenamableTreeNode( name, node->mEditing, flags ) )
             {
+                if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
+                     ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
+                    SetSeleciton( node );
+
                 if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
                     ImGui::OpenPopup( "Create entity popup" );
                 DrawCreateEntityPopup( node );
@@ -183,7 +196,7 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
                 for ( auto& child : node->Children() )
                 {
                     ImGui::PushID( &child );
-                    DrawSceneTreeNode( child );
+                    DrawSceneTreeNode( child, isSelected );
                     ImGui::PopID();
                 }
                 ImGui::TreePop();
@@ -202,10 +215,10 @@ void EntitiesWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node )
             auto& tag = mProject.mScene.GetComponent<TagComponent>( entity );
             auto displayEntity = std::format( "{} (Enity:{})", tag.mName, (u64)entity );
 
-            ImGui::Selectable( displayEntity.c_str(), entity == mSelectedEntity );
-            if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or 
+            ImGui::Selectable( displayEntity.c_str(), isSelected );
+            if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
                  ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-                mSelectedEntity = entity;
+                SetSeleciton( node );
         }break;
     }
 
@@ -254,14 +267,15 @@ void EntitiesWindow::DrawEntities()
 
 void EntitiesWindow::DrawSelectedEntityComponents()
 {
-    if ( mSelectedEntity == INVALID_ENTITY )
+    if ( mSelection.mEntities.size() != 1 )
         return;
+    auto selectedEntity = mSelection.mEntities.front();
 
     ImGui::BeginChild( "Components" );
     if ( mEditorMode == EditorMode::Editing )
     {
         const auto& componentIDs = mProject.mScene.AllComponentTypeIds();
-        const auto& entityComponents = mProject.mScene.EntityComponentTypeIds( mSelectedEntity );
+        const auto& entityComponents = mProject.mScene.EntityComponentTypeIds( selectedEntity );
 
         // Entity components popups
         if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
@@ -278,7 +292,7 @@ void EntitiesWindow::DrawSelectedEntityComponents()
 
                     auto name = ComponentManager::GetName( componentID );
                     if ( ImGui::MenuItem( name.data() ) )
-                        mProject.mScene.EntityAddComponentId( mSelectedEntity, componentID );
+                        mProject.mScene.EntityAddComponentId( selectedEntity, componentID );
                 }
                 ImGui::EndMenu();
             }
@@ -295,7 +309,7 @@ void EntitiesWindow::DrawSelectedEntityComponents()
 
                     auto name = ComponentManager::GetName( componentID );
                     if ( ImGui::MenuItem( name.data() ) )
-                        mProject.mScene.EntityRemoveComponentId( mSelectedEntity, componentID );
+                        mProject.mScene.EntityRemoveComponentId( selectedEntity, componentID );
                 }
                 ImGui::EndMenu();
             }
@@ -303,12 +317,12 @@ void EntitiesWindow::DrawSelectedEntityComponents()
         }
 
         // Entity components
-        mProject.mScene.ForEachEntityComponentRaw( mSelectedEntity,
+        mProject.mScene.ForEachEntityComponentRaw( selectedEntity,
                                                    [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
-                onDrawFunc( mProject, mSelectedEntity, componentRaw );
+                onDrawFunc( mProject, selectedEntity, componentRaw );
             else
                 ImGui::Text( std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();

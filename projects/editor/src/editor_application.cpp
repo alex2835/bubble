@@ -155,9 +155,7 @@ void BubbleEditor::OnUpdate()
     // Save project
     if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
          mWindow.GetWindowInput().KeyMods().CONTROL and
-         mEditorMode == EditorMode::Editing and
-         mUIGlobals.mViewportHovered and
-         mSelectedEntity )
+         mEditorMode == EditorMode::Editing )
     {
         if ( mProject.IsValid() )
             mProject.Save();

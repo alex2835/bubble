@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include "editor_user_interface/windows/scnene_viewport_window.hpp"
 #include "editor_application/editor_application.hpp"
+#include "engine/project/project_tree.hpp"
 #include <glm/gtc/epsilon.hpp>
 
 namespace bubble
@@ -19,7 +20,7 @@ SceneViewportInterface::~SceneViewportInterface()
 }
 
 
-bubble::string_view SceneViewportInterface::Name()
+string_view SceneViewportInterface::Name()
 {
     return "Viewport"sv;
 }
@@ -34,8 +35,22 @@ void SceneViewportInterface::OnUpdate( DeltaTime )
     }
 }
 
+void SceneViewportInterface::SetSelection( Entity selectedEtnity )
+{
+    if ( not selectedEtnity )
+    {
+        mSelection = {};
+        return;
+    }
 
-glm::uvec2 SceneViewportInterface::CaptureWidnowMousePos()
+    auto node = FindNodeByEntity( selectedEtnity, mProject.mProjectTreeRoot );
+    if ( not node )
+        throw std::runtime_error( "Failed to find node by entity" );
+
+    UserInterfaceWindowBase::SetSeleciton( node );
+}
+
+uvec2 SceneViewportInterface::CaptureWidnowMousePos()
 {
     auto windowSize = ImGui::GetWindowSize();
     auto windowPos = ImGui::GetCursorScreenPos();
@@ -49,9 +64,9 @@ void SceneViewportInterface::ProcessScreenSelectedEntity()
 {
     if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
     {
-        auto clickPos = CaptureWidnowMousePos();
-        auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
-        mSelectedEntity = mProject.mScene.GetEntityById( pixel );
+        const auto clickPos = CaptureWidnowMousePos();
+        const auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
+        SetSelection( mProject.mScene.GetEntityById( pixel ) );
     }
 }
 
@@ -73,53 +88,73 @@ void SceneViewportInterface::DrawViewport()
 }
 
 
-void SceneViewportInterface::DrawGizmo()
+void SceneViewportInterface::DrawGizmoOneEntity( Entity entity )
 {
-    if ( ImGui::IsWindowFocused() )
-    {
-        if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
-            mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
-        if ( ImGui::IsKeyPressed( ImGuiKey_E ) )
-            mCurrentGizmoOperation = ImGuizmo::ROTATE;
-        if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
-            mCurrentGizmoOperation = ImGuizmo::SCALE;
-    }
-    mat4 transformMat;
-    auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( mSelectedEntity );
-    auto lookAt = mSceneCamera.GetLookatMat();
-    auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+    const auto lookAt = mSceneCamera.GetLookatMat();
+    const auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
 
+    auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
     auto rotaion = glm::degrees( entityTransform.mRotation );
+    mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
                                              glm::value_ptr( rotaion ),
                                              glm::value_ptr( entityTransform.mScale ),
-                                             glm::value_ptr( transformMat ) );
+                                             glm::value_ptr( transformNew ) );
 
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,
                           mCurrentGizmoMode,
-                          glm::value_ptr( transformMat ) );
+                          glm::value_ptr( transformNew ) );
 
-    ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformMat ),
+    ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
                                            glm::value_ptr( entityTransform.mPosition ),
                                            glm::value_ptr( rotaion ),
                                            glm::value_ptr( entityTransform.mScale ) );
-
+    
     entityTransform.mRotation = glm::radians( rotaion );
 }
 
 
-void SceneViewportInterface::DrawGrid()
+void SceneViewportInterface::DrawGizmoManyEntities( vector<Entity>& entities, 
+                                                    TransformComponent& transform )
 {
-    //auto lookAt = mSceneCamera.GetLookatMat();
-    //auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
-    //
-    //ImGuizmo::DrawGrid( glm::value_ptr( lookAt ),
-    //                    glm::value_ptr( projection ),
-    //                    glm::value_ptr( glm::mat4( 1.0f ) ),
-    //                    100.f );
+    mat4 transformNew;
+    ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
+                                             glm::value_ptr( glm::degrees( transform.mRotation ) ),
+                                             glm::value_ptr( transform.mScale ),
+                                             glm::value_ptr( transformNew ) );
+
+    auto lookAt = mSceneCamera.GetLookatMat();
+    auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+    ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
+                          glm::value_ptr( projection ),
+                          mCurrentGizmoOperation,
+                          mCurrentGizmoMode,
+                          glm::value_ptr( transformNew ) );
+    
+    vec3 posNew, rotNew, scaleNew;
+    ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
+                                           glm::value_ptr( posNew ),
+                                           glm::value_ptr( rotNew ),
+                                           glm::value_ptr( scaleNew ) );
+
+    for ( auto entity : entities )
+    {
+        if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
+            continue;
+        auto& trans = mProject.mScene.GetComponent<TransformComponent>( entity );
+        trans.mPosition += posNew - mSelection.mGroupTransform.mPosition;
+        trans.mRotation += glm::radians( rotNew ) - mSelection.mGroupTransform.mRotation;
+        trans.mScale += scaleNew - mSelection.mGroupTransform.mScale;
+    }
+
+    mSelection.mGroupTransform.mPosition = posNew;
+    mSelection.mGroupTransform.mRotation = glm::radians( rotNew );
+    mSelection.mGroupTransform.mScale = scaleNew;
 }
+
+
 
 //bool SceneViewportInterface::DrawViewManipulator()
 //{
@@ -163,23 +198,37 @@ void SceneViewportInterface::OnDraw( DeltaTime )
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
     {
         mUIGlobals.mViewportHovered = ImGui::IsWindowHovered();
-
         DrawViewport();
 
+        // Gizmo
         if ( mEditorMode == EditorMode::Editing )
         {
             ImGuizmo::SetDrawlist();
             auto windowPos = ImGui::GetWindowPos();
             ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
 
-            if ( mSelectedEntity and mProject.mScene.HasComponent<TransformComponent>( mSelectedEntity ) )
-                DrawGizmo();
+            if ( not mSelection.mEntities.empty() )
+            {
+                if ( ImGui::IsWindowFocused() )
+                {
+                    if ( ImGui::IsKeyPressed( ImGuiKey_T ) )
+                        mCurrentGizmoOperation = ImGuizmo::TRANSLATE;
+                    if ( ImGui::IsKeyPressed( ImGuiKey_E ) )
+                        mCurrentGizmoOperation = ImGuizmo::ROTATE;
+                    if ( ImGui::IsKeyPressed( ImGuiKey_R ) )
+                        mCurrentGizmoOperation = ImGuizmo::SCALE;
+                }
+            }
+
+            if ( mSelection.mEntities.size() == 1 )
+                DrawGizmoOneEntity( mSelection.mEntities.front() );
+            else if ( mSelection.mEntities.size() > 1 )
+                DrawGizmoManyEntities( mSelection.mEntities, mSelection.mGroupTransform );
 
             //bool viewManipulatorUsing = DrawViewManipulator();
 
             // Select entity on click by pixel
-            if ( not ImGuizmo::IsUsing() and
-                 ImGui::IsWindowHovered() )
+            if ( not ImGuizmo::IsUsing() and ImGui::IsWindowHovered() )
                 ProcessScreenSelectedEntity();
         }
     }

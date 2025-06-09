@@ -25,9 +25,14 @@ struct ProjectTreeNode
     Ref<ProjectTreeNode> CreateChild( ProjectTreeNodeType type, StateType state );
     void RemoveNode( Ref<ProjectTreeNode> node );
 
-    ProjectTreeNodeType Type(){ return mType; }
+    ProjectTreeNodeType Type() const { return mType; }
+    bool IsEntity() const;
+    Entity AsEntity() const { return std::get<Entity>( mState ); };
+
     vector<Ref<ProjectTreeNode>>& Children(){ return mChildren; }
     StateType& State() { return mState; }
+
+    bool operator== ( const ProjectTreeNode& other ) { return mID == other.mID; }
 
 private:
     static u64 mIDCounter;
@@ -41,5 +46,11 @@ public:
     bool mEditing = false;
     friend Project;
 };
+
+
+Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>& node );
+
+void FillProjectTreeNodeEntities( vector<Entity>& entities, const Ref<ProjectTreeNode>& node );
+
 
 }

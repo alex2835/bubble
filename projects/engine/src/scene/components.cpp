@@ -1,4 +1,4 @@
-
+#include "engine/pch/pch.hpp"
 #include "engine/scene/components.hpp"
 #include "engine/project/project.hpp"
 #include "engine/utils/imgui_utils.hpp"
@@ -123,6 +123,24 @@ mat4 TransformComponent::TranslationRotationMat() const
     transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
     transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
     return transform;
+}
+
+TransformComponent TransformComponent::operator + ( const TransformComponent& other )
+{
+    return TransformComponent{
+        .mPosition = mPosition + other.mPosition,
+        .mRotation = mRotation + other.mRotation,
+        .mScale = mScale + other.mScale,
+    };
+}
+
+TransformComponent TransformComponent::operator * ( float factor )
+{
+    return TransformComponent{
+        .mPosition = mPosition * factor,
+        .mRotation = mRotation * factor,
+        .mScale = mScale * factor,
+    };
 }
 
 void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )

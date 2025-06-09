@@ -1,4 +1,4 @@
-
+#include "engine/pch/pch.hpp"
 #include "engine/project/project_tree.hpp"
 
 namespace bubble
@@ -39,5 +39,36 @@ void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node )
     node->mParent->mChildren.erase( iter );
 }
 
+
+bool ProjectTreeNode::IsEntity() const
+{
+    return mType != ProjectTreeNodeType::Level and 
+           mType != ProjectTreeNodeType::Folder;
+}
+
+
+
+Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>& node )
+{
+    if ( node->IsEntity() and entity == node->AsEntity() )
+        return node;
+
+    for ( const auto& child : node->Children() )
+    {
+        auto res = FindNodeByEntity( entity, child );
+        if ( res )
+            return res;
+    }
+    return nullptr;
+}
+
+void FillProjectTreeNodeEntities( vector<Entity>& entities, const Ref<ProjectTreeNode>& node )
+{
+    if ( node->IsEntity() )
+        entities.push_back( node->AsEntity() );
+
+    for ( const auto& child : node->Children() )
+        FillProjectTreeNodeEntities( entities, child );
+}
 
 }

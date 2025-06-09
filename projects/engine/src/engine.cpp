@@ -1,9 +1,10 @@
-
+#include "engine/pch/pch.hpp"
 #include "engine/engine.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 
 #include <print>
+#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -53,13 +54,14 @@ void Engine::OnUpdate()
     } );
 
     // Call scripts
-    mProject.mScene.ForEach<ScriptComponent>( []( Entity entity, ScriptComponent& script )
+    mProject.mScene.ForEach<StateComponent, ScriptComponent>( 
+    []( Entity entity, StateComponent& stateComponent, ScriptComponent& scriptComponent )
     {
-        if ( script.mOnUpdate )
+        if ( scriptComponent.mOnUpdate )
         {
-            sol::protected_function_result result = script.mOnUpdate();
+            sol::protected_function_result result = scriptComponent.mOnUpdate( entity, *stateComponent.mState );
             if ( !result.valid() )
-            {   
+            {
                 sol::error err = result;
                 throw std::runtime_error( err.what() );
             }

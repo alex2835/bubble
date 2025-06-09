@@ -17,7 +17,8 @@ public:
 
 private:
     const Ref<Texture2D>& GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node );
-    void DrawSceneTreeNode( Ref<ProjectTreeNode>& node );
+
+    void DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected = false );
     void DrawCreateEntityPopup( Ref<ProjectTreeNode>& node );
 
     void DrawSelectedEntityComponents();

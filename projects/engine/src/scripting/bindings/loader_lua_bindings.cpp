@@ -1,6 +1,7 @@
-#include <sol/sol.hpp>
+#include "engine/pch/pch.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
+#include <sol/sol.hpp>
 
 namespace bubble
 {

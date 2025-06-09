@@ -14,17 +14,31 @@ enum class EditorMode
     Running
 };
 
-// UI global state (Common variables for all interface windows)
+// UI global state (Common variables for all interface windows and editor)
 struct UIGlobals
 {
     bool mNeedUpdateProjectWindow = false;
     bool mViewportHovered = false;
 
+    // Menu
     bool mDrawBoundingBoxes = false;
     bool mDrawPhysicsShapes = false;
 };
 
+// Selection metadata
+struct Selection
+{
+    // Selected node in project tree
+    Ref<ProjectTreeNode> mPrejectTreeNode;
+    // All entities in this sub tree
+    vector<Entity> mEntities;
+    // Used when selected more then one entity
+    TransformComponent mGroupTransform;
+};
 
+
+
+// Game engine editor 
 class BubbleEditor
 {
 public:
@@ -42,11 +56,11 @@ public:
     /// Editor
     EditorMode mEditorMode;
     SceneCamera mSceneCamera;
-    Entity mSelectedEntity;
+    Selection mSelection;
     
     // Viewport
     Framebuffer mSceneViewport;
-    // Entity picking (Handles object picking in viewport)
+    // Entity picking (Handles scene object picking in viewport)
     Framebuffer mEntityIdViewport;
     Ref<Shader> mEntityIdShader;
 
@@ -55,7 +69,6 @@ public:
     // Game running
     Scene mSceneSave;
     Engine mEngine;
-
 
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
     EditorUserInterface mEditorUserInterface;

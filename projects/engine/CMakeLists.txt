@@ -33,6 +33,8 @@ target_link_libraries(${TARGET_NAME} PUBLIC LinearMath)
 target_link_libraries(${TARGET_NAME} PUBLIC BulletCollision)
 target_link_libraries(${TARGET_NAME} PUBLIC BulletDynamics)
 
+target_precompile_headers(${TARGET_NAME} PUBLIC "include/engine/pch/pch.hpp")
+
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)
 	target_link_options(${TARGET_NAME} PUBLIC

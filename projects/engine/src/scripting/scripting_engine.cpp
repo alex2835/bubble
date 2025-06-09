@@ -1,5 +1,4 @@
-
-#include <sol/sol.hpp>
+#include "engine/pch/pch.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/scripting/script.hpp"
@@ -9,6 +8,8 @@
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
 #include "glm_lua_bindings.hpp"
+#include <sol/sol.hpp>
+
 
 namespace bubble
 {
