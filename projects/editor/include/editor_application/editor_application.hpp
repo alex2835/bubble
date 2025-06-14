@@ -18,7 +18,7 @@ enum class EditorMode
 struct UIGlobals
 {
     bool mNeedUpdateProjectWindow = false;
-    bool mViewportHovered = false;
+    bool mIsViewportHovered = false;
 
     // Menu
     bool mDrawBoundingBoxes = false;

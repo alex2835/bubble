@@ -10,7 +10,8 @@ namespace bubble
 {
 constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
                                          ImGuiTreeNodeFlags_SpanAllColumns |
-                                         ImGuiTreeNodeFlags_OpenOnDoubleClick;
+                                         ImGuiTreeNodeFlags_OpenOnDoubleClick |
+                                         ImGuiTreeNodeFlags_OpenOnArrow;
 
 constexpr auto SELECTED_PROJECT_TREE_NODE_FLAGS = PROJECT_TREE_NODE_FLAGS | ImGuiTreeNodeFlags_Framed;
 
@@ -80,7 +81,6 @@ void ProjectTreeWindow::OnUpdate( DeltaTime )
 {
 }
 
-
 const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
 {
     switch ( node->Type() )
@@ -104,6 +104,46 @@ const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<Proje
 }
 
 
+void ProjectTreeWindow::SetSelectionByNode( const Ref<ProjectTreeNode>& node )
+{
+    mSelection.mProjectTreeNode = node;
+    mSelection.mEntities.clear();
+    FillEntitiesInSubTree( mSelection.mEntities, node );
+
+    // Group selected
+    if ( not mSelection.mEntities.empty() )
+    {
+        float count = 0;
+        auto avgPos = vec3( 0 );
+        for ( auto entity : mSelection.mEntities )
+        {
+            if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
+                continue;
+            avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
+            count++;
+        }
+        avgPos *= ( 1.0f / count );
+        mSelection.mGroupTransform = TransformComponent{
+            .mPosition = avgPos,
+        };
+    }
+}
+
+
+void ProjectTreeWindow::RemoveSelected()
+{
+    RemoveNodeByEntities( mProject.mProjectTreeRoot, mSelection.mEntities );
+
+    if ( mSelection.mProjectTreeNode )
+        RemoveNode( mProject.mProjectTreeRoot, mSelection.mProjectTreeNode );
+
+    for ( auto entity : mSelection.mEntities )
+        mProject.mScene.RemoveEntity( entity );
+
+    mSelection = {};
+}
+
+
 void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
 {
     // Create entities popup
@@ -115,7 +155,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
         if ( ImGui::MenuItem( "Create folder" ) )
         {
             auto child = node->CreateChild( ProjectTreeNodeType::Folder, "folder"s );
-            SetSeleciton( child );
+            SetSelectionByNode( child );
         }
         if ( ImGui::MenuItem( "Create Model Object" ) )
         {
@@ -126,7 +166,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
             auto child = node->CreateChild( ProjectTreeNodeType::ModelObject, entity );
-            SetSeleciton( child );
+            SetSelectionByNode( child );
         }
         if ( ImGui::MenuItem( "Create Physics Object" ) )
         {
@@ -138,7 +178,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<ShaderComponent>( entity );
             mProject.mScene.AddComponent<PhysicsComponent>( entity );
             auto child = node->CreateChild( ProjectTreeNodeType::PhysicsObject, entity );
-            SetSeleciton( child );
+            SetSelectionByNode( child );
         }
         if ( ImGui::MenuItem( "Create Game Object" ) )
         {
@@ -152,7 +192,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<StateComponent>( entity );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
             auto child = node->CreateChild( ProjectTreeNodeType::GameObject, entity );
-            SetSeleciton( child );
+            SetSelectionByNode( child );
         }
         if ( ImGui::MenuItem( "Create Script" ) )
         {
@@ -161,18 +201,19 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<StateComponent>( entity );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
             auto child = node->CreateChild( ProjectTreeNodeType::Script, entity );
-            SetSeleciton( child );
+            SetSelectionByNode( child );
         }
         ImGui::EndPopup();
     }
 }
+
 
 void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected )
 {
     // Selected by parent / selected in project tree / entities that were selected on screen
     isSelected = isSelected or 
         mSelection.mProjectTreeNode == node or
-        ( node->IsEntity() and mSelection.mEntities.count( node->AsEntity() ) );
+        ( node->IsEntity() and mSelection.mEntities.contains( node->AsEntity() ) );
 
     const auto& icon = GetProjectTreeNodeIcon( node );
     switch ( node->Type() )
@@ -180,18 +221,18 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
         case ProjectTreeNodeType::Level:
         case ProjectTreeNodeType::Folder:
         {
-            ImGui::Dummy( ImVec2( 0, 1 ) );
+            ImGui::Dummy( ImVec2( 0, 0 ) );
 
             ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
             ImGui::SameLine();
 
             string& name = std::get<string>( node->State() );
             const auto flags = isSelected ? SELECTED_PROJECT_TREE_NODE_FLAGS : PROJECT_TREE_NODE_FLAGS;
-            if ( RenamableTreeNode( name, node->mEditing, flags ) )
+            if ( RenamableTreeNode( name, node->mIsEditingInUI, flags ) )
             {
                 if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
                      ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-                    SetSeleciton( node );
+                    SetSelectionByNode( node );
 
                 if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
                     ImGui::OpenPopup( "Create entity popup" );
@@ -222,52 +263,29 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
             ImGui::Selectable( displayEntity.c_str(), isSelected );
             if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
                  ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-                SetSeleciton( node );
+                SetSelectionByNode( node );
         }break;
     }
-
 }
+
 
 void ProjectTreeWindow::DrawEntities()
 {
-    ImGui::BeginChild( "Entities", ImVec2( 0, 400 ) );
+    ImGui::BeginChild( "Entities", ImVec2( 0, 400 ), ImGuiChildFlags_ResizeY );
     if ( mEditorMode == EditorMode::Editing )
     {
         DrawSceneTreeNode( mProject.mProjectTreeRoot );
 
-        
-        //// Entity list
-        //Entity entityToDelete;
-        //mProject.mScene.ForEachEntity( [&]( Entity entity )
-        //{
-        //    auto& tag = mProject.mScene.GetComponent<TagComponent>( entity );
-        //    auto displayEntity = std::format("{} (id:{})", tag.mName, (u64)entity );
-        //    ImGui::Selectable( displayEntity.c_str(), entity == mSelectedEntity );
-        //    if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
-        //         ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-        //        mSelectedEntity = entity;
-        //
-        //    // Delete entity popup
-        //    if ( ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-        //        ImGui::OpenPopup( "Delete entity popup" );
-        //    if ( ImGui::BeginPopup( "Delete entity popup" ) )
-        //    {
-        //        if ( entity == mSelectedEntity and
-        //             ImGui::MenuItem( "Delete Entity" ) )
-        //        {
-        //            entityToDelete = mSelectedEntity;
-        //            mSelectedEntity = Entity();
-        //        }
-        //        ImGui::EndPopup();
-        //        ImGui::CloseCurrentPopup();
-        //    }
-        //} );
-        //if ( entityToDelete )
-        //    mProject.mScene.RemoveEntity( entityToDelete );
-
+        // Remove current selection 
+        if ( ( ImGui::IsWindowHovered() or mUIGlobals.mIsViewportHovered ) and
+             ImGui::IsKeyDown( ImGuiKey_Delete ) )
+        {
+            RemoveSelected();
+        }
     }
     ImGui::EndChild();
 }
+
 
 void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
@@ -336,6 +354,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
     }
     ImGui::EndChild();
 }
+
 
 void ProjectTreeWindow::OnDraw( DeltaTime )
 {

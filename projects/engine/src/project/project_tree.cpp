@@ -62,13 +62,50 @@ Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>
     return nullptr;
 }
 
-void FillProjectTreeNodeEntities( set<Entity>& entities, const Ref<ProjectTreeNode>& node )
+void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& node )
 {
     if ( node->IsEntity() )
         entities.insert( node->AsEntity() );
 
     for ( const auto& child : node->Children() )
-        FillProjectTreeNodeEntities( entities, child );
+        FillEntitiesInSubTree( entities, child );
+}
+
+bool RemoveNode( const Ref<ProjectTreeNode>& root, const Ref<ProjectTreeNode>& node )
+{
+    auto& children = root->Children();
+    for ( size_t i = 0; i < children.size(); i++ )
+    {
+        const auto& child = children[i];
+        if ( child == node )
+        {
+            children.erase( children.begin() + i );
+            return true;
+        }
+        if ( RemoveNode( child, node ) )
+            return true;
+    }
+    return false;
+}
+
+void RemoveNodeByEntities( const Ref<ProjectTreeNode>& root, const set<Entity>& entitiesToRemove )
+{
+    auto& children = root->Children();
+    for ( size_t i = 0; i < children.size(); )
+    {
+        const auto& child = children[i];
+        if ( child->IsEntity() and entitiesToRemove.contains( child->AsEntity() ) )
+        {
+            children.erase( children.begin() + i );
+        }
+        else
+        {
+            if ( not child->IsEntity() )
+                RemoveNodeByEntities( child, entitiesToRemove );
+            i++;
+        }
+    }
+
 }
 
 }

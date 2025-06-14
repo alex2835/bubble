@@ -17,6 +17,8 @@ public:
 
 private:
     const Ref<Texture2D>& GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node );
+    void SetSelectionByNode( const Ref<ProjectTreeNode>& node );
+    void RemoveSelected();
 
     void DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected = false );
     void DrawCreateEntityPopup( Ref<ProjectTreeNode>& node );
@@ -24,10 +26,10 @@ private:
     void DrawSelectedEntityComponents();
     void DrawEntities();
 
+
 private:
     Ref<Texture2D> mLevelIcon;
     Ref<Texture2D> mFolerIcon;
-
     Ref<Texture2D> mObjectIcon;
     Ref<Texture2D> mPhysicsObjectIcon;
     Ref<Texture2D> mLightIcon;

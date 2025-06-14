@@ -100,12 +100,12 @@ void ProjectViewportWindow::ProcessSreenSelectionRect()
             if ( pixel > 0 )
             {
                 auto entity = mProject.mScene.GetEntityById( pixel );
-                if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+                if ( mSelection.mEntities.insert( entity ).second and
+                     mProject.mScene.HasComponent<TransformComponent>( entity ) )
                 {
                     count++;
                     avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
                 }
-                mSelection.mEntities.insert( entity );
             }
         }
         mSelection.mGroupTransform.mPosition = avgPos * ( 1.0f / count );
@@ -145,9 +145,6 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
     if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
         return;
 
-    const auto lookAt = mSceneCamera.GetLookatMat();
-    const auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
-
     auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
     auto rotaion = glm::degrees( entityTransform.mRotation );
     mat4 transformNew;
@@ -156,11 +153,16 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
                                              glm::value_ptr( entityTransform.mScale ),
                                              glm::value_ptr( transformNew ) );
 
+
+    const auto lookAt = mSceneCamera.GetLookatMat();
+    const auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,
                           mCurrentGizmoMode,
                           glm::value_ptr( transformNew ) );
+
 
     ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
                                            glm::value_ptr( entityTransform.mPosition ),
@@ -172,7 +174,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 
 
 void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, 
-                                                    TransformComponent& transform )
+                                                   TransformComponent& transform )
 {
     mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
@@ -252,7 +254,7 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
     {
-        mUIGlobals.mViewportHovered = ImGui::IsWindowHovered();
+        mUIGlobals.mIsViewportHovered = ImGui::IsWindowHovered();
         DrawViewport();
 
         if ( mEditorMode == EditorMode::Editing )

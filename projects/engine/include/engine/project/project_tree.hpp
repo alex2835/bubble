@@ -43,15 +43,21 @@ private:
     ProjectTreeNode* mParent = nullptr;
     vector<Ref<ProjectTreeNode>> mChildren;
 public:
-    // UI
-    bool mEditing = false;
+    bool mIsEditingInUI = false;
     friend Project;
 };
 
 
 Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>& node );
 
-void FillProjectTreeNodeEntities( set<Entity>& entities, const Ref<ProjectTreeNode>& node );
+void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& node );
+
+
+// Cant remove root
+bool RemoveNode( const Ref<ProjectTreeNode>& root, const Ref<ProjectTreeNode>& node );
+
+// remove if present
+void RemoveNodeByEntities( const Ref<ProjectTreeNode>& root, const set<Entity>& entities );
 
 
 }
