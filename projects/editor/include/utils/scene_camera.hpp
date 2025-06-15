@@ -18,19 +18,19 @@ struct SceneCamera : public Camera
         if ( mIsActive )
         {
             mMaxSpeed = mInput.KeyMods().SHIFT ? mBoostSpeed : mDefaultSpeed;
-            mDeltaSpeed = mMaxSpeed / 2;
+            mDeltaSpeed = 10 * mMaxSpeed;
 
             if ( mInput.IsKeyPressed( KeyboardKey::W ) )
-                ProcessMovement( CameraMovement::FORWARD );
+                ProcessMovement( dt, CameraMovement::FORWARD );
 
             if ( mInput.IsKeyPressed( KeyboardKey::S ) )
-                ProcessMovement( CameraMovement::BACKWARD );
+                ProcessMovement( dt, CameraMovement::BACKWARD );
 
             if ( mInput.IsKeyPressed( KeyboardKey::A ) )
-                ProcessMovement( CameraMovement::LEFT );
+                ProcessMovement( dt, CameraMovement::LEFT );
 
             if ( mInput.IsKeyPressed( KeyboardKey::D ) )
-                ProcessMovement( CameraMovement::RIGHT );
+                ProcessMovement( dt, CameraMovement::RIGHT );
 
             if ( mInput.IsKeyPressed( MouseKey::RIGHT ) )
                 ProcessMouseMovementOffset( mInput.MouseOffset().x, 
@@ -40,8 +40,8 @@ struct SceneCamera : public Camera
     }
 
 public:
-    f32  mBoostSpeed = 20.0f;
-    f32  mDefaultSpeed = 10.0f;
+    f32  mBoostSpeed = 100.0f;
+    f32  mDefaultSpeed = 50.0f;
     bool mIsActive = false;
 private:
     const WindowInput& mInput;

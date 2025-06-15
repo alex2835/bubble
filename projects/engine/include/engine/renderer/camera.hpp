@@ -85,7 +85,7 @@ public:
     mat4 GetPprojectionMat( i32 window_width, i32 window_height ) const;
 
     // Free camera 
-    void ProcessMovement( CameraMovement direction );
+    void ProcessMovement( DeltaTime dt, CameraMovement direction );
     void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
     void ProcessMouseMovementOffset( f32 xOffset, f32 yOffset );
     void ProcessMouseScroll( f32 offset );

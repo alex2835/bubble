@@ -129,29 +129,6 @@ void BubbleEditor::OnUpdate()
         mProject.mScene = mSceneSave;
     }
 
-
-    /// Copy selected entity
-    //if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::V ) and
-    //     mWindow.GetWindowInput().KeyMods().CONTROL and
-    //     mEditorMode == EditorMode::Editing and
-    //     mUIGlobals.mViewportHovered and
-    //     mSelectedEntity )
-    //{
-    //    auto newEntity = mProject.mScene.CopyEntity( mSelectedEntity );
-    //    auto& trans = mProject.mScene.GetComponent<TransformComponent>( newEntity );
-    //    trans.mPosition += vec3( 1 );
-    //    mSelectedEntity = newEntity;
-    //}
-
-    /// Remove selected entity
-    //if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) and
-    //     mEditorMode == EditorMode::Editing and
-    //     mUIGlobals.mViewportHovered and
-    //     mSelectedEntity )
-    //{
-    //    mProject.mScene.RemoveEntity( mSelectedEntity );
-    //}
-
     // Save project
     if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
          mWindow.GetWindowInput().KeyMods().CONTROL and

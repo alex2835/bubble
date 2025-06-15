@@ -73,7 +73,7 @@ void Camera::ProcessMouseScroll( f32 offset )
 
 // Free camera 
 
-void Camera::ProcessMovement( CameraMovement direction )
+void Camera::ProcessMovement( DeltaTime dt, CameraMovement direction )
 {
     f32 max_speed = mMaxSpeed * mDeltaSpeed;
 
@@ -81,15 +81,15 @@ void Camera::ProcessMovement( CameraMovement direction )
     if ( direction == CameraMovement::FORWARD )
     {
         if ( mSpeedForwardOrUp < 0 )
-            mSpeedForwardOrUp = 0;
-        mSpeedForwardOrUp = mSpeedForwardOrUp < max_speed ? mSpeedForwardOrUp + mDeltaSpeed : max_speed;
+            mSpeedForwardOrUp *= 0.5f;
+        mSpeedForwardOrUp = mSpeedForwardOrUp + mDeltaSpeed * dt.Seconds();
         mIsMovingForward = true;
     }
     else if ( direction == CameraMovement::BACKWARD )
     {
         if ( mSpeedForwardOrUp > 0 )
-            mSpeedForwardOrUp = 0;
-        mSpeedForwardOrUp = mSpeedForwardOrUp > -max_speed ? mSpeedForwardOrUp - mDeltaSpeed : -max_speed;
+            mSpeedForwardOrUp *= 0.5f;
+        mSpeedForwardOrUp = mSpeedForwardOrUp - mDeltaSpeed * dt.Seconds();
         mIsMovingForward = true;
     }
 
@@ -97,24 +97,21 @@ void Camera::ProcessMovement( CameraMovement direction )
     if ( direction == CameraMovement::RIGHT )
     {
         if ( mSpeedRight < 0 )
-            mSpeedRight = 0;
-        mSpeedRight = mSpeedRight < max_speed ? mSpeedRight + mDeltaSpeed : max_speed;
+            mSpeedRight *= 0.5f;
+        mSpeedRight = mSpeedRight + mDeltaSpeed * dt.Seconds();
         mIsMovingRight = true;
     }
     else if ( direction == CameraMovement::LEFT )
     {
         if ( mSpeedRight > 0 )
-            mSpeedRight = 0;
-        mSpeedRight = mSpeedRight > -max_speed ? mSpeedRight - mDeltaSpeed : -max_speed;
+            mSpeedRight *= 0.5f;
+        mSpeedRight = mSpeedRight - mDeltaSpeed * dt.Seconds();
         mIsMovingRight = true;
     }
 
     // Clamp
-    if ( std::abs( mSpeedForwardOrUp ) > max_speed )
-        mSpeedForwardOrUp = Sign( mSpeedForwardOrUp ) * max_speed;
-
-    if ( std::abs( mSpeedRight ) > max_speed )
-        mSpeedRight = Sign( mSpeedRight ) * max_speed;
+    mSpeedForwardOrUp = std::clamp( mSpeedForwardOrUp, -max_speed, max_speed );
+    mSpeedRight = std::clamp( mSpeedRight, -max_speed, max_speed );
 }
 
 void Camera::EulerAnglesToVectors()
@@ -133,10 +130,20 @@ void Camera::OnUpdateFreeCamera( DeltaTime dt )
 {
     // Inertia
     if ( !mIsMovingForward )
-        mSpeedForwardOrUp = std::abs( mSpeedForwardOrUp ) < 0.01f ? mSpeedForwardOrUp = 0 : mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed;
+    {
+        if ( std::abs( mSpeedForwardOrUp ) < 0.1f * mDeltaSpeed )
+            mSpeedForwardOrUp = 0;
+        else
+            mSpeedForwardOrUp = mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed * dt.Seconds();
+    }
 
     if ( !mIsMovingRight )
-        mSpeedRight = std::abs( mSpeedRight ) < 0.01f ? mSpeedRight = 0 : mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed;
+    {
+        if ( std::abs( mSpeedRight ) < 0.1f * mDeltaSpeed )
+            mSpeedRight = 0;
+        else
+            mSpeedRight = mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed * dt.Seconds();
+    }
 
     mIsMovingForward = false;
     mIsMovingRight = false;

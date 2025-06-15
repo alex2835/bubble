@@ -340,7 +340,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
         }
 
         // Entity components
-        mProject.mScene.ForEachEntityComponentRaw( selectedEntity,
+        mProject.mScene.ForEachEntityComponentRaw( selectedEntity, 
                                                    [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
