@@ -13,6 +13,13 @@ struct Script
     path mPath;
     string mName;
     string mCode;
+
+    void Swap( Script& other )
+    {
+        std::swap( mPath, other.mPath );
+        std::swap( mName, other.mName );
+        std::swap( mCode, other.mCode );
+    }
 };
 
 }

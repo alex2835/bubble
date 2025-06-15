@@ -51,7 +51,7 @@ void CreateSceneBindings( Scene& scene,
         "AddShaderComponent",
         [&]( Entity& entity, Ref<Shader> shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
         "AddPhysicsComponent",
-        [&]( Entity& entity, const PhysicsObject& object ) 
+        [&]( Entity& entity, PhysicsObject object ) 
         {
             auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
             physicsEngine.Add( physicsComponent.mPhysicsObject );
@@ -65,9 +65,9 @@ void CreateSceneBindings( Scene& scene,
         "GetTransformComponent",
         [&]( Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
-        [&]( Entity& entity ) ->Ref<Model>& { return scene.GetComponent<ModelComponent>( entity ).mModel; },
+        [&]( Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
         "GetShaderComponent",
-        [&]( Entity& entity ) ->Ref<Shader>& { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        [&]( Entity& entity ) ->Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
         "GetPhysicsComponent",
         [&]( Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
         "GetStateComponent",

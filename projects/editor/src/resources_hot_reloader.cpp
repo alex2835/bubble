@@ -10,12 +10,22 @@ bool IsTimeClose( filesystem::file_time_type start, filesystem::file_time_type e
     return chrono::duration_cast<chrono::microseconds>( end - start ) < 1s;
 }
 
-filesystem::file_time_type ReadShaderLastFileTime( const path& shaderPath )
+vector<path> GetShaderFiles( const path& shaderPath )
+{
+    vector<path> paths;
+    for ( const path& file : filesystem::directory_iterator( shaderPath.parent_path() ) )
+    {
+        if ( file.stem() == shaderPath.stem() )
+            paths.push_back( file );
+    }
+    return paths;
+}
+
+filesystem::file_time_type ReadFilesLastTime( const vector<path>& resoucePaths )
 {
     filesystem::file_time_type lastFileTime = filesystem::file_time_type::min();
-    for ( const path& file : filesystem::directory_iterator( shaderPath.parent_path() ) )
-        if ( file.stem() == shaderPath.stem() )
-            lastFileTime = std::max( lastFileTime, filesystem::last_write_time( file ) );
+    for ( const auto& resoucePath : resoucePaths )
+        lastFileTime = std::max( lastFileTime, filesystem::last_write_time( resoucePath ) );
     return lastFileTime;
 }
 
@@ -23,69 +33,103 @@ filesystem::file_time_type ReadShaderLastFileTime( const path& shaderPath )
 
 ProjectResourcesHotReloader::ProjectResourcesHotReloader( Project& project )
     : mProject( project )
-{}
-
-ProjectResourcesHotReloader::~ProjectResourcesHotReloader()
 {
-    StopThread();
-}
-
-
-void ProjectResourcesHotReloader::StopThread()
-{
-    mStop = true;
-    if ( mUpdater.joinable() )
-        mUpdater.join();
-    mStop = false;
-}
-
-
-void ProjectResourcesHotReloader::CreateUpdater()
-{
-    StopThread();
-
-    mUpdateInfoMap.clear();
-    for ( const auto& [path, _] : mProject.mLoader.mShaders )
-        mUpdateInfoMap[path].mFileLastUpdateTime = ReadShaderLastFileTime( path );
-
-    mUpdater = std::thread( [&]()
+    mFileUpdateChecker = std::thread( [&]()
     {
         while ( not mStop )
         {
-            for ( auto& [shaderFile, info] : mUpdateInfoMap )
+            mMapMutex.lock();
+            for ( auto& [_, info] : mFilesToUpdateMap )
             {
-                auto newLastTime = ReadShaderLastFileTime( shaderFile );
+                auto newLastTime = ReadFilesLastTime( info.mFiles );
                 if ( not IsTimeClose( info.mFileLastUpdateTime, newLastTime ) )
                 {
                     info.mNeedUpdate = true;
                     info.mFileLastUpdateTime = newLastTime;
                 }
             }
+            mMapMutex.unlock();
             std::this_thread::sleep_for( 1s );
         }
     } );
 }
 
+ProjectResourcesHotReloader::~ProjectResourcesHotReloader()
+{
+    mStop = true;
+    if ( mFileUpdateChecker.joinable() )
+        mFileUpdateChecker.join();
+}
+
 
 void ProjectResourcesHotReloader::OnUpdate()
 {
-    if ( mProject.mLoader.mShaders.size() != mUpdateInfoMap.size() )
-        CreateUpdater();
+    // Update map
+    if ( mProject.mLoader.mShaders.size() +
+         mProject.mLoader.mScripts.size() != mFilesToUpdateMap.size() )
+    {
+        std::lock_guard<std::mutex> lock( mMapMutex );
 
-    for ( auto& [path, info] : mUpdateInfoMap )
+        mFilesToUpdateMap.clear();
+        auto filler = [&]( const auto& resources, ResourceType type ) {
+            for ( const auto& [loaderPath, _] : resources )
+            {
+                auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
+                auto files = type == ResourceType::Shader
+                    ? GetShaderFiles( absPath )
+                    : vector<path>{ absPath };
+
+                mFilesToUpdateMap.emplace( loaderPath, ResourceReloadInfo{
+                    .mType = type,
+                    .mFiles = files,
+                    .mFileLastUpdateTime = ReadFilesLastTime( files ),
+                    .mNeedUpdate = false
+                                           } );
+            }
+        };
+        filler( mProject.mLoader.mShaders, ResourceType::Shader );
+        filler( mProject.mLoader.mScripts, ResourceType::Script );
+
+    }
+        
+    // Check is files were updated
+    for ( auto& [loaderPath, info] : mFilesToUpdateMap )
     {
         if ( info.mNeedUpdate )
         {
-            LogInfo( "Reload shader: {}", path.string() );
-            info.mNeedUpdate = false;
-            try
+            switch ( info.mType )
             {
-                auto newShader = LoadShader( path );
-                mProject.mLoader.mShaders[path]->Swap( *newShader );
-            }
-            catch ( const std::exception& )
-            {
-                LogError( "Failed to reload shader" );
+                case ResourceType::Shader:
+                {
+                    LogInfo( "Reload shader: {}", loaderPath.string() );
+                    info.mNeedUpdate = false;
+                    try
+                    {
+                        auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
+                        auto newShader = LoadShader( absPath );
+                        mProject.mLoader.mShaders[loaderPath]->Swap( *newShader );
+                    }
+                    catch ( const std::exception& e )
+                    {
+                        LogError( "Failed to reload shader: {}", e.what() );
+                    }
+                } break;
+
+                case ResourceType::Script:
+                {
+                    LogInfo( "Reload script: {}", loaderPath.string() );
+                    info.mNeedUpdate = false;
+                    try
+                    {
+                        auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
+                        auto newScript = LoadScript( absPath );
+                        mProject.mLoader.mScripts[loaderPath]->Swap( *newScript );
+                    }
+                    catch ( const std::exception& e )
+                    {
+                        LogError( "Failed to reload script: {}", e.what() );
+                    }
+                } break;
             }
         }
     }

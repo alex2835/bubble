@@ -9,10 +9,19 @@ class Project;
 
 class ProjectResourcesHotReloader
 {
-    struct UpdateInfo 
+    enum class ResourceType
     {
+        Shader,
+        Script
+    };
+
+    struct ResourceReloadInfo
+    {
+        ResourceType mType = ResourceType::Shader;
+        vector<path> mFiles
+            ;
         filesystem::file_time_type mFileLastUpdateTime;
-        std::atomic<bool> mNeedUpdate = false;
+        bool mNeedUpdate = false;
     };
 
 public:
@@ -21,13 +30,11 @@ public:
     void OnUpdate();
 
 private:
-    void StopThread();
-    void CreateUpdater();
-
     Project& mProject;
-    map<path, UpdateInfo> mUpdateInfoMap;
-    std::thread mUpdater;
-    bool mStop = true;
+    std::mutex mMapMutex;
+    map<path, ResourceReloadInfo> mFilesToUpdateMap;
+    std::thread mFileUpdateChecker;
+    bool mStop = false;
     
 };
 

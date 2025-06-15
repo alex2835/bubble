@@ -494,13 +494,9 @@ void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsCompone
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<PhysicsObject>(
-        "PhysicsObject"
-    );
-
-    lua.new_usertype<PhysicsComponent>(
         "PhysicsComponent",
-        sol::call_constructor,
-        sol::constructors<PhysicsComponent( const PhysicsObject& )>()
+        "ApplyCentralImpulse",
+        &PhysicsObject::ApplyCentralImpulse
     );
 
     lua["CreatePhysicsSphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ){ 
