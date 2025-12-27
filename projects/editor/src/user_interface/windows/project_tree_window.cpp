@@ -23,7 +23,7 @@ bool RenamableTreeNode( string& name,
     constexpr size_t bufferSize = 128;
     static char nameBuffer[bufferSize];
 
-    if ( ImGui::TreeNodeEx( name.c_str(), treeFlags, editing ? "" : name.c_str() ) )
+    if ( ImGui::TreeNodeEx( name.c_str(), treeFlags, "%s", editing ? "" : name.c_str() ) )
     {
         auto isNodeHovered = ImGui::IsItemHovered();
         if ( isNodeHovered and ImGui::IsKeyPressed( ImGuiKey_F2 ) )
@@ -347,7 +347,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
             if ( onDrawFunc )
                 onDrawFunc( mProject, selectedEntity, componentRaw );
             else
-                ImGui::Text( std::format( "Component {} not drawable", componentID ).c_str() );
+                ImGui::Text( "%s", std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();
             ImGui::Dummy( ImVec2( 0, 10 ) );
         } );

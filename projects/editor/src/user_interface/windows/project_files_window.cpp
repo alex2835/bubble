@@ -170,7 +170,7 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
                 texture = mProject.mLoader.LoadTexture2D( child.mPath );
 
             ImGui::Image( (ImTextureID)(i64)texture->RendererID(), elemSize );
-            ImGui::Text( child.mPath.stem().string().c_str() );
+            ImGui::Text( "%s", child.mPath.stem().string().c_str() );
         }
         ImGui::EndChild();
     }

@@ -49,7 +49,7 @@ void Menubar::ModalCreateProject()
         }
         ImGui::SameLine();
 
-        ImGui::Text( mCreateProjectSelectedPath.string().c_str() );
+        ImGui::Text( "%s", mCreateProjectSelectedPath.string().c_str() );
 
         if ( ImGui::Button( "Create", ImVec2( 100, 30 ) ) )
         {
