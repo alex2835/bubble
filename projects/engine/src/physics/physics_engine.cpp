@@ -47,6 +47,26 @@ void PhysicsEngine::Update( DeltaTime dt )
     dynamicsWorld->stepSimulation( dt.Seconds() );
 }
 
+void PhysicsEngine::SetMass( PhysicsObject& obj, float mass )
+{
+    // Remove from world
+    dynamicsWorld->removeRigidBody( obj.getBody() );
+
+    // Update mass properties
+    btVector3 newInertia( 0, 0, 0 );
+    if ( mass != 0.0f )  // Only dynamic bodies have inertia
+        obj.getShape()->calculateLocalInertia( mass, newInertia );
+
+    obj.getBody()->setMassProps( mass, newInertia );
+    obj.getBody()->updateInertiaTensor();
+
+    // Re-add to world
+    dynamicsWorld->addRigidBody( obj.getBody() );
+
+    // Activate to ensure changes take effect
+    obj.getBody()->activate( true );
+}
+
 PhysicsEngine::~PhysicsEngine()
 {
 

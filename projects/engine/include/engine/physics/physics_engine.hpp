@@ -25,6 +25,8 @@ public:
     void Add( const PhysicsObject& obj );
     void Remove( const PhysicsObject& obj );
     void ClearWorld();
+
+    void SetMass( PhysicsObject& obj, float mass );
 };
 
 

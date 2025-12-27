@@ -15,7 +15,14 @@ public:
     PhysicsObject( PhysicsObject&& ) = default;
     PhysicsObject& operator=( PhysicsObject&& ) = default;
 
+    void SetMass( float mass );
+    float GetMass();
+
+    void SetFriction( float friction );
+    float GetFriction();
+
     void ApplyCentralImpulse( const vec3 impulse );
+    void ApplyTorqueImpulse( const vec3 impulse );
 
     void SetTransform( const vec3& pos, const vec3& rot );
     void GetTransform( vec3& pos, vec3& rot ) const;
@@ -27,8 +34,8 @@ public:
     btCollisionShape* getShape();
     const btCollisionShape* getShape() const;
 
-    static PhysicsObject CreateSphere( f32 mass, f32 radius );
-    static PhysicsObject CreateBox( f32 mass, vec3 halfExtends );
+    static PhysicsObject CreateSphere( f32 radius );
+    static PhysicsObject CreateBox( vec3 halfExtends );
 
 
 private:

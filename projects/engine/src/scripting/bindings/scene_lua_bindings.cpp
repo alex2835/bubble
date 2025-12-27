@@ -88,6 +88,9 @@ void CreateSceneBindings( Scene& scene,
         [&]( Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
     );
 
+    // Componetns requered global state
+    sol::usertype<PhysicsObject> physicsType = lua["PhysicsComponent"];
+    physicsType["SetMass"] = [&]( PhysicsObject& obj, float mass ) { physicsEngine.SetMass( obj, mass ); };
 
     // Scene
     lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
@@ -155,14 +158,13 @@ void CreateSceneBindings( Scene& scene,
                         // Light component not handled
                         break;
                     case ComponentID::State:
-                        componentsTable[ComponentID::State] = *( (StateComponent*)componentsData[i] )->mState;
+                        componentsTable[ComponentID::State] = *((StateComponent*)componentsData[i])->mState;
                         break;
                     default:
                         throw std::runtime_error( "ForEachEntity: invalid set of componets provided" );
                 }
             }
             func( entity, componentsAny );
-
         } );
 
     };

@@ -74,7 +74,7 @@ void ProjectResourcesHotReloader::OnUpdate()
         auto filler = [&]( const auto& resources, ResourceType type ) {
             for ( const auto& [loaderPath, _] : resources )
             {
-                auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
+                auto [relPath, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
                 auto files = type == ResourceType::Shader
                     ? GetShaderFiles( absPath )
                     : vector<path>{ absPath };

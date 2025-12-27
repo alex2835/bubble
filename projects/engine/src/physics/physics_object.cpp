@@ -10,6 +10,19 @@ PhysicsObject::PhysicsObject( const PhysicsObject& other )
     CopyFrom( other );
 }
 
+void PhysicsObject::SetMass( float mass )
+{
+    btVector3 newInertia( 0, 0, 0 );
+    mBody->getCollisionShape()->calculateLocalInertia( mass, newInertia );
+    mBody->setMassProps( mass, newInertia );
+    mBody->updateInertiaTensor();
+}
+
+float PhysicsObject::GetMass()
+{
+    return mBody->getMass();
+}
+
 PhysicsObject& PhysicsObject::operator=( const PhysicsObject& other )
 {
     if ( this != &other )
@@ -17,13 +30,26 @@ PhysicsObject& PhysicsObject::operator=( const PhysicsObject& other )
     return *this;
 }
 
+void PhysicsObject::SetFriction( float friction )
+{
+    mBody->setFriction( friction );
+}
 
+float PhysicsObject::GetFriction()
+{
+    return mBody->getFriction();
+}
 
 void PhysicsObject::ApplyCentralImpulse( const vec3 impulse )
 {
     mBody->activate( true );
     mBody->applyCentralImpulse( btVector3( impulse.x, impulse.y, impulse.z ) );
-    //body->applyTorqueImpulse( btVector3( impulse.x, impulse.y, impulse.z ) );
+}
+
+void PhysicsObject::ApplyTorqueImpulse( const vec3 impulse )
+{
+    mBody->activate( true );
+    mBody->applyTorqueImpulse( btVector3( impulse.x, impulse.y, impulse.z ) );
 }
 
 void PhysicsObject::SetTransform( const vec3& pos, const vec3& rot )
@@ -81,6 +107,7 @@ const btCollisionShape* PhysicsObject::getShape() const
 
 void PhysicsObject::CopyFrom( const PhysicsObject& other )
 {
+    // Collision shape
     switch ( other.mColisionShape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
@@ -99,8 +126,8 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
             throw std::runtime_error( "Not supported collision shape type");
     }
 
+    // Rigid body
     btScalar mass( other.mBody->getMass() );
-
     // Rigid body is dynamic if and only if mass is non zero, otherwise static
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
@@ -114,12 +141,15 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
     btDefaultMotionState* myMotionState = new btDefaultMotionState( transform );
     btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, mColisionShape.get(), localInertia );
     mBody = CreateScope<btRigidBody>( rbInfo );
+
+    mBody->setFriction( other.mBody->getFriction() );
+
     mShapeData = other.mShapeData;
 }
 
 
 
-PhysicsObject PhysicsObject::CreateSphere( f32 mass, f32 radius )
+PhysicsObject PhysicsObject::CreateSphere( f32 radius )
 {
     PhysicsObject object;
     object.mShapeData = GenerateSphereLinesShape( radius );
@@ -131,6 +161,7 @@ PhysicsObject PhysicsObject::CreateSphere( f32 mass, f32 radius )
     startTransform.setOrigin( btVector3( 0, 0, 0 ) );
 
     // rigid body is dynamic if and only if mass is non zero, otherwise static
+    float mass = 0.0f;
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
@@ -143,21 +174,23 @@ PhysicsObject PhysicsObject::CreateSphere( f32 mass, f32 radius )
     return object;
 }
 
-PhysicsObject PhysicsObject::CreateBox( f32 mass, vec3 halfExtends )
+PhysicsObject PhysicsObject::CreateBox( vec3 halfExtends )
 {
     PhysicsObject object;
     object.mShapeData = GenerateCubeLinesShape( halfExtends );
     object.mColisionShape = CreateScope<btBoxShape>( btVector3( halfExtends.x,
                                                                 halfExtends.y, 
                                                                 halfExtends.z ) );
-    btTransform groundTransform;
-    groundTransform.setIdentity();
-    groundTransform.setOrigin( btVector3( 0, 0, 0 ) );
+    btTransform transform;
+    transform.setIdentity();
+    transform.setOrigin( btVector3( 0, 0, 0 ) );
+    
+    float mass = 0.0f;
     bool isDynamic = ( mass != 0.f );
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
         object.mColisionShape->calculateLocalInertia( mass, localInertia );
-    btDefaultMotionState* myMotionState = new btDefaultMotionState( groundTransform );
+    btDefaultMotionState* myMotionState = new btDefaultMotionState( transform );
     btRigidBody::btRigidBodyConstructionInfo rbInfo( mass, myMotionState, object.mColisionShape.get(), localInertia );
     object.mBody = CreateScope<btRigidBody>( rbInfo );
     return object;

@@ -367,7 +367,7 @@ ScriptComponent::~ScriptComponent()
 
 // PhysicsComponent
 PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( 0, 1 ) )
+    : mPhysicsObject( PhysicsObject::CreateSphere( 1 ) )
 {
 
 }
@@ -383,7 +383,7 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
     auto shape = component.mPhysicsObject.getShape();
     auto box = TryGetEntityBBox( project, entity );
 
-    /// Physics shape selection
+    /// Physics shape selection combo
     string_view curShapeName = shapes[component.mPhysicsObject.getShape()->getShapeType()];
     if ( ImGui::BeginCombo( "Collision shape", curShapeName.data() ) )
     {
@@ -392,84 +392,84 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             bool isSelected = curShapeName == name;
             if ( ImGui::Selectable( name.data(), isSelected ) )
             {
-                float mass = component.mPhysicsObject.getBody()->getMass();
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
                 {
                     f32 radius = 1.0f;
                     if ( box )
                         radius = box->getShortestEdge() / 2;
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( radius );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
                     vec3 halfExtend( 1 );
                     if ( box )
                         halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtend );
+                    component.mPhysicsObject = PhysicsObject::CreateBox( halfExtend );
                 }
+                component.mPhysicsObject.SetMass( component.mPhysicsObject.getBody()->getMass() );
+                component.mPhysicsObject.SetFriction( component.mPhysicsObject.getBody()->getFriction() );
             }
         }
         ImGui::EndCombo();
     }
 
-    /// Selected physics shape control
+    /// Shape controls
     switch ( shape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
         {
             auto sphereShape = static_cast<btSphereShape*>( shape );
 
-            float mass = body->getMass();
             float radius = sphereShape->getRadius();
-            bool needRecreation = false;
-            needRecreation |= ImGui::DragFloat( "Mass", &mass );
-            needRecreation |= ImGui::DragFloat( "Radius", &radius );
-            if ( needRecreation )
-                component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
+            if ( ImGui::DragFloat( "Radius", &radius ) )
+                component.mPhysicsObject = PhysicsObject::CreateSphere( radius );
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
         {
             auto boxShape = static_cast<btBoxShape*>( shape );
 
-            float mass = body->getMass();
             btVector3 he = boxShape->getHalfExtentsWithMargin();
             auto halfExtends = vec3( he.x(), he.y(), he.z() );
-
-            bool needRecreation = false;
-            needRecreation |= ImGui::DragFloat( "Mass", &mass );
-            needRecreation |= ImGui::DragFloat3( "Half Extends", &halfExtends.x );
-            if ( needRecreation )
-                component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtends );
+            if ( ImGui::DragFloat3( "Half Extends", &halfExtends.x ) )
+                component.mPhysicsObject = PhysicsObject::CreateBox( halfExtends );
         } break;
     }
+
+    /// Rigid body controls
+    float mass = component.mPhysicsObject.GetMass();
+    if ( ImGui::DragFloat( "Mass", &mass ) )
+        component.mPhysicsObject.SetMass( mass );
+
+    float friction = component.mPhysicsObject.GetFriction();
+    if ( ImGui::DragFloat( "Friction", &friction ) )
+        component.mPhysicsObject.SetFriction( friction );
 }
 
 void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsComponent& component )
 {
     auto body = component.mPhysicsObject.getBody();
+    j["Mass"sv] = body->getMass();
+    j["Friction"sv] = body->getFriction();
+
     auto shape = component.mPhysicsObject.getShape();
     switch ( shape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
         {
             auto sphereShape = static_cast<const btSphereShape*>( shape );
-            float mass = body->getMass();
             float radius = sphereShape->getRadius();
             j["Type"sv] = "Sphere"sv;
             j["Radius"sv] = radius;
-            j["Mass"sv] = mass;
             return;
         }
 
         case BOX_SHAPE_PROXYTYPE:
         {
             auto boxShape = static_cast<const btBoxShape*>( shape );
-            float mass = body->getMass();
             btVector3 halfExtends = boxShape->getHalfExtentsWithMargin();
             j["Type"sv] = "Box"sv;
             j["HalfExtends"sv] = vec3( halfExtends.x(), halfExtends.y(), halfExtends.z() );
-            j["Mass"sv] = mass;
             return;
         }
     }
@@ -479,34 +479,44 @@ void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsCom
 void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsComponent& component )
 {
     if ( j["Type"sv] == "Sphere"s )
-    {
-        component.mPhysicsObject = PhysicsObject::CreateSphere( j["Mass"sv], j["Radius"sv] );
-        return;
-    }
-    if ( j["Type"sv] == "Box"s )
-    {
-        component.mPhysicsObject = PhysicsObject::CreateBox( j["Mass"sv], j["HalfExtends"sv] );
-        return;
-    }
-    throw std::runtime_error( "Undefined physics component" );
+        component.mPhysicsObject = PhysicsObject::CreateSphere( j["Radius"sv] );
+    else if ( j["Type"sv] == "Box"s )
+        component.mPhysicsObject = PhysicsObject::CreateBox( j["HalfExtends"sv] );
+    else
+        throw std::runtime_error( "Undefined physics component" );
+
+    component.mPhysicsObject.SetMass( j["Mass"sv] );
+    component.mPhysicsObject.SetFriction( j["Friction"] );
 }
 
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<PhysicsObject>(
         "PhysicsComponent",
+
+        // SetMass is set in lua binding
+        "GetMass",
+        &PhysicsObject::GetMass,
+
+        "SetFriction",
+        &PhysicsObject::SetFriction,
+        "GetFriction",
+        &PhysicsObject::GetFriction,
+
         "ApplyCentralImpulse",
-        &PhysicsObject::ApplyCentralImpulse
+        &PhysicsObject::ApplyCentralImpulse,
+        "ApplyTorqueImpulse",
+        &PhysicsObject::ApplyTorqueImpulse
     );
 
-    lua["CreatePhysicsSphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ){ 
-        auto physicsSphere = PhysicsObject::CreateSphere( mass, radius );
+    lua["CreatePhysicsSphere"] = []( const TransformComponent& trans, f32 radius ){ 
+        auto physicsSphere = PhysicsObject::CreateSphere( radius );
         physicsSphere.SetTransform( trans.mPosition, trans.mPosition );
         return physicsSphere;
     };
 
-    lua["CreatePhysicsBox"] = []( const TransformComponent& trans, f32 mass, vec3 he ) {
-        auto physicsBox = PhysicsObject::CreateBox( mass, he );
+    lua["CreatePhysicsBox"] = []( const TransformComponent& trans, vec3 he ) {
+        auto physicsBox = PhysicsObject::CreateBox( he );
         physicsBox.SetTransform( trans.mPosition, trans.mPosition );
         return physicsBox;
     };
@@ -758,7 +768,7 @@ json SaveAnyValue( Any v )
         auto table = v.as<Table>();
         for ( auto& [k, v] : table )
             j.push_back( SaveAnyValue( v ) );
-        return std::move( j );
+        return j;
     }
     else if ( v.is<Table>() )
     {
@@ -766,7 +776,7 @@ json SaveAnyValue( Any v )
         auto table = v.as<Table>();
         for ( auto& [k, v] : table )
             j[k.as<string>()] = SaveAnyValue( v );
-        return std::move( j );
+        return j;
     }
     else
     {
