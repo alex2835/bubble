@@ -22,14 +22,20 @@ PhysicsEngine::PhysicsEngine()
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
 }
 
-void PhysicsEngine::Add( const PhysicsObject& obj )
+void PhysicsEngine::Add( const PhysicsObject& obj, Entity entity )
 {
+    obj.mBody->setUserPointer( new Entity( entity ) );
     dynamicsWorld->addRigidBody( obj.mBody.get() );
     obj.mBody->activate();
 }
 
 void PhysicsEngine::Remove( const PhysicsObject& obj )
 {
+    if ( obj.mBody->getUserPointer() )
+    {
+        delete static_cast<Entity*>( obj.mBody->getUserPointer() );
+        obj.mBody->setUserPointer( nullptr );
+    }
     dynamicsWorld->removeRigidBody( obj.mBody.get() );
 }
 
@@ -38,6 +44,11 @@ void PhysicsEngine::ClearWorld()
     for ( int i = dynamicsWorld->getNumCollisionObjects() - 1; i >= 0; i-- )
     {
         btCollisionObject* obj = dynamicsWorld->getCollisionObjectArray()[i];
+        if ( obj->getUserPointer() )
+        {
+            delete static_cast<Entity*>( obj->getUserPointer() );
+            obj->setUserPointer( nullptr );
+        }
         dynamicsWorld->removeCollisionObject( obj );
     }
 }
@@ -65,6 +76,70 @@ void PhysicsEngine::SetMass( PhysicsObject& obj, float mass )
 
     // Activate to ensure changes take effect
     obj.getBody()->activate( true );
+}
+
+std::optional<RayHitResult> PhysicsEngine::RaycastClosest( const vec3& from, const vec3& to ) const
+{
+    std::vector<RayHitResult> results;
+
+    btVector3 rayFrom( from.x, from.y, from.z );
+    btVector3 rayTo( to.x, to.y, to.z );
+
+    btCollisionWorld::ClosestRayResultCallback rayCallback( rayFrom, rayTo );
+    dynamicsWorld->rayTest( rayFrom, rayTo, rayCallback );
+
+    if ( rayCallback.hasHit() )
+    {
+        RayHitResult result;
+        result.hitPoint = vec3( rayCallback.m_hitPointWorld.x(),
+                                rayCallback.m_hitPointWorld.y(),
+                                rayCallback.m_hitPointWorld.z() );
+        result.hitNormal = vec3( rayCallback.m_hitNormalWorld.x(),
+                                 rayCallback.m_hitNormalWorld.y(),
+                                 rayCallback.m_hitNormalWorld.z() );
+        result.hitFraction = rayCallback.m_closestHitFraction;
+        result.hitBody = const_cast<btRigidBody*>( btRigidBody::upcast( rayCallback.m_collisionObject ) );
+
+        if ( rayCallback.m_collisionObject->getUserPointer() )
+            result.entity = *static_cast<Entity*>( rayCallback.m_collisionObject->getUserPointer() );
+
+        return result;
+    }
+    return std::nullopt;
+}
+
+std::vector<RayHitResult> PhysicsEngine::RaycastAll( const vec3& from, const vec3& to ) const
+{
+    std::vector<RayHitResult> results;
+
+    btVector3 rayFrom( from.x, from.y, from.z );
+    btVector3 rayTo( to.x, to.y, to.z );
+
+    btCollisionWorld::AllHitsRayResultCallback rayCallback( rayFrom, rayTo );
+    dynamicsWorld->rayTest( rayFrom, rayTo, rayCallback );
+
+    if ( rayCallback.hasHit() )
+    {
+        for ( int i = 0; i < rayCallback.m_hitPointWorld.size(); i++ )
+        {
+            RayHitResult result;
+            result.hitPoint = vec3( rayCallback.m_hitPointWorld[i].x(),
+                                    rayCallback.m_hitPointWorld[i].y(),
+                                    rayCallback.m_hitPointWorld[i].z() );
+            result.hitNormal = vec3( rayCallback.m_hitNormalWorld[i].x(),
+                                     rayCallback.m_hitNormalWorld[i].y(),
+                                     rayCallback.m_hitNormalWorld[i].z() );
+            result.hitFraction = rayCallback.m_hitFractions[i];
+            result.hitBody = const_cast<btRigidBody*>( btRigidBody::upcast( rayCallback.m_collisionObjects[i] ) );
+
+            if ( rayCallback.m_collisionObjects[i]->getUserPointer() )
+                result.entity = *static_cast<Entity*>( rayCallback.m_collisionObjects[i]->getUserPointer() );
+
+            results.push_back( result );
+        }
+    }
+
+    return results;
 }
 
 PhysicsEngine::~PhysicsEngine()

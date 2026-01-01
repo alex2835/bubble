@@ -1,4 +1,4 @@
-
+#pragma once 
 #include <sol/forward.hpp>
 #include "engine/window/input.hpp"
 

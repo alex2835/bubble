@@ -2,10 +2,8 @@
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
-#include "engine/utils/filesystem.hpp"
 #include <sol/sol.hpp>
 #include <print>
-
 
 namespace bubble
 {
@@ -43,54 +41,50 @@ void CreateSceneBindings( Scene& scene,
         
         // Add
         "AddTagComponent",
-        [&]( Entity& entity, string tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
+        [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
         "AddTransformComponent", 
-        [&]( Entity& entity, TransformComponent trasform ) { scene.AddComponent<TransformComponent>( entity, trasform ); },
+        [&]( const Entity& entity, TransformComponent transform ) { scene.AddComponent<TransformComponent>( entity, transform ); },
         "AddModelComponent",
-        [&]( Entity& entity, Ref<Model> model ) { scene.AddComponent<ModelComponent>( entity, model ); },
+        [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
         "AddShaderComponent",
-        [&]( Entity& entity, Ref<Shader> shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
+        [&]( const Entity& entity, const Ref<Shader>& shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
         "AddPhysicsComponent",
-        [&]( Entity& entity, PhysicsObject object ) 
+        [&]( const Entity& entity, const PhysicsObject& object )
         {
             auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
-            physicsEngine.Add( physicsComponent.mPhysicsObject );
+            physicsEngine.Add( physicsComponent.mPhysicsObject, entity );
         },
         "AddStateComponent",
-        [&]( Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
+        [&]( const Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
 
         // Get
         "GetTagComponent",
-        [&]( Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
+        [&]( const Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "GetTransformComponent",
-        [&]( Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
-        [&]( Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
+        [&]( const Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
         "GetShaderComponent",
-        [&]( Entity& entity ) ->Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        [&]( const Entity& entity ) ->Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
         "GetPhysicsComponent",
-        [&]( Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
+        [&]( const Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
         "GetStateComponent",
-        [&]( Entity& entity ) ->Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
+        [&]( const Entity& entity ) ->Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
         // Has
         "HasTagComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<TagComponent>( entity ); },
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<TagComponent>( entity ); },
         "HasTransformComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<TransformComponent>( entity ); },
         "HasModelComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
         "HasShaderComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); },
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); },
         "HasPhysicsComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<PhysicsComponent>( entity ); },
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<PhysicsComponent>( entity ); },
         "HasStateComponent",
-        [&]( Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
     );
-
-    // Componetns requered global state
-    sol::usertype<PhysicsObject> physicsType = lua["PhysicsComponent"];
-    physicsType["SetMass"] = [&]( PhysicsObject& obj, float mass ) { physicsEngine.SetMass( obj, mass ); };
 
     // Scene
     lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
@@ -101,7 +95,7 @@ void CreateSceneBindings( Scene& scene,
         scene.RemoveEntity( entity );
     };
 
-    lua["ForEachEntity"] = [&]( sol::table components, sol::function func )
+    lua["ForEachEntity"] = [&]( const sol::table& components, const sol::function& func )
     {
         constexpr size_t componentsCount = magic_enum::enum_count<ComponentID>();
         using ComponentsIdsArray = std::array<ComponentTypeId, componentsCount>;
@@ -111,7 +105,7 @@ void CreateSceneBindings( Scene& scene,
         ComponentsIdsArray componentsIds;
         componentsIds.fill( INVALID_COMPONENT_TYPE_ID );
         int i = 0;
-        for ( auto [k, v] : components )
+        for ( const auto& [k, v] : components )
         {
             if ( not v.is<int>() )
                 throw std::runtime_error( "RuntimeView expects array of components liKe Component.Tag" );
@@ -126,12 +120,13 @@ void CreateSceneBindings( Scene& scene,
         scene.RuntimeForEach( componentsIds,
         [&]( Entity entity, ComponentsDataArray componentsData )
         {
-            for ( size_t i = 0; i < componentsCount; i++ )
+            for ( size_t componentIdx = 0; componentIdx < componentsCount; componentIdx++ )
             {
-                if ( componentsIds[i] == INVALID_COMPONENT_TYPE_ID )
+                auto componentId = componentsIds[componentIdx];
+                if ( componentId == INVALID_COMPONENT_TYPE_ID )
                     continue;
 
-                switch ( (ComponentID)componentsIds[i] )
+                switch ( (ComponentID)componentId )
                 {
                     case ComponentID::Tag:
                         componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
@@ -166,7 +161,6 @@ void CreateSceneBindings( Scene& scene,
             }
             func( entity, componentsAny );
         } );
-
     };
 
 }

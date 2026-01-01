@@ -1,7 +1,7 @@
-
+#pragma once
 #include <sol/forward.hpp>
 
 namespace bubble
 {
-void CreateLoaderBidnings( Loader& loader, sol::state& lua );
+void CreateLoaderBindings( Loader& loader, sol::state& lua );
 }

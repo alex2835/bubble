@@ -26,7 +26,7 @@ void Engine::OnStart()
     {
         physics.mPhysicsObject.SetTransform( transform.mPosition, transform.mRotation );
         physics.mPhysicsObject.ClearForces();
-        mProject.mPhysicsEngine.Add( physics.mPhysicsObject );
+        mProject.mPhysicsEngine.Add( physics.mPhysicsObject, entity );
     } );
 
     /// Scripts

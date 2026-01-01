@@ -2,7 +2,6 @@
 #include <sol/forward.hpp>
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
-#include "engine/types/map.hpp"
 #include "engine/scripting/script.hpp"
 
 namespace bubble

@@ -5,6 +5,7 @@
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
+#include "engine/scripting/bindings/physics_lua_bindings.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
 #include "glm_lua_bindings.hpp"
@@ -47,12 +48,13 @@ void ScriptingEngine::BindInput( WindowInput& input )
 
 void ScriptingEngine::BindLoader( Loader& loader )
 {
-    CreateLoaderBidnings( loader, *mLua );
+    CreateLoaderBindings( loader, *mLua );
 }
 
 void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
 {
     CreateSceneBindings( scene, physicsEngine, *mLua );
+    CreatePhysicsBindings( physicsEngine, *mLua );
 }
 
 void ScriptingEngine::ExtractOnUpdate( sol::function& func, const Ref<Script>& script )
