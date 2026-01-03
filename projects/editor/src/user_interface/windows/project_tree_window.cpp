@@ -97,6 +97,8 @@ const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<Proje
             return mPlayerIcon;
         case ProjectTreeNodeType::Camera:
             return mCameraIcon;
+        case ProjectTreeNodeType::Light:
+            return mLightIcon;
         case ProjectTreeNodeType::Script:
             return mScriptIcon;
     }
@@ -150,7 +152,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
     if ( ImGui::BeginPopup( "Create entity popup" ) )
     {
         // Temp: creation position. TODO: test raycast
-        auto newEntityPos = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
+        TransformComponent trans{ .mPosition = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f };
 
         if ( ImGui::MenuItem( "Create folder" ) )
         {
@@ -161,7 +163,6 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
         {
             auto entity = mProject.mScene.CreateEntity();
             mProject.mScene.AddComponent<TagComponent>( entity, "Model object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
@@ -172,7 +173,6 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
         {
             auto entity = mProject.mScene.CreateEntity();
             mProject.mScene.AddComponent<TagComponent>( entity, "Physics object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
@@ -184,7 +184,6 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
         {
             auto entity = mProject.mScene.CreateEntity();
             mProject.mScene.AddComponent<TagComponent>( entity, "Game object" );
-            TransformComponent trans{ .mPosition = newEntityPos };
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
@@ -203,6 +202,15 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             auto child = node->CreateChild( ProjectTreeNodeType::Script, entity );
             SetSelectionByNode( child );
         }
+        if ( ImGui::MenuItem( "Create Light" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Light" );
+            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
+            mProject.mScene.AddComponent<LightComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::Light, entity );
+            SetSelectionByNode( child );
+        }
         ImGui::EndPopup();
     }
 }
@@ -212,8 +220,8 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
 {
     // Selected by parent / selected in project tree / entities that were selected on screen
     isSelected = isSelected or 
-        mSelection.mProjectTreeNode == node or
-        ( node->IsEntity() and mSelection.mEntities.contains( node->AsEntity() ) );
+                mSelection.mProjectTreeNode == node or
+                ( node->IsEntity() and mSelection.mEntities.contains( node->AsEntity() ) );
 
     const auto& icon = GetProjectTreeNodeIcon( node );
     switch ( node->Type() )
@@ -252,6 +260,7 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
         case ProjectTreeNodeType::GameObject:
         case ProjectTreeNodeType::Camera:
         case ProjectTreeNodeType::Script:
+        case ProjectTreeNodeType::Light:
         {
             ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
             ImGui::SameLine();

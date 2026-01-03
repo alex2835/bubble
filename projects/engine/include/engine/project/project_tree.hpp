@@ -16,6 +16,7 @@ enum class ProjectTreeNodeType
     GameObject,
     Camera,
     Script,
+    Light,
 };
 
 struct ProjectTreeNode

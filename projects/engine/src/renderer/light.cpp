@@ -39,47 +39,46 @@ std::pair<f32, f32> GetAttenuationConstans( f32 distance )
 void Light::SetDistance( f32 distance )
 {
     auto [linear, quadratic] = GetAttenuationConstans( distance );
-    Distance = distance;
-    Linear = linear;
-    Quadratic = quadratic;
+    mDistance = distance;
+    mLinear = linear;
+    mQuadratic = quadratic;
 }
 
-void Light::Update()
-{
-    auto [linear, quadratic] = GetAttenuationConstans( Distance );
-    Linear = linear;
-    Quadratic = quadratic;
-    //__CutOff = cosf( radians( CutOff ) );
-    //__OuterCutOff = cosf( radians( OuterCutOff ) );
-
-    // Brightens compensation
-    if ( Type == LightType::PointLight || Type == LightType::SpotLight )
-    {
-        //__Brightness = Brightness * ( 7.0f - Distance * 5.0f );
-    }
-    else
-    {
-        //__Brightness = Brightness;
-    }
-}
+//void Light::Update()
+//{
+//    auto [linear, quadratic] = GetAttenuationConstans( Distance );
+//    Linear = linear;
+//    Quadratic = quadratic;
+//    //__CutOff = cosf( radians( CutOff ) );
+//    //__OuterCutOff = cosf( radians( OuterCutOff ) );
+//
+//    // Brightens compensation
+//    if ( Type == LightType::PointLight || Type == LightType::SpotLight )
+//    {
+//        //__Brightness = Brightness * ( 7.0f - Distance * 5.0f );
+//    }
+//    else
+//    {
+//        //__Brightness = Brightness;
+//    }
+//}
 
 Light Light::CreateDirLight( const vec3& direction, const vec3& color )
 {
     Light light;
-    light.Type = LightType::DirLight;
-    light.Direction = normalize( direction );
-    light.Color = color;
+    light.mType = LightType::DirLight;
+    light.mDirection = normalize( direction );
+    light.mColor = color;
     return light;
 }
 
 Light Light::CreatePointLight( const vec3& position, f32 distance, const vec3& color )
 {
     Light light;
-    light.Position = position;
-    light.Type = LightType::PointLight;
-    light.Distance = distance;
-    light.Color = color;
-    light.Update();
+    light.mPosition = position;
+    light.mType = LightType::PointLight;
+    light.mDistance = distance;
+    light.mColor = color;
     return light;
 }
 
@@ -91,14 +90,13 @@ Light Light::CreateSpotLight( const vec3& position,
                               const vec3& color )
 {
     Light light;
-    light.Type = LightType::SpotLight;
-    light.Position = position;
-    light.Direction = normalize( direction );
-    light.Distance = distance;
-    light.CutOff = cutoff;
-    light.OuterCutOff = outer_cutoff;
-    light.Color = color;
-    light.Update();
+    light.mType = LightType::SpotLight;
+    light.mPosition = position;
+    light.mDirection = normalize( direction );
+    light.mDistance = distance;
+    light.mCutOff = cutoff;
+    light.mOuterCutOff = outer_cutoff;
+    light.mColor = color;
     return light;
 }
 

@@ -33,6 +33,15 @@ bool isTextureFile( const filesystem::directory_entry& item )
     return false;
 }
 
+bool isShaderFile( const filesystem::directory_entry& item )
+{
+    const auto& extension = item.path().extension();
+    if ( extension == ".frag" or
+         extension == ".vert" )
+        return true;
+    return false;
+}
+
 FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 {
     if ( item.is_directory() )
@@ -47,6 +56,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
             return FilesystemNodeType::Texture;
         else if ( isScriptFile( item ) )
             return FilesystemNodeType::Script;
+        else if ( isShaderFile( item ) )
+            return FilesystemNodeType::Shader;
     }
     return FilesystemNodeType::Unknown;
 }
@@ -88,7 +99,7 @@ void ProjectFilesWindow::FillFilesystemNode( FilesystemNode& root )
     }
 }
 
-void ProjectFilesWindow::FillIcons( const FilesystemNode& node )
+void ProjectFilesWindow::LoadResources( const FilesystemNode& node )
 {
     if ( node.mType == FilesystemNodeType::Model )
     {
@@ -97,10 +108,16 @@ void ProjectFilesWindow::FillIcons( const FilesystemNode& node )
             mProject.mLoader.LoadModel( *modelPath );
     }
     else if ( node.mType == FilesystemNodeType::Script )
+    {
         mProject.mLoader.LoadScript( node.mPath );
+    }
+    else if ( node.mType == FilesystemNodeType::Shader )
+    {
+        mProject.mLoader.LoadShader( node.mPath );
+    }
 
     for ( const auto& child : node.mChildren )
-        FillIcons( child );
+        LoadResources( child );
 }
 
 void ProjectFilesWindow::FillFilesystemTree()
@@ -109,7 +126,7 @@ void ProjectFilesWindow::FillFilesystemTree()
     root.mPath = mProject.mRootFile.parent_path();
     root.mType = FilesystemNodeType::Folder;
     FillFilesystemNode( root );
-    FillIcons( root );
+    LoadResources( root );
     std::swap( mFilesystemTreeRoot, root );
 }
 

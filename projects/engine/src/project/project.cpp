@@ -35,7 +35,7 @@ void Project::Create( const path& rootDir, const string& projectName )
     auto projectDir = rootDir / projectName;
     filesystem::create_directory( projectDir );
 
-    mRootFile =  ( projectDir / projectName ).replace_extension( ROOT_FILE_EXT );
+    mRootFile = ( projectDir / projectName ).replace_extension( ROOT_FILE_EXT );
     if ( filesystem::exists( mRootFile ) )
         throw std::runtime_error( "Project with such name already exists: " + mRootFile.string() );
 

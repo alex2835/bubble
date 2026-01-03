@@ -22,9 +22,9 @@ struct ParsedShaders
 };
 
 
-const map<string, string>& GetModulesList()
+map<string, string> GetModulesList()
 {
-    static map<string, string> modules;
+    map<string, string> modules;
 	if ( modules.empty() )
 	{
         path searchPath = "./resources/shaders";
@@ -45,7 +45,7 @@ pair<string, ShaderModules> ProcessIncludes( const path& shaderPath )
 {
 	std::stringstream shaderSrc;
 	ShaderModules shaderModules;
-    const auto& modules = GetModulesList();
+    static const auto modules = GetModulesList();
 
 	std::ifstream stream = filesystem::openStream( shaderPath );
 	for ( string line; std::getline( stream, line ); )
@@ -253,9 +253,9 @@ Ref<Shader> LoadShader( const path& path )
 }
 
 
-Ref<Shader> Loader::LoadShader( const path& shaderPath )
+Ref<Shader> Loader::LoadShader( path shaderPath )
 {
-	auto [relPath, absPath] = RelAbsFromProjectPath( shaderPath );
+	auto [relPath, absPath] = RelAbsFromProjectPath( shaderPath.replace_extension() );
 
     auto iter = mShaders.find( relPath );
     if ( iter != mShaders.end() )

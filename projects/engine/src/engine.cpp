@@ -3,8 +3,8 @@
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 
-#include <print>
 #include <sol/sol.hpp>
+#include <print>
 
 namespace bubble
 {
@@ -79,7 +79,20 @@ void Engine::DrawScene( Framebuffer& framebuffer,
 {
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-    mRenderer.SetUniformBuffers( mActiveCamera, framebuffer );
+
+    std::vector<Light> lights;
+    scene.ForEach<TransformComponent, LightComponent>(
+        [&]( Entity _,
+             const TransformComponent& transformComponent,
+             LightComponent& lightComponent )
+    {
+        lightComponent.mDirection = transformComponent.Forward();
+        lightComponent.mPosition = transformComponent.mPosition;
+        lights.push_back( (Light)lightComponent );
+    } );
+
+    mRenderer.SetCameraUniformBuffers( mActiveCamera, framebuffer );
+    mRenderer.SetLightsUniformBuffer( mActiveCamera, lights );
 
     scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
         [&]( Entity _,

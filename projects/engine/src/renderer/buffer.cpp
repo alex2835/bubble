@@ -654,29 +654,20 @@ UniformArrayElement UniformBuffer::Element( u64 index )
 
 void UniformBuffer::CalculateOffsetsAndStride()
 {
-    u64 offset = 0;
-    u64 additionalAlignment = 0; // std140 alignment
+    auto alignTo = []( u64 offset, u64 alignment )
+    {
+        return ( offset + alignment - 1 ) & ~( alignment - 1 );
+    };
 
+    u64 offset = 0;
     for ( BufferElement& elemnt : mLayout )
     {
-        u64 std140Aligment = Std140DataTypeAligment( elemnt.mType );
+        u64 alignment = Std140DataTypeAligment( elemnt.mType );
         elemnt.mSize = Std140DataTypeSize( elemnt.mType );
-
-        auto notFilledSpace = offset % std140Aligment;
-        if( notFilledSpace )
-            additionalAlignment = std140Aligment - notFilledSpace;
-
-        elemnt.mOffset = offset + additionalAlignment;
-        offset += elemnt.mSize + additionalAlignment;
+        elemnt.mOffset = alignTo( offset, alignment );
+        offset = elemnt.mOffset + elemnt.mSize;
     }
-    // Align by vec4 size
-    u64 vec4Size = Std140DataTypeSize( GLSLDataType::Float4 );
-    
-    auto notFilledSpace = offset % vec4Size;
-    if( notFilledSpace )
-        offset += vec4Size - notFilledSpace;
-
-    mLayout.SetStride( offset );
+    mLayout.SetStride( alignTo( offset, Std140DataTypeSize( GLSLDataType::Float4 ) ) );
 }
 
 const VertexBufferLayout& UniformBuffer::Layout() const

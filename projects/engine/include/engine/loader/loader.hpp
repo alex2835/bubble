@@ -51,7 +51,7 @@ struct Loader
     Ref<Script> LoadScript( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
-    Ref<Shader> LoadShader( const path& path );
+    Ref<Shader> LoadShader( path path );
     Ref<Model> LoadModel( const path& path );
     void LoadModels( const vector<path>& paths );
     Ref<Skybox> LoadSkybox( const path& path );
@@ -63,14 +63,14 @@ struct Loader
         path abs;
     };
 
-    RelAbsPaths RelAbsFromProjectPath( const path& resPath ) const
+    RelAbsPaths RelAbsFromProjectPath( const path& resourcePath ) const
     {
         // engine resource
-        if ( resPath.string().starts_with( "." ) )
-            return { resPath, resPath };
+        if ( resourcePath.string().starts_with( "." ) )
+            return { resourcePath, resourcePath };
 
-        auto relPath = resPath.is_relative() ? resPath : filesystem::relative( resPath, mProjectRootPath );
-        auto absPath = resPath.is_absolute() ? resPath : mProjectRootPath / resPath;
+        auto relPath = resourcePath.is_relative() ? resourcePath : filesystem::relative( resourcePath, mProjectRootPath );
+        auto absPath = resourcePath.is_absolute() ? resourcePath : mProjectRootPath / resourcePath;
         return RelAbsPaths{ .rel=relPath.generic_string(),
                             .abs=absPath.generic_string() };
     }

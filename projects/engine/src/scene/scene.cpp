@@ -10,6 +10,7 @@ Scene::Scene()
     ComponentManager::Add<ModelComponent>( *this );
     ComponentManager::Add<TransformComponent>( *this );
     ComponentManager::Add<ShaderComponent>( *this );
+    ComponentManager::Add<LightComponent>( *this );
     ComponentManager::Add<ScriptComponent>( *this );
     ComponentManager::Add<PhysicsComponent>( *this );
     ComponentManager::Add<StateComponent>( *this );

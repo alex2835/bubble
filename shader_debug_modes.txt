@@ -1,0 +1,55 @@
+PHONG SHADER DEBUG MODES
+========================
+
+Usage in C++ code:
+------------------
+shader->Bind();
+shader->SetUniform("uDebugMode", debugMode);  // Set before rendering
+
+Debug Modes:
+------------
+0  = Normal rendering (default)
+1  = Visualize normals (smooth RGB colors, check for inverted/broken normals)
+2  = Visualize diffuse texture (check if texture is loaded correctly)
+3  = Visualize specular texture (check specular map)
+4  = Visualize diffuse lighting only (no textures/materials, pure lighting)
+5  = Visualize specular lighting only (white highlights where specular should be)
+6  = Visualize view direction (check camera orientation)
+7  = Visualize number of lights (brightness = light count / 10)
+8  = Visualize world position (fractional coordinates, checkerboard pattern)
+9  = Visualize material diffuse color (check material setup)
+10 = Visualize material specular color
+11 = Visualize material ambient color
+12 = Visualize final diffuse component (diffuse with lighting and textures)
+13 = Visualize final specular component (specular highlights only)
+
+Debugging Workflow:
+-------------------
+1. Start with mode 7 - Check if lights are being passed (should see brightness)
+2. Try mode 1 - Check normals (should be smooth gradients, not black/white)
+3. Try mode 2 - Check diffuse texture loads correctly
+4. Try mode 4 - Check if lighting calculations work (ignore materials)
+5. Try mode 5 - Check if specular highlights appear
+6. Try mode 12 - Check final diffuse (with materials and textures)
+7. Try mode 13 - Check final specular (should see highlights)
+8. Set to 0 - Normal rendering
+
+Common Issues:
+--------------
+Mode 1 shows black/white only → Normals are broken or not normalized
+Mode 2 shows black → Diffuse texture not bound or wrong UV coords
+Mode 4 shows black → No lights or lights have zero brightness
+Mode 5 shows nothing → Specular is zero or camera/light angle wrong
+Mode 7 shows black → uNumLights is 0, lights not being passed
+
+Example C++ Code:
+-----------------
+// In your render loop or debug UI:
+int debugMode = 0;  // Change this to switch modes
+
+phongShader->Bind();
+phongShader->SetUniform("uDebugMode", debugMode);
+
+// ... render your scene ...
+
+phongShader->Unbind();

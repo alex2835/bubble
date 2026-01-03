@@ -126,6 +126,15 @@ mat4 TransformComponent::TranslationRotationMat() const
 }
 
 
+vec3 TransformComponent::Forward() const
+{
+    return normalize( vec3( 
+        cos( mRotation.y ) * cos( mRotation.x ),
+        sin( mRotation.x ),
+        sin( mRotation.y ) * cos( mRotation.x )
+    ) );
+}
+
 void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )
 {
     json["Position"] = transformComponent.mPosition;
@@ -172,22 +181,161 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
 void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );
+
+    // Light Type Selection
+    const char* lightTypes[] = { "Directional", "Point", "Spot" };
+    int currentType = static_cast<int>( lightComponent.mType );
+    if ( ImGui::Combo( "Type", &currentType, lightTypes, IM_ARRAYSIZE( lightTypes ) ) )
+    {
+        lightComponent.mType = static_cast<LightType>( currentType );
+    }
+
+    // Color
+    ImGui::ColorEdit3( "Color", &lightComponent.mColor.x );
+
+    // Brightness
+    ImGui::DragFloat( "Brightness", &lightComponent.mBrightness, 0.01f, 0.0f, 10.0f );
+
+    // Type-specific properties
+    if ( lightComponent.mType == LightType::DirLight )
+    {
+        //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
+        //    lightComponent.mDirection = normalize( lightComponent.mDirection );
+    }
+    else if ( lightComponent.mType == LightType::PointLight )
+    {
+        //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
+        //if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
+        //    lightComponent.SetDistance( lightComponent.mDistance );
+
+        // Show calculated attenuation values (read-only)
+        ImGui::Text( "Attenuation:" );
+        ImGui::Indent();
+        ImGui::Text( "Constant: %.3f", lightComponent.mConstant );
+        ImGui::Text( "Linear: %.4f", lightComponent.mLinear );
+        ImGui::Text( "Quadratic: %.6f", lightComponent.mQuadratic );
+        ImGui::Unindent();
+    }
+    else if ( lightComponent.mType == LightType::SpotLight )
+    {
+        //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
+        //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
+        //    lightComponent.mDirection = normalize( lightComponent.mDirection );
+
+        if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
+            lightComponent.SetDistance( lightComponent.mDistance );
+
+        ImGui::SliderFloat( "Cut Off", &lightComponent.mCutOff, 0.0f, 90.0f );
+        ImGui::SliderFloat( "Outer Cut Off", &lightComponent.mOuterCutOff, 0.0f, 90.0f );
+
+        // Show calculated attenuation values (read-only)
+        ImGui::Text( "Attenuation:" );
+        ImGui::Indent();
+        ImGui::Text( "Constant: %.3f", lightComponent.mConstant );
+        ImGui::Text( "Linear: %.4f", lightComponent.mLinear );
+        ImGui::Text( "Quadratic: %.6f", lightComponent.mQuadratic );
+        ImGui::Unindent();
+    }
 }
 
-void LightComponent::ToJson( json& json, const Project& project, const LightComponent& raw )
+void LightComponent::ToJson( json& json, const Project& project, const LightComponent& light )
 {
-
+    json["Type"] = static_cast<int>( light.mType );
+    json["Color"] = { light.mColor.x, light.mColor.y, light.mColor.z };
+    json["Brightness"] = light.mBrightness;
+    json["Position"] = { light.mPosition.x, light.mPosition.y, light.mPosition.z };
+    json["Direction"] = { light.mDirection.x, light.mDirection.y, light.mDirection.z };
+    json["Distance"] = light.mDistance;
+    json["CutOff"] = light.mCutOff;
+    json["OuterCutOff"] = light.mOuterCutOff;
+    json["Constant"] = light.mConstant;
+    json["Linear"] = light.mLinear;
+    json["Quadratic"] = light.mQuadratic;
 }
 
 void LightComponent::FromJson( const json& json, Project& project, LightComponent& lightComponent )
 {
+    if ( json.contains( "Type" ) )
+        lightComponent.mType = static_cast<LightType>( json["Type"].get<int>() );
 
+    if ( json.contains( "Color" ) )
+    {
+        auto color = json["Color"];
+        lightComponent.mColor = vec3( color[0], color[1], color[2] );
+    }
+
+    if ( json.contains( "Brightness" ) )
+        lightComponent.mBrightness = json["Brightness"];
+
+    if ( json.contains( "Position" ) )
+    {
+        auto pos = json["Position"];
+        lightComponent.mPosition = vec3( pos[0], pos[1], pos[2] );
+    }
+
+    if ( json.contains( "Direction" ) )
+    {
+        auto dir = json["Direction"];
+        lightComponent.mDirection = vec3( dir[0], dir[1], dir[2] );
+    }
+
+    if ( json.contains( "Distance" ) )
+        lightComponent.mDistance = json["Distance"];
+
+    if ( json.contains( "CutOff" ) )
+        lightComponent.mCutOff = json["CutOff"];
+
+    if ( json.contains( "OuterCutOff" ) )
+        lightComponent.mOuterCutOff = json["OuterCutOff"];
+
+    if ( json.contains( "Constant" ) )
+        lightComponent.mConstant = json["Constant"];
+
+    if ( json.contains( "Linear" ) )
+        lightComponent.mLinear = json["Linear"];
+
+    if ( json.contains( "Quadratic" ) )
+        lightComponent.mQuadratic = json["Quadratic"];
 }
 
 void LightComponent::CreateLuaBinding( sol::state& lua )
 {
+    // LightType enum
+    lua.new_enum<LightType>(
+        "LightType",
+        {
+            { "Directional", LightType::DirLight },
+            { "Point", LightType::PointLight },
+            { "Spot", LightType::SpotLight }
+        }
+    );
+
+    // Light component
     lua.new_usertype<Light>(
-        "Light"
+        "Light",
+        sol::call_constructor,
+        sol::constructors<Light()>(),
+
+        // Properties
+        "Type", &Light::mType,
+        "Color", &Light::mColor,
+        "Brightness", &Light::mBrightness,
+        "Position", &Light::mPosition,
+        "Direction", &Light::mDirection,
+        "Distance", &Light::mDistance,
+        "CutOff", &Light::mCutOff,
+        "OuterCutOff", &Light::mOuterCutOff,
+        "Constant", &Light::mConstant,
+        "Linear", &Light::mLinear,
+        "Quadratic", &Light::mQuadratic,
+
+        // Methods
+        "SetDistance", &Light::SetDistance,
+
+        // Static factory methods
+        "CreateDirLight", &Light::CreateDirLight,
+        "CreatePointLight", &Light::CreatePointLight,
+        "CreateSpotLight", &Light::CreateSpotLight
     );
 }
 

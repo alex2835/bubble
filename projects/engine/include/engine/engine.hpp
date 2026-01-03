@@ -16,7 +16,7 @@ struct Engine
     // Attached project to run
     Project& mProject;
 
-
+    // Visualization boxes and physics shapes
     struct MeshHelpers
     {
         VertexBufferData mVertices;

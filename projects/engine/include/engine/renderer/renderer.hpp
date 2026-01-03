@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/renderer/camera.hpp"
+#include "engine/renderer/light.hpp"
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/framebuffer.hpp"
 #include "engine/renderer/model.hpp"
@@ -22,7 +23,8 @@ public:
     Renderer();
     void ClearScreen( vec4 color );
     void ClearScreenUint( uvec4 color );
-    void SetUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
+    void SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
+    void SetLightsUniformBuffer( const Camera& camera, const std::vector<Light>& lights );
 
     void DrawMesh( const Mesh& mesh, 
                    const Ref<Shader>& shader, 

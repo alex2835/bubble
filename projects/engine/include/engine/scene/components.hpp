@@ -70,6 +70,7 @@ public:
 	mat4 ScaleMat() const;
 	mat4 TranslationMat() const;
 	mat4 TranslationRotationMat() const;
+    vec3 Forward() const;
 
 	vec3 mPosition = vec3( 0 );
 	vec3 mRotation = vec3( 0 );

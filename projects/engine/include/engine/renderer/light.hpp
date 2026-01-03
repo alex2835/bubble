@@ -5,7 +5,7 @@
 
 namespace bubble
 {
-enum class LightType
+enum class LightType : i32
 {
     DirLight,
     PointLight,
@@ -42,24 +42,24 @@ enum class LightType
 
 struct Light
 {
-    LightType Type = LightType::DirLight;
+    LightType mType = LightType::DirLight;
 
-    f32 Constant = 1.0f;
-    f32 Linear = 0.0f;
-    f32 Quadratic = 0.0f;
+    f32 mConstant = 1.0f;
+    f32 mLinear = 0.0f;
+    f32 mQuadratic = 0.0f;
 
-    f32 CutOff = 0.0f;
-    f32 OuterCutOff = 0.0f;
-    f32 Distance = 0.0f;
-    f32 Brightness = 1.0f;
+    f32 mCutOff = 0.0f;
+    f32 mOuterCutOff = 0.0f;
+    f32 mDistance = 0.0f;
+    f32 mBrightness = 1.0f;
 
-    vec3 Color = vec3( 1.0f );
+    vec3 mColor = vec3( 1.0f );
 
-    vec3 Position = vec3();
-    vec3 Direction = vec3();
+    vec3 mPosition = vec3();
+    vec3 mDirection = vec3();
 
     void SetDistance( f32 distance );
-    void Update();
+    //void Update();
 
     static Light CreateDirLight( const vec3& direction = vec3( -1.0f ), const vec3& color = vec3( 1.0f ) );
 

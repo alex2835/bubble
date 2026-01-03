@@ -11,7 +11,8 @@ enum class FilesystemNodeType
     Folder,
     Model,
     Script,
-    Texture
+    Texture,
+    Shader
 };
 
 class ProjectFilesWindow : public UserInterfaceWindowBase
@@ -30,7 +31,7 @@ public:
     string_view Name();
 
     void FillFilesystemNode( FilesystemNode& root );
-    void FillIcons( const FilesystemNode& node );
+    void LoadResources( const FilesystemNode& node );
     void FillFilesystemTree();
 
     void OnUpdate( DeltaTime );

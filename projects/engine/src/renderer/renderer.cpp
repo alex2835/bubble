@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
-#include <GL/glew.h>
 #include "engine/renderer/renderer.hpp"
+
+#include <GL/glew.h>
 
 namespace bubble
 {
@@ -25,30 +26,30 @@ Renderer::Renderer()
         { "uViewPos", GLSLDataType::Float3 }
     };
     mLightsInfoUniformBuffer = CreateRef<UniformBuffer>( 1,
-                                                       "LightsInfoUniformBuffer",
-                                                       std::move( lightsInfoUniformVertexBufferLayout ) );
+                                                         "LightsInfoUniformBuffer",
+                                                         std::move( lightsInfoUniformVertexBufferLayout ) );
     
     VertexBufferLayout lightsUniformVertexBufferLayout{
-        { "Type", GLSLDataType::Int },
-        { "Brightness", GLSLDataType::Float },
-        { "Constant", GLSLDataType::Float },    
-        { "Linear", GLSLDataType::Float },
-        { "Quadratic", GLSLDataType::Float },
-        { "CutOff", GLSLDataType::Float },
-        { "OuterCutOff", GLSLDataType::Float },
-        { "Color", GLSLDataType::Float3 },
-        { "Direction", GLSLDataType::Float3 },
-        { "Position", GLSLDataType::Float3 },
+        { "type", GLSLDataType::Int },
+        { "brightness", GLSLDataType::Float },
+        { "constant", GLSLDataType::Float },
+        { "linear", GLSLDataType::Float },
+        { "quadratic", GLSLDataType::Float },
+        { "cutOff", GLSLDataType::Float },
+        { "outerCutOff", GLSLDataType::Float },
+        { "color", GLSLDataType::Float3 },
+        { "direction", GLSLDataType::Float3 },
+        { "position", GLSLDataType::Float3 },
     };
-    int nLights = 30;
+    constexpr int nLights = 128;
     mLightsUniformBuffer = CreateRef<UniformBuffer>( 2,
-                                                     "LightUniformBuffer",
+                                                     "LightsUniformBuffer",
                                                      std::move( lightsUniformVertexBufferLayout ),
                                                      nLights );
 }
 
 
-void Renderer::SetUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
+void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
 {
     auto framebufferSize = framebuffer.Size();
     auto projectionMat = camera.GetPprojectionMat( framebufferSize.x, framebufferSize.y );
@@ -57,10 +58,32 @@ void Renderer::SetUniformBuffers( const Camera& camera, const Framebuffer& frame
     auto vertexBufferElement = mVertexUniformBuffer->Element( 0 );
     vertexBufferElement.SetMat4( "uProjection", projectionMat );
     vertexBufferElement.SetMat4( "uView", lookAtMat );
+}
 
+
+void Renderer::SetLightsUniformBuffer( const Camera& camera, const std::vector<Light>& lights )
+{
+    // Lights info: camera pos and num lights
     auto fragmentBufferElement = mLightsInfoUniformBuffer->Element( 0 );
-    fragmentBufferElement.SetInt( "uNumLights", 0 );
+    fragmentBufferElement.SetInt( "uNumLights", (i32)lights.size() );
     fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
+
+    // Lights
+    for ( i32 i = 0; i < lights.size(); i++ )
+    {
+        const auto& light = lights[i];
+        auto lightBufferElement = mLightsUniformBuffer->Element( i );
+        lightBufferElement.SetInt( "type", (i32)light.mType );
+        lightBufferElement.SetFloat( "brightness", light.mBrightness );
+        lightBufferElement.SetFloat( "constant", light.mConstant );
+        lightBufferElement.SetFloat( "linear", light.mLinear );
+        lightBufferElement.SetFloat( "quadratic", light.mQuadratic );
+        lightBufferElement.SetFloat( "cutOff", glm::cos( glm::radians( light.mCutOff ) ) );
+        lightBufferElement.SetFloat( "outerCutOff", glm::cos( glm::radians( light.mOuterCutOff ) ) );
+        lightBufferElement.SetFloat3( "color", light.mColor );
+        lightBufferElement.SetFloat3( "direction", light.mDirection );
+        lightBufferElement.SetFloat3( "position", light.mPosition );
+    }
 }
 
 
@@ -99,7 +122,10 @@ void Renderer::DrawMesh( const Mesh& mesh,
     // Set uniform buffers
     shader->SetUniformBuffer( mVertexUniformBuffer );
     if ( shader->mModules.test( ShaderModule::Light ) )
+    {
         shader->SetUniformBuffer( mLightsInfoUniformBuffer );
+        shader->SetUniformBuffer( mLightsUniformBuffer );
+    }
 
     // Draw model
     shader->SetUniMat4( "uModel", transform );
@@ -118,7 +144,10 @@ void Renderer::DrawModel( const Ref<Model>& model,
     // Set uniform buffers
     shader->SetUniformBuffer( mVertexUniformBuffer );
     if ( shader->mModules.test( ShaderModule::Light ) )
+    {
         shader->SetUniformBuffer( mLightsInfoUniformBuffer );
+        shader->SetUniformBuffer( mLightsUniformBuffer );
+    }
 
     // Draw model
     shader->SetUniMat4( "uModel", transform );

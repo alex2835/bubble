@@ -126,34 +126,35 @@ void CreateSceneBindings( Scene& scene,
                 if ( componentId == INVALID_COMPONENT_TYPE_ID )
                     continue;
 
+                auto componentDataPtr = componentsData[componentIdx];
                 switch ( (ComponentID)componentId )
                 {
                     case ComponentID::Tag:
-                        componentsTable[ComponentID::Tag] = (TagComponent*)componentsData[i];
+                        componentsTable[ComponentID::Tag] = (TagComponent*)componentDataPtr;
                         break;
                     case ComponentID::Transform:
-                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentsData[i];
+                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentDataPtr;
                         break;
                     case ComponentID::Model:
-                        componentsTable[ComponentID::Model] = *(Ref<Model>*)componentsData[i];
+                        componentsTable[ComponentID::Model] = *(Ref<Model>*)componentDataPtr;
                         break;
                     case ComponentID::Shader:
-                        componentsTable[ComponentID::Shader] = *(Ref<Shader>*)componentsData[i];
+                        componentsTable[ComponentID::Shader] = *(Ref<Shader>*)componentDataPtr;
                         break;
                     case ComponentID::Script:
-                        componentsTable[ComponentID::Script] = ((ScriptComponent*)componentsData[i])->mScript;
+                        componentsTable[ComponentID::Script] = ((ScriptComponent*)componentDataPtr)->mScript;
                         break;
                     case ComponentID::Physics:
-                        componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentsData[i])->mPhysicsObject;
+                        componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentDataPtr)->mPhysicsObject;
                         break;
                     case ComponentID::Camera:
                         // Camera component not handled
                         break;
                     case ComponentID::Light:
-                        // Light component not handled
+                        componentsTable[ComponentID::Light] = (LightComponent*)componentDataPtr;
                         break;
                     case ComponentID::State:
-                        componentsTable[ComponentID::State] = *((StateComponent*)componentsData[i])->mState;
+                        componentsTable[ComponentID::State] = *((StateComponent*)componentDataPtr)->mState;
                         break;
                     default:
                         throw std::runtime_error( "ForEachEntity: invalid set of componets provided" );
