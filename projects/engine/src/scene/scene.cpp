@@ -6,14 +6,25 @@ namespace bubble
 {
 Scene::Scene()
 {
-    ComponentManager::Add<TagComponent>( *this );
-    ComponentManager::Add<ModelComponent>( *this );
-    ComponentManager::Add<TransformComponent>( *this );
-    ComponentManager::Add<ShaderComponent>( *this );
-    ComponentManager::Add<LightComponent>( *this );
-    ComponentManager::Add<ScriptComponent>( *this );
-    ComponentManager::Add<PhysicsComponent>( *this );
-    ComponentManager::Add<StateComponent>( *this );
+    AddComponent<TagComponent>();
+    AddComponent<ModelComponent>();
+    AddComponent<TransformComponent>();
+    AddComponent<ShaderComponent>();
+    AddComponent<CameraComponent>();
+    AddComponent<LightComponent>();
+    AddComponent<ScriptComponent>();
+    AddComponent<PhysicsComponent>();
+    AddComponent<StateComponent>();
+
+    ComponentManager::Add<TagComponent>();
+    ComponentManager::Add<ModelComponent>();
+    ComponentManager::Add<TransformComponent>();
+    ComponentManager::Add<ShaderComponent>();
+    ComponentManager::Add<CameraComponent>();
+    ComponentManager::Add<LightComponent>();
+    ComponentManager::Add<ScriptComponent>();
+    ComponentManager::Add<PhysicsComponent>();
+    ComponentManager::Add<StateComponent>();
 }
 
 }

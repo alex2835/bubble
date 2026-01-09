@@ -2,16 +2,14 @@
 #include "engine/engine.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
-
 #include <sol/sol.hpp>
-#include <print>
 
 namespace bubble
 {
 Engine::Engine( Project& project )
     : mProject( project ),
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
-      mBoudingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mBoundingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) }
 {}
 
@@ -48,14 +46,18 @@ void Engine::OnUpdate()
 
     // Update transforms
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
-    []( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
+    []( Entity entity,
+        TransformComponent& transform,
+        const PhysicsComponent& physics )
     {
          physics.mPhysicsObject.GetTransform( transform.mPosition, transform.mRotation );
     } );
 
     // Call scripts
     mProject.mScene.ForEach<StateComponent, ScriptComponent>( 
-    []( Entity entity, StateComponent& stateComponent, ScriptComponent& scriptComponent )
+    []( Entity entity,
+        const StateComponent& stateComponent,
+        const ScriptComponent& scriptComponent )
     {
         if ( scriptComponent.mOnUpdate )
         {
@@ -77,30 +79,33 @@ void Engine::DrawScene( Framebuffer& framebuffer )
 void Engine::DrawScene( Framebuffer& framebuffer,
                         Scene& scene )
 {
-    framebuffer.Bind();
-    mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-
+    // Set up lights
     std::vector<Light> lights;
     scene.ForEach<TransformComponent, LightComponent>(
         [&]( Entity _,
-             const TransformComponent& transformComponent,
-             LightComponent& lightComponent )
+                  const TransformComponent& transformComponent,
+                  LightComponent& lightComponent )
     {
         lightComponent.mDirection = transformComponent.Forward();
         lightComponent.mPosition = transformComponent.mPosition;
         lights.push_back( (Light)lightComponent );
     } );
 
+
+    framebuffer.Bind();
+    mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
+
     mRenderer.SetCameraUniformBuffers( mActiveCamera, framebuffer );
     mRenderer.SetLightsUniformBuffer( mActiveCamera, lights );
 
+    // Render models
     scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
         [&]( Entity _,
              ModelComponent& modelComponent,
              ShaderComponent& shaderComponent,
              TransformComponent& transform )
     {
-        mRenderer.DrawModel( modelComponent.mModel, transform.TransformMat(), shaderComponent.mShader );
+        mRenderer.DrawModel( modelComponent.mModel, shaderComponent.mShader, transform.TransformMat() );
     } );
 }
 
@@ -112,13 +117,13 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
         return;
 
     u32 elementIndexStride = 0;
-    mBoudingBoxes.mVertices.Clear();
-    mBoudingBoxes.mIndices.clear();
+    mBoundingBoxes.mVertices.Clear();
+    mBoundingBoxes.mIndices.clear();
 
     scene.ForEach<ModelComponent, TransformComponent>(
         [&]( Entity _,
-             ModelComponent& model,
-             TransformComponent& transform )
+                  const ModelComponent& model,
+                  const TransformComponent& transform )
     {
         if ( not model.mModel )
             return;
@@ -127,13 +132,13 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
         const AABB box = CalculateTransformedBBox( model.mModel->mBBox, trans );
         const auto [vertices, indices] = CalculateBBoxShapeData( box );
         for ( vec3 vertex : vertices )
-            mBoudingBoxes.mVertices.mPositions.push_back( vertex );
+            mBoundingBoxes.mVertices.mPositions.push_back( vertex );
         for ( u32 index : indices  )
-            mBoudingBoxes.mIndices.push_back( index + elementIndexStride );
-        elementIndexStride = (u32)mBoudingBoxes.mVertices.mPositions.size();
+            mBoundingBoxes.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mBoundingBoxes.mVertices.mPositions.size();
     } );
-    mBoudingBoxes.mMesh.UpdateDynamicVertexBufferData( mBoudingBoxes.mVertices, mBoudingBoxes.mIndices );
-    mRenderer.DrawMesh( mBoudingBoxes.mMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
+    mBoundingBoxes.mMesh.UpdateDynamicVertexBufferData( mBoundingBoxes.mVertices, mBoundingBoxes.mIndices );
+    mRenderer.DrawMesh( mBoundingBoxes.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
 }
 
 
@@ -150,18 +155,18 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
     scene.ForEach<PhysicsComponent, TransformComponent>(
         [&]( Entity _,
              PhysicsComponent& physics,
-             TransformComponent& transform )
+             const TransformComponent& transform )
     {
         const mat4 trans = transform.TranslationRotationMat();
         const auto& [vertices, indices] = physics.mPhysicsObject.mShapeData;
         for ( auto vertex : vertices )
             mPhysicsObjects.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
-        for ( auto index : indices )
+        for ( u32 index : indices )
             mPhysicsObjects.mIndices.push_back( index + elementIndexStride );
         elementIndexStride = (u32)mPhysicsObjects.mVertices.mPositions.size();
     } );
     mPhysicsObjects.mMesh.UpdateDynamicVertexBufferData( mPhysicsObjects.mVertices, mPhysicsObjects.mIndices );
-    mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, mat4( 1 ), DrawingPrimitive::Lines );
+    mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
 }
 
 

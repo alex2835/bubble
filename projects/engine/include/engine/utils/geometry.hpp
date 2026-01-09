@@ -25,4 +25,6 @@ struct BBoxShapeData
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform );
 BBoxShapeData CalculateBBoxShapeData( AABB box );
 
+// Generate camera mesh
+
 }

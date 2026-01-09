@@ -155,7 +155,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 
 
     const auto lookAt = mSceneCamera.GetLookatMat();
-    const auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+    const auto projection = mSceneCamera.GetProjectionMat( mNewSize.x, mNewSize.y );
 
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
@@ -183,7 +183,7 @@ void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities,
                                              glm::value_ptr( transformNew ) );
 
     auto lookAt = mSceneCamera.GetLookatMat();
-    auto projection = mSceneCamera.GetPprojectionMat( mNewSize.x, mNewSize.y );
+    auto projection = mSceneCamera.GetProjectionMat( mNewSize.x, mNewSize.y );
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,

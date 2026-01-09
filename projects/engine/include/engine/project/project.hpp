@@ -19,11 +19,12 @@ class Project
     json SaveProjectTree();
     Ref<ProjectTreeNode> LoadProjectTreeNode( const json& j, ProjectTreeNode* parent );
     void LoadProjectTree( const json& j );
+
 public:
-    Project( WindowInput& input );
+    explicit Project( WindowInput& input );
     ~Project();
     void Create( const path& rootDir, const string& projectName );
-    void Open( const path& filePath );
+    void Open( const path& rootFile );
     void Save();
     bool IsValid();
 
@@ -33,7 +34,7 @@ public:
     PhysicsEngine mPhysicsEngine;
     Loader mLoader;
     Scene mScene;
-    // Just tree view for scene
+    // Just tree view for a scene
     Ref<ProjectTreeNode> mProjectTreeRoot;
 };
 

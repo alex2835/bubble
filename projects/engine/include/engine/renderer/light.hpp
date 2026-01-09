@@ -50,7 +50,7 @@ struct Light
 
     f32 mCutOff = 0.0f;
     f32 mOuterCutOff = 0.0f;
-    f32 mDistance = 0.0f;
+    f32 mDistance = 0.5f;
     f32 mBrightness = 1.0f;
 
     vec3 mColor = vec3( 1.0f );
@@ -61,16 +61,19 @@ struct Light
     void SetDistance( f32 distance );
     //void Update();
 
-    static Light CreateDirLight( const vec3& direction = vec3( -1.0f ), const vec3& color = vec3( 1.0f ) );
+    static Light CreateDirLight( const vec3& direction = vec3( 0, -1.0f, 0 ),
+                                 const vec3& color = vec3( 1.0f ) );
 
     // distance between 0 and 1.0f (where 1.0f is 3250m)
-    static Light CreatePointLight( const vec3& position = vec3(), f32 distance = 0.5f, const vec3& color = vec3( 1.0f ) );
+    static Light CreatePointLight( const vec3& position = vec3( 0.0f ),
+                                   f32 distance = 0.5f,
+                                   const vec3& color = vec3( 1.0f ) );
 
     // distance between 0 and 1.0f (where 1.0f is 3250m)
     static Light CreateSpotLight( const vec3& position = vec3(),
                                   const vec3& direction = vec3( 1.0f, 0.0f, 0.0f ),
                                   f32 distance = 0.5f,
-                                  f32 cutoff = 12.5f,		// cutoff and outer_cutoff in degrees
+                                  f32 cutoff = 12.5f, // cutoff and outer_cutoff in degrees
                                   f32 outer_cutoff = 17.5f,
                                   const vec3& color = vec3( 1.0f ) );
 };

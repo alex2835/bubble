@@ -2,8 +2,6 @@
 #include "editor_application/editor_application.hpp"
 #include "engine/utils/geometry.hpp"
 #include <sol/sol.hpp>
-#include <print>
-#include <regex>
 
 namespace bubble
 {
@@ -23,9 +21,9 @@ BubbleEditor::BubbleEditor()
       mEntityIdShader( LoadShader( ENTITY_PICKING_SHADER ) ),
 
       mProject( mWindow.GetWindowInput() ),
-      mEngine( mProject ),
-      
       mProjectResourcesHotReloader( mProject ),
+      mEngine( mProject ),
+
       mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
@@ -53,7 +51,7 @@ void BubbleEditor::Run()
                 mProjectResourcesHotReloader.OnUpdate();
                 mEditorUserInterface.OnUpdate( deltaTime );
 
-                mEngine.mActiveCamera = mSceneCamera;
+                mEngine.mActiveCamera = (Camera)mSceneCamera;
                 DrawEntityIds();
                 mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 break;
@@ -64,7 +62,7 @@ void BubbleEditor::Run()
                 {
                     // temp
                     mSceneCamera.OnUpdate( deltaTime );
-                    mEngine.mActiveCamera = mSceneCamera;
+                    mEngine.mActiveCamera = (Camera)mSceneCamera;
 
                     mEngine.OnUpdate();
                     mEngine.DrawScene( mSceneViewport );
@@ -129,6 +127,7 @@ void BubbleEditor::OnUpdate()
         mProject.mScene = mSceneSave;
     }
 
+
     // Save project
     if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
          mWindow.GetWindowInput().KeyMods().CONTROL and
@@ -146,12 +145,12 @@ void BubbleEditor::DrawEntityIds()
     mEntityIdViewport.Bind();
     mEngine.mRenderer.ClearScreenUint( uvec4( 0 ) );
     mProject.mScene.ForEach<ModelComponent, TransformComponent>(
-        [&]( Entity entity,
-             ModelComponent& modelComponent,
-             TransformComponent& transformComponent )
+        [&]( const Entity entity,
+                  const ModelComponent& modelComponent,
+                  const TransformComponent& transformComponent )
     {
-        mEntityIdShader->SetUni1ui( "uObjectId", (u32)entity );
-        mEngine.mRenderer.DrawModel( modelComponent.mModel, transformComponent.TransformMat(), mEntityIdShader );
+        mEntityIdShader->SetUni1u( "uObjectId", (u32)entity );
+        mEngine.mRenderer.DrawModel( modelComponent.mModel, mEntityIdShader, transformComponent.TransformMat() );
     } );
 }
 

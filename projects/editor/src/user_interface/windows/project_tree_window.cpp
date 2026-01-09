@@ -211,6 +211,15 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             auto child = node->CreateChild( ProjectTreeNodeType::Light, entity );
             SetSelectionByNode( child );
         }
+        if ( ImGui::MenuItem( "Create Camera" ) )
+        {
+            auto entity = mProject.mScene.CreateEntity();
+            mProject.mScene.AddComponent<TagComponent>( entity, "Camera" );
+            mProject.mScene.AddComponent<TransformComponent>( entity, trans );
+            mProject.mScene.AddComponent<CameraComponent>( entity );
+            auto child = node->CreateChild( ProjectTreeNodeType::Camera, entity );
+            SetSelectionByNode( child );
+        }
         ImGui::EndPopup();
     }
 }

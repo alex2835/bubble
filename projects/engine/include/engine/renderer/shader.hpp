@@ -42,7 +42,7 @@ public:
 
     // lone i32
     void SetUni1i( string_view name, const i32& val ) const;
-    void SetUni1ui( string_view name, const u32& val ) const;
+    void SetUni1u( string_view name, const u32& val ) const;
 
     // f32 vec
     void SetUni1f( string_view name, const f32& val ) const;

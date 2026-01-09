@@ -52,7 +52,7 @@ Renderer::Renderer()
 void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
 {
     auto framebufferSize = framebuffer.Size();
-    auto projectionMat = camera.GetPprojectionMat( framebufferSize.x, framebufferSize.y );
+    auto projectionMat = camera.GetProjectionMat( framebufferSize.x, framebufferSize.y );
     auto lookAtMat = camera.GetLookatMat();
 
     auto vertexBufferElement = mVertexUniformBuffer->Element( 0 );
@@ -91,7 +91,6 @@ void Renderer::ClearScreen( vec4 color )
 {
     glClearColor( color.r, color.g, color.b, color.a );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
-
 }
 
 
@@ -134,12 +133,15 @@ void Renderer::DrawMesh( const Mesh& mesh,
 
 
 void Renderer::DrawModel( const Ref<Model>& model,
-                          const mat4& transform,
                           const Ref<Shader>& shader,
+                          const mat4& transform,
                           DrawingPrimitive drawingPrimitive )
 {
     if ( not model or not shader )
+    {
+        BUBBLE_ASSERT( false, "DrawModel: Model or shader is null" );
         return;
+    }
 
     // Set uniform buffers
     shader->SetUniformBuffer( mVertexUniformBuffer );

@@ -64,15 +64,16 @@ public:
     Framebuffer mEntityIdViewport;
     Ref<Shader> mEntityIdShader;
 
-    // Game editing
+    /// Game editing
     Project mProject;
+    ProjectResourcesHotReloader mProjectResourcesHotReloader;
     // Game running
     Scene mSceneSave;
     Engine mEngine;
 
-    ProjectResourcesHotReloader mProjectResourcesHotReloader;
     EditorUserInterface mEditorUserInterface;
 
+    // Editor state
     UIGlobals mUIGlobals;
 };
 

@@ -48,6 +48,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
         "AddShaderComponent",
         [&]( const Entity& entity, const Ref<Shader>& shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
+        "AddCameraComponent",
+        [&]( const Entity& entity, const CameraComponent& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
+        "AddLightComponent",
+        [&]( const Entity& entity, const LightComponent& light ) { scene.AddComponent<LightComponent>( entity, light ); },
         "AddPhysicsComponent",
         [&]( const Entity& entity, const PhysicsObject& object )
         {
@@ -66,6 +70,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
         "GetShaderComponent",
         [&]( const Entity& entity ) ->Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        "GetCameraComponent",
+        [&]( const Entity& entity ) ->CameraComponent& { return scene.GetComponent<CameraComponent>( entity ); },
+        "GetLightComponent",
+        [&]( const Entity& entity ) ->LightComponent& { return scene.GetComponent<LightComponent>( entity ); },
         "GetPhysicsComponent",
         [&]( const Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
         "GetStateComponent",
@@ -80,6 +88,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
         "HasShaderComponent",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); },
+        "HasCameraComponent",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<CameraComponent>( entity ); },
+        "HasLightComponent",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<LightComponent>( entity ); },
         "HasPhysicsComponent",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<PhysicsComponent>( entity ); },
         "HasStateComponent",
@@ -148,7 +160,7 @@ void CreateSceneBindings( Scene& scene,
                         componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentDataPtr)->mPhysicsObject;
                         break;
                     case ComponentID::Camera:
-                        // Camera component not handled
+                        componentsTable[ComponentID::Camera] = (CameraComponent*)componentDataPtr;
                         break;
                     case ComponentID::Light:
                         componentsTable[ComponentID::Light] = (LightComponent*)componentDataPtr;
@@ -163,7 +175,6 @@ void CreateSceneBindings( Scene& scene,
             func( entity, componentsAny );
         } );
     };
-
 }
 
 } // namespace bubble

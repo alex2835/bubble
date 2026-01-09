@@ -46,9 +46,8 @@ public:
     static ComponentManager& Instance();
 
     template <ComponentConcept Component>
-    static void Add( Scene& scene )
+    static void Add()
     {
-        scene.AddComponent<Component>();
         if ( CreateComponentTable( Component::ID() ) )
         {
             AddName( Component::ID(), Component::Name() );

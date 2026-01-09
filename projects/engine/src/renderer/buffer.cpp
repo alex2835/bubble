@@ -336,7 +336,7 @@ void VertexBuffer::SetData( const vector<u8>& data )
 void VertexBuffer::Reallocate( const VertexBufferData& vbd, BufferType type )
 {
     mLayout = VerteBufferDataLayout( vbd );
-    auto data = VertexBufferDataFlat( vbd );
+    const auto data = VertexBufferDataFlat( vbd );
     mSize = data.size();
     mType = type;
     glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );

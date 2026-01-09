@@ -52,7 +52,6 @@ struct Camera
     f32 mFov = camera::FOV;
     f32 mDeltaFov = camera::DELTA_FOV;
 
-
     /// Free camera
     // Euler Angles
     f32 mYaw = camera::YAW;
@@ -67,7 +66,7 @@ struct Camera
     bool mIsMovingRight = false;
 
     /// Third person camera
-    vec3 mCenter;
+    vec3 mCenter = vec3( 0.0f );
     f32 mRadius = 20.0f;
     bool mIsRotatingRight = false;
     bool mIsRotatingUp = false;
@@ -82,7 +81,7 @@ public:
     );
 
     mat4 GetLookatMat() const;
-    mat4 GetPprojectionMat( i32 window_width, i32 window_height ) const;
+    mat4 GetProjectionMat( i32 window_width, i32 window_height ) const;
 
     // Free camera 
     void ProcessMovement( DeltaTime dt, CameraMovement direction );

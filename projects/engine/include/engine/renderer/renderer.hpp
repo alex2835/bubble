@@ -30,17 +30,17 @@ public:
                    const Ref<Shader>& shader, 
                    DrawingPrimitive drawingPrimitive );
 
-    void DrawMesh( const Mesh& mesh, 
+    void DrawMesh( const Mesh& mesh,
                    const Ref<Shader>& shader, 
                    const mat4& transform, 
                    DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
 
-    void DrawModel( const Ref<Model>& model, 
-                    const mat4& transform, 
-                    const Ref<Shader>& shader, 
+    void DrawModel( const Ref<Model>& model,
+                    const Ref<Shader>& shader,
+                    const mat4& transform,
                     DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
 
-//private:
+private:
     Ref<UniformBuffer> mVertexUniformBuffer;
     Ref<UniformBuffer> mLightsInfoUniformBuffer;
     Ref<UniformBuffer> mLightsUniformBuffer;

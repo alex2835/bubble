@@ -20,7 +20,7 @@ AttenuationLookup[] = {		   // Distance in Meters
 };
 
 
-// Take distance between 0 and 1.0f (where 0 = 7m and 1.0f = 3250m)
+// Take the distance between 0 and 1.0f (where 0 = 7m and 1.0f = 3250m)
 std::pair<f32, f32> GetAttenuationConstans( f32 distance )
 {
     f32 index = distance * 11.0f; // 11 is an array size

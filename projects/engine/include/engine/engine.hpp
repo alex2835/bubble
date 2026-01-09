@@ -24,7 +24,7 @@ struct Engine
         Mesh mMesh;
     };
     Ref<Shader> mWhiteShader;
-    MeshHelpers mBoudingBoxes;
+    MeshHelpers mBoundingBoxes;
     MeshHelpers mPhysicsObjects;
 
 

@@ -12,6 +12,7 @@ void CreatePhysicsBindings( PhysicsEngine& physicsEngine,sol::state& lua )
         physicsEngine.SetMass( obj, mass );
     };
 
+
     // Ray casting
     lua.new_usertype<RayHitResult>(
         "RayHitResult",

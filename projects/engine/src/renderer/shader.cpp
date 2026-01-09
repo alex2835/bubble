@@ -75,7 +75,7 @@ void Shader::SetUni1i( string_view name, const i32& val ) const
     glcall( glUniform1i( GetUniform( name ), val ) );
 }
 
-void Shader::SetUni1ui( string_view name, const u32& val ) const
+void Shader::SetUni1u( string_view name, const u32& val ) const
 {
     glcall( glUniform1ui( GetUniform( name ), val ) );
 }

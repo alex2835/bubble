@@ -176,6 +176,154 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
 }
 
 
+// CameraComponent
+void CameraComponent::OnComponentDraw( const Project& project, const Entity& entity, CameraComponent& cameraComponent )
+{
+    ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
+
+    // Position
+    ImGui::DragFloat3( "Position", &cameraComponent.mPosition.x, 0.1f );
+
+    // Direction vectors (read-only)
+    ImGui::Text( "Forward: (%.2f, %.2f, %.2f)",
+                 cameraComponent.mForward.x,
+                 cameraComponent.mForward.y,
+                 cameraComponent.mForward.z );
+    ImGui::Text( "Up: (%.2f, %.2f, %.2f)",
+                 cameraComponent.mUp.x,
+                 cameraComponent.mUp.y,
+                 cameraComponent.mUp.z );
+    ImGui::Text( "Right: (%.2f, %.2f, %.2f)",
+                 cameraComponent.mRight.x,
+                 cameraComponent.mRight.y,
+                 cameraComponent.mRight.z );
+
+    // Euler angles
+    ImGui::DragFloat( "Yaw", &cameraComponent.mYaw, 0.01f );
+    ImGui::DragFloat( "Pitch", &cameraComponent.mPitch, 0.01f );
+
+    // Clipping planes
+    ImGui::DragFloat( "Near", &cameraComponent.mNear, 0.01f, 0.01f, cameraComponent.mFar );
+    ImGui::DragFloat( "Far", &cameraComponent.mFar, 1.0f, cameraComponent.mNear, 10000.0f );
+
+    // Field of view
+    ImGui::SliderFloat( "FOV", &cameraComponent.mFov, 0.1f, 3.14f );
+
+    // Speed settings
+    ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
+    ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
+
+    // Update camera vectors when angles change
+    cameraComponent.EulerAnglesToVectors();
+}
+
+void CameraComponent::ToJson( json& json, const Project& project, const CameraComponent& cameraComponent )
+{
+    json["Position"] = cameraComponent.mPosition;
+    json["Forward"] = cameraComponent.mForward;
+    json["Up"] = cameraComponent.mUp;
+    json["Right"] = cameraComponent.mRight;
+    json["WorldUp"] = cameraComponent.mWorldUp;
+    json["Near"] = cameraComponent.mNear;
+    json["Far"] = cameraComponent.mFar;
+    json["Fov"] = cameraComponent.mFov;
+    json["Yaw"] = cameraComponent.mYaw;
+    json["Pitch"] = cameraComponent.mPitch;
+    json["MaxSpeed"] = cameraComponent.mMaxSpeed;
+    json["MouseSensitivity"] = cameraComponent.mMouseSensitivity;
+}
+
+void CameraComponent::FromJson( const json& json, Project& project, CameraComponent& cameraComponent )
+{
+    if ( json.contains( "Position" ) )
+        cameraComponent.mPosition = json["Position"];
+
+    if ( json.contains( "Forward" ) )
+        cameraComponent.mForward = json["Forward"];
+
+    if ( json.contains( "Up" ) )
+        cameraComponent.mUp = json["Up"];
+
+    if ( json.contains( "Right" ) )
+        cameraComponent.mRight = json["Right"];
+
+    if ( json.contains( "WorldUp" ) )
+        cameraComponent.mWorldUp = json["WorldUp"];
+
+    if ( json.contains( "Near" ) )
+        cameraComponent.mNear = json["Near"];
+
+    if ( json.contains( "Far" ) )
+        cameraComponent.mFar = json["Far"];
+
+    if ( json.contains( "Fov" ) )
+        cameraComponent.mFov = json["Fov"];
+
+    if ( json.contains( "Yaw" ) )
+        cameraComponent.mYaw = json["Yaw"];
+
+    if ( json.contains( "Pitch" ) )
+        cameraComponent.mPitch = json["Pitch"];
+
+    if ( json.contains( "MaxSpeed" ) )
+        cameraComponent.mMaxSpeed = json["MaxSpeed"];
+
+    if ( json.contains( "MouseSensitivity" ) )
+        cameraComponent.mMouseSensitivity = json["MouseSensitivity"];
+
+    // Update camera vectors after loading
+    cameraComponent.EulerAnglesToVectors();
+}
+
+void CameraComponent::CreateLuaBinding( sol::state& lua )
+{
+    lua.new_usertype<Camera>(
+        "Camera",
+        sol::call_constructor,
+        sol::constructors<Camera(), Camera( vec3, f32, f32, f32, vec3 )>(),
+
+        // Attributes
+        "Position", &Camera::mPosition,
+        "Forward", &Camera::mForward,
+        "Up", &Camera::mUp,
+        "Right", &Camera::mRight,
+        "WorldUp", &Camera::mWorldUp,
+        "Near", &Camera::mNear,
+        "Far", &Camera::mFar,
+        "Fov", &Camera::mFov,
+        "Yaw", &Camera::mYaw,
+        "Pitch", &Camera::mPitch,
+        "MaxSpeed", &Camera::mMaxSpeed,
+        "MouseSensitivity", &Camera::mMouseSensitivity,
+
+        // Methods
+        "GetLookatMat", &Camera::GetLookatMat,
+        "GetProjectionMat", &Camera::GetProjectionMat,
+        "ProcessMovement", &Camera::ProcessMovement,
+        "ProcessMouseMovement", &Camera::ProcessMouseMovement,
+        "ProcessMouseMovementOffset", &Camera::ProcessMouseMovementOffset,
+        "ProcessMouseScroll", &Camera::ProcessMouseScroll,
+        "EulerAnglesToVectors", &Camera::EulerAnglesToVectors,
+        "OnUpdateFreeCamera", &Camera::OnUpdateFreeCamera,
+        "ProcessRotation", &Camera::ProcessRotation,
+        "OnUpdateThirdPerson", &Camera::OnUpdateThirdPerson
+    );
+
+    // CameraMovement enum
+    lua.new_enum<CameraMovement>(
+        "CameraMovement",
+        {
+            { "FORWARD", CameraMovement::FORWARD },
+            { "BACKWARD", CameraMovement::BACKWARD },
+            { "LEFT", CameraMovement::LEFT },
+            { "RIGHT", CameraMovement::RIGHT },
+            { "UP", CameraMovement::UP },
+            { "DOWN", CameraMovement::DOWN }
+        }
+    );
+}
+
+
 
 // LightComponent
 void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
@@ -205,8 +353,8 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
     else if ( lightComponent.mType == LightType::PointLight )
     {
         //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        //if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
-        //    lightComponent.SetDistance( lightComponent.mDistance );
+        if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
+            lightComponent.SetDistance( lightComponent.mDistance );
 
         // Show calculated attenuation values (read-only)
         ImGui::Text( "Attenuation:" );

@@ -3,6 +3,7 @@
 **/cmake*/**
 **/out/**
 **/build/**
+**/.claude/**
 
 # Prerequisites
 *.d
