@@ -17,16 +17,17 @@ struct Engine
     Project& mProject;
 
     // Visualization boxes and physics shapes
+    Ref<Shader> mWhiteShader;
+    Ref<Shader> mBillboardShader;
+
     struct MeshHelpers
     {
         VertexBufferData mVertices;
         vector<u32> mIndices;
         Mesh mMesh;
     };
-    Ref<Shader> mWhiteShader;
     MeshHelpers mBoundingBoxes;
     MeshHelpers mPhysicsObjects;
-
 
     Engine( Project& project );
     void OnStart();

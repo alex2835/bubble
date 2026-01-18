@@ -3,37 +3,67 @@
 
 namespace bubble
 {
-constexpr std::pair<f32, f32>
-AttenuationLookup[] = {		   // Distance in Meters
-        { 0.7f    ,1.8f      }, // 7	
-        { 0.35f   ,0.44f     }, // 13	
-        { 0.22f   ,0.20f     }, // 20	
-        { 0.14f   ,0.07f     }, // 32	
-        { 0.09f   ,0.032f    }, // 50	
-        { 0.07f   ,0.017f    }, // 65	
-        { 0.045f  ,0.0075f   }, // 100	
-        { 0.027f  ,0.0028f   }, // 160	
-        { 0.022f  ,0.0019f   }, // 200	
-        { 0.014f  ,0.0007f   }, // 325	
-        { 0.007f  ,0.0002f   }, // 600	
-        { 0.0014f ,0.000007f }, // 3250
+struct AttenuationData
+{
+    f32 distance; // Distance in meters
+    f32 linear;
+    f32 quadratic;
 };
 
+constexpr AttenuationData AttenuationLookup[] = {
+    { 7.0f,    0.7f,    1.8f      },
+    { 13.0f,   0.35f,   0.44f     },
+    { 20.0f,   0.22f,   0.20f     },
+    { 32.0f,   0.14f,   0.07f     },
+    { 50.0f,   0.09f,   0.032f    },
+    { 65.0f,   0.07f,   0.017f    },
+    { 100.0f,  0.045f,  0.0075f   },
+    { 160.0f,  0.027f,  0.0028f   },
+    { 200.0f,  0.022f,  0.0019f   },
+    { 325.0f,  0.014f,  0.0007f   },
+    { 600.0f,  0.007f,  0.0002f   },
+    { 3250.0f, 0.0014f, 0.000007f },
+};
 
-// Take the distance between 0 and 1.0f (where 0 = 7m and 1.0f = 3250m)
-std::pair<f32, f32> GetAttenuationConstans( f32 distance )
+// Takes distance in meters (7m to 3250m)
+// Returns { linear, quadratic } attenuation constants
+std::pair<f32, f32> GetAttenuationConstans( f32 distanceMeters )
 {
-    f32 index = distance * 11.0f; // 11 is an array size
-    f32 hight_coef = index - floor( index );
-    f32 lower_coef = 1.0f - ( index - floor( index ) );
+    constexpr size_t tableSize = sizeof(AttenuationLookup) / sizeof(AttenuationLookup[0]);
 
-    // linear interpolation
-    i32 nIndex = static_cast<i32>( index );
-    auto first = AttenuationLookup[std::min( nIndex, 11 )];
-    auto second = AttenuationLookup[std::min( ( nIndex + 1 ), 11 )];
+    // Clamp distance to valid range
+    distanceMeters = std::clamp( distanceMeters, 7.0f, 3250.0f );
 
-    return { first.first * lower_coef + second.first * hight_coef,
-            first.second * lower_coef + second.second * hight_coef };
+    // Check if distance matches an exact entry
+    for ( size_t i = 0; i < tableSize; ++i )
+    {
+        if ( std::abs( distanceMeters - AttenuationLookup[i].distance ) < 0.001f )
+            return { AttenuationLookup[i].linear, AttenuationLookup[i].quadratic };
+    }
+
+    // Find the two entries to interpolate between
+    size_t lowerIndex = 0;
+    for ( size_t i = 0; i < tableSize - 1; ++i )
+    {
+        if ( distanceMeters >= AttenuationLookup[i].distance &&
+             distanceMeters < AttenuationLookup[i + 1].distance )
+        {
+            lowerIndex = i;
+            break;
+        }
+    }
+
+    // Linear interpolation between the two entries
+    const auto& lower = AttenuationLookup[lowerIndex];
+    const auto& upper = AttenuationLookup[lowerIndex + 1];
+
+    f32 distanceRange = upper.distance - lower.distance;
+    f32 t = ( distanceMeters - lower.distance ) / distanceRange;
+
+    f32 linear = lower.linear + t * ( upper.linear - lower.linear );
+    f32 quadratic = lower.quadratic + t * ( upper.quadratic - lower.quadratic );
+
+    return { linear, quadratic };
 }
 
 void Light::SetDistance( f32 distance )
@@ -66,7 +96,7 @@ void Light::SetDistance( f32 distance )
 Light Light::CreateDirLight( const vec3& direction, const vec3& color )
 {
     Light light;
-    light.mType = LightType::DirLight;
+    light.mType = LightType::Directional;
     light.mDirection = normalize( direction );
     light.mColor = color;
     return light;
@@ -76,8 +106,8 @@ Light Light::CreatePointLight( const vec3& position, f32 distance, const vec3& c
 {
     Light light;
     light.mPosition = position;
-    light.mType = LightType::PointLight;
-    light.mDistance = distance;
+    light.mType = LightType::Point;
+    light.SetDistance( distance );
     light.mColor = color;
     return light;
 }
@@ -90,10 +120,10 @@ Light Light::CreateSpotLight( const vec3& position,
                               const vec3& color )
 {
     Light light;
-    light.mType = LightType::SpotLight;
+    light.mType = LightType::Spot;
     light.mPosition = position;
     light.mDirection = normalize( direction );
-    light.mDistance = distance;
+    light.SetDistance( distance );
     light.mCutOff = cutoff;
     light.mOuterCutOff = outer_cutoff;
     light.mColor = color;

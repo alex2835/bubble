@@ -9,7 +9,7 @@ void CreatePhysicsBindings( PhysicsEngine& physicsEngine,sol::state& lua )
     // Components required global state
     sol::usertype<PhysicsObject> physicsType = lua["PhysicsComponent"];
     physicsType["SetMass"] = [&]( PhysicsObject& obj, const float mass ) {
-        physicsEngine.SetMass( obj, mass );
+        physicsEngine.SetObjectMass( obj, mass );
     };
 
 

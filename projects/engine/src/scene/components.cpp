@@ -345,15 +345,15 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
     ImGui::DragFloat( "Brightness", &lightComponent.mBrightness, 0.01f, 0.0f, 10.0f );
 
     // Type-specific properties
-    if ( lightComponent.mType == LightType::DirLight )
+    if ( lightComponent.mType == LightType::Directional )
     {
         //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
         //    lightComponent.mDirection = normalize( lightComponent.mDirection );
     }
-    else if ( lightComponent.mType == LightType::PointLight )
+    else if ( lightComponent.mType == LightType::Point )
     {
         //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
+        if ( ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic ) )
             lightComponent.SetDistance( lightComponent.mDistance );
 
         // Show calculated attenuation values (read-only)
@@ -364,13 +364,13 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
         ImGui::Text( "Quadratic: %.6f", lightComponent.mQuadratic );
         ImGui::Unindent();
     }
-    else if ( lightComponent.mType == LightType::SpotLight )
+    else if ( lightComponent.mType == LightType::Spot )
     {
         //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
         //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
         //    lightComponent.mDirection = normalize( lightComponent.mDirection );
 
-        if ( ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.0f, 1.0f ) )
+        if ( ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic ) )
             lightComponent.SetDistance( lightComponent.mDistance );
 
         ImGui::SliderFloat( "Cut Off", &lightComponent.mCutOff, 0.0f, 90.0f );
@@ -452,9 +452,9 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
     lua.new_enum<LightType>(
         "LightType",
         {
-            { "Directional", LightType::DirLight },
-            { "Point", LightType::PointLight },
-            { "Spot", LightType::SpotLight }
+            { "Directional", LightType::Directional },
+            { "Point", LightType::Point },
+            { "Spot", LightType::Spot }
         }
     );
 

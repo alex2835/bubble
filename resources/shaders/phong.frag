@@ -6,7 +6,7 @@
 // Fragment input
 in vec3 vFragPos;
 in vec3 vNormal;
-in vec2 vTexCoords;
+in vec2 vTexCoord;
 in mat3 vTBN;
 
 // Fragment output
@@ -15,16 +15,16 @@ out vec4 FragColor;
     
 void main()
 {
-    vec4 diffuse_texel = texture(uMaterial.diffuseMap, vTexCoords);
+    vec4 diffuse_texel = texture(uMaterial.diffuseMap, vTexCoord);
     if (diffuse_texel.a < 0.0001f)
         discard;
         
-    vec4 specular_texel = texture(uMaterial.specularMap, vTexCoords);
+    vec4 specular_texel = texture(uMaterial.specularMap, vTexCoord);
     
     vec3 norm = vNormal;
     if (uNormalMapping)
     {
-        norm = texture(uMaterial.normalMap, vTexCoords).rgb;
+        norm = texture(uMaterial.normalMap, vTexCoord).rgb;
         norm = norm * 2.0f - 1.0f;
         norm.xy *= uNormalMappingStrength;
         norm = normalize(vTBN * norm);

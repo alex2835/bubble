@@ -27,7 +27,7 @@ map<string, string> GetModulesList()
     map<string, string> modules;
 	if ( modules.empty() )
 	{
-        path searchPath = "./resources/shaders";
+        path searchPath = SHADER_MODULES_SEARCH_PATH;
         for ( const path& file : filesystem::directory_iterator( searchPath ) )
         {
 			if ( file.extension() == ".glsl" )

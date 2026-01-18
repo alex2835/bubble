@@ -9,6 +9,8 @@ namespace bubble
 Engine::Engine( Project& project )
     : mProject( project ),
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
+      mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
+
       mBoundingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) }
 {}
@@ -82,16 +84,16 @@ void Engine::DrawScene( Framebuffer& framebuffer,
     // Set up lights
     std::vector<Light> lights;
     scene.ForEach<TransformComponent, LightComponent>(
-        [&]( Entity _,
-                  const TransformComponent& transformComponent,
-                  LightComponent& lightComponent )
+        [&]( const Entity _,
+             const TransformComponent& transformComponent,
+             LightComponent& lightComponent )
     {
         lightComponent.mDirection = transformComponent.Forward();
         lightComponent.mPosition = transformComponent.mPosition;
         lights.push_back( (Light)lightComponent );
     } );
 
-
+    // Set up viewport
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
 
@@ -100,10 +102,10 @@ void Engine::DrawScene( Framebuffer& framebuffer,
 
     // Render models
     scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-        [&]( Entity _,
-             ModelComponent& modelComponent,
-             ShaderComponent& shaderComponent,
-             TransformComponent& transform )
+        [&]( const Entity _,
+             const ModelComponent& modelComponent,
+             const ShaderComponent& shaderComponent,
+             const TransformComponent& transform )
     {
         mRenderer.DrawModel( modelComponent.mModel, shaderComponent.mShader, transform.TransformMat() );
     } );
@@ -169,5 +171,4 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
     mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
 }
 
-
-}
+} // namespace bubble

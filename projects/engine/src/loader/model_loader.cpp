@@ -16,13 +16,6 @@ constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE ,
                                                  aiTextureType_HEIGHT,
                                                  aiTextureType_NORMALS };
 
-struct ModelData
-{
-    Scope<Assimp::Importer> mImporter;
-    map<path, TextureData> mTexturesData;
-    path mPath;
-};
-
 
 map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
                                               const aiScene* scene )
@@ -66,7 +59,7 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
 ModelData OpenModel( const path& modelPath )
 {
     auto importer = CreateScope<Assimp::Importer>();
-    const aiScene* scene = importer->ReadFile( modelPath.string(), 0 );
+    const aiScene* scene = importer->ReadFile( modelPath.string(), aiProcess_GenSmoothNormals );
     if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
         throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer->GetErrorString() ) );
     importer->ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );

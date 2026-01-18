@@ -1,6 +1,7 @@
 #pragma once 
 #include "engine/types/number.hpp"
 #include "engine/types/string.hpp"
+#include "engine/log/log.hpp"
 
 namespace bubble
 {
@@ -9,7 +10,7 @@ void GLClearError();
 void PrintOpenGLErrors( string_view function, string_view file, i32 line );
 }
 
-#define BUBBLE_ASSERT( x, str ) assert( x && str );
+#define BUBBLE_ASSERT( x, str ) if( not ( x ) ) { LogError( str ); }; assert( x && str );
 
 #ifdef _DEBUG
 #define glcall(x) { GLClearError(); x; bubble::PrintOpenGLErrors(#x, __FILE__, __LINE__); }

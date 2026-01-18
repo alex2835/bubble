@@ -16,7 +16,6 @@ enum class DrawingPrimitive
 };
 
 
-
 class Renderer
 {
 public:
@@ -26,9 +25,9 @@ public:
     void SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
     void SetLightsUniformBuffer( const Camera& camera, const std::vector<Light>& lights );
 
-    void DrawMesh( const Mesh& mesh, 
-                   const Ref<Shader>& shader, 
-                   DrawingPrimitive drawingPrimitive );
+    void DrawMeshPrimitives( const Mesh& mesh, 
+                             const Ref<Shader>& shader, 
+                             DrawingPrimitive drawingPrimitive );
 
     void DrawMesh( const Mesh& mesh,
                    const Ref<Shader>& shader, 
@@ -40,10 +39,23 @@ public:
                     const mat4& transform,
                     DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
 
+    void DrawBillboard( const Ref<Texture2D>& texture,
+                        const Ref<Shader>& shader,
+                        const vec3& position,
+                        const vec2& size = vec2(1.0f),
+                        const vec4& tintColor = vec4(1.0f) );
+
+    void DrawBillboardEntityId( const Ref<Shader>& shader,
+                                const vec3& position,
+                                const vec2& size = vec2(1.0f) );
+
 private:
     Ref<UniformBuffer> mVertexUniformBuffer;
     Ref<UniformBuffer> mLightsInfoUniformBuffer;
     Ref<UniformBuffer> mLightsUniformBuffer;
+
+    // Used for scene icons (camera, lights, etc.)
+    Ref<Mesh> mBillboardQuad;
 };
 
 }

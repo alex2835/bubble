@@ -37,7 +37,7 @@ public:
     void Remove( const PhysicsObject& obj );
     void ClearWorld();
 
-    void SetMass( PhysicsObject& obj, float mass );
+    void SetObjectMass( PhysicsObject& obj, float mass );
 
     std::optional<RayHitResult> RaycastClosest( const vec3& from, const vec3& to ) const;
     std::vector<RayHitResult> RaycastAll( const vec3& from, const vec3& to ) const;

@@ -10,14 +10,17 @@ PhysicsObject::PhysicsObject()
 
 PhysicsEngine::PhysicsEngine()
 {
+    // Initialize in correct order
     collisionConfiguration = CreateScope<btDefaultCollisionConfiguration>();
     dispatcher = CreateScope<btCollisionDispatcher>( collisionConfiguration.get() );
     overlappingPairCache = CreateScope<btDbvtBroadphase>();
     solver = CreateScope<btSequentialImpulseConstraintSolver>();
-    dynamicsWorld = CreateScope<btDiscreteDynamicsWorld>( dispatcher.get(),
-                                                          overlappingPairCache.get(),
-                                                          solver.get(),
-                                                          collisionConfiguration.get() );
+    dynamicsWorld = CreateScope<btDiscreteDynamicsWorld>(
+        dispatcher.get(),
+        overlappingPairCache.get(),
+        solver.get(),
+        collisionConfiguration.get()
+    );
 
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
 }
@@ -58,7 +61,7 @@ void PhysicsEngine::Update( DeltaTime dt )
     dynamicsWorld->stepSimulation( dt.Seconds() );
 }
 
-void PhysicsEngine::SetMass( PhysicsObject& obj, float mass )
+void PhysicsEngine::SetObjectMass( PhysicsObject& obj, float mass )
 {
     // Remove from world
     dynamicsWorld->removeRigidBody( obj.getBody() );

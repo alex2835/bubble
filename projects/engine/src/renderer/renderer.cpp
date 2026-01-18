@@ -1,11 +1,13 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/renderer.hpp"
-
+#include "engine/renderer/helpers/create_bilboard.hpp"
+#include "engine/renderer/helpers/opengl_state_guard.hpp"
 #include <GL/glew.h>
 
 namespace bubble
 {
 Renderer::Renderer()
+    : mBillboardQuad( CreateBillboardQuadMesh() )
 {
     glDisable( GL_BLEND );
     glEnable( GL_DEPTH_TEST );
@@ -100,7 +102,10 @@ void Renderer::ClearScreenUint( uvec4 color )
     glClear( GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
 }
 
-void Renderer::DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, DrawingPrimitive drawingPrimitive )
+
+void Renderer::DrawMeshPrimitives( const Mesh& mesh, 
+                                   const Ref<Shader>& shader, 
+                                   DrawingPrimitive drawingPrimitive )
 {
     mesh.BindVertexArray();
     if ( shader->mModules.test( ShaderModule::Material ) )
@@ -109,14 +114,16 @@ void Renderer::DrawMesh( const Mesh& mesh, const Ref<Shader>& shader, DrawingPri
 }
 
 
-
 void Renderer::DrawMesh( const Mesh& mesh,
                          const Ref<Shader>& shader,
                          const mat4& transform,
                          DrawingPrimitive drawingPrimitive )
 {
     if ( not shader )
+    {
+        BUBBLE_ASSERT( false, "DrawMesh: shader is null" );
         return;
+    }
 
     // Set uniform buffers
     shader->SetUniformBuffer( mVertexUniformBuffer );
@@ -126,9 +133,9 @@ void Renderer::DrawMesh( const Mesh& mesh,
         shader->SetUniformBuffer( mLightsUniformBuffer );
     }
 
-    // Draw model
+    // Draw mesh
     shader->SetUniMat4( "uModel", transform );
-    DrawMesh( mesh, shader, drawingPrimitive );
+    DrawMeshPrimitives( mesh, shader, drawingPrimitive );
 }
 
 
@@ -151,10 +158,70 @@ void Renderer::DrawModel( const Ref<Model>& model,
         shader->SetUniformBuffer( mLightsUniformBuffer );
     }
 
-    // Draw model
+    // Draw meshes
     shader->SetUniMat4( "uModel", transform );
     for ( const auto& mesh : model->mMeshes )
-        Renderer::DrawMesh( mesh, shader, drawingPrimitive );
+        DrawMeshPrimitives( mesh, shader, drawingPrimitive );
 }
 
+
+void Renderer::DrawBillboard( const Ref<Texture2D>& texture,
+                              const Ref<Shader>& shader,
+                              const vec3& position,
+                              const vec2& size,
+                              const vec4& tintColor )
+{
+    if ( !texture || !shader )
+    {
+        BUBBLE_ASSERT( false, "DrawBillboard: Texture or shader is null" );
+        return;
+    }
+
+    // Save and restore OpenGL state automatically
+    OpenGLStateGuard stateGuard;
+    
+    // Enable blending for transparent billboards
+    glEnable( GL_BLEND );
+    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
+    // Billboards write to depth buffer but with special handling
+    glDepthMask( GL_TRUE );
+
+    // Set shader uniforms
+    shader->SetUniformBuffer( mVertexUniformBuffer );
+    shader->SetUni3f( "uBillboardPos", position );
+    shader->SetUni2f( "uBillboardSize", size );
+    shader->SetUni4f( "uTintColor", tintColor );
+    shader->SetUni1i( "uTexture", 0 );
+
+    // Bind texture
+    texture->Bind( 0 );
+
+    // Draw billboard quad
+    DrawMeshPrimitives( *mBillboardQuad, shader, DrawingPrimitive::Triangles );
 }
+
+
+void Renderer::DrawBillboardEntityId( const Ref<Shader>& shader,
+                                       const vec3& position,
+                                       const vec2& size )
+{
+    if ( !shader )
+    {
+        BUBBLE_ASSERT( false, "DrawBillboardEntityId: shader is null" );
+        return;
+    }
+
+    // No state guard needed - entity ID rendering doesn't need special blend/depth state
+
+    // Set shader uniforms
+    shader->SetUniformBuffer( mVertexUniformBuffer );
+    shader->SetUni3f( "uBillboardPos", position );
+    shader->SetUni2f( "uBillboardSize", size );
+
+    // Draw billboard quad
+    // Entity ID is set by the caller via shader->SetUni1u("uObjectId", entityId)
+    DrawMeshPrimitives( *mBillboardQuad, shader, DrawingPrimitive::Triangles );
+}
+
+} // namespace bubble
