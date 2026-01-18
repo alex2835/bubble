@@ -27,6 +27,7 @@ constexpr string_view SCENE_DIR_LIGHT_TEXTURE = "./resources/images/scene/dirlig
 constexpr string_view SHADER_MODULES_SEARCH_PATH = "./resources/shaders/modules"sv;
 // shader paths
 constexpr string_view ENTITY_PICKING_SHADER = "./resources/shaders/object_picking"sv; // Object id shader to select entity from screen
+constexpr string_view ENTITY_PICKING_BILLBOARD_SHADER = "./resources/shaders/object_picking_billboard"sv;
 constexpr string_view WHITE_SHADER = "./resources/shaders/white"sv;
 constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
 constexpr string_view ONLY_DIFFUSE_SHADER = "./resources/shaders/only_diffuse"sv;

@@ -2,17 +2,27 @@
 #include "engine/engine.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
+#include "engine/renderer/helpers/create_billboard.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
 {
 Engine::Engine( Project& project )
     : mProject( project ),
-      mWhiteShader( LoadShader( WHITE_SHADER ) ),
-      mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
 
+      mEntityIdShader( LoadShader( ENTITY_PICKING_SHADER ) ),
+      mEntityIdBillboardShader( LoadShader( ENTITY_PICKING_BILLBOARD_SHADER ) ),
+
+      mWhiteShader( LoadShader( WHITE_SHADER ) ),
       mBoundingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
-      mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) }
+      mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+
+      mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
+      mBillboardQuad( CreateBillboardQuadMesh() ),
+      mSceneCameraTexture( LoadTexture2D( SCENE_CAMERA_TEXTURE ) ),
+      mScenePointLightTexture( LoadTexture2D( SCENE_POINT_LIGHT_TEXTURE ) ),
+      mSceneSpotLightTexture( LoadTexture2D( SCENE_SPOT_LIGHT_TEXTURE ) ),
+      mSceneDirLightTexture( LoadTexture2D( SCENE_DIR_LIGHT_TEXTURE ) )
 {}
 
 void Engine::OnStart()
@@ -169,6 +179,143 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
     } );
     mPhysicsObjects.mMesh.UpdateDynamicVertexBufferData( mPhysicsObjects.mVertices, mPhysicsObjects.mIndices );
     mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+}
+
+
+void Engine::DrawBillboard( const Ref<Texture2D>& texture,
+                              const Ref<Shader>& shader,
+                              const vec3& position,
+                              const vec2& size,
+                              const vec4& tintColor )
+{
+    if ( not texture || not shader )
+    {
+        BUBBLE_ASSERT( false, "DrawBillboard: Texture or shader is null" );
+        return;
+    }
+
+    // Set shader uniforms
+    shader->SetUni3f( "uBillboardPos", position );
+    shader->SetUni2f( "uBillboardSize", size );
+    shader->SetUni4f( "uTintColor", tintColor );
+    shader->SetUni1i( "uTexture", 0 );
+
+    // Bind texture
+    texture->Bind( 0 );
+
+    // Draw billboard quad
+    mRenderer.DrawMesh( *mBillboardQuad, shader, glm::identity<mat4>() );
+}
+
+
+const Ref<Texture2D>& Engine::GetLightTexture( const LightType& lightType )
+{
+    switch ( lightType )
+    {
+        case LightType::Point:
+            return mScenePointLightTexture;
+        case LightType::Spot:
+            return mSceneSpotLightTexture;
+        case LightType::Directional:
+            return mSceneDirLightTexture;
+    }
+    BUBBLE_ASSERT( false, "Unknown light type" );
+    return mSceneCameraTexture;
+}
+
+
+void Engine::DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene )
+{
+    framebuffer.Bind();
+
+    // Camera icons (billboards)
+    scene.ForEach<CameraComponent, TransformComponent>(
+        [&]( const Entity entity,
+             const CameraComponent& cameraComponent,
+             const TransformComponent& transformComponent )
+    {
+        DrawBillboard(
+            mSceneCameraTexture,
+            mBillboardShader,
+            transformComponent.mPosition,
+            cBillboardSize,
+            cBillboardTint
+        );
+    } );
+
+    // Light icons (billboards)
+    scene.ForEach<LightComponent, TransformComponent>(
+        [&]( const Entity entity,
+             const LightComponent& lightComponent,
+             const TransformComponent& transformComponent )
+    {
+        const auto& lightTexture = GetLightTexture( lightComponent.mType );
+        DrawBillboard(
+            lightTexture,
+            mBillboardShader,
+            transformComponent.mPosition,
+            cBillboardSize,
+            cBillboardTint
+        );
+    } );
+}
+
+
+void Engine::DrawBillboardEntityId( const Entity entity,
+                                      const vec3& position,
+                                      const vec2& size )
+{
+    if ( not mEntityIdBillboardShader )
+    {
+        BUBBLE_ASSERT( false, "DrawBillboardEntityId: shader is null" );
+        return;
+    }
+
+    // Set shader uniforms
+    mEntityIdBillboardShader->SetUni1u( "uObjectId", (u32)entity );
+    mEntityIdBillboardShader->SetUni3f( "uBillboardPos", position );
+    mEntityIdBillboardShader->SetUni2f( "uBillboardSize", size );
+
+    // Draw billboard quad
+    mRenderer.DrawMesh( *mBillboardQuad, mEntityIdBillboardShader, glm::identity<mat4>() );
+}
+
+
+void Engine::DrawEntityIds( Framebuffer& framebuffer, Scene& scene )
+{
+    // Draw scene's entity ids to buffer
+    framebuffer.Bind();
+    mRenderer.ClearScreenUint( uvec4( 0 ) );
+
+
+    // Draw 3D models
+    scene.ForEach<ModelComponent, TransformComponent>(
+        [&]( const Entity entity,
+             const ModelComponent& modelComponent,
+             const TransformComponent& transformComponent )
+    {
+        mEntityIdShader->SetUni1u( "uObjectId", (u32)entity );
+        mRenderer.DrawModel( modelComponent.mModel, mEntityIdShader, transformComponent.TransformMat() );
+    } );
+
+
+    // Draw camera billboards
+    scene.ForEach<CameraComponent, TransformComponent>(
+        [&]( const Entity entity,
+             const CameraComponent& cameraComponent,
+             const TransformComponent& transformComponent )
+    {
+        DrawBillboardEntityId( entity, transformComponent.mPosition, cBillboardSize );
+    } );
+
+    // Draw light billboards
+    scene.ForEach<LightComponent, TransformComponent>(
+        [&]( const Entity entity,
+             const LightComponent& lightComponent,
+             const TransformComponent& transformComponent )
+    {
+        DrawBillboardEntityId( entity, transformComponent.mPosition, cBillboardSize );
+    } );
 }
 
 } // namespace bubble

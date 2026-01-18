@@ -6,7 +6,7 @@ namespace bubble
 {
 void CreatePhysicsBindings( PhysicsEngine& physicsEngine,sol::state& lua )
 {
-    // Components required global state
+    // Set mass done by PhysicsEngine remove and create new object
     sol::usertype<PhysicsObject> physicsType = lua["PhysicsComponent"];
     physicsType["SetMass"] = [&]( PhysicsObject& obj, const float mass ) {
         physicsEngine.SetObjectMass( obj, mass );

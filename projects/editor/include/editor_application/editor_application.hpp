@@ -25,14 +25,6 @@ struct UIGlobals
     bool mDrawPhysicsShapes = false;
 };
 
-struct EditorResources
-{
-    // Visualization Camera, Lights billboards textures
-    Ref<Texture2D> mSceneCameraTexture;
-    Ref<Texture2D> mScenePointLightTexture;
-    Ref<Texture2D> mSceneSpotLightTexture;
-    Ref<Texture2D> mSceneDirLightTexture;
-};
 
 // Selection metadata
 struct Selection
@@ -57,7 +49,7 @@ public:
 
 private:
     void OnUpdate();
-    void DrawEntityIds();
+
 public:
     Timer mTimer;
     Window mWindow;
@@ -71,8 +63,6 @@ public:
     Framebuffer mSceneViewport;
     // Entity picking (Handles scene object picking in viewport)
     Framebuffer mEntityIdViewport;
-    Ref<Shader> mEntityIdShader;
-    Ref<Shader> mEntityIdBillboardShader;
 
     /// Game editing
     Project mProject;
@@ -85,15 +75,6 @@ public:
 
     // Editor state
     UIGlobals mUIGlobals;
-
-    // Editor resources
-    EditorResources mEditorResources;
-
-    // Billboards
-    static constexpr auto cBillboardSize = vec2( 5.0f );
-    static constexpr auto cBillboardTint = vec4( 1.0f );
-    const Ref<Texture2D>& GetLightTexture( const LightType& lightType );
-    void DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene );
 };
 
 }
