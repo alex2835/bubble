@@ -140,7 +140,4 @@ void BubbleEditor::OnUpdate()
 
 }
 
-
-
-
 } // namespace bubble
