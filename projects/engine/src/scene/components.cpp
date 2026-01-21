@@ -28,10 +28,10 @@ const T* TryGetComponent( const Project& project, Entity entity )
 
 opt<AABB> TryGetEntityBBox( const Project& project, Entity entity )
 {
-    auto modelComponet = TryGetComponent<ModelComponent>( project, entity );
-    auto transComponet = TryGetComponent<TransformComponent>( project, entity );
-    if ( modelComponet->mModel and transComponet )
-        return CalculateTransformedBBox( modelComponet->mModel->mBBox, transComponet->ScaleMat() );
+    const auto* modelComponetPtr = TryGetComponent<ModelComponent>( project, entity );
+    const auto* transComponetPtr = TryGetComponent<TransformComponent>( project, entity );
+    if ( modelComponetPtr and modelComponetPtr->mModel and transComponetPtr )
+        return CalculateTransformedBBox( modelComponetPtr->mModel->mBBox, transComponetPtr->ScaleMat() );
     return std::nullopt;
 }
 
@@ -112,6 +112,15 @@ mat4 TransformComponent::TranslationMat() const
 {
     auto transform = mat4( 1.0f );
     transform = glm::translate( transform, mPosition );
+    return transform;
+}
+
+mat4 TransformComponent::RotationMat() const
+{
+    auto transform = mat4( 1.0f );
+    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
+    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
+    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
     return transform;
 }
 

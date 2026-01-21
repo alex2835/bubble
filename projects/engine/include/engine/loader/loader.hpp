@@ -51,7 +51,7 @@ struct ModelData
 
 Ref<Script> LoadScript( const path& path );
 
-TextureData OpenTexture( const path& path );
+std::optional<TextureData> OpenTexture( const path& path );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 
@@ -64,18 +64,7 @@ Ref<Skybox> LoadSkybox( const path& path );
 
 struct Loader
 {
-    path mProjectRootPath;
-    hash_map<path, Ref<Texture2D>> mTextures;
-    hash_map<path, Ref<Model>> mModels;
-    hash_map<path, Ref<Shader>> mShaders;
-    hash_map<path, Ref<Skybox>> mSkyboxes;
-    hash_map<path, Ref<Script>> mScripts;
-
-    // Special values
-    Ref<Texture2D> mErrorTexture;
-    Ref<Model> mErrorModel;
-
-    Loader();
+    Loader() = default;
     Ref<Script> LoadScript( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
@@ -91,6 +80,15 @@ struct Loader
         path abs;
     };
     ProjectPath RelAbsFromProjectPath( const path& resourcePath ) const;
+
+
+public:
+    path mProjectRootPath;
+    hash_map<path, Ref<Texture2D>> mTextures;
+    hash_map<path, Ref<Model>> mModels;
+    hash_map<path, Ref<Shader>> mShaders;
+    hash_map<path, Ref<Skybox>> mSkyboxes;
+    hash_map<path, Ref<Script>> mScripts;
 };
 
 }

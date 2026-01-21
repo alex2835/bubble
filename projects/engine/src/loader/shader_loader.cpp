@@ -104,12 +104,11 @@ ParsedShaders ParseMultipleFiles( path filePath )
 }
 
 
-ParsedShaders ParseShaders( const path& path )
+std::optional<ParsedShaders> ParseShaders( const path& path )
 {
 	auto parsedShaders = ParseMultipleFiles( path );
 	if ( parsedShaders.vertex.empty() || parsedShaders.fragment.empty() )
-        throw std::runtime_error( std::format( "{}: Vertex or Fragment shader is empty", path.string() ) );
-
+		return std::nullopt;
 	return parsedShaders;
 }
 
@@ -246,7 +245,12 @@ Ref<Shader> LoadShader( const path& path )
     Ref<Shader> shader = CreateRef<Shader>();
     shader->mName = path.stem().string();
     shader->mPath = path;
-    auto [vertex, fragment, geometry, modules] = ParseShaders( path );
+    
+	auto shaders = ParseShaders( path );
+	if ( not shaders )
+		return nullptr;
+
+	auto [vertex, fragment, geometry, modules] = *shaders;
     CompileShaders( *shader, vertex, fragment, geometry );
     shader->mModules = std::move( modules );
     return shader;
@@ -262,6 +266,12 @@ Ref<Shader> Loader::LoadShader( path shaderPath )
         return iter->second;
 
     auto shader = bubble::LoadShader( absPath );
+	if ( not shader )
+	{
+		LogError( "Failed to parse shaders: {}", absPath.string() );
+		return nullptr;
+	}
+
     mShaders.emplace( relPath, shader );
     return shader;
 }

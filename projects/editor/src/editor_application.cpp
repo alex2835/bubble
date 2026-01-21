@@ -1,7 +1,5 @@
 
 #include "editor_application/editor_application.hpp"
-#include "engine/utils/geometry.hpp"
-#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -93,9 +91,9 @@ void BubbleEditor::Run()
 #endif
 }
 
+
 void BubbleEditor::OpenProject( const path& projectPath )
 {
-    LogInfo( "Open project {}", projectPath.string() );
     mUIGlobals.mNeedUpdateProjectWindow = true;
     mProject.Open( projectPath );
 }
@@ -103,7 +101,7 @@ void BubbleEditor::OpenProject( const path& projectPath )
 
 void BubbleEditor::OnUpdate()
 {
-    /// Switch Editing/GameRunning modes
+    // Run game
     if ( mEditorMode == EditorMode::Editing and
          mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F5 ) )
     {
@@ -121,6 +119,7 @@ void BubbleEditor::OnUpdate()
         };
     }
 
+    // Stop game
     if ( mEditorMode == EditorMode::Running and
          mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F6 ) )
     {
@@ -137,7 +136,6 @@ void BubbleEditor::OnUpdate()
         if ( mProject.IsValid() )
             mProject.Save();
     }
-
 }
 
 } // namespace bubble

@@ -69,6 +69,7 @@ public:
 	mat4 TransformMat() const;
 	mat4 ScaleMat() const;
 	mat4 TranslationMat() const;
+	mat4 RotationMat() const;
 	mat4 TranslationRotationMat() const;
     vec3 Forward() const;
 

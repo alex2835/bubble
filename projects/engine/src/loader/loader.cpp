@@ -2,11 +2,6 @@
 
 namespace bubble
 {
-Loader::Loader()
-    :  mErrorModel( LoadModel( ERROR_MODEL ) ),
-       mErrorTexture( LoadTexture2D( ERROR_TEXTURE ) )
-{}
-
 Loader::ProjectPath Loader::RelAbsFromProjectPath( const path& resourcePath ) const
 {
     // engine internal resource

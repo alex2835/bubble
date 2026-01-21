@@ -19,6 +19,8 @@ enum class DrawingPrimitive
 class Renderer
 {
 public:
+    static constexpr int cMaxLights = 512;
+
     Renderer();
     void ClearScreen( vec4 color );
     void ClearScreenUint( uvec4 color );

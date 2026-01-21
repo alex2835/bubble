@@ -66,6 +66,10 @@ public:
     Ref<Texture2D> mScenePointLightTexture;
     Ref<Texture2D> mSceneSpotLightTexture;
     Ref<Texture2D> mSceneDirLightTexture;
+
+    // Error values
+    Ref<Texture2D> mErrorTexture;
+    Ref<Model> mErrorModel;
 };
 
 }

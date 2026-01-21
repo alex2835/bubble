@@ -9,6 +9,8 @@ struct ImGuiContext;
 
 namespace bubble
 {
+constexpr string_view INI_FILE_PATH = "./resources/imgui/imgui.ini"sv;
+
 class Window
 {
 public:
@@ -36,6 +38,7 @@ public:
     ImGuiContext* GetImGuiContext();
     void ImGuiBegin();
     void ImGuiEnd();
+
 private:
     Event CreateEvent() const;
     void FillKeyboardEvents();
@@ -48,6 +51,7 @@ private:
     static void WindowSizeCallback( GLFWwindow* window, i32 width, i32 height );
     static void FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height );
 
+private:
     GLFWwindow* mWindow;
     ImGuiContext* mImGuiContext;
     const char* mGLSLVersion;

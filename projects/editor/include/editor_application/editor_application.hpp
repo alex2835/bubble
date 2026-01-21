@@ -14,6 +14,7 @@ enum class EditorMode
     Running
 };
 
+
 // UI global state (Common variables for all interface windows and editor)
 struct UIGlobals
 {

@@ -42,11 +42,10 @@ Renderer::Renderer()
         { "direction", GLSLDataType::Float3 },
         { "position", GLSLDataType::Float3 },
     };
-    constexpr int nLights = 128;
     mLightsUniformBuffer = CreateRef<UniformBuffer>( 2,
                                                      "LightsUniformBuffer",
                                                      std::move( lightsUniformVertexBufferLayout ),
-                                                     nLights );
+                                                     cMaxLights );
 }
 
 

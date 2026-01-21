@@ -9,25 +9,29 @@
 
 namespace bubble
 {
-TextureData OpenTexture( const path& path )
+std::optional<TextureData> OpenTexture( const path& path )
 {
     i32 width = 0;
     i32 height = 0;
     i32 channels = 0;
     stbi_set_flip_vertically_on_load( false );
-    u8* data = stbi_load( path.string().c_str(), &width, &height, &channels, 0 );
 
+    u8* data = stbi_load( path.string().c_str(), &width, &height, &channels, 0 );
     if ( data == nullptr )
-        throw std::runtime_error( std::format( "Failed to load image: {}", path.string() ) );
+        return std::nullopt;
 
     auto spec = Texture2DSpecification::CreateRGBA8( { width, height } );
     spec.SetTextureSpecChanels( channels );
-    return { Scope<u8[]>( data ), spec, path };
+    return TextureData{ Scope<u8[]>( data ), spec, path };
 }
 
 Ref<Texture2D> LoadTexture2D( const path& path )
 {
-    auto [data, spec, _] = OpenTexture( path );
+    auto textureDataMaybe = OpenTexture( path );
+    if ( not textureDataMaybe )
+        return nullptr;
+
+    auto [data, spec, _] = std::move( *textureDataMaybe );
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
     texture->SetData( data.get(), spec.mWidth * spec.mHeight * spec.ExtractTextureSpecChannels() );
     return texture;
@@ -50,6 +54,12 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& texturePath )
         return iter->second;
 
     auto texture = bubble::LoadTexture2D( absPath );
+    if ( not texture )
+    {
+        LogError( "Failed to load texture: {}", texturePath.string() );
+        return nullptr;
+    }
+
     mTextures.emplace( relPath, texture );
     return texture;
 }
@@ -58,7 +68,7 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& texturePath )
 void Loader::LoadTextures2D( const vector<path>& texturePaths )
 {
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path, TextureData>(), 128>> textureDataTasks;
+    std::vector<FixedSizePackagedTask<pair<path, std::optional<TextureData>>(), 128>> textureDataTasks;
 
     for ( const path& texturePath : texturePaths )
     {
@@ -77,7 +87,12 @@ void Loader::LoadTextures2D( const vector<path>& texturePaths )
     for ( auto& task : textureDataTasks )
     {
         auto [relTexturePath, textureData] = task.get();
-        mTextures[relTexturePath] = bubble::LoadTexture2D( textureData );
+        if ( not textureData )
+        {
+            LogError( "Failed to load texture: {}", relTexturePath.string() );
+            continue;
+        }
+        mTextures[relTexturePath] = bubble::LoadTexture2D( *textureData );
     }
 }
 

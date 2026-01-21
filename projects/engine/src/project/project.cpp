@@ -180,6 +180,7 @@ void Project::Save()
 
     std::ofstream projectFile( mRootFile );
     projectFile << projectJson.dump( 1 );
+    LogInfo( "Project saved: {}", mRootFile.string() );
 }
 
 
@@ -196,6 +197,7 @@ void Project::Open( const path& rootFile )
     from_json( projectJson["Loader"], mLoader );
     LoadScene( projectJson["Scene"] );
     LoadProjectTree( projectJson["ProjectTree"] );
+    LogInfo( "Project opened: {}", mRootFile.string() );
 }
 
 

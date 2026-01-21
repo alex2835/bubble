@@ -23,7 +23,7 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
     map<path, TextureData> texturesData;
 
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path, TextureData>()>> texturesDataTasks;
+    std::vector<FixedSizePackagedTask<pair<path, std::optional<TextureData>>()>> texturesDataTasks;
 
     for ( u32 materialIndex = 0; materialIndex < scene->mNumMaterials; materialIndex++ )
     {
@@ -39,8 +39,7 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
                 auto texturePath = modelDirectory / textureName.C_Str();
                 texturesDataTasks.emplace_back( [texturePath]()
                 {
-                    auto textureData = OpenTexture( texturePath );
-                    return std::make_pair( texturePath, std::move( textureData ) );
+                    return std::make_pair( texturePath, OpenTexture( texturePath ) );
                 } );
             }
         }
@@ -50,18 +49,26 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
     for ( auto& task : texturesDataTasks )
     {
         auto [texturePath, textureData] = task.get();
-        texturesData.emplace( texturePath, std::move( textureData ) );
+        if ( not textureData )
+        {
+            LogError( "Failed to load model texture: {}", texturePath.string() );
+            continue;
+        }
+        texturesData.emplace( texturePath, std::move( *textureData ) );
     }
     return texturesData;
 }
 
 
-ModelData OpenModel( const path& modelPath )
+std::optional<ModelData> OpenModel( const path& modelPath )
 {
     auto importer = CreateScope<Assimp::Importer>();
     const aiScene* scene = importer->ReadFile( modelPath.string(), aiProcess_GenSmoothNormals );
     if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
-        throw std::runtime_error( "ERROR::ASSIMP\n" + string( importer->GetErrorString() ) );
+    {
+        LogError("ERROR::ASSIMP\n" + string( importer->GetErrorString() ) );
+        return std::nullopt;
+    }
     importer->ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
     auto texturesData = LoadModelTexturesData( modelPath.parent_path(), importer->GetScene() );
@@ -217,8 +224,10 @@ Ref<Model> LoadModel( const ModelData& modelData )
 
 Ref<Model> LoadModel( const path& path )
 {
-    auto modelData = OpenModel( path );
-    return LoadModel( modelData );
+    auto modelDataMabe = OpenModel( path );
+    if ( not modelDataMabe )
+        return nullptr;
+    return LoadModel( *modelDataMabe );
 }
 
 
@@ -231,6 +240,12 @@ Ref<Model> Loader::LoadModel( const path& modelPath )
         return iter->second;
 
 	auto model = bubble::LoadModel( absPath );
+    if ( not model )
+    {
+        LogError( "Failed to laod model: {}", absPath.string() );
+        return nullptr;
+    }
+
 	mModels.emplace( relPath, model );
     return model;
 }
@@ -239,7 +254,7 @@ Ref<Model> Loader::LoadModel( const path& modelPath )
 void Loader::LoadModels( const vector<path>& modelsPaths )
 {
     ThreadPool threadPool;
-    std::vector<FixedSizePackagedTask<pair<path,ModelData>(), 128>> modelDataTasks;
+    std::vector<FixedSizePackagedTask<pair<path,std::optional<ModelData>>(), 128>> modelDataTasks;
 
     for ( const path& modelPath : modelsPaths )
     {
@@ -258,7 +273,12 @@ void Loader::LoadModels( const vector<path>& modelsPaths )
     for ( auto& task : modelDataTasks )
     {
         auto [relModelPath, modelData] = task.get();
-        mModels[relModelPath] = bubble::LoadModel( modelData );
+        if ( not modelData )
+        {
+            LogError( "Failed to laod model: {}", relModelPath.string() );
+            continue;
+        }
+        mModels[relModelPath] = bubble::LoadModel( *modelData );
     }
 }
 

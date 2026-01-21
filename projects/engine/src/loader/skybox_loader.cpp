@@ -5,8 +5,11 @@ namespace bubble
 {
 Ref<Skybox> LoadSkybox( const path& path )
 {
-    auto [data, spec, _] = OpenTexture( path );
+    auto skyboxTextureMaybe = OpenTexture( path );
+    if ( not skyboxTextureMaybe )
+        return nullptr;
 
+    auto [data, spec, _] = std::move( *skyboxTextureMaybe );
     auto width = spec.mWidth / 4;
     auto height = spec.mHeight / 3;
     auto channels = spec.ExtractTextureSpecChannels();

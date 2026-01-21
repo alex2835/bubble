@@ -17,12 +17,17 @@ Engine::Engine( Project& project )
       mBoundingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
 
+      // billboards
       mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
       mBillboardQuad( CreateBillboardQuadMesh() ),
       mSceneCameraTexture( LoadTexture2D( SCENE_CAMERA_TEXTURE ) ),
       mScenePointLightTexture( LoadTexture2D( SCENE_POINT_LIGHT_TEXTURE ) ),
       mSceneSpotLightTexture( LoadTexture2D( SCENE_SPOT_LIGHT_TEXTURE ) ),
-      mSceneDirLightTexture( LoadTexture2D( SCENE_DIR_LIGHT_TEXTURE ) )
+      mSceneDirLightTexture( LoadTexture2D( SCENE_DIR_LIGHT_TEXTURE ) ),
+
+      // Error values
+      mErrorModel( LoadModel( ERROR_MODEL ) ),
+      mErrorTexture( LoadTexture2D( ERROR_TEXTURE ) )
 {}
 
 void Engine::OnStart()
@@ -54,15 +59,16 @@ void Engine::OnUpdate()
     mTimer.OnUpdate();
     auto dt = mTimer.GetDeltaTime();
 
+    // Update physics world
     mProject.mPhysicsEngine.Update( dt );
 
-    // Update transforms
+    // Update transforms from physics world
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
     []( Entity entity,
         TransformComponent& transform,
         const PhysicsComponent& physics )
     {
-         physics.mPhysicsObject.GetTransform( transform.mPosition, transform.mRotation );
+        physics.mPhysicsObject.GetTransform( transform.mPosition, transform.mRotation );
     } );
 
     // Call scripts
@@ -98,10 +104,13 @@ void Engine::DrawScene( Framebuffer& framebuffer,
              const TransformComponent& transformComponent,
              LightComponent& lightComponent )
     {
-        lightComponent.mDirection = transformComponent.Forward();
+        lightComponent.mDirection = transformComponent.RotationMat() * vec4( 0, -1, 0, 0 );
         lightComponent.mPosition = transformComponent.mPosition;
         lights.push_back( (Light)lightComponent );
     } );
+
+    if ( lights.size() > Renderer::cMaxLights )
+        throw std::runtime_error( std::format( "Max lights overflow {}/{}", lights.size(), Renderer::cMaxLights ) );
 
     // Set up viewport
     framebuffer.Bind();
@@ -115,9 +124,13 @@ void Engine::DrawScene( Framebuffer& framebuffer,
         [&]( const Entity _,
              const ModelComponent& modelComponent,
              const ShaderComponent& shaderComponent,
-             const TransformComponent& transform )
+             const TransformComponent& transformComponent )
     {
-        mRenderer.DrawModel( modelComponent.mModel, shaderComponent.mShader, transform.TransformMat() );
+        const bool valid = modelComponent.mModel and shaderComponent.mShader;
+        const auto& model = valid ? modelComponent.mModel : mErrorModel;
+        const auto& shader = valid ? shaderComponent.mShader : mWhiteShader;
+        const auto tansform = valid ? transformComponent.TransformMat() : transformComponent.TranslationRotationMat();
+        mRenderer.DrawModel( model, shader, tansform );
     } );
 }
 
@@ -289,13 +302,17 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, Scene& scene )
 
 
     // Draw 3D models
-    scene.ForEach<ModelComponent, TransformComponent>(
+    scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
         [&]( const Entity entity,
              const ModelComponent& modelComponent,
+             const ShaderComponent& shaderComponent,
              const TransformComponent& transformComponent )
     {
         mEntityIdShader->SetUni1u( "uObjectId", (u32)entity );
-        mRenderer.DrawModel( modelComponent.mModel, mEntityIdShader, transformComponent.TransformMat() );
+        const bool valid = modelComponent.mModel and shaderComponent.mShader;
+        const auto& model = valid ? modelComponent.mModel : mErrorModel;
+        const auto tansform = valid ? transformComponent.TransformMat() : transformComponent.TranslationRotationMat();
+        mRenderer.DrawModel( model, mEntityIdShader, tansform );
     } );
 
 

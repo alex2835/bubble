@@ -5,6 +5,9 @@ namespace bubble
 {
 Ref<Script> LoadScript( const path& scriptPath )
 {
+    if ( not filesystem::exists( scriptPath ) )
+        return nullptr;
+
     return CreateRef<Script>(
         Script{ 
             .mPath = scriptPath,
@@ -23,6 +26,12 @@ Ref<Script> Loader::LoadScript( const path& scriptPath )
         return iter->second;
 
     auto script = bubble::LoadScript( absPath );
+    if ( not script )
+    {
+        LogError( "Failed to load script" );
+        return nullptr;
+    }
+
     mScripts.emplace( relPath, script );
     return script;
 }
