@@ -35,7 +35,7 @@ layout(std140) uniform LightsInfoUniformBuffer
     vec3 uViewPos;
 };
 
-#define MAX_LIGHTS 512
+#define MAX_LIGHTS 128
 layout(std140) uniform LightsUniformBuffer
 {
     Light uLights[MAX_LIGHTS];

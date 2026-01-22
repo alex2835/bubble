@@ -43,7 +43,7 @@ void CreateSceneBindings( Scene& scene,
         "AddTagComponent",
         [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
         "AddTransformComponent", 
-        [&]( const Entity& entity, TransformComponent transform ) { scene.AddComponent<TransformComponent>( entity, transform ); },
+        [&]( const Entity& entity, Transform transform ) { scene.AddComponent<TransformComponent>( entity, transform ); },
         "AddModelComponent",
         [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
         "AddShaderComponent",
@@ -65,7 +65,7 @@ void CreateSceneBindings( Scene& scene,
         "GetTagComponent",
         [&]( const Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "GetTransformComponent",
-        [&]( const Entity& entity ) ->TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) ->Transform& { return *(Transform*)&scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
         [&]( const Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
         "GetShaderComponent",
@@ -145,13 +145,13 @@ void CreateSceneBindings( Scene& scene,
                         componentsTable[ComponentID::Tag] = (TagComponent*)componentDataPtr;
                         break;
                     case ComponentID::Transform:
-                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentDataPtr;
+                        componentsTable[ComponentID::Transform] = (Transform*)componentDataPtr;
                         break;
                     case ComponentID::Model:
-                        componentsTable[ComponentID::Model] = *(Ref<Model>*)componentDataPtr;
+                        componentsTable[ComponentID::Model] = ((ModelComponent*)componentDataPtr)->mModel;
                         break;
                     case ComponentID::Shader:
-                        componentsTable[ComponentID::Shader] = *(Ref<Shader>*)componentDataPtr;
+                        componentsTable[ComponentID::Shader] = ((ShaderComponent*)componentDataPtr)->mShader;
                         break;
                     case ComponentID::Script:
                         componentsTable[ComponentID::Script] = ((ScriptComponent*)componentDataPtr)->mScript;
@@ -160,16 +160,16 @@ void CreateSceneBindings( Scene& scene,
                         componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentDataPtr)->mPhysicsObject;
                         break;
                     case ComponentID::Camera:
-                        componentsTable[ComponentID::Camera] = (CameraComponent*)componentDataPtr;
+                        componentsTable[ComponentID::Camera] = (Camera*)componentDataPtr;
                         break;
                     case ComponentID::Light:
-                        componentsTable[ComponentID::Light] = (LightComponent*)componentDataPtr;
+                        componentsTable[ComponentID::Light] = (Light*)componentDataPtr;
                         break;
                     case ComponentID::State:
                         componentsTable[ComponentID::State] = *((StateComponent*)componentDataPtr)->mState;
                         break;
                     default:
-                        throw std::runtime_error( "ForEachEntity: invalid set of componets provided" );
+                        throw std::runtime_error( "ForEachEntity: invalid set of components provided" );
                 }
             }
             func( entity, componentsAny );

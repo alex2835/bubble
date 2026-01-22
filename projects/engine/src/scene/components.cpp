@@ -89,60 +89,6 @@ void TransformComponent::OnComponentDraw( const Project& project, const Entity& 
     ImGui::DragFloat3( "Rotation", (float*)&transformComponent.mRotation, 0.01f );
     ImGui::DragFloat3( "Position", (float*)&transformComponent.mPosition, 0.1f );
 }
- 
-mat4 TransformComponent::TransformMat() const
-{
-    auto transform = mat4( 1.0f );
-    transform = glm::translate( transform, mPosition );
-    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
-    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-    transform = glm::scale( transform, mScale );
-    return transform;
-}
-
-mat4 TransformComponent::ScaleMat() const
-{
-    auto transform = mat4( 1.0f );
-    transform = glm::scale( transform, mScale );
-    return transform;
-}
-
-mat4 TransformComponent::TranslationMat() const
-{
-    auto transform = mat4( 1.0f );
-    transform = glm::translate( transform, mPosition );
-    return transform;
-}
-
-mat4 TransformComponent::RotationMat() const
-{
-    auto transform = mat4( 1.0f );
-    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
-    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-    return transform;
-}
-
-mat4 TransformComponent::TranslationRotationMat() const
-{
-    auto transform = mat4( 1.0f );
-    transform = glm::translate( transform, mPosition );
-    transform = glm::rotate( transform, mRotation.z, vec3( 0, 0, 1 ) );
-    transform = glm::rotate( transform, mRotation.y, vec3( 0, 1, 0 ) );
-    transform = glm::rotate( transform, mRotation.x, vec3( 1, 0, 0 ) );
-    return transform;
-}
-
-
-vec3 TransformComponent::Forward() const
-{
-    return normalize( vec3( 
-        cos( mRotation.y ) * cos( mRotation.x ),
-        sin( mRotation.x ),
-        sin( mRotation.y ) * cos( mRotation.x )
-    ) );
-}
 
 void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )
 {
@@ -169,16 +115,16 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
                             p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z );
     };
 
-    lua.new_usertype<TransformComponent>(
+    lua.new_usertype<Transform>(
         "Transform",
         sol::call_constructor,
-        sol::constructors<TransformComponent(), TransformComponent( vec3, vec3, vec3 )>(),
+        sol::constructors<Transform(), Transform( vec3 ), Transform( vec3, vec3, vec3 )>(),
         "Position",
-        &TransformComponent::mPosition,
+        &Transform::mPosition,
         "Rotation",
-        &TransformComponent::mRotation,
+        &Transform::mRotation,
         "Scale",
-        &TransformComponent::mScale,
+        &Transform::mScale,
         sol::meta_function::to_string,
         to_string
     );
@@ -362,8 +308,7 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
     else if ( lightComponent.mType == LightType::Point )
     {
         //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        if ( ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic ) )
-            lightComponent.SetDistance( lightComponent.mDistance );
+        ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic );
 
         // Show calculated attenuation values (read-only)
         ImGui::Text( "Attenuation:" );
@@ -379,8 +324,7 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
         //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
         //    lightComponent.mDirection = normalize( lightComponent.mDirection );
 
-        if ( ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic ) )
-            lightComponent.SetDistance( lightComponent.mDistance );
+        ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic );
 
         ImGui::SliderFloat( "Cut Off", &lightComponent.mCutOff, 0.0f, 90.0f );
         ImGui::SliderFloat( "Outer Cut Off", &lightComponent.mOuterCutOff, 0.0f, 90.0f );
@@ -482,12 +426,6 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
         "Distance", &Light::mDistance,
         "CutOff", &Light::mCutOff,
         "OuterCutOff", &Light::mOuterCutOff,
-        "Constant", &Light::mConstant,
-        "Linear", &Light::mLinear,
-        "Quadratic", &Light::mQuadratic,
-
-        // Methods
-        "SetDistance", &Light::SetDistance,
 
         // Static factory methods
         "CreateDirLight", &Light::CreateDirLight,
@@ -814,15 +752,15 @@ void PhysicsComponent::CreateLuaBinding( sol::state& lua )
         &PhysicsObject::ApplyTorqueImpulse
     );
 
-    lua["CreatePhysicsSphere"] = []( const TransformComponent& trans, f32 radius ){ 
+    lua["CreatePhysicsSphere"] = []( const Transform& trans, f32 radius ){ 
         auto physicsSphere = PhysicsObject::CreateSphere( radius );
-        physicsSphere.SetTransform( trans.mPosition, trans.mPosition );
+        physicsSphere.SetTransform( trans.mPosition, trans.mRotation );
         return physicsSphere;
     };
 
-    lua["CreatePhysicsBox"] = []( const TransformComponent& trans, vec3 he ) {
+    lua["CreatePhysicsBox"] = []( const Transform& trans, vec3 he ) {
         auto physicsBox = PhysicsObject::CreateBox( he );
-        physicsBox.SetTransform( trans.mPosition, trans.mPosition );
+        physicsBox.SetTransform( trans.mPosition, trans.mRotation );
         return physicsBox;
     };
 }

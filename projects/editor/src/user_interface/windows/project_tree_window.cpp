@@ -125,8 +125,8 @@ void ProjectTreeWindow::SetSelectionByNode( const Ref<ProjectTreeNode>& node )
             count++;
         }
         avgPos *= ( 1.0f / count );
-        mSelection.mGroupTransform = TransformComponent{
-            .mPosition = avgPos,
+        mSelection.mGroupTransform = Transform{
+            .mPosition = avgPos
         };
     }
 }
@@ -152,7 +152,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
     if ( ImGui::BeginPopup( "Create entity popup" ) )
     {
         // Temp: creation position. TODO: test raycast
-        TransformComponent trans{ .mPosition = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f };
+        Transform trans{ .mPosition = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f };
 
         if ( ImGui::MenuItem( "Create folder" ) )
         {

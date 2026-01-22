@@ -27,7 +27,7 @@ public:
 
     void DrawViewport();
     void DrawGizmoOneEntity( Entity entity );
-    void DrawGizmoManyEntities( set<Entity>& entities, TransformComponent& transform );
+    void DrawGizmoManyEntities( set<Entity>& entities, Transform& transform );
     //bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 

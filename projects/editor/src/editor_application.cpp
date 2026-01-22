@@ -128,6 +128,15 @@ void BubbleEditor::OnUpdate()
     }
 
 
+    // Manage selection
+    if ( mEditorMode == EditorMode::Editing and
+         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) )
+    {
+        
+    }
+
+
+
     // Save project
     if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
          mWindow.GetWindowInput().KeyMods().CONTROL and
@@ -136,6 +145,7 @@ void BubbleEditor::OnUpdate()
         if ( mProject.IsValid() )
             mProject.Save();
     }
+
 }
 
 } // namespace bubble

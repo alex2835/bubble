@@ -8,6 +8,7 @@
 #include "engine/types/dynamic.hpp"
 #include "engine/renderer/light.hpp"
 #include "engine/renderer/camera.hpp"
+#include "engine/renderer/transform.hpp"
 #include "engine/physics/physics_engine.hpp"
 
 namespace recs
@@ -55,7 +56,8 @@ public:
 };
 
 
-struct TransformComponent
+
+struct TransformComponent : public Transform
 {
     static int ID() { return static_cast<int>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
@@ -64,23 +66,11 @@ struct TransformComponent
     static void ToJson( json& json, const Project& project, const TransformComponent& component );
     static void FromJson( const json& json, Project& project, TransformComponent& component );
     static void CreateLuaBinding( sol::state& lua );
-	
-public:
-	mat4 TransformMat() const;
-	mat4 ScaleMat() const;
-	mat4 TranslationMat() const;
-	mat4 RotationMat() const;
-	mat4 TranslationRotationMat() const;
-    vec3 Forward() const;
-
-	vec3 mPosition = vec3( 0 );
-	vec3 mRotation = vec3( 0 );
-	vec3 mScale = vec3( 1 );
 };
 
 
 
-struct CameraComponent : Camera
+struct CameraComponent : public Camera
 {
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }

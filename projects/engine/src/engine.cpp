@@ -106,6 +106,7 @@ void Engine::DrawScene( Framebuffer& framebuffer,
     {
         lightComponent.mDirection = transformComponent.RotationMat() * vec4( 0, -1, 0, 0 );
         lightComponent.mPosition = transformComponent.mPosition;
+        lightComponent.Update();
         lights.push_back( (Light)lightComponent );
     } );
 

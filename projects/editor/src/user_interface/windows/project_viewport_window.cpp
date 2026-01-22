@@ -168,13 +168,12 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
                                            glm::value_ptr( entityTransform.mPosition ),
                                            glm::value_ptr( rotaion ),
                                            glm::value_ptr( entityTransform.mScale ) );
-    
+
     entityTransform.mRotation = glm::radians( rotaion );
 }
 
 
-void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, 
-                                                   TransformComponent& transform )
+void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, Transform& transform )
 {
     mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
