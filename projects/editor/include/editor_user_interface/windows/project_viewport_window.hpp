@@ -27,8 +27,8 @@ public:
 
     void DrawViewport();
     void DrawGizmoOneEntity( Entity entity );
-    void DrawGizmoManyEntities( set<Entity>& entities, Transform& transform );
-    //bool DrawViewManipulator();
+    void DrawGizmoManyEntities( const set<Entity>& entities, Transform& transform );
+    bool DrawViewManipulator();
     void OnDraw( DeltaTime );
 
 
@@ -40,6 +40,10 @@ private:
     // Screen selection
     bool mIsSelecting = false;
     ImVec2 mStartSelection;
+
+    // View manipulator state
+    mat4 mLastLookAtMatrix = mat4( 1.0f );
+    bool mViewManipulatorWasUsing = false;
 };
 
 }

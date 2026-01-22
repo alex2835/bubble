@@ -5,6 +5,8 @@
 #include "engine/physics/physics_engine.hpp"
 #include "editor_user_interface/editor_user_interface.hpp"
 #include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
+#include "selection.hpp"
+#include "ui_globals.hpp"
 
 namespace bubble
 {
@@ -13,32 +15,6 @@ enum class EditorMode
     Editing,
     Running
 };
-
-
-// UI global state (Common variables for all interface windows and editor)
-struct UIGlobals
-{
-    bool mNeedUpdateProjectWindow = false;
-    bool mIsViewportHovered = false;
-
-    // Menu
-    bool mDrawBoundingBoxes = false;
-    bool mDrawPhysicsShapes = false;
-};
-
-
-// Selection metadata
-struct Selection
-{
-    // Selected node in project tree
-    Ref<ProjectTreeNode> mProjectTreeNode;
-    // All entities selected (Selected in project tree or on screen)
-    set<Entity> mEntities;
-    // Used when selected more then one entity
-    Transform mGroupTransform;
-};
-
-
 
 // Game engine editor 
 class BubbleEditor

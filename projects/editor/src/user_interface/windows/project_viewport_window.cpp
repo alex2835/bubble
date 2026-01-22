@@ -4,6 +4,7 @@
 #include "engine/project/project_tree.hpp"
 #include <glm/gtc/epsilon.hpp>
 #include <imgui.h>
+#include <cmath>
 
 namespace bubble
 {
@@ -61,9 +62,9 @@ void ProjectViewportWindow::ProcessScreenSelectedEntity()
         const auto clickPos = CaptureWidnowMousePos();
         const auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
 
-        mSelection = {};
+        mSelection.Clear();
         if ( pixel > 0 )
-            mSelection.mEntities.insert( mProject.mScene.GetEntityById( pixel ) );
+            mSelection.AddEntity( mProject.mScene.GetEntityById( pixel ), mProject.mScene );
     }
 }
 
@@ -90,9 +91,8 @@ void ProjectViewportWindow::ProcessSreenSelectionRect()
         if ( pixels.empty() )
             return;
 
-        float count = 0;
-        auto avgPos = vec3( 0 );
-        mSelection = {};
+        mSelection.Clear();
+        set<Entity> entities;
         for ( int i = 0; i < pixels.size(); i+=3 )
         {
             auto pixel = pixels[i];
@@ -100,15 +100,10 @@ void ProjectViewportWindow::ProcessSreenSelectionRect()
             if ( pixel > 0 )
             {
                 auto entity = mProject.mScene.GetEntityById( pixel );
-                if ( mSelection.mEntities.insert( entity ).second and
-                     mProject.mScene.HasComponent<TransformComponent>( entity ) )
-                {
-                    count++;
-                    avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
-                }
+                entities.insert( entity );
             }
         }
-        mSelection.mGroupTransform.mPosition = avgPos * ( 1.0f / count );
+        mSelection.AddEntities( entities, mProject.mScene );
     }
 
     // selection rect
@@ -173,7 +168,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 }
 
 
-void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, Transform& transform )
+void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, Transform& transform )
 {
     mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
@@ -200,52 +195,103 @@ void ProjectViewportWindow::DrawGizmoManyEntities( set<Entity>& entities, Transf
         if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
             continue;
         auto& trans = mProject.mScene.GetComponent<TransformComponent>( entity );
-        trans.mPosition += posNew - mSelection.mGroupTransform.mPosition;
-        trans.mRotation += glm::radians( rotNew ) - mSelection.mGroupTransform.mRotation;
-        trans.mScale += scaleNew - mSelection.mGroupTransform.mScale;
+        trans.mPosition += posNew - mSelection.GetGroupTransform().mPosition;
+        trans.mRotation += glm::radians( rotNew ) - mSelection.GetGroupTransform().mRotation;
+        trans.mScale += scaleNew - mSelection.GetGroupTransform().mScale;
     }
 
-    mSelection.mGroupTransform.mPosition = posNew;
-    mSelection.mGroupTransform.mRotation = glm::radians( rotNew );
-    mSelection.mGroupTransform.mScale = scaleNew;
+    mSelection.GetGroupTransform().mPosition = posNew;
+    mSelection.GetGroupTransform().mRotation = glm::radians( rotNew );
+    mSelection.GetGroupTransform().mScale = scaleNew;
 }
 
 
 
-//bool SceneViewportInterface::DrawViewManipulator()
-//{
-//    auto lookAt = mSceneCamera.GetLookatMat();
-//
-//    float distance = 1.0f;
-//    if ( mSelectedEntity and mSelectedEntity.HasComponent<TransformComponent>() )
-//    {
-//        auto& entityTransform = mSelectedEntity.GetComponent<TransformComponent>();
-//        distance = std::round( glm::distance(entityTransform.mPosition, mSceneCamera.mPosition) );
-//    }
-//
-//    float windowWidth = ImGui::GetWindowWidth();
-//    float windowHeight = ImGui::GetWindowHeight();
-//    float viewManipulateRight = ImGui::GetWindowPos().x + windowWidth;
-//    float viewManipulateTop = ImGui::GetWindowPos().y;
-//    auto manipulatorSize = ImVec2( 128, 128 );
-//    auto manipulatorPos = ImVec2( viewManipulateRight - manipulatorSize.x, viewManipulateTop );
-//
-//    bool isUsing = ImGuizmo::ViewManipulate( glm::value_ptr( lookAt ), distance, manipulatorPos, manipulatorSize, 0x10101010 );
-//    if ( isUsing )
-//    {
-//        // extract changed values
-//        auto inverse = glm::inverse( lookAt );
-//        mSceneCamera.mFront = -vec3( inverse[2][0], inverse[2][1], inverse[2][2] );
-//        mSceneCamera.mUp = vec3( inverse[1][0], inverse[1][1], inverse[1][2] );
-//        mSceneCamera.mRight = vec3( inverse[0][0], inverse[0][1], inverse[0][2] );
-//        mSceneCamera.mPosition = vec3( inverse[3][0], inverse[3][1], inverse[3][2] );
-//        mSceneCamera.mYaw = std::atan2( mSceneCamera.mFront.x, mSceneCamera.mFront.z );
-//        mSceneCamera.mPitch = std::atan2( mSceneCamera.mFront.y, 
-//                                     std::sqrtf( std::powf(mSceneCamera.mFront.x,2) + 
-//                                           std::powf(mSceneCamera.mFront.z,2) ) );
-//    }
-//    return isUsing;
-//}
+bool ProjectViewportWindow::DrawViewManipulator()
+{
+    float distance = 1.0f;
+    // Calculate distance based on selected entity's position
+    if ( mSelection.IsSingleSelection() )
+    {
+        auto entity = mSelection.GetSingleEntity();
+        if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+        {
+            const auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
+            distance = std::round( glm::distance( entityTransform.mPosition, mSceneCamera.mPosition ) );
+        }
+    }
+    else if ( mSelection.IsMultiSelection() )
+    {
+        // Use group transform position for multi-selection
+        distance = std::round( glm::distance( mSelection.GetGroupTransform().mPosition, mSceneCamera.mPosition ) );
+    }
+
+    // Get current lookAt matrix from camera
+    mat4 lookAt = mSceneCamera.GetLookatMat();
+
+    // If not actively manipulating, store current matrix as reference
+    if ( not mViewManipulatorWasUsing )
+    {
+        mLastLookAtMatrix = lookAt;
+    }
+
+    float windowWidth = ImGui::GetWindowWidth();
+    float windowHeight = ImGui::GetWindowHeight();
+    float viewManipulateRight = ImGui::GetWindowPos().x + windowWidth;
+    float viewManipulateTop = ImGui::GetWindowPos().y;
+    auto manipulatorSize = ImVec2( 128, 128 );
+    auto manipulatorPos = ImVec2( viewManipulateRight - manipulatorSize.x, viewManipulateTop );
+
+    // ViewManipulate modifies the lookAt matrix in place
+    bool isUsing = ImGuizmo::ViewManipulate( glm::value_ptr( lookAt ), distance, manipulatorPos, manipulatorSize, 0x10101010 );
+
+    // Only apply changes when actively being used
+    if ( isUsing )
+    {
+        // Check if matrix actually changed to avoid unnecessary updates
+        constexpr float epsilon = 0.0001f;
+        bool matrixChanged = false;
+        for ( int i = 0; i < 4 && !matrixChanged; ++i )
+        {
+            for ( int j = 0; j < 4; ++j )
+            {
+                if ( std::abs( lookAt[i][j] - mLastLookAtMatrix[i][j] ) > epsilon )
+                {
+                    matrixChanged = true;
+                    break;
+                }
+            }
+        }
+
+        if ( matrixChanged )
+        {
+            // Extract the updated camera orientation from the modified lookAt matrix
+            auto inverse = glm::inverse( lookAt );
+
+            // Extract directional vectors from inverse view matrix
+            mSceneCamera.mForward = -normalize( vec3( inverse[2] ) );
+            mSceneCamera.mUp = normalize( vec3( inverse[1] ) );
+            mSceneCamera.mRight = normalize( vec3( inverse[0] ) );
+            mSceneCamera.mPosition = vec3( inverse[3] );
+
+            // Update Euler angles to match new orientation
+            // Reverse of: forward.x = cos(yaw) * cos(pitch), forward.z = sin(yaw) * cos(pitch)
+            mSceneCamera.mYaw = std::atan2( mSceneCamera.mForward.z, mSceneCamera.mForward.x );
+            // Reverse of: forward.y = sin(pitch)
+            // Clamp to avoid NaN from asin
+            float pitchSin = glm::clamp( mSceneCamera.mForward.y, -1.0f, 1.0f );
+            mSceneCamera.mPitch = std::asin( pitchSin );
+
+            // Store the new matrix
+            mLastLookAtMatrix = lookAt;
+        }
+    }
+
+    // Track whether manipulator was being used for next frame
+    mViewManipulatorWasUsing = isUsing;
+
+    return isUsing;
+}
 
 
 void ProjectViewportWindow::OnDraw( DeltaTime )
@@ -263,7 +309,7 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
             auto windowPos = ImGui::GetWindowPos();
             ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
 
-            if ( not mSelection.mEntities.empty() )
+            if ( not mSelection.GetEntities().empty() )
             {
                 if ( ImGui::IsWindowHovered() )
                 {
@@ -276,16 +322,19 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
                 }
             }
 
-            if ( mSelection.mEntities.size() == 1 )
-                DrawGizmoOneEntity( *mSelection.mEntities.begin() );
-            else if ( mSelection.mEntities.size() > 1 )
-                DrawGizmoManyEntities( mSelection.mEntities, mSelection.mGroupTransform );
+            if ( mSelection.GetEntities().size() == 1 )
+                DrawGizmoOneEntity( *mSelection.GetEntities().begin() );
+            else if ( mSelection.GetEntities().size() > 1 )
+                DrawGizmoManyEntities( mSelection.GetEntities(), mSelection.GetGroupTransform() );
 
-            //bool viewManipulatorUsing = DrawViewManipulator();
+            bool viewManipulatorUsing = DrawViewManipulator();
+            mUIGlobals.mIsViewManipulatorUsing = viewManipulatorUsing;
 
-            ProcessScreenSelectedEntity();
-            ProcessSreenSelectionRect();
-
+            if ( not viewManipulatorUsing )
+            {
+                ProcessScreenSelectedEntity();
+                ProcessSreenSelectionRect();
+            }
         }
     }
     ImGui::End();

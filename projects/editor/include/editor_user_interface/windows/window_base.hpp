@@ -8,8 +8,8 @@ namespace bubble
 {
 class BubbleEditor;
 class Window;
+class Selection;
 struct UIGlobals;
-struct Selection;
 enum class EditorMode;
 
 // View of an editor

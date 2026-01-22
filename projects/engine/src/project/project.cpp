@@ -141,7 +141,7 @@ json Project::SaveProjectTree()
 }
 
 
-Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, ProjectTreeNode* parent )
+Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, const Ref<ProjectTreeNode>& parent )
 {
     auto node = CreateRef<ProjectTreeNode>();
 
@@ -159,7 +159,7 @@ Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, ProjectTreeNod
 
     const json& children = j["Children"];
     for ( const auto& child : children )
-        node->mChildren.emplace_back( LoadProjectTreeNode( child, node.get() ) );
+        node->mChildren.emplace_back( LoadProjectTreeNode( child, node ) );
 
     node->mParent = parent;
     return node;

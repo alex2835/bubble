@@ -3,6 +3,7 @@
 #include "engine/types/set.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/log/log.hpp"
+#include "engine/types/pointer.hpp"
 #include <variant>
 
 namespace bubble
@@ -19,7 +20,7 @@ enum class ProjectTreeNodeType
     Light,
 };
 
-struct ProjectTreeNode
+struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
 {
     using StateType = std::variant<Entity, string>;
 
@@ -29,19 +30,23 @@ struct ProjectTreeNode
 
     ProjectTreeNodeType Type() const { return mType; }
     bool IsEntity() const;
-    Entity AsEntity() const { return std::get<Entity>( mState ); };
+    Entity AsEntity() const { return std::get<Entity>( mState ); }
+    opt<Entity> TryGetEntity() const;
 
-    vector<Ref<ProjectTreeNode>>& Children(){ return mChildren; }
+    const vector<Ref<ProjectTreeNode>>& Children() const { return mChildren; }
+    vector<Ref<ProjectTreeNode>>& Children() { return mChildren; }
+
+    const StateType& State() const { return mState; }
     StateType& State() { return mState; }
 
-    bool operator== ( const ProjectTreeNode& other ) { return mID == other.mID; }
+    bool operator== ( const ProjectTreeNode& other ) const { return mID == other.mID; }
 
 private:
     static u64 mIDCounter;
     u64 mID = 0;
     ProjectTreeNodeType mType = ProjectTreeNodeType::Level;
     StateType mState = "Level"s;
-    ProjectTreeNode* mParent = nullptr;
+    WeakRef<ProjectTreeNode> mParent;
     vector<Ref<ProjectTreeNode>> mChildren;
 public:
     bool mIsEditingInUI = false;

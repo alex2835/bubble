@@ -16,34 +16,43 @@ Ref<ProjectTreeNode> ProjectTreeNode::CreateChild( ProjectTreeNodeType type, Sta
 {
     auto& child = mChildren.emplace_back( CreateRef<ProjectTreeNode>() );
     child->mType = type;
-    child->mParent = this;
+    child->mParent = weak_from_this();
     child->mState = state;
     return child;
 }
 
 void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node )
 {
-    if ( not node->mParent )
+    auto parent = node->mParent.lock();
+    if ( not parent )
     {
         LogWarning( "Impossible to remove root project node" );
         return;
     }
-    auto iter = std::ranges::find_if( node->mParent->mChildren,
+
+    auto iter = std::ranges::find_if( parent->mChildren,
                                       [id = node->mID]( const Ref<ProjectTreeNode>& node ) { return node->mID == id; } );
-    if ( iter == node->mParent->mChildren.end() )
+    if ( iter == parent->mChildren.end() )
         throw std::runtime_error( std::format( "Node: {} failed parent check", node->mID ) );
 
-    while ( node->mChildren.size() > 0 )
-        node->RemoveNode( node->mChildren.front() );
+    // Recursively remove all children - optimized by clearing vector
+    node->mChildren.clear();
 
-    node->mParent->mChildren.erase( iter );
+    parent->mChildren.erase( iter );
 }
 
 
 bool ProjectTreeNode::IsEntity() const
 {
-    return mType != ProjectTreeNodeType::Level and 
+    return mType != ProjectTreeNodeType::Level and
            mType != ProjectTreeNodeType::Folder;
+}
+
+opt<Entity> ProjectTreeNode::TryGetEntity() const
+{
+    if ( auto* e = std::get_if<Entity>( &mState ) )
+        return *e;
+    return std::nullopt;
 }
 
 
@@ -74,17 +83,22 @@ void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& n
 bool RemoveNode( const Ref<ProjectTreeNode>& root, const Ref<ProjectTreeNode>& node )
 {
     auto& children = root->Children();
-    for ( size_t i = 0; i < children.size(); i++ )
+
+    // Try to find node directly in children
+    auto it = std::ranges::find( children, node );
+    if ( it != children.end() )
     {
-        const auto& child = children[i];
-        if ( child == node )
-        {
-            children.erase( children.begin() + i );
-            return true;
-        }
+        children.erase( it );
+        return true;
+    }
+
+    // Recursively search in children's subtrees
+    for ( const auto& child : children )
+    {
         if ( RemoveNode( child, node ) )
             return true;
     }
+
     return false;
 }
 

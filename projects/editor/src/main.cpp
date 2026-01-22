@@ -1,7 +1,8 @@
 #include "engine/pch/pch.hpp"
-#include <print>
-#include <argagg/argagg.hpp>
 #include "editor_application/editor_application.hpp"
+#include <argagg/argagg.hpp>
+#include <print>
+
 
 int main( int argc, char** argv )
 {

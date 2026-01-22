@@ -17,7 +17,7 @@ class Project
     
     json SaveProjectTreeNode( const Ref<ProjectTreeNode>& node );
     json SaveProjectTree();
-    Ref<ProjectTreeNode> LoadProjectTreeNode( const json& j, ProjectTreeNode* parent );
+    Ref<ProjectTreeNode> LoadProjectTreeNode( const json& j, const Ref<ProjectTreeNode>& parent );
     void LoadProjectTree( const json& j );
 
 public:

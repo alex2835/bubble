@@ -108,38 +108,18 @@ const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<Proje
 
 void ProjectTreeWindow::SetSelectionByNode( const Ref<ProjectTreeNode>& node )
 {
-    mSelection.mProjectTreeNode = node;
-    mSelection.mEntities.clear();
-    FillEntitiesInSubTree( mSelection.mEntities, node );
-
-    // Group selected
-    if ( not mSelection.mEntities.empty() )
-    {
-        float count = 0;
-        auto avgPos = vec3( 0 );
-        for ( auto entity : mSelection.mEntities )
-        {
-            if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
-                continue;
-            avgPos += mProject.mScene.GetComponent<TransformComponent>( entity ).mPosition;
-            count++;
-        }
-        avgPos *= ( 1.0f / count );
-        mSelection.mGroupTransform = Transform{
-            .mPosition = avgPos
-        };
-    }
+    mSelection.SelectTreeNode( node, mProject.mScene );
 }
 
 
 void ProjectTreeWindow::RemoveSelected()
 {
-    RemoveNodeByEntities( mProject.mProjectTreeRoot, mSelection.mEntities );
+    RemoveNodeByEntities( mProject.mProjectTreeRoot, mSelection.GetEntities() );
 
-    if ( mSelection.mProjectTreeNode )
-        RemoveNode( mProject.mProjectTreeRoot, mSelection.mProjectTreeNode );
+    if ( mSelection.GetTreeNode() )
+        RemoveNode( mProject.mProjectTreeRoot, mSelection.GetTreeNode() );
 
-    for ( auto entity : mSelection.mEntities )
+    for ( auto entity : mSelection.GetEntities() )
         mProject.mScene.RemoveEntity( entity );
 
     mSelection = {};
@@ -229,8 +209,8 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
 {
     // Selected by parent / selected in project tree / entities that were selected on screen
     isSelected = isSelected or 
-                mSelection.mProjectTreeNode == node or
-                ( node->IsEntity() and mSelection.mEntities.contains( node->AsEntity() ) );
+                mSelection.GetTreeNode() == node or
+                ( node->IsEntity() and mSelection.GetEntities().contains( node->AsEntity() ) );
 
     const auto& icon = GetProjectTreeNodeIcon( node );
     switch ( node->Type() )
@@ -307,8 +287,8 @@ void ProjectTreeWindow::DrawEntities()
 
 void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
-    BUBBLE_ASSERT( mSelection.mEntities.size() == 1, "Draw only one entity selected" );
-    auto selectedEntity = *mSelection.mEntities.begin();
+    BUBBLE_ASSERT( mSelection.GetEntities().size() == 1, "Draw only one entity selected" );
+    auto selectedEntity = *mSelection.GetEntities().begin();
     if ( selectedEntity == INVALID_ENTITY )
         return;
 
@@ -383,7 +363,7 @@ void ProjectTreeWindow::OnDraw( DeltaTime )
 
         ImGui::Text( "Entity components" );
         ImGui::Separator();
-        if ( mSelection.mEntities.size() == 1 )
+        if ( mSelection.GetEntities().size() == 1 )
             DrawSelectedEntityComponents();
     }
     ImGui::End();

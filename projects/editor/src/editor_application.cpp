@@ -1,5 +1,6 @@
 
 #include "editor_application/editor_application.hpp"
+#include <print>
 
 namespace bubble
 {
@@ -44,7 +45,15 @@ void BubbleEditor::Run()
         {
             case EditorMode::Editing:
             {
-                mSceneCamera.OnUpdate( deltaTime );
+                if ( not mUIGlobals.mIsViewManipulatorUsing )
+                {
+                    mSceneCamera.OnUpdate( deltaTime );
+                    //std::println("kekeke");
+                }
+
+                //std::println("Y{}, P{}", mSceneCamera.mYaw, mSceneCamera.mPitch );
+                
+
                 mProjectResourcesHotReloader.OnUpdate();
                 mEditorUserInterface.OnUpdate( deltaTime );
 
@@ -147,5 +156,7 @@ void BubbleEditor::OnUpdate()
     }
 
 }
+
+
 
 } // namespace bubble
