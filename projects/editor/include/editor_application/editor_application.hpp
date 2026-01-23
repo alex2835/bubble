@@ -9,6 +9,7 @@
 #include "utils/ui_globals.hpp"
 #include "utils/history.hpp"
 #include "utils/clipboard.hpp"
+#include "utils/auto_backup.hpp"
 
 namespace bubble
 {
@@ -37,18 +38,15 @@ public:
     /// Editor
     EditorMode mEditorMode;
     SceneCamera mSceneCamera;
-    
-    // Viewport
-    Framebuffer mSceneViewport;
-    // Entity picking (Handles scene object picking in viewport)
-    Framebuffer mEntityIdViewport;
+    Framebuffer mSceneViewport; // Viewport
+    Framebuffer mEntityIdViewport; // Entity picking viewport (Handles scene object picking in viewport)
 
     /// Game editing
     Project mProject;
-
     Selection mSelection;
     History mHistory;
     Clipboard mClipboard;
+    AutoBackup mAutoBackup;
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
 
     // Game running

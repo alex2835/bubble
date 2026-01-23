@@ -18,7 +18,9 @@ BubbleEditor::BubbleEditor()
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
 
       mProject( mWindow.GetWindowInput() ),
+      mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
       mProjectResourcesHotReloader( mProject ),
+
       mEngine( mProject ),
 
       mEditorUserInterface( *this )
@@ -51,9 +53,10 @@ void BubbleEditor::Run()
                 }
 
                 //std::println("Y{}, P{}", mSceneCamera.mYaw, mSceneCamera.mPitch );
-                
+
 
                 mProjectResourcesHotReloader.OnUpdate();
+                mAutoBackup.OnUpdate( deltaTime );
                 mEditorUserInterface.OnUpdate( deltaTime );
 
                 mEngine.mActiveCamera = (Camera)mSceneCamera;
