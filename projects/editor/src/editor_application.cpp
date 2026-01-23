@@ -103,16 +103,25 @@ void BubbleEditor::Run()
 
 void BubbleEditor::OpenProject( const path& projectPath )
 {
-    mUIGlobals.mNeedUpdateProjectWindow = true;
+    mUIGlobals.mNeedUpdateProjectFilesWindow = true;
     mProject.Open( projectPath );
 }
 
 
 void BubbleEditor::OnUpdate()
 {
+    OnUpdateHotKeys();
+}
+
+
+void BubbleEditor::OnUpdateHotKeys()
+{
+    const auto& input = mWindow.GetWindowInput();
+    const bool ctrlPressed = input.KeyMods().CONTROL;
+
     // Run game
     if ( mEditorMode == EditorMode::Editing and
-         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F5 ) )
+         input.IsKeyClicked( KeyboardKey::F5 ) )
     {
         try
         {
@@ -130,7 +139,7 @@ void BubbleEditor::OnUpdate()
 
     // Stop game
     if ( mEditorMode == EditorMode::Running and
-         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::F6 ) )
+         input.IsKeyClicked( KeyboardKey::F6 ) )
     {
         mEditorMode = EditorMode::Editing;
         mProject.mScene = mSceneSave;
@@ -138,25 +147,101 @@ void BubbleEditor::OnUpdate()
 
 
     // Manage selection
-    if ( mEditorMode == EditorMode::Editing and
-         mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::DEL ) )
+    if ( mEditorMode == EditorMode::Editing )
     {
-        
+        // Ctrl+S - Save project
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::S ) )
+        {
+            if ( mProject.IsValid() )
+                mProject.Save();
+        }
+
+        // Ctrl+Del - Delete selection
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::DEL ) )
+        {
+            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
+            {
+                auto nodeToRemove = mSelection.GetTreeNode();
+                mSelection.Clear();
+                ProjectTreeNode::RemoveNode( nodeToRemove, mProject.mScene );
+            }
+        }
+
+        // Ctrl+X - Cut
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::X ) )
+        {
+            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
+            {
+                auto nodeToCut = mSelection.GetTreeNode();
+                mClipboard = nodeToCut;
+                mClipboardIsCut = true;
+                mSelection.Clear();
+            }
+        }
+
+        // Ctrl+C - Copy
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::C ) )
+        {
+            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
+            {
+                // Store reference to original node for copying later
+                mClipboard = mSelection.GetTreeNode();
+                mClipboardIsCut = false;
+            }
+        }
+
+        // Ctrl+V - Paste (move if cut, copy if copied)
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::V ) )
+        {
+            if ( mClipboard )
+            {
+                Ref<ProjectTreeNode> targetParent;
+
+                // Determine target parent: selected node or root
+                if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
+                {
+                    auto selectedNode = mSelection.GetTreeNode();
+                    // If selected node is a folder/level, paste into it; otherwise paste into its parent
+                    if ( not selectedNode->IsEntity() )
+                        targetParent = selectedNode;
+                    else
+                        targetParent = selectedNode->mParent.lock();
+                }
+                else
+                {
+                    targetParent = mProject.mProjectTreeRoot;
+                }
+
+                if ( targetParent )
+                {
+                    if ( mClipboardIsCut )
+                    {
+                        // Move: remove from old parent and add to new parent
+                        auto oldParent = mClipboard->mParent.lock();
+                        if ( oldParent )
+                        {
+                            auto& oldChildren = oldParent->mChildren;
+                            auto it = std::ranges::find( oldChildren, mClipboard );
+                            if ( it != oldChildren.end() )
+                                oldChildren.erase( it );
+                        }
+
+                        mClipboard->mParent = targetParent;
+                        targetParent->mChildren.push_back( mClipboard );
+                        mClipboard = nullptr;
+                        mClipboardIsCut = false;
+                    }
+                    else
+                    {
+                        // Copy: create a new copy and add to parent
+                        auto copiedNode = ProjectTreeNode::CopyNode( mClipboard, mProject.mScene );
+                        copiedNode->mParent = targetParent;
+                        targetParent->mChildren.push_back( copiedNode );
+                    }
+                }
+            }
+        }
     }
-
-
-
-    // Save project
-    if ( mWindow.GetWindowInput().IsKeyClicked( KeyboardKey::S ) and
-         mWindow.GetWindowInput().KeyMods().CONTROL and
-         mEditorMode == EditorMode::Editing )
-    {
-        if ( mProject.IsValid() )
-            mProject.Save();
-    }
-
 }
-
-
 
 } // namespace bubble

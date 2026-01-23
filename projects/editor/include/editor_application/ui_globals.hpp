@@ -6,7 +6,7 @@ namespace bubble
 // UI global state (Common variables for all interface windows and editor)
 struct UIGlobals
 {
-    bool mNeedUpdateProjectWindow = false;
+    bool mNeedUpdateProjectFilesWindow = false;
     bool mIsViewportHovered = false;
     bool mIsViewManipulatorUsing = false;
 

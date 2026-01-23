@@ -235,7 +235,7 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
                     ImGui::OpenPopup( "Create entity popup" );
                 DrawCreateEntityPopup( node );
 
-                for ( auto& child : node->Children() )
+                for ( auto& child : node->mChildren )
                 {
                     ImGui::PushID( &child );
                     DrawSceneTreeNode( child, isSelected );

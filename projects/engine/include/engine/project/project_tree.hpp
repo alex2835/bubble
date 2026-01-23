@@ -26,15 +26,13 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
 
     ProjectTreeNode();
     Ref<ProjectTreeNode> CreateChild( ProjectTreeNodeType type, StateType state );
-    void RemoveNode( Ref<ProjectTreeNode> node );
+    static void RemoveNode( Ref<ProjectTreeNode> node, Scene& scene );
+    static Ref<ProjectTreeNode> CopyNode( const Ref<ProjectTreeNode>& node, Scene& scene );
 
     ProjectTreeNodeType Type() const { return mType; }
     bool IsEntity() const;
     Entity AsEntity() const { return std::get<Entity>( mState ); }
     opt<Entity> TryGetEntity() const;
-
-    const vector<Ref<ProjectTreeNode>>& Children() const { return mChildren; }
-    vector<Ref<ProjectTreeNode>>& Children() { return mChildren; }
 
     const StateType& State() const { return mState; }
     StateType& State() { return mState; }
@@ -44,11 +42,11 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
 private:
     static u64 mIDCounter;
     u64 mID = 0;
+public:
     ProjectTreeNodeType mType = ProjectTreeNodeType::Level;
     StateType mState = "Level"s;
     WeakRef<ProjectTreeNode> mParent;
     vector<Ref<ProjectTreeNode>> mChildren;
-public:
     bool mIsEditingInUI = false;
     friend Project;
 };

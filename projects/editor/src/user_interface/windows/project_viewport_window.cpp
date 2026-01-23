@@ -237,10 +237,10 @@ bool ProjectViewportWindow::DrawViewManipulator()
 
     float windowWidth = ImGui::GetWindowWidth();
     float windowHeight = ImGui::GetWindowHeight();
-    float viewManipulateRight = ImGui::GetWindowPos().x + windowWidth;
+    float viewManipulateLeft = ImGui::GetWindowPos().x;
     float viewManipulateTop = ImGui::GetWindowPos().y;
     auto manipulatorSize = ImVec2( 128, 128 );
-    auto manipulatorPos = ImVec2( viewManipulateRight - manipulatorSize.x, viewManipulateTop );
+    auto manipulatorPos = ImVec2( viewManipulateLeft, viewManipulateTop );
 
     // ViewManipulate modifies the lookAt matrix in place
     bool isUsing = ImGuizmo::ViewManipulate( glm::value_ptr( lookAt ), distance, manipulatorPos, manipulatorSize, 0x10101010 );

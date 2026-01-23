@@ -21,7 +21,7 @@ Ref<ProjectTreeNode> ProjectTreeNode::CreateChild( ProjectTreeNodeType type, Sta
     return child;
 }
 
-void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node )
+void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node, Scene& scene )
 {
     auto parent = node->mParent.lock();
     if ( not parent )
@@ -35,10 +35,51 @@ void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node )
     if ( iter == parent->mChildren.end() )
         throw std::runtime_error( std::format( "Node: {} failed parent check", node->mID ) );
 
+    // Collect all entities in the subtree that need to be removed from the scene
+    set<Entity> entitiesToRemove;
+    FillEntitiesInSubTree( entitiesToRemove, node );
+
+    // Remove all entities from the scene
+    for ( auto entity : entitiesToRemove )
+    {
+        scene.RemoveEntity( entity );
+    }
+
     // Recursively remove all children - optimized by clearing vector
     node->mChildren.clear();
 
     parent->mChildren.erase( iter );
+}
+
+Ref<ProjectTreeNode> ProjectTreeNode::CopyNode( const Ref<ProjectTreeNode>& node, Scene& scene )
+{
+    // Create a new node with the same type
+    auto copiedNode = CreateRef<ProjectTreeNode>();
+    copiedNode->mType = node->mType;
+    copiedNode->mIsEditingInUI = false;
+
+    // If the node contains an entity, create a deep copy of the entity with all its components
+    if ( node->IsEntity() )
+    {
+        Entity originalEntity = node->AsEntity();
+        Entity copiedEntity = scene.CopyEntity( originalEntity );
+        copiedNode->mState = copiedEntity;
+    }
+    else
+    {
+        // For non-entity nodes (Level, Folder), copy the string state
+        copiedNode->mState = node->mState;
+    }
+
+    // Recursively copy all children
+    for ( const auto& child : node->mChildren )
+    {
+        auto copiedChild = CopyNode( child, scene );
+        copiedChild->mParent = copiedNode;
+        copiedNode->mChildren.push_back( copiedChild );
+    }
+
+    return copiedNode;
 }
 
 
@@ -62,7 +103,7 @@ Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>
     if ( node->IsEntity() and entity == node->AsEntity() )
         return node;
 
-    for ( const auto& child : node->Children() )
+    for ( const auto& child : node->mChildren )
     {
         auto res = FindNodeByEntity( entity, child );
         if ( res )
@@ -76,13 +117,13 @@ void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& n
     if ( node->IsEntity() )
         entities.insert( node->AsEntity() );
 
-    for ( const auto& child : node->Children() )
+    for ( const auto& child : node->mChildren )
         FillEntitiesInSubTree( entities, child );
 }
 
 bool RemoveNode( const Ref<ProjectTreeNode>& root, const Ref<ProjectTreeNode>& node )
 {
-    auto& children = root->Children();
+    auto& children = root->mChildren;
 
     // Try to find node directly in children
     auto it = std::ranges::find( children, node );
@@ -104,7 +145,7 @@ bool RemoveNode( const Ref<ProjectTreeNode>& root, const Ref<ProjectTreeNode>& n
 
 void RemoveNodeByEntities( const Ref<ProjectTreeNode>& root, const set<Entity>& entitiesToRemove )
 {
-    auto& children = root->Children();
+    auto& children = root->mChildren;
     for ( size_t i = 0; i < children.size(); )
     {
         const auto& child = children[i];

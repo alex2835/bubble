@@ -15,15 +15,16 @@ enum class FilesystemNodeType
     Shader
 };
 
+struct FilesystemNode
+{
+    path mPath;
+    FilesystemNodeType mType = FilesystemNodeType::Unknown;
+    vector<FilesystemNode> mChildren;
+};
+
+
 class ProjectFilesWindow : public UserInterfaceWindowBase
 {
-    struct FilesystemNode
-    {
-        path mPath;
-        FilesystemNodeType mType = FilesystemNodeType::Unknown;
-        vector<FilesystemNode> mChildren;
-    };
-
 public:
     ProjectFilesWindow( BubbleEditor& editorState );
     ~ProjectFilesWindow();

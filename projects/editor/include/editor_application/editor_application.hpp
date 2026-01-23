@@ -26,6 +26,7 @@ public:
 
 private:
     void OnUpdate();
+    void OnUpdateHotKeys();
 
 public:
     Timer mTimer;
@@ -35,6 +36,8 @@ public:
     EditorMode mEditorMode;
     SceneCamera mSceneCamera;
     Selection mSelection;
+    Ref<ProjectTreeNode> mClipboard;
+    bool mClipboardIsCut = false;
     
     // Viewport
     Framebuffer mSceneViewport;

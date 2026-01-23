@@ -72,9 +72,7 @@ ProjectFilesWindow::ProjectFilesWindow( BubbleEditor& editorState )
     mFileIcon = LoadTexture2D( "./resources/images/project_tree/file.png" );
     if ( not mProject.mName.empty() )
         FillFilesystemTree();
-
 }
-
 
 ProjectFilesWindow::~ProjectFilesWindow()
 {
@@ -201,9 +199,9 @@ void ProjectFilesWindow::OnDraw( DeltaTime )
     {
         ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );
         {
-            if ( mUIGlobals.mNeedUpdateProjectWindow )
+            if ( mUIGlobals.mNeedUpdateProjectFilesWindow )
             {
-                mUIGlobals.mNeedUpdateProjectWindow = false;
+                mUIGlobals.mNeedUpdateProjectFilesWindow = false;
                 FillFilesystemTree();
             }
 
