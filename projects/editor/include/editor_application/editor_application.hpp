@@ -7,6 +7,7 @@
 #include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
 #include "selection.hpp"
 #include "ui_globals.hpp"
+#include "history.hpp"
 
 namespace bubble
 {
@@ -36,6 +37,7 @@ public:
     EditorMode mEditorMode;
     SceneCamera mSceneCamera;
     Selection mSelection;
+    History mHistory;
     Ref<ProjectTreeNode> mClipboard;
     bool mClipboardIsCut = false;
     

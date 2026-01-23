@@ -156,6 +156,18 @@ void BubbleEditor::OnUpdateHotKeys()
                 mProject.Save();
         }
 
+        // Ctrl+Z - Undo
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::Z ) )
+        {
+            mHistory.Undo();
+        }
+
+        // Ctrl+Y - Redo
+        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::Y ) )
+        {
+            mHistory.Redo();
+        }
+
         // Ctrl+Del - Delete selection
         if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::DEL ) )
         {
@@ -163,7 +175,10 @@ void BubbleEditor::OnUpdateHotKeys()
             {
                 auto nodeToRemove = mSelection.GetTreeNode();
                 mSelection.Clear();
-                ProjectTreeNode::RemoveNode( nodeToRemove, mProject.mScene );
+
+                // Execute delete command through history
+                auto command = std::make_unique<DeleteNodeCommand>( nodeToRemove, mProject.mScene );
+                mHistory.ExecuteCommand( std::move( command ) );
             }
         }
 
@@ -216,27 +231,17 @@ void BubbleEditor::OnUpdateHotKeys()
                 {
                     if ( mClipboardIsCut )
                     {
-                        // Move: remove from old parent and add to new parent
-                        auto oldParent = mClipboard->mParent.lock();
-                        if ( oldParent )
-                        {
-                            auto& oldChildren = oldParent->mChildren;
-                            auto it = std::ranges::find( oldChildren, mClipboard );
-                            if ( it != oldChildren.end() )
-                                oldChildren.erase( it );
-                        }
-
-                        mClipboard->mParent = targetParent;
-                        targetParent->mChildren.push_back( mClipboard );
+                        // Move: execute move command through history
+                        auto command = std::make_unique<MoveNodeCommand>( mClipboard, targetParent );
+                        mHistory.ExecuteCommand( std::move( command ) );
                         mClipboard = nullptr;
                         mClipboardIsCut = false;
                     }
                     else
                     {
-                        // Copy: create a new copy and add to parent
-                        auto copiedNode = ProjectTreeNode::CopyNode( mClipboard, mProject.mScene );
-                        copiedNode->mParent = targetParent;
-                        targetParent->mChildren.push_back( copiedNode );
+                        // Copy: execute copy command through history
+                        auto command = std::make_unique<CopyNodeCommand>( mClipboard, targetParent, mProject.mScene );
+                        mHistory.ExecuteCommand( std::move( command ) );
                     }
                 }
             }
