@@ -44,6 +44,11 @@ private:
     // View manipulator state
     mat4 mLastLookAtMatrix = mat4( 1.0f );
     bool mViewManipulatorWasUsing = false;
+
+    // Gizmo transform tracking for undo/redo
+    bool mGizmoWasUsing = false;
+    Transform mGizmoStartTransform;
+    map<Entity, Transform> mGizmoStartTransforms;
 };
 
 }

@@ -273,13 +273,6 @@ void ProjectTreeWindow::DrawEntities()
     if ( mEditorMode == EditorMode::Editing )
     {
         DrawSceneTreeNode( mProject.mProjectTreeRoot );
-
-        // Remove current selection 
-        if ( ( ImGui::IsWindowHovered() or mUIGlobals.mIsViewportHovered ) and
-             ImGui::IsKeyDown( ImGuiKey_Delete ) )
-        {
-            RemoveSelected();
-        }
     }
     ImGui::EndChild();
 }

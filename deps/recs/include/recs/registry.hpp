@@ -28,8 +28,9 @@ public:
 
     Entity CreateEntity();
     Entity GetEntityById( size_t id );
-    void RemoveEntity( Entity& entity );
+    void RemoveEntity( Entity entity );
     Entity CopyEntity( Entity entity );
+    Entity CopyEntityInto( Registry& targetRegistry, Entity entity );
 
     // Component types API
     template <ComponentType Component>

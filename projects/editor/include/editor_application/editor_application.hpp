@@ -4,10 +4,11 @@
 #include "engine/project/project.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "editor_user_interface/editor_user_interface.hpp"
-#include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
-#include "selection.hpp"
-#include "ui_globals.hpp"
-#include "history.hpp"
+#include "utils/resources_hot_reloader.hpp"
+#include "utils/selection.hpp"
+#include "utils/ui_globals.hpp"
+#include "utils/history.hpp"
+#include "utils/clipboard.hpp"
 
 namespace bubble
 {
@@ -36,10 +37,6 @@ public:
     /// Editor
     EditorMode mEditorMode;
     SceneCamera mSceneCamera;
-    Selection mSelection;
-    History mHistory;
-    Ref<ProjectTreeNode> mClipboard;
-    bool mClipboardIsCut = false;
     
     // Viewport
     Framebuffer mSceneViewport;
@@ -48,7 +45,12 @@ public:
 
     /// Game editing
     Project mProject;
+
+    Selection mSelection;
+    History mHistory;
+    Clipboard mClipboard;
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
+
     // Game running
     Scene mSceneSave;
     Engine mEngine;

@@ -1,6 +1,5 @@
 
 #include "editor_application/editor_application.hpp"
-#include <print>
 
 namespace bubble
 {
@@ -168,17 +167,47 @@ void BubbleEditor::OnUpdateHotKeys()
             mHistory.Redo();
         }
 
-        // Ctrl+Del - Delete selection
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::DEL ) )
+        // Del - Delete selection
+        if ( input.IsKeyClicked( KeyboardKey::DEL ) )
         {
-            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
+            if ( not mSelection.IsEmpty() )
             {
-                auto nodeToRemove = mSelection.GetTreeNode();
-                mSelection.Clear();
+                if ( mSelection.GetTreeNode() )
+                {
+                    // Single node deletion (from tree hierarchy)
+                    auto nodeToRemove = mSelection.GetTreeNode();
+                    mSelection.Clear();
 
-                // Execute delete command through history
-                auto command = std::make_unique<DeleteNodeCommand>( nodeToRemove, mProject.mScene );
-                mHistory.ExecuteCommand( std::move( command ) );
+                    auto command = std::make_unique<DeleteNodeCommand>(
+                        nodeToRemove,
+                        mProject.mScene
+                    );
+                    mHistory.ExecuteCommand( std::move( command ) );
+                }
+                else
+                {
+                    // Multiple entities selected (viewport selection)
+                    // Find all nodes corresponding to selected entities
+                    vector<Ref<ProjectTreeNode>> nodesToDelete;
+                    for ( auto entity : mSelection.GetEntities() )
+                    {
+                        auto node = FindNodeByEntity( entity, mProject.mProjectTreeRoot );
+                        if ( node )
+                            nodesToDelete.push_back( node );
+                    }
+
+                    if ( not nodesToDelete.empty() )
+                    {
+                        mSelection.Clear();
+
+                        auto command = std::make_unique<DeleteMultipleNodesCommand>(
+                            nodesToDelete,
+                            mProject.mScene,
+                            mProject.mProjectTreeRoot
+                        );
+                        mHistory.ExecuteCommand( std::move( command ) );
+                    }
+                }
             }
         }
 
@@ -187,9 +216,7 @@ void BubbleEditor::OnUpdateHotKeys()
         {
             if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
             {
-                auto nodeToCut = mSelection.GetTreeNode();
-                mClipboard = nodeToCut;
-                mClipboardIsCut = true;
+                mClipboard.Cut( mSelection.GetTreeNode() );
                 mSelection.Clear();
             }
         }
@@ -199,16 +226,14 @@ void BubbleEditor::OnUpdateHotKeys()
         {
             if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
             {
-                // Store reference to original node for copying later
-                mClipboard = mSelection.GetTreeNode();
-                mClipboardIsCut = false;
+                mClipboard.Copy( mSelection.GetTreeNode() );
             }
         }
 
         // Ctrl+V - Paste (move if cut, copy if copied)
         if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::V ) )
         {
-            if ( mClipboard )
+            if ( not mClipboard.IsEmpty() )
             {
                 Ref<ProjectTreeNode> targetParent;
 
@@ -229,18 +254,17 @@ void BubbleEditor::OnUpdateHotKeys()
 
                 if ( targetParent )
                 {
-                    if ( mClipboardIsCut )
+                    if ( mClipboard.IsCut() )
                     {
                         // Move: execute move command through history
-                        auto command = std::make_unique<MoveNodeCommand>( mClipboard, targetParent );
+                        auto command = std::make_unique<MoveNodeCommand>( mClipboard.GetNode(), targetParent );
                         mHistory.ExecuteCommand( std::move( command ) );
-                        mClipboard = nullptr;
-                        mClipboardIsCut = false;
+                        mClipboard.Clear();
                     }
                     else
                     {
                         // Copy: execute copy command through history
-                        auto command = std::make_unique<CopyNodeCommand>( mClipboard, targetParent, mProject.mScene );
+                        auto command = std::make_unique<CopyNodeCommand>( mClipboard.GetNode(), targetParent, mProject.mScene );
                         mHistory.ExecuteCommand( std::move( command ) );
                     }
                 }

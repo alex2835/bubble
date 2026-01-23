@@ -10,8 +10,9 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
       mSceneViewport( editor.mSceneViewport ),
       mEntityIdViewport( editor.mEntityIdViewport ),
       mSceneCamera( editor.mSceneCamera ),
-      mSelection( editor.mSelection ),
       mProject( editor.mProject ),
+      mSelection( editor.mSelection ),
+      mHistory( editor.mHistory ),
       mUIGlobals( editor.mUIGlobals )
 {}
 

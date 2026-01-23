@@ -141,6 +141,15 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
         return;
 
     auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
+
+    // Check if gizmo just started being used
+    bool isUsing = ImGuizmo::IsUsing();
+    if ( isUsing and not mGizmoWasUsing )
+    {
+        // Store initial transform for undo/redo
+        mGizmoStartTransform = entityTransform;
+    }
+
     auto rotaion = glm::degrees( entityTransform.mRotation );
     mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
@@ -165,11 +174,42 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
                                            glm::value_ptr( entityTransform.mScale ) );
 
     entityTransform.mRotation = glm::radians( rotaion );
+
+    // Check if gizmo just stopped being used
+    if ( not isUsing and mGizmoWasUsing )
+    {
+        // Create undo command for the transform change
+        Transform endTransform = entityTransform;
+        auto command = std::make_unique<TransformChangeCommand>(
+            entity,
+            mProject.mScene,
+            mGizmoStartTransform,
+            endTransform
+        );
+        mHistory.ExecuteCommand( std::move( command ) );
+    }
+
+    mGizmoWasUsing = isUsing;
 }
 
 
 void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, Transform& transform )
 {
+    // Check if gizmo just started being used
+    bool isUsing = ImGuizmo::IsUsing();
+    if ( isUsing and not mGizmoWasUsing )
+    {
+        // Store initial transforms for all entities
+        mGizmoStartTransforms.clear();
+        for ( auto entity : entities )
+        {
+            if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+            {
+                mGizmoStartTransforms[entity] = mProject.mScene.GetComponent<TransformComponent>( entity );
+            }
+        }
+    }
+
     mat4 transformNew;
     ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
                                              glm::value_ptr( glm::degrees( transform.mRotation ) ),
@@ -183,7 +223,7 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
                           mCurrentGizmoOperation,
                           mCurrentGizmoMode,
                           glm::value_ptr( transformNew ) );
-    
+
     vec3 posNew, rotNew, scaleNew;
     ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
                                            glm::value_ptr( posNew ),
@@ -203,6 +243,31 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
     mSelection.GetGroupTransform().mPosition = posNew;
     mSelection.GetGroupTransform().mRotation = glm::radians( rotNew );
     mSelection.GetGroupTransform().mScale = scaleNew;
+
+    // Check if gizmo just stopped being used
+    if ( not isUsing and mGizmoWasUsing )
+    {
+        // Collect end transforms
+        map<Entity, Transform> endTransforms;
+        for ( auto entity : entities )
+        {
+            if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+            {
+                endTransforms[entity] = mProject.mScene.GetComponent<TransformComponent>( entity );
+            }
+        }
+
+        // Create undo command for multi-entity transform change
+        auto command = std::make_unique<MultiTransformChangeCommand>(
+            entities,
+            mProject.mScene,
+            mGizmoStartTransforms,
+            endTransforms
+        );
+        mHistory.ExecuteCommand( std::move( command ) );
+    }
+
+    mGizmoWasUsing = isUsing;
 }
 
 

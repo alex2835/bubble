@@ -1,7 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/utils/chrono.hpp"
 #include "engine/project/project.hpp"
-#include "editor_resources_hot_reloader/resources_hot_reloader.hpp"
+#include "utils/resources_hot_reloader.hpp"
 
 namespace bubble
 {

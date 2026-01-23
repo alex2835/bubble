@@ -9,6 +9,7 @@ namespace bubble
 class BubbleEditor;
 class Window;
 class Selection;
+class History;
 struct UIGlobals;
 enum class EditorMode;
 
@@ -27,10 +28,10 @@ protected:
     Framebuffer& mSceneViewport;
     Framebuffer& mEntityIdViewport;
     SceneCamera& mSceneCamera;
-
-    Selection& mSelection;
     
     Project& mProject;
+    Selection& mSelection;
+    History& mHistory;
 
     // UI global state
     UIGlobals& mUIGlobals;
