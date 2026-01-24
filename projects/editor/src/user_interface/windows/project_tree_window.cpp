@@ -136,8 +136,13 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
 
         if ( ImGui::MenuItem( "Create folder" ) )
         {
-            auto child = node->CreateChild( ProjectTreeNodeType::Folder, "folder"s );
-            SetSelectionByNode( child );
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::Folder,
+                "folder"s,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Model Object" ) )
         {
@@ -146,8 +151,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::ModelObject, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::ModelObject,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Physics Object" ) )
         {
@@ -157,8 +168,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
             mProject.mScene.AddComponent<PhysicsComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::PhysicsObject, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::PhysicsObject,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Game Object" ) )
         {
@@ -170,8 +187,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<PhysicsComponent>( entity );
             mProject.mScene.AddComponent<StateComponent>( entity );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::GameObject, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::GameObject,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Script" ) )
         {
@@ -179,8 +202,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TagComponent>( entity, "Script" );
             mProject.mScene.AddComponent<StateComponent>( entity );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::Script, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::Script,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Light" ) )
         {
@@ -188,8 +217,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TagComponent>( entity, "Light" );
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<LightComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::Light, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::Light,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         if ( ImGui::MenuItem( "Create Camera" ) )
         {
@@ -197,8 +232,14 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TagComponent>( entity, "Camera" );
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<CameraComponent>( entity );
-            auto child = node->CreateChild( ProjectTreeNodeType::Camera, entity );
-            SetSelectionByNode( child );
+
+            auto command = std::make_unique<CreateNodeCommand>(
+                node,
+                ProjectTreeNodeType::Camera,
+                entity,
+                mProject.mScene
+            );
+            mHistory.ExecuteCommand( std::move( command ) );
         }
         ImGui::EndPopup();
     }

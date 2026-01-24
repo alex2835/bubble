@@ -27,10 +27,12 @@ public:
     Registry& operator=( Registry&& ) = default;
 
     Entity CreateEntity();
+    Entity CreateEntityWithId( size_t id );
     Entity GetEntityById( size_t id );
     void RemoveEntity( Entity entity );
     Entity CopyEntity( Entity entity );
     Entity CopyEntityInto( Registry& targetRegistry, Entity entity );
+    Entity CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, size_t targetId );
 
     // Component types API
     template <ComponentType Component>

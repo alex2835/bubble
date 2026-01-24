@@ -13,6 +13,18 @@ Entity Registry::CreateEntity()
     return entity;
 }
 
+Entity Registry::CreateEntityWithId( size_t id )
+{
+    Entity entity( id );
+    mEntitiesComponentTypeIds[entity];
+
+    // Update counter if necessary to avoid ID collisions
+    if ( id >= mEntityCounter )
+        mEntityCounter = id + 1;
+
+    return entity;
+}
+
 Entity Registry::GetEntityById( size_t id )
 {
     auto iter = mEntitiesComponentTypeIds.find( Entity( id ) );
@@ -51,6 +63,31 @@ Entity Registry::CopyEntityInto( Registry& targetRegistry, Entity entity )
 {
     // Create entity in the target registry
     auto newEntity = targetRegistry.CreateEntity();
+    auto& newEntityComponentIds = targetRegistry.mEntitiesComponentTypeIds[newEntity];
+
+    // Copy all components from this registry to target registry
+    for ( auto componentId : GetEntityComponentsIds( entity ) )
+    {
+        newEntityComponentIds.insert( componentId );
+
+        // Get source pool from this registry
+        auto& sourcePool = GetPool( componentId );
+
+        // Get or create target pool in target registry
+        auto& targetPool = targetRegistry.GetPool( componentId );
+
+        // Allocate space in target pool and copy data
+        void* newCompMem = targetPool.PushEmpty( newEntity );
+        const void* compMem = sourcePool.GetRaw( entity );
+        targetPool.mDoCopy( compMem, newCompMem );
+    }
+    return newEntity;
+}
+
+Entity Registry::CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, size_t targetId )
+{
+    // Create entity in the target registry with specific ID
+    auto newEntity = targetRegistry.CreateEntityWithId( targetId );
     auto& newEntityComponentIds = targetRegistry.mEntitiesComponentTypeIds[newEntity];
 
     // Copy all components from this registry to target registry

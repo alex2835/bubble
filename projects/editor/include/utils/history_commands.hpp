@@ -44,10 +44,10 @@ public:
         set<Entity> entities;
         FillEntitiesInSubTree( entities, mNode );
 
-        // Copy entities from main scene to our backup scene
+        // Copy entities from main scene to our backup scene, preserving IDs
         for ( auto entity : entities )
         {
-            Entity backupEntity = mScene.CopyEntityInto( mBackupScene, entity );
+            Entity backupEntity = mScene.CopyEntityIntoWithId( mBackupScene, entity, (size_t)entity );
             mEntityMapping[entity] = backupEntity;
         }
 
@@ -95,10 +95,10 @@ private:
             Entity originalEntity = node->AsEntity();
             if ( mEntityMapping.contains( originalEntity ) )
             {
-                // Copy entity back from backup scene to main scene
+                // Copy entity back from backup scene to main scene with original ID
                 Entity backupEntity = mEntityMapping[originalEntity];
-                Entity newEntity = mBackupScene.CopyEntityInto( mScene, backupEntity );
-                node->mState = newEntity;
+                Entity restoredEntity = mBackupScene.CopyEntityIntoWithId( mScene, backupEntity, (size_t)originalEntity );
+                node->mState = restoredEntity;
 
                 // Update mapping for potential future redo
                 mEntityMapping[originalEntity] = backupEntity;
@@ -161,10 +161,10 @@ public:
             allEntities.insert( nodeEntities.begin(), nodeEntities.end() );
         }
 
-        // Copy all entities to backup scene
+        // Copy all entities to backup scene, preserving IDs
         for ( auto entity : allEntities )
         {
-            Entity backupEntity = mScene.CopyEntityInto( mBackupScene, entity );
+            Entity backupEntity = mScene.CopyEntityIntoWithId( mBackupScene, entity, (size_t)entity );
             mEntityMapping[entity] = backupEntity;
         }
 
@@ -217,8 +217,8 @@ private:
             if ( mEntityMapping.contains( originalEntity ) )
             {
                 Entity backupEntity = mEntityMapping[originalEntity];
-                Entity newEntity = mBackupScene.CopyEntityInto( mScene, backupEntity );
-                node->mState = newEntity;
+                Entity restoredEntity = mBackupScene.CopyEntityIntoWithId( mScene, backupEntity, (size_t)originalEntity );
+                node->mState = restoredEntity;
                 mEntityMapping[originalEntity] = backupEntity;
             }
         }
@@ -291,6 +291,93 @@ private:
     Ref<ProjectTreeNode> mTargetParent;
     Ref<ProjectTreeNode> mCopiedNode;
     Scene& mScene;
+};
+
+// Command: Create node (for new entity/folder creation)
+class CreateNodeCommand : public ICommand
+{
+public:
+    CreateNodeCommand( Ref<ProjectTreeNode> parent,
+                      ProjectTreeNodeType type,
+                      ProjectTreeNode::StateType state,
+                      Scene& scene )
+        : mParent( parent )
+        , mType( type )
+        , mState( state )
+        , mScene( scene )
+    {
+    }
+
+    void Execute() override
+    {
+        if ( not mParent )
+            return;
+
+        // If this is a redo and we have a backup entity, restore it with original ID
+        if ( mCreatedNode and mCreatedNode->IsEntity() and mBackupEntity != INVALID_ENTITY )
+        {
+            // Restore entity from backup scene with original ID
+            Entity restoredEntity = mBackupScene.CopyEntityIntoWithId( mScene, mBackupEntity, (size_t)mBackupEntity );
+            mCreatedNode->mState = restoredEntity;
+        }
+
+        // Create the new node if first execution
+        if ( not mCreatedNode )
+        {
+            mCreatedNode = CreateRef<ProjectTreeNode>();
+            mCreatedNode->mType = mType;
+            mCreatedNode->mState = mState;
+        }
+
+        // Re-insert node into parent
+        mCreatedNode->mParent = mParent;
+        mParent->mChildren.push_back( mCreatedNode );
+    }
+
+    void Undo() override
+    {
+        if ( not mCreatedNode or not mParent )
+            return;
+
+        // Remove the created node from tree
+        auto& children = mParent->mChildren;
+        auto it = std::ranges::find( children, mCreatedNode );
+        if ( it != children.end() )
+            children.erase( it );
+
+        // If node has an entity, move it to backup scene
+        if ( mCreatedNode->IsEntity() )
+        {
+            Entity entity = mCreatedNode->AsEntity();
+
+            // Copy entity to backup scene with same ID for future redo
+            mBackupEntity = mScene.CopyEntityIntoWithId( mBackupScene, entity, (size_t)entity );
+
+            // Remove from main scene
+            mScene.RemoveEntity( entity );
+        }
+    }
+
+    ~CreateNodeCommand()
+    {
+        // Cleanup backup entity when command is destroyed
+        if ( mBackupEntity != INVALID_ENTITY )
+        {
+            auto entityCopy = mBackupEntity;
+            mBackupScene.RemoveEntity( entityCopy );
+        }
+    }
+
+    Ref<ProjectTreeNode> GetCreatedNode() const { return mCreatedNode; }
+
+private:
+    Ref<ProjectTreeNode> mParent;
+    Ref<ProjectTreeNode> mCreatedNode;
+    ProjectTreeNodeType mType;
+    ProjectTreeNode::StateType mState;
+    Scene& mScene;
+    Scene mBackupScene; // Backup scene for undo/redo
+    Entity mBackupEntity = INVALID_ENTITY; // Backup entity in backup scene
 };
 
 // Command: Move node
