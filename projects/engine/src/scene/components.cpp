@@ -137,25 +137,25 @@ void CameraComponent::OnComponentDraw( const Project& project, const Entity& ent
     ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
 
     // Position
-    ImGui::DragFloat3( "Position", &cameraComponent.mPosition.x, 0.1f );
+    //ImGui::DragFloat3( "Position", &cameraComponent.mPosition.x, 0.1f );
 
     // Direction vectors (read-only)
-    ImGui::Text( "Forward: (%.2f, %.2f, %.2f)",
-                 cameraComponent.mForward.x,
-                 cameraComponent.mForward.y,
-                 cameraComponent.mForward.z );
-    ImGui::Text( "Up: (%.2f, %.2f, %.2f)",
-                 cameraComponent.mUp.x,
-                 cameraComponent.mUp.y,
-                 cameraComponent.mUp.z );
-    ImGui::Text( "Right: (%.2f, %.2f, %.2f)",
-                 cameraComponent.mRight.x,
-                 cameraComponent.mRight.y,
-                 cameraComponent.mRight.z );
+    //ImGui::Text( "Forward: (%.2f, %.2f, %.2f)",
+    //             cameraComponent.mForward.x,
+    //             cameraComponent.mForward.y,
+    //             cameraComponent.mForward.z );
+    //ImGui::Text( "Up: (%.2f, %.2f, %.2f)",
+    //             cameraComponent.mUp.x,
+    //             cameraComponent.mUp.y,
+    //             cameraComponent.mUp.z );
+    //ImGui::Text( "Right: (%.2f, %.2f, %.2f)",
+    //             cameraComponent.mRight.x,
+    //             cameraComponent.mRight.y,
+    //             cameraComponent.mRight.z );
 
     // Euler angles
-    ImGui::DragFloat( "Yaw", &cameraComponent.mYaw, 0.01f );
-    ImGui::DragFloat( "Pitch", &cameraComponent.mPitch, 0.01f );
+    //ImGui::DragFloat( "Yaw", &cameraComponent.mYaw, 0.01f );
+    //ImGui::DragFloat( "Pitch", &cameraComponent.mPitch, 0.01f );
 
     // Clipping planes
     ImGui::DragFloat( "Near", &cameraComponent.mNear, 0.01f, 0.01f, cameraComponent.mFar );
@@ -165,8 +165,8 @@ void CameraComponent::OnComponentDraw( const Project& project, const Entity& ent
     ImGui::SliderFloat( "FOV", &cameraComponent.mFov, 0.1f, 3.14f );
 
     // Speed settings
-    ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
-    ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
+    //ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
+    //ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
 
     // Update camera vectors when angles change
     cameraComponent.EulerAnglesToVectors();

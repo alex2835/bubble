@@ -49,16 +49,13 @@ void BubbleEditor::Run()
                 if ( not mUIGlobals.mIsViewManipulatorUsing )
                 {
                     mSceneCamera.OnUpdate( deltaTime );
-                    //std::println("kekeke");
                 }
-
-                //std::println("Y{}, P{}", mSceneCamera.mYaw, mSceneCamera.mPitch );
-
 
                 mProjectResourcesHotReloader.OnUpdate();
                 mAutoBackup.OnUpdate( deltaTime );
                 mEditorUserInterface.OnUpdate( deltaTime );
 
+                mEngine.PropagateTransforms();
                 mEngine.mActiveCamera = (Camera)mSceneCamera;
                 mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mScene );

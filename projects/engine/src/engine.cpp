@@ -62,6 +62,9 @@ void Engine::OnUpdate()
     // Update physics world
     mProject.mPhysicsEngine.Update( dt );
 
+    // Propagate transforms
+    PropagateTransforms();
+
     // Update transforms from physics world
     mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
     []( Entity entity,
@@ -89,6 +92,41 @@ void Engine::OnUpdate()
     });
 }
 
+void Engine::PropagateTransforms()
+{
+    // Update camera position and orientation from TransformComponent
+    mProject.mScene.ForEach<CameraComponent, TransformComponent>(
+    []( Entity entity,
+        CameraComponent& camera,
+        const TransformComponent& transform )
+    {
+        // Update position
+        camera.mPosition = transform.mPosition;
+
+        // Convert quaternion rotation to yaw/pitch
+        vec3 eulerAngles = transform.mRotation;
+        camera.mPitch = eulerAngles.x;
+        camera.mYaw = eulerAngles.y;
+
+        // Update camera vectors from yaw/pitch
+        camera.EulerAnglesToVectors();
+    } );
+
+    // Update light position and direction from TransformComponent
+    mProject.mScene.ForEach<LightComponent, TransformComponent>(
+    []( Entity entity,
+        LightComponent& light,
+        const TransformComponent& transform )
+    {
+        // Update position
+        light.mPosition = transform.mPosition;
+        // Update direction from rotation (forward is down in local space)
+        light.mDirection = transform.RotationMat() * vec4( 0, -1, 0, 0 );
+        // Update attenuation constants
+        light.Update();
+    } );
+}
+
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
     DrawScene( framebuffer, mProject.mScene );
@@ -102,11 +140,8 @@ void Engine::DrawScene( Framebuffer& framebuffer,
     scene.ForEach<TransformComponent, LightComponent>(
         [&]( const Entity _,
              const TransformComponent& transformComponent,
-             LightComponent& lightComponent )
+             const LightComponent& lightComponent )
     {
-        lightComponent.mDirection = transformComponent.RotationMat() * vec4( 0, -1, 0, 0 );
-        lightComponent.mPosition = transformComponent.mPosition;
-        lightComponent.Update();
         lights.push_back( (Light)lightComponent );
     } );
 

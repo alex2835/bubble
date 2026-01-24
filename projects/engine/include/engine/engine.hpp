@@ -13,6 +13,7 @@ struct Engine
     void OnStart();
     void OnEnd();
     void OnUpdate();
+    void PropagateTransforms();
     void DrawScene( Framebuffer& framebuffer );
 
     void DrawScene( Framebuffer& framebuffer, Scene& scene );

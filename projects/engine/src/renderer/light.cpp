@@ -66,23 +66,11 @@ std::pair<f32, f32> GetAttenuationConstans( f32 distanceMeters )
     return { linear, quadratic };
 }
 
-
-
 void Light::Update()
 {
     auto [linear, quadratic] = GetAttenuationConstans( mDistance );
     mLinear = linear;
     mQuadratic = quadratic;
-
-    // Brightens compensation
-    //if ( Type == LightType::PointLight || Type == LightType::SpotLight )
-    //{
-    //    //__Brightness = Brightness * ( 7.0f - Distance * 5.0f );
-    //}
-    //else
-    //{
-    //    //__Brightness = Brightness;
-    //}
 }
 
 Light Light::CreateDirLight()
