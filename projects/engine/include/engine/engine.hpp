@@ -1,6 +1,9 @@
 #pragma once
-#include "engine/renderer/camera.hpp"
+#include "engine/window/window.hpp"
+#include "engine/loader/loader.hpp"
 #include "engine/renderer/renderer.hpp"
+#include "engine/scripting/scripting_engine.hpp"
+#include "engine/physics/physics_engine.hpp"
 
 namespace bubble
 {
@@ -9,11 +12,13 @@ class Scene;
 
 struct Engine
 {
-    Engine( Project& project );
+    Engine( Window& window );
+    ~Engine();
+
     void OnStart();
     void OnEnd();
     void OnUpdate();
-    void PropagateTransforms();
+    void PropagateTransforms( Scene& scene );
     void DrawScene( Framebuffer& framebuffer );
 
     void DrawScene( Framebuffer& framebuffer, Scene& scene );
@@ -38,11 +43,16 @@ struct Engine
     void DrawBillboardEntityId( const Entity entity, const vec3& position, const vec2& size = vec2( 1.0f ) );
 
 public:
+    Window& mWindow;
     Timer mTimer;
-    Camera mActiveCamera;
     Renderer mRenderer;
-    // Attached project to run
-    Project& mProject;
+    ScriptingEngine mScriptingEngine;
+    PhysicsEngine mPhysicsEngine;
+    Loader mLoader;
+    Scene mScene;
+
+    // temp
+    Camera mActiveCamera;
 
     // Shaders for entity ID rendering
     Ref<Shader> mEntityIdShader;

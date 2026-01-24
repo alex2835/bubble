@@ -8,6 +8,7 @@ constexpr uvec2 VIEWPORT_SIZE{ 800, 640 };
 
 BubbleEditor::BubbleEditor()
     : mWindow( Window( "Bubble", WINDOW_SIZE ) ),
+      mEngine( mWindow ),
       mEditorMode( EditorMode::Editing ),
       mSceneCamera( SceneCamera( mWindow.GetWindowInput(), vec3( 0, 0, 100 ) ) ),
 
@@ -16,13 +17,9 @@ BubbleEditor::BubbleEditor()
 
       mEntityIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
-
-      mProject( mWindow.GetWindowInput() ),
+      //mProject,
       mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
       mProjectResourcesHotReloader( mProject ),
-
-      mEngine( mProject ),
-
       mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
@@ -47,19 +44,19 @@ void BubbleEditor::Run()
             case EditorMode::Editing:
             {
                 if ( not mUIGlobals.mIsViewManipulatorUsing )
-                {
                     mSceneCamera.OnUpdate( deltaTime );
-                }
-
-                mProjectResourcesHotReloader.OnUpdate();
-                mAutoBackup.OnUpdate( deltaTime );
-                mEditorUserInterface.OnUpdate( deltaTime );
-
-                mEngine.PropagateTransforms();
                 mEngine.mActiveCamera = (Camera)mSceneCamera;
+
+                // Draw project scene
+                mEngine.PropagateTransforms( mProject.mScene );
                 mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mScene );
                 mEngine.DrawEntityIds( mEntityIdViewport, mProject.mScene );
+
+                // Update editor helpers
+                mProjectResourcesHotReloader.OnUpdate();
+                mAutoBackup.OnUpdate( deltaTime );
+                mEditorUserInterface.OnUpdate( deltaTime );
                 break;
             }
             case EditorMode::Running:
@@ -77,19 +74,17 @@ void BubbleEditor::Run()
                 {
                     LogError( e.what() );
                     mEditorMode = EditorMode::Editing;
-                    mProject.mScene = mSceneSave;
                 };
                 break;
             }
         }
-
+        // Bounding boxes and physics shape
         if ( mUIGlobals.mDrawBoundingBoxes )
             mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
         if ( mUIGlobals.mDrawPhysicsShapes )
             mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
 
         mWindow.ImGuiBegin();
-        //ImGui::ShowDemoWindow();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();
         mWindow.OnUpdate();
@@ -125,14 +120,14 @@ void BubbleEditor::OnUpdateHotKeys()
         try
         {
             mEditorMode = EditorMode::Running;
-            mSceneSave = mProject.mScene;
+            mEngine.mScene = mProject.mScene;
+            mEngine.mLoader = mProject.mLoader;
             mEngine.OnStart();
         }
         catch ( const std::exception& e )
         {
-            LogError( e.what() );
             mEditorMode = EditorMode::Editing;
-            mProject.mScene = mSceneSave;
+            LogError( e.what() );
         };
     }
 
@@ -141,7 +136,6 @@ void BubbleEditor::OnUpdateHotKeys()
          input.IsKeyClicked( KeyboardKey::F6 ) )
     {
         mEditorMode = EditorMode::Editing;
-        mProject.mScene = mSceneSave;
     }
 
 

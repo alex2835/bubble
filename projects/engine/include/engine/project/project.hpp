@@ -1,9 +1,6 @@
 #pragma once
 #include "engine/utils/filesystem.hpp"
 #include "engine/scene/scene.hpp"
-#include "engine/renderer/camera.hpp"
-#include "engine/scripting/scripting_engine.hpp"
-#include "engine/physics/physics_engine.hpp"
 #include "engine/loader/loader.hpp"
 #include "project_tree.hpp"
 
@@ -21,7 +18,7 @@ class Project
     void LoadProjectTree( const json& j );
 
 public:
-    explicit Project( WindowInput& input );
+    explicit Project();
     ~Project();
     void Create( const path& rootDir, const string& projectName );
     void Open( const path& rootFile );
@@ -30,12 +27,9 @@ public:
 
     string mName;
     path mRootFile;
-    ScriptingEngine mScriptingEngine;
-    PhysicsEngine mPhysicsEngine;
-    Loader mLoader;
     Scene mScene;
-    // Just tree view for a scene
-    Ref<ProjectTreeNode> mProjectTreeRoot;
+    Loader mLoader;
+    Ref<ProjectTreeNode> mProjectTreeRoot; // Tree view for a scene
 };
 
 }

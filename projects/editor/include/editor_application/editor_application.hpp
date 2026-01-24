@@ -34,6 +34,7 @@ private:
 public:
     Timer mTimer;
     Window mWindow;
+    Engine mEngine;
 
     /// Editor
     EditorMode mEditorMode;
@@ -49,14 +50,9 @@ public:
     AutoBackup mAutoBackup;
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
 
-    // Game running
-    Scene mSceneSave;
-    Engine mEngine;
-
-    EditorUserInterface mEditorUserInterface;
-
-    // Editor state
+    // Editor UI windows
     UIGlobals mUIGlobals;
+    EditorUserInterface mEditorUserInterface;
 };
 
 }

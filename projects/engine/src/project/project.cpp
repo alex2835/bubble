@@ -17,17 +17,12 @@ void Project::LoadDefaultResources()
     mLoader.LoadShader( ONLY_DIFFUSE_SHADER );
 }
 
-Project::Project( WindowInput& input )
+Project::Project()
     : mProjectTreeRoot( CreateRef<ProjectTreeNode>() )
-{
-    mScriptingEngine.BindInput( input );
-    mScriptingEngine.BindLoader( mLoader );
-    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
-}
+{}
 
 Project::~Project()
 {
-    mPhysicsEngine.ClearWorld();
 }
 
 void Project::Create( const path& rootDir, const string& projectName )

@@ -48,9 +48,6 @@ struct ModelData
     path mPath;
 };
 
-
-Ref<Script> LoadScript( const path& path );
-
 std::optional<TextureData> OpenTexture( const path& path );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
@@ -60,6 +57,9 @@ Ref<Model> LoadModel( const ModelData& modelData );
 
 Ref<Shader> LoadShader( const path& path );
 Ref<Skybox> LoadSkybox( const path& path );
+
+Ref<Script> LoadScript( const path& path );
+
 
 
 struct Loader

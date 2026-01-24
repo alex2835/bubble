@@ -7,9 +7,8 @@
 
 namespace bubble
 {
-Engine::Engine( Project& project )
-    : mProject( project ),
-
+Engine::Engine( Window& window )
+    : mWindow( window ),
       mEntityIdShader( LoadShader( ENTITY_PICKING_SHADER ) ),
       mEntityIdBillboardShader( LoadShader( ENTITY_PICKING_BILLBOARD_SHADER ) ),
 
@@ -28,29 +27,39 @@ Engine::Engine( Project& project )
       // Error values
       mErrorModel( LoadModel( ERROR_MODEL ) ),
       mErrorTexture( LoadTexture2D( ERROR_TEXTURE ) )
-{}
+{
+    // Bind members to scripting engine
+    mScriptingEngine.BindInput( window.GetWindowInput() );
+    mScriptingEngine.BindLoader( mLoader );
+    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
+}
+
+Engine::~Engine()
+{
+    mPhysicsEngine.ClearWorld();
+}
 
 void Engine::OnStart()
 {
     /// Physics
-    mProject.mPhysicsEngine.ClearWorld();
+    mPhysicsEngine.ClearWorld();
 
     // Set physics init transform
-    mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
+    mScene.ForEach<TransformComponent, PhysicsComponent>(
     [&]( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
     {
         physics.mPhysicsObject.SetTransform( transform.mPosition, transform.mRotation );
         physics.mPhysicsObject.ClearForces();
-        mProject.mPhysicsEngine.Add( physics.mPhysicsObject, entity );
+        mPhysicsEngine.Add( physics.mPhysicsObject, entity );
     } );
 
     /// Scripts
     // Extract scripts functions
-    mProject.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
     {
         if ( not scriptComponent.mScript )
             throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
-        mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
+        mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
     } );
 }
 
@@ -60,13 +69,13 @@ void Engine::OnUpdate()
     auto dt = mTimer.GetDeltaTime();
 
     // Update physics world
-    mProject.mPhysicsEngine.Update( dt );
+    mPhysicsEngine.Update( dt );
 
     // Propagate transforms
-    PropagateTransforms();
+    PropagateTransforms( mScene );
 
     // Update transforms from physics world
-    mProject.mScene.ForEach<TransformComponent, PhysicsComponent>(
+    mScene.ForEach<TransformComponent, PhysicsComponent>(
     []( Entity entity,
         TransformComponent& transform,
         const PhysicsComponent& physics )
@@ -75,7 +84,7 @@ void Engine::OnUpdate()
     } );
 
     // Call scripts
-    mProject.mScene.ForEach<StateComponent, ScriptComponent>( 
+    mScene.ForEach<StateComponent, ScriptComponent>( 
     []( Entity entity,
         const StateComponent& stateComponent,
         const ScriptComponent& scriptComponent )
@@ -92,10 +101,10 @@ void Engine::OnUpdate()
     });
 }
 
-void Engine::PropagateTransforms()
+void Engine::PropagateTransforms( Scene& scene )
 {
     // Update camera position and orientation from TransformComponent
-    mProject.mScene.ForEach<CameraComponent, TransformComponent>(
+    scene.ForEach<CameraComponent, TransformComponent>(
     []( Entity entity,
         CameraComponent& camera,
         const TransformComponent& transform )
@@ -113,7 +122,7 @@ void Engine::PropagateTransforms()
     } );
 
     // Update light position and direction from TransformComponent
-    mProject.mScene.ForEach<LightComponent, TransformComponent>(
+    scene.ForEach<LightComponent, TransformComponent>(
     []( Entity entity,
         LightComponent& light,
         const TransformComponent& transform )
@@ -129,11 +138,10 @@ void Engine::PropagateTransforms()
 
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
-    DrawScene( framebuffer, mProject.mScene );
+    DrawScene( framebuffer, mScene );
 }
 
-void Engine::DrawScene( Framebuffer& framebuffer,
-                        Scene& scene )
+void Engine::DrawScene( Framebuffer& framebuffer, Scene& scene )
 {
     // Set up lights
     std::vector<Light> lights;
