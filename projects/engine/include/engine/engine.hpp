@@ -37,7 +37,6 @@ struct Engine
                         const vec4& tintColor = vec4( 1.0f ) );
     void DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene );
 
-
     // Draw entity id to framebuffer for object picking
     void DrawEntityIds( Framebuffer& framebuffer, Scene& scene );
     void DrawBillboardEntityId( const Entity entity, const vec3& position, const vec2& size = vec2( 1.0f ) );
@@ -61,6 +60,7 @@ public:
     // Visualization boxes and physics shapes
     Ref<Shader> mWhiteShader;
 
+    // Visualization Bounding boxes and Physics shapes
     struct MeshHelpers
     {
         VertexBufferData mVertices;
@@ -70,7 +70,7 @@ public:
     MeshHelpers mBoundingBoxes;
     MeshHelpers mPhysicsObjects;
 
-    // Visualization Camera, Lights billboards textures
+    // Visualization Camera, Lights billboards
     Ref<Mesh> mBillboardQuad;
     Ref<Shader> mBillboardShader;
     Ref<Texture2D> mSceneCameraTexture;

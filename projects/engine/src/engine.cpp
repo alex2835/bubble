@@ -13,7 +13,7 @@ Engine::Engine( Window& window )
       mEntityIdBillboardShader( LoadShader( ENTITY_PICKING_BILLBOARD_SHADER ) ),
 
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
-      mBoundingBoxes{ .mMesh = Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
 
       // billboards
@@ -240,10 +240,10 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
 
 
 void Engine::DrawBillboard( const Ref<Texture2D>& texture,
-                              const Ref<Shader>& shader,
-                              const vec3& position,
-                              const vec2& size,
-                              const vec4& tintColor )
+                            const Ref<Shader>& shader,
+                            const vec3& position,
+                            const vec2& size,
+                            const vec4& tintColor )
 {
     if ( not texture || not shader )
     {

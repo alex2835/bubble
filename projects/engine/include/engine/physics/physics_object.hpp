@@ -34,8 +34,8 @@ public:
     btCollisionShape* getShape();
     const btCollisionShape* getShape() const;
 
-    static PhysicsObject CreateSphere( f32 radius );
-    static PhysicsObject CreateBox( vec3 halfExtends );
+    static PhysicsObject CreateSphere( f32 mass, f32 radius );
+    static PhysicsObject CreateBox( f32 mass, vec3 halfExtends );
 
 
 private:

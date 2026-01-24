@@ -610,7 +610,7 @@ ScriptComponent::~ScriptComponent()
 
 // PhysicsComponent
 PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( 1 ) )
+    : mPhysicsObject( PhysicsObject::CreateSphere( 0, 1 ) )
 {
 
 }
@@ -637,17 +637,19 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             {
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
                 {
+                    f32 mass = 0.0f;
                     f32 radius = 1.0f;
                     if ( box )
                         radius = box->getShortestEdge() / 2;
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( radius );
+                    component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
+                    f32 mass = 0.0f;
                     vec3 halfExtend( 1 );
                     if ( box )
                         halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    component.mPhysicsObject = PhysicsObject::CreateBox( halfExtend );
+                    component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtend );
                 }
                 component.mPhysicsObject.SetMass( component.mPhysicsObject.getBody()->getMass() );
                 component.mPhysicsObject.SetFriction( component.mPhysicsObject.getBody()->getFriction() );
@@ -656,6 +658,15 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
         ImGui::EndCombo();
     }
 
+    /// Rigid body controls
+    f32 mass = component.mPhysicsObject.GetMass();
+    if ( ImGui::DragFloat( "Mass", &mass ) )
+        component.mPhysicsObject.SetMass( mass );
+
+    f32 friction = component.mPhysicsObject.GetFriction();
+    if ( ImGui::DragFloat( "Friction", &friction ) )
+        component.mPhysicsObject.SetFriction( friction );
+
     /// Shape controls
     switch ( shape->getShapeType() )
     {
@@ -663,9 +674,9 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
         {
             auto sphereShape = static_cast<btSphereShape*>( shape );
 
-            float radius = sphereShape->getRadius();
+            f32 radius = sphereShape->getRadius();
             if ( ImGui::DragFloat( "Radius", &radius ) )
-                component.mPhysicsObject = PhysicsObject::CreateSphere( radius );
+                component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
@@ -675,18 +686,9 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             btVector3 he = boxShape->getHalfExtentsWithMargin();
             auto halfExtends = vec3( he.x(), he.y(), he.z() );
             if ( ImGui::DragFloat3( "Half Extends", &halfExtends.x ) )
-                component.mPhysicsObject = PhysicsObject::CreateBox( halfExtends );
+                component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtends );
         } break;
     }
-
-    /// Rigid body controls
-    float mass = component.mPhysicsObject.GetMass();
-    if ( ImGui::DragFloat( "Mass", &mass ) )
-        component.mPhysicsObject.SetMass( mass );
-
-    float friction = component.mPhysicsObject.GetFriction();
-    if ( ImGui::DragFloat( "Friction", &friction ) )
-        component.mPhysicsObject.SetFriction( friction );
 }
 
 void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsComponent& component )
@@ -721,15 +723,17 @@ void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsCom
 
 void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsComponent& component )
 {
+    f32 mass = j["Mass"sv];
+    f32 friction = j["Friction"];
+
     if ( j["Type"sv] == "Sphere"s )
-        component.mPhysicsObject = PhysicsObject::CreateSphere( j["Radius"sv] );
+        component.mPhysicsObject = PhysicsObject::CreateSphere( mass, j["Radius"sv] );
     else if ( j["Type"sv] == "Box"s )
-        component.mPhysicsObject = PhysicsObject::CreateBox( j["HalfExtends"sv] );
+        component.mPhysicsObject = PhysicsObject::CreateBox( mass, j["HalfExtends"sv] );
     else
         throw std::runtime_error( "Undefined physics component" );
 
-    component.mPhysicsObject.SetMass( j["Mass"sv] );
-    component.mPhysicsObject.SetFriction( j["Friction"] );
+    component.mPhysicsObject.SetFriction( friction );
 }
 
 void PhysicsComponent::CreateLuaBinding( sol::state& lua )
@@ -752,14 +756,14 @@ void PhysicsComponent::CreateLuaBinding( sol::state& lua )
         &PhysicsObject::ApplyTorqueImpulse
     );
 
-    lua["CreatePhysicsSphere"] = []( const Transform& trans, f32 radius ){ 
-        auto physicsSphere = PhysicsObject::CreateSphere( radius );
+    lua["CreatePhysicsSphere"] = []( const Transform& trans, f32 mass, f32 radius ){ 
+        auto physicsSphere = PhysicsObject::CreateSphere( mass, radius );
         physicsSphere.SetTransform( trans.mPosition, trans.mRotation );
         return physicsSphere;
     };
 
-    lua["CreatePhysicsBox"] = []( const Transform& trans, vec3 he ) {
-        auto physicsBox = PhysicsObject::CreateBox( he );
+    lua["CreatePhysicsBox"] = []( const Transform& trans, f32 mass, vec3 halfExtend ) {
+        auto physicsBox = PhysicsObject::CreateBox( mass, halfExtend );
         physicsBox.SetTransform( trans.mPosition, trans.mRotation );
         return physicsBox;
     };

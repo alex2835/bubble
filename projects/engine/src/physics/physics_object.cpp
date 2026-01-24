@@ -149,7 +149,7 @@ void PhysicsObject::CopyFrom( const PhysicsObject& other )
 
 
 
-PhysicsObject PhysicsObject::CreateSphere( f32 radius )
+PhysicsObject PhysicsObject::CreateSphere( f32 mass, f32 radius )
 {
     PhysicsObject object;
     object.mShapeData = GenerateSphereLinesShape( radius );
@@ -161,8 +161,7 @@ PhysicsObject PhysicsObject::CreateSphere( f32 radius )
     startTransform.setOrigin( btVector3( 0, 0, 0 ) );
 
     // rigid body is dynamic if and only if mass is non zero, otherwise static
-    float mass = 0.0f;
-    bool isDynamic = ( mass != 0.f );
+    bool isDynamic = mass != 0.0f;
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
         object.mColisionShape->calculateLocalInertia( mass, localInertia );
@@ -174,7 +173,7 @@ PhysicsObject PhysicsObject::CreateSphere( f32 radius )
     return object;
 }
 
-PhysicsObject PhysicsObject::CreateBox( vec3 halfExtends )
+PhysicsObject PhysicsObject::CreateBox( f32 mass, vec3 halfExtends )
 {
     PhysicsObject object;
     object.mShapeData = GenerateCubeLinesShape( halfExtends );
@@ -185,8 +184,7 @@ PhysicsObject PhysicsObject::CreateBox( vec3 halfExtends )
     transform.setIdentity();
     transform.setOrigin( btVector3( 0, 0, 0 ) );
     
-    float mass = 0.0f;
-    bool isDynamic = ( mass != 0.f );
+    bool isDynamic = mass != 0.0f;
     btVector3 localInertia( 0, 0, 0 );
     if ( isDynamic )
         object.mColisionShape->calculateLocalInertia( mass, localInertia );
