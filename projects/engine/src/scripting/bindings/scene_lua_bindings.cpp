@@ -8,7 +8,7 @@
 namespace bubble
 {
 constexpr string_view componentEnum = R"(
-Component = 
+Component =
 {
     Tag = 0,
     Transform = 1,
@@ -17,8 +17,9 @@ Component =
     Light = 4,
     Shader = 5,
     Script = 6,
-    Physics = 7,
-    State = 8
+    RigidBody = 7,
+    CharacterController = 8,
+    State = 9
 }
 )";
 
@@ -52,11 +53,17 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity, const Camera& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
         "AddLightComponent",
         [&]( const Entity& entity, const Light& light ) { scene.AddComponent<LightComponent>( entity, light ); },
-        "AddPhysicsComponent",
-        [&]( const Entity& entity, const PhysicsObject& object )
+        "AddRigidBodyComponent",
+        [&]( const Entity& entity, RigidBody object )
         {
-            auto& physicsComponent = scene.AddComponent<PhysicsComponent>( entity, object );
-            physicsEngine.Add( physicsComponent.mPhysicsObject, entity );
+            auto& rigidBodyComponent = scene.AddComponent<RigidBodyComponent>( entity, std::move( object ) );
+            physicsEngine.Add( rigidBodyComponent.mRigidBody, entity );
+        },
+        "AddCharacterControllerComponent",
+        [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
+        {
+            auto& controllerComponent = scene.AddComponent<CharacterControllerComponent>( entity, radius, height, stepHeight );
+            physicsEngine.Add( controllerComponent.mController, entity );
         },
         "AddStateComponent",
         [&]( const Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
@@ -74,8 +81,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->Camera& { return *(Camera*)&scene.GetComponent<CameraComponent>( entity ); },
         "GetLightComponent",
         [&]( const Entity& entity ) ->Light& { return *(Light*)&scene.GetComponent<LightComponent>( entity ); },
-        "GetPhysicsComponent",
-        [&]( const Entity& entity ) ->PhysicsObject& { return scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject; },
+        "GetRigidBodyComponent",
+        [&]( const Entity& entity ) ->RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
+        "GetCharacterControllerComponent",
+        [&]( const Entity& entity ) ->CharacterController& { return scene.GetComponent<CharacterControllerComponent>( entity ).mController; },
         "GetStateComponent",
         [&]( const Entity& entity ) ->Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
@@ -92,8 +101,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<CameraComponent>( entity ); },
         "HasLightComponent",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<LightComponent>( entity ); },
-        "HasPhysicsComponent",
-        [&]( const Entity& entity ) ->bool { return scene.HasComponent<PhysicsComponent>( entity ); },
+        "HasRigidBodyComponent",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<RigidBodyComponent>( entity ); },
+        "HasCharacterControllerComponent",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<CharacterControllerComponent>( entity ); },
         "HasStateComponent",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
     );
@@ -101,9 +112,17 @@ void CreateSceneBindings( Scene& scene,
     // Scene
     lua["CreateEntity"] = [&](){ return scene.CreateEntity(); };
 
-    lua["RemoveEntity"] = [&]( Entity entity ) { 
-        if ( scene.HasComponent<PhysicsComponent>( entity ) )
-            physicsEngine.Remove( scene.GetComponent<PhysicsComponent>( entity ).mPhysicsObject );
+    lua["RemoveEntity"] = [&]( Entity entity ) {
+        if ( scene.HasComponent<RigidBodyComponent>( entity ) )
+        {
+            auto& rigidBody = scene.GetComponent<RigidBodyComponent>( entity );
+            physicsEngine.Remove( rigidBody.mRigidBody );
+        }
+        if ( scene.HasComponent<CharacterControllerComponent>( entity ) )
+        {
+            auto& controller = scene.GetComponent<CharacterControllerComponent>( entity );
+            physicsEngine.Remove( controller.mController );
+        }
         scene.RemoveEntity( entity );
     };
 
@@ -156,8 +175,11 @@ void CreateSceneBindings( Scene& scene,
                     case ComponentID::Script:
                         componentsTable[ComponentID::Script] = ((ScriptComponent*)componentDataPtr)->mScript;
                         break;
-                    case ComponentID::Physics:
-                        componentsTable[ComponentID::Physics] = &((PhysicsComponent*)componentDataPtr)->mPhysicsObject;
+                    case ComponentID::RigidBody:
+                        componentsTable[ComponentID::RigidBody] = &((RigidBodyComponent*)componentDataPtr)->mRigidBody;
+                        break;
+                    case ComponentID::CharacterController:
+                        componentsTable[ComponentID::CharacterController] = &((CharacterControllerComponent*)componentDataPtr)->mController;
                         break;
                     case ComponentID::Camera:
                         componentsTable[ComponentID::Camera] = (Camera*)componentDataPtr;

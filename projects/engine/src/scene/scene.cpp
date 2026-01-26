@@ -13,7 +13,8 @@ Scene::Scene()
     AddComponent<CameraComponent>();
     AddComponent<LightComponent>();
     AddComponent<ScriptComponent>();
-    AddComponent<PhysicsComponent>();
+    AddComponent<RigidBodyComponent>();
+    AddComponent<CharacterControllerComponent>();
     AddComponent<StateComponent>();
 
     ComponentManager::Add<TagComponent>();
@@ -23,7 +24,8 @@ Scene::Scene()
     ComponentManager::Add<CameraComponent>();
     ComponentManager::Add<LightComponent>();
     ComponentManager::Add<ScriptComponent>();
-    ComponentManager::Add<PhysicsComponent>();
+    ComponentManager::Add<RigidBodyComponent>();
+    ComponentManager::Add<CharacterControllerComponent>();
     ComponentManager::Add<StateComponent>();
 }
 

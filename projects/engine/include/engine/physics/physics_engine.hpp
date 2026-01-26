@@ -1,14 +1,18 @@
 #pragma once
-#include "engine/physics/physics_object.hpp"
+#include "engine/physics/rigid_body.hpp"
 #include "engine/utils/timer.hpp"
 #include "engine/types/glm.hpp"
 #include "engine/types/pointer.hpp"
 #include "btBulletDynamicsCommon.h"
+#include "BulletCollision/CollisionDispatch/btGhostObject.h"
+#include "BulletDynamics/Character/btKinematicCharacterController.h"
 #include "recs/entity.hpp"
 
 namespace bubble
 {
 using namespace recs;
+
+class CharacterController;
 
 struct RayHitResult
 {
@@ -33,14 +37,20 @@ public:
 
     void Update( DeltaTime dt );
 
-    void Add( const PhysicsObject& obj, Entity entity );
-    void Remove( const PhysicsObject& obj );
+    void Add( const RigidBody& obj, Entity entity );
+    void Remove( const RigidBody& obj );
+
+    void Add( CharacterController& controller, Entity entity );
+    void Remove( CharacterController& controller );
+
     void ClearWorld();
 
-    void SetObjectMass( PhysicsObject& obj, float mass );
+    void SetObjectMass( RigidBody& obj, float mass );
 
     std::optional<RayHitResult> RaycastClosest( const vec3& from, const vec3& to ) const;
     std::vector<RayHitResult> RaycastAll( const vec3& from, const vec3& to ) const;
+
+    btDiscreteDynamicsWorld* GetWorld() { return dynamicsWorld.get(); }
 };
 
 

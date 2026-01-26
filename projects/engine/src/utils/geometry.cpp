@@ -80,6 +80,106 @@ ShapeData GenerateCubeLinesShape( vec3 he /*= vec3( 1.0f ) */ )
     return ShapeData{ std::move( vertices ), std::move( indices ) };
 }
 
+ShapeData GenerateCapsuleLinesShape( f32 radius /*= 0.5f*/, f32 height /*= 1.0f*/ )
+{
+    u32 segments = 16;
+    u32 rings = 8;
+    f32 halfHeight = height / 2.0f;
+
+    vector<vec3> vertices;
+    vector<u32> indices;
+
+    // Top hemisphere (centered at +halfHeight on Y axis)
+    for ( u32 i = 0; i <= rings / 2; ++i )
+    {
+        f32 stackAngle = glm::pi<f32>() / 2 - i * glm::pi<f32>() / rings;
+        f32 xy = radius * cosf( stackAngle );
+        f32 y = radius * sinf( stackAngle ) + halfHeight;
+
+        for ( u32 j = 0; j <= segments; ++j )
+        {
+            f32 sectorAngle = j * 2 * glm::pi<f32>() / segments;
+            f32 x = xy * cosf( sectorAngle );
+            f32 z = xy * sinf( sectorAngle );
+            vertices.emplace_back( x, y, z );
+        }
+    }
+
+    u32 topHemiVerts = static_cast<u32>( vertices.size() );
+
+    // Bottom hemisphere (centered at -halfHeight on Y axis)
+    for ( u32 i = rings / 2; i <= rings; ++i )
+    {
+        f32 stackAngle = glm::pi<f32>() / 2 - i * glm::pi<f32>() / rings;
+        f32 xy = radius * cosf( stackAngle );
+        f32 y = radius * sinf( stackAngle ) - halfHeight;
+
+        for ( u32 j = 0; j <= segments; ++j )
+        {
+            f32 sectorAngle = j * 2 * glm::pi<f32>() / segments;
+            f32 x = xy * cosf( sectorAngle );
+            f32 z = xy * sinf( sectorAngle );
+            vertices.emplace_back( x, y, z );
+        }
+    }
+
+    // Top hemisphere horizontal lines
+    for ( u32 i = 0; i <= rings / 2; ++i )
+    {
+        for ( u32 j = 0; j < segments; ++j )
+        {
+            u32 cur = i * ( segments + 1 ) + j;
+            indices.push_back( cur );
+            indices.push_back( cur + 1 );
+        }
+    }
+
+    // Top hemisphere vertical lines
+    for ( u32 j = 0; j <= segments; ++j )
+    {
+        for ( u32 i = 0; i < rings / 2; ++i )
+        {
+            u32 cur = i * ( segments + 1 ) + j;
+            indices.push_back( cur );
+            indices.push_back( cur + ( segments + 1 ) );
+        }
+    }
+
+    // Bottom hemisphere horizontal lines
+    u32 bottomStart = topHemiVerts;
+    u32 bottomRings = rings / 2 + 1;
+    for ( u32 i = 0; i < bottomRings; ++i )
+    {
+        for ( u32 j = 0; j < segments; ++j )
+        {
+            u32 cur = bottomStart + i * ( segments + 1 ) + j;
+            indices.push_back( cur );
+            indices.push_back( cur + 1 );
+        }
+    }
+
+    // Bottom hemisphere vertical lines
+    for ( u32 j = 0; j <= segments; ++j )
+    {
+        for ( u32 i = 0; i < bottomRings - 1; ++i )
+        {
+            u32 cur = bottomStart + i * ( segments + 1 ) + j;
+            indices.push_back( cur );
+            indices.push_back( cur + ( segments + 1 ) );
+        }
+    }
+
+    // Connect top and bottom hemispheres with vertical lines
+    u32 topEquatorStart = ( rings / 2 ) * ( segments + 1 );
+    for ( u32 j = 0; j <= segments; ++j )
+    {
+        indices.push_back( topEquatorStart + j );
+        indices.push_back( bottomStart + j );
+    }
+
+    return ShapeData{ std::move( vertices ), std::move( indices ) };
+}
+
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform )
 {
     AABB newBox;

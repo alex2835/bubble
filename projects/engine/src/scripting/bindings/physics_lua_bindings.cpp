@@ -1,14 +1,15 @@
 #include "engine/loader/loader.hpp"
 #include "engine/scripting/bindings/physics_lua_bindings.hpp"
+#include "engine/physics/character_controller.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
 {
-void CreatePhysicsBindings( PhysicsEngine& physicsEngine,sol::state& lua )
+void CreatePhysicsBindings( PhysicsEngine& physicsEngine, sol::state& lua )
 {
     // Set mass done by PhysicsEngine remove and create new object
-    sol::usertype<PhysicsObject> physicsType = lua["PhysicsComponent"];
-    physicsType["SetMass"] = [&]( PhysicsObject& obj, const float mass ) {
+    sol::usertype<RigidBody> rigidBodyType = lua["RigidBody"];
+    rigidBodyType["SetMass"] = [&]( RigidBody& obj, const float mass ) {
         physicsEngine.SetObjectMass( obj, mass );
     };
 

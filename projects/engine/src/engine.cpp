@@ -14,7 +14,7 @@ Engine::Engine( Window& window )
 
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
       mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
-      mPhysicsObjects{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
 
       // billboards
       mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
@@ -44,13 +44,21 @@ void Engine::OnStart()
     /// Physics
     mPhysicsEngine.ClearWorld();
 
-    // Set physics init transform
-    mScene.ForEach<TransformComponent, PhysicsComponent>(
-    [&]( Entity entity, TransformComponent& transform, PhysicsComponent& physics )
+    // Add RigidBody components to physics world
+    mScene.ForEach<TransformComponent, RigidBodyComponent>(
+    [&]( Entity entity, TransformComponent& transform, RigidBodyComponent& rigidBody )
     {
-        physics.mPhysicsObject.SetTransform( transform.mPosition, transform.mRotation );
-        physics.mPhysicsObject.ClearForces();
-        mPhysicsEngine.Add( physics.mPhysicsObject, entity );
+        rigidBody.mRigidBody.SetTransform( transform.mPosition, transform.mRotation );
+        rigidBody.mRigidBody.ClearForces();
+        mPhysicsEngine.Add( rigidBody.mRigidBody, entity );
+    } );
+
+    // Add CharacterController components to physics world
+    mScene.ForEach<TransformComponent, CharacterControllerComponent>(
+    [&]( Entity entity, TransformComponent& transform, CharacterControllerComponent& controller )
+    {
+        controller.mController.Warp( transform.mPosition );
+        mPhysicsEngine.Add( controller.mController, entity );
     } );
 
     /// Scripts
@@ -74,13 +82,22 @@ void Engine::OnUpdate()
     // Propagate transforms
     PropagateTransforms( mScene );
 
-    // Update transforms from physics world
-    mScene.ForEach<TransformComponent, PhysicsComponent>(
+    // Update transforms from RigidBody components
+    mScene.ForEach<TransformComponent, RigidBodyComponent>(
     []( Entity entity,
         TransformComponent& transform,
-        const PhysicsComponent& physics )
+        const RigidBodyComponent& rigidBody )
     {
-        physics.mPhysicsObject.GetTransform( transform.mPosition, transform.mRotation );
+        rigidBody.mRigidBody.GetTransform( transform.mPosition, transform.mRotation );
+    } );
+
+    // Update transforms from CharacterController components
+    mScene.ForEach<TransformComponent, CharacterControllerComponent>(
+    []( Entity entity,
+        TransformComponent& transform,
+        const CharacterControllerComponent& controller )
+    {
+        transform.mPosition = controller.mController.GetPosition();
     } );
 
     // Call scripts
@@ -218,24 +235,41 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
         return;
 
     u32 elementIndexStride = 0;
-    mPhysicsObjects.mVertices.Clear();
-    mPhysicsObjects.mIndices.clear();
+    mPhysicsShapes.mVertices.Clear();
+    mPhysicsShapes.mIndices.clear();
 
-    scene.ForEach<PhysicsComponent, TransformComponent>(
+    // Draw RigidBody shapes
+    scene.ForEach<RigidBodyComponent, TransformComponent>(
         [&]( Entity _,
-             PhysicsComponent& physics,
+             const RigidBodyComponent& rigidBody,
              const TransformComponent& transform )
     {
         const mat4 trans = transform.TranslationRotationMat();
-        const auto& [vertices, indices] = physics.mPhysicsObject.mShapeData;
+        const auto& [vertices, indices] = rigidBody.mRigidBody.GetShapeData();
         for ( auto vertex : vertices )
-            mPhysicsObjects.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
+            mPhysicsShapes.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
         for ( u32 index : indices )
-            mPhysicsObjects.mIndices.push_back( index + elementIndexStride );
-        elementIndexStride = (u32)mPhysicsObjects.mVertices.mPositions.size();
+            mPhysicsShapes.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mPhysicsShapes.mVertices.mPositions.size();
     } );
-    mPhysicsObjects.mMesh.UpdateDynamicVertexBufferData( mPhysicsObjects.mVertices, mPhysicsObjects.mIndices );
-    mRenderer.DrawMesh( mPhysicsObjects.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+
+    // Draw CharacterController shapes
+    scene.ForEach<CharacterControllerComponent, TransformComponent>(
+        [&]( Entity _,
+             const CharacterControllerComponent& controller,
+             const TransformComponent& transform )
+    {
+        const mat4 trans = transform.TranslationRotationMat();
+        const auto& [vertices, indices] = controller.mController.GetShapeData();
+        for ( auto vertex : vertices )
+            mPhysicsShapes.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
+        for ( u32 index : indices )
+            mPhysicsShapes.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mPhysicsShapes.mVertices.mPositions.size();
+    } );
+
+    mPhysicsShapes.mMesh.UpdateDynamicVertexBufferData( mPhysicsShapes.mVertices, mPhysicsShapes.mIndices );
+    mRenderer.DrawMesh( mPhysicsShapes.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
 }
 
 

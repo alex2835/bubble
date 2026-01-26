@@ -167,7 +167,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mScene.AddComponent<PhysicsComponent>( entity );
+            mProject.mScene.AddComponent<RigidBodyComponent>( entity );
 
             auto command = std::make_unique<CreateNodeCommand>(
                 node,
@@ -184,7 +184,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mScene.AddComponent<PhysicsComponent>( entity );
+            mProject.mScene.AddComponent<CharacterControllerComponent>( entity );
             mProject.mScene.AddComponent<StateComponent>( entity );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
 

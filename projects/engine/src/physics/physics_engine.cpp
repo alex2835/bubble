@@ -1,12 +1,9 @@
 #include "engine/pch/pch.hpp"
 #include "engine/physics/physics_engine.hpp"
+#include "engine/physics/character_controller.hpp"
 
 namespace bubble
 {
-PhysicsObject::PhysicsObject()
-{
-
-}
 
 PhysicsEngine::PhysicsEngine()
 {
@@ -25,14 +22,14 @@ PhysicsEngine::PhysicsEngine()
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
 }
 
-void PhysicsEngine::Add( const PhysicsObject& obj, Entity entity )
+void PhysicsEngine::Add( const RigidBody& obj, Entity entity )
 {
     obj.mBody->setUserPointer( new Entity( entity ) );
     dynamicsWorld->addRigidBody( obj.mBody.get() );
     obj.mBody->activate();
 }
 
-void PhysicsEngine::Remove( const PhysicsObject& obj )
+void PhysicsEngine::Remove( const RigidBody& obj )
 {
     if ( obj.mBody->getUserPointer() )
     {
@@ -40,6 +37,26 @@ void PhysicsEngine::Remove( const PhysicsObject& obj )
         obj.mBody->setUserPointer( nullptr );
     }
     dynamicsWorld->removeRigidBody( obj.mBody.get() );
+}
+
+void PhysicsEngine::Add( CharacterController& controller, Entity entity )
+{
+    controller.mGhostObject->setUserPointer( new Entity( entity ) );
+    dynamicsWorld->addCollisionObject( controller.mGhostObject.get(),
+                                       btBroadphaseProxy::CharacterFilter,
+                                       btBroadphaseProxy::StaticFilter | btBroadphaseProxy::DefaultFilter );
+    dynamicsWorld->addAction( controller.mController.get() );
+}
+
+void PhysicsEngine::Remove( CharacterController& controller )
+{
+    if ( controller.mGhostObject->getUserPointer() )
+    {
+        delete static_cast<Entity*>( controller.mGhostObject->getUserPointer() );
+        controller.mGhostObject->setUserPointer( nullptr );
+    }
+    dynamicsWorld->removeAction( controller.mController.get() );
+    dynamicsWorld->removeCollisionObject( controller.mGhostObject.get() );
 }
 
 void PhysicsEngine::ClearWorld()
@@ -61,7 +78,7 @@ void PhysicsEngine::Update( DeltaTime dt )
     dynamicsWorld->stepSimulation( dt.Seconds() );
 }
 
-void PhysicsEngine::SetObjectMass( PhysicsObject& obj, float mass )
+void PhysicsEngine::SetObjectMass( RigidBody& obj, float mass )
 {
     // Remove from world
     dynamicsWorld->removeRigidBody( obj.getBody() );

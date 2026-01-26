@@ -17,7 +17,7 @@ BubbleEditor::BubbleEditor()
 
       mEntityIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
-      //mProject,
+      
       mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
       mProjectResourcesHotReloader( mProject ),
       mEditorUserInterface( *this )
@@ -57,6 +57,12 @@ void BubbleEditor::Run()
                 mProjectResourcesHotReloader.OnUpdate();
                 mAutoBackup.OnUpdate( deltaTime );
                 mEditorUserInterface.OnUpdate( deltaTime );
+
+                // Bounding boxes and physics shape
+                if ( mUIGlobals.mDrawBoundingBoxes )
+                    mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
+                if ( mUIGlobals.mDrawPhysicsShapes )
+                    mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
                 break;
             }
             case EditorMode::Running:
@@ -78,12 +84,6 @@ void BubbleEditor::Run()
                 break;
             }
         }
-        // Bounding boxes and physics shape
-        if ( mUIGlobals.mDrawBoundingBoxes )
-            mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
-        if ( mUIGlobals.mDrawPhysicsShapes )
-            mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
-
         mWindow.ImGuiBegin();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();

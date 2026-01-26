@@ -608,26 +608,38 @@ ScriptComponent::~ScriptComponent()
 
 
 
-// PhysicsComponent
-PhysicsComponent::PhysicsComponent()
-    : mPhysicsObject( PhysicsObject::CreateSphere( 0, 1 ) )
+// RigidBodyComponent
+RigidBodyComponent::RigidBodyComponent()
+    : mRigidBody( RigidBody::CreateSphere( 0, 1 ) )
 {
-
 }
 
-void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component )
+RigidBodyComponent::RigidBodyComponent( RigidBody rigidBody )
+    : mRigidBody( std::move( rigidBody ) )
 {
-    ImGui::TextColored( TEXT_COLOR, "Physics component" );
+}
+
+RigidBodyComponent::~RigidBodyComponent()
+{
+}
+
+void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& entity, RigidBodyComponent& component )
+{
+    ImGui::TextColored( TEXT_COLOR, "RigidBody component" );
 
     static map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv },
-                                         { BOX_SHAPE_PROXYTYPE, "box"sv } };
+                                         { BOX_SHAPE_PROXYTYPE, "box"sv },
+                                         { CAPSULE_SHAPE_PROXYTYPE, "capsule"sv } };
 
-    auto body = component.mPhysicsObject.getBody();
-    auto shape = component.mPhysicsObject.getShape();
+    auto& rigidBody = component.mRigidBody;
+    auto shape = rigidBody.getShape();
     auto box = TryGetEntityBBox( project, entity );
 
+    f32 mass = rigidBody.GetMass();
+    f32 friction = rigidBody.GetFriction();
+
     /// Physics shape selection combo
-    string_view curShapeName = shapes[component.mPhysicsObject.getShape()->getShapeType()];
+    string_view curShapeName = shapes[shape->getShapeType()];
     if ( ImGui::BeginCombo( "Collision shape", curShapeName.data() ) )
     {
         for ( const auto& [id, name] : shapes )
@@ -637,35 +649,43 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
             {
                 if ( id == SPHERE_SHAPE_PROXYTYPE )
                 {
-                    f32 mass = 0.0f;
                     f32 radius = 1.0f;
                     if ( box )
                         radius = box->getShortestEdge() / 2;
-                    component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
+                    component.mRigidBody = RigidBody::CreateSphere( mass, radius );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
-                    f32 mass = 0.0f;
                     vec3 halfExtend( 1 );
                     if ( box )
                         halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtend );
+                    component.mRigidBody = RigidBody::CreateBox( mass, halfExtend );
                 }
-                component.mPhysicsObject.SetMass( component.mPhysicsObject.getBody()->getMass() );
-                component.mPhysicsObject.SetFriction( component.mPhysicsObject.getBody()->getFriction() );
+                if ( id == CAPSULE_SHAPE_PROXYTYPE )
+                {
+                    f32 radius = 0.5f;
+                    f32 height = 1.0f;
+                    if ( box )
+                    {
+                        vec3 size = box->getMax() - box->getMin();
+                        radius = glm::min( size.x, size.z ) / 2.0f;
+                        height = glm::max( 0.0f, size.y - 2.0f * radius );
+                    }
+                    component.mRigidBody = RigidBody::CreateCapsule( mass, radius, height );
+                }
+                component.mRigidBody.SetFriction( friction );
             }
         }
         ImGui::EndCombo();
+        return;
     }
 
     /// Rigid body controls
-    f32 mass = component.mPhysicsObject.GetMass();
     if ( ImGui::DragFloat( "Mass", &mass ) )
-        component.mPhysicsObject.SetMass( mass );
+        rigidBody.SetMass( mass );
 
-    f32 friction = component.mPhysicsObject.GetFriction();
     if ( ImGui::DragFloat( "Friction", &friction ) )
-        component.mPhysicsObject.SetFriction( friction );
+        rigidBody.SetFriction( friction );
 
     /// Shape controls
     switch ( shape->getShapeType() )
@@ -673,111 +693,228 @@ void PhysicsComponent::OnComponentDraw( const Project& project, const Entity& en
         case SPHERE_SHAPE_PROXYTYPE:
         {
             auto sphereShape = static_cast<btSphereShape*>( shape );
-
             f32 radius = sphereShape->getRadius();
             if ( ImGui::DragFloat( "Radius", &radius ) )
-                component.mPhysicsObject = PhysicsObject::CreateSphere( mass, radius );
+                component.mRigidBody = RigidBody::CreateSphere( mass, radius );
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
         {
             auto boxShape = static_cast<btBoxShape*>( shape );
-
             btVector3 he = boxShape->getHalfExtentsWithMargin();
             auto halfExtends = vec3( he.x(), he.y(), he.z() );
             if ( ImGui::DragFloat3( "Half Extends", &halfExtends.x ) )
-                component.mPhysicsObject = PhysicsObject::CreateBox( mass, halfExtends );
+                component.mRigidBody = RigidBody::CreateBox( mass, halfExtends );
+        } break;
+
+        case CAPSULE_SHAPE_PROXYTYPE:
+        {
+            auto capsuleShape = static_cast<btCapsuleShape*>( shape );
+            f32 radius = capsuleShape->getRadius();
+            f32 height = capsuleShape->getHalfHeight() * 2.0f;
+            bool changed = false;
+            changed |= ImGui::DragFloat( "Radius", &radius, 0.01f, 0.01f, 100.0f );
+            changed |= ImGui::DragFloat( "Height", &height, 0.01f, 0.0f, 100.0f );
+            if ( changed )
+                component.mRigidBody = RigidBody::CreateCapsule( mass, radius, height );
         } break;
     }
 }
 
-void PhysicsComponent::ToJson( json& j, const Project& project, const PhysicsComponent& component )
+void RigidBodyComponent::ToJson( json& j, const Project& project, const RigidBodyComponent& component )
 {
-    auto body = component.mPhysicsObject.getBody();
+    const auto& rigidBody = component.mRigidBody;
+    auto body = rigidBody.getBody();
     j["Mass"sv] = body->getMass();
     j["Friction"sv] = body->getFriction();
 
-    auto shape = component.mPhysicsObject.getShape();
+    auto shape = rigidBody.getShape();
     switch ( shape->getShapeType() )
     {
         case SPHERE_SHAPE_PROXYTYPE:
         {
             auto sphereShape = static_cast<const btSphereShape*>( shape );
-            float radius = sphereShape->getRadius();
-            j["Type"sv] = "Sphere"sv;
-            j["Radius"sv] = radius;
-            return;
+            j["Shape"sv] = "Sphere"sv;
+            j["Radius"sv] = sphereShape->getRadius();
+            break;
         }
-
         case BOX_SHAPE_PROXYTYPE:
         {
             auto boxShape = static_cast<const btBoxShape*>( shape );
             btVector3 halfExtends = boxShape->getHalfExtentsWithMargin();
-            j["Type"sv] = "Box"sv;
+            j["Shape"sv] = "Box"sv;
             j["HalfExtends"sv] = vec3( halfExtends.x(), halfExtends.y(), halfExtends.z() );
-            return;
+            break;
         }
+        case CAPSULE_SHAPE_PROXYTYPE:
+        {
+            auto capsuleShape = static_cast<const btCapsuleShape*>( shape );
+            j["Shape"sv] = "Capsule"sv;
+            j["Radius"sv] = capsuleShape->getRadius();
+            j["Height"sv] = capsuleShape->getHalfHeight() * 2.0f;
+            break;
+        }
+        default:
+            throw std::runtime_error( "Invalid shape type" );
     }
-    throw std::runtime_error( "Invalid enum type" );
 }
 
-void PhysicsComponent::FromJson( const json& j, Project& project, PhysicsComponent& component )
+void RigidBodyComponent::FromJson( const json& j, Project& project, RigidBodyComponent& component )
 {
     f32 mass = j["Mass"sv];
-    f32 friction = j["Friction"];
+    f32 friction = j["Friction"sv];
 
-    if ( j["Type"sv] == "Sphere"s )
-        component.mPhysicsObject = PhysicsObject::CreateSphere( mass, j["Radius"sv] );
-    else if ( j["Type"sv] == "Box"s )
-        component.mPhysicsObject = PhysicsObject::CreateBox( mass, j["HalfExtends"sv] );
+    string shape = j.value( "Shape"sv, j.value( "Type"sv, "Sphere"s ) ); // Support old format
+
+    if ( shape == "Sphere"s )
+        component.mRigidBody = RigidBody::CreateSphere( mass, j["Radius"sv] );
+    else if ( shape == "Box"s )
+        component.mRigidBody = RigidBody::CreateBox( mass, j["HalfExtends"sv] );
+    else if ( shape == "Capsule"s )
+        component.mRigidBody = RigidBody::CreateCapsule( mass, j["Radius"sv], j["Height"sv] );
     else
-        throw std::runtime_error( "Undefined physics component" );
+        throw std::runtime_error( "Undefined physics shape" );
 
-    component.mPhysicsObject.SetFriction( friction );
+    component.mRigidBody.SetFriction( friction );
 }
 
-void PhysicsComponent::CreateLuaBinding( sol::state& lua )
+void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
 {
-    lua.new_usertype<PhysicsObject>(
-        "PhysicsComponent",
+    // RigidBody class bindings
+    lua.new_usertype<RigidBody>(
+        "RigidBody",
 
-        // SetMass is set in lua binding
+        // SetMass is set in physics_lua_bindings
         "GetMass",
-        &PhysicsObject::GetMass,
+        &RigidBody::GetMass,
 
         "SetFriction",
-        &PhysicsObject::SetFriction,
+        &RigidBody::SetFriction,
         "GetFriction",
-        &PhysicsObject::GetFriction,
+        &RigidBody::GetFriction,
 
         "ApplyCentralImpulse",
-        &PhysicsObject::ApplyCentralImpulse,
+        &RigidBody::ApplyCentralImpulse,
         "ApplyTorqueImpulse",
-        &PhysicsObject::ApplyTorqueImpulse
+        &RigidBody::ApplyTorqueImpulse
     );
 
-    lua["CreatePhysicsSphere"] = []( const Transform& trans, f32 mass, f32 radius ){ 
-        auto physicsSphere = PhysicsObject::CreateSphere( mass, radius );
-        physicsSphere.SetTransform( trans.mPosition, trans.mRotation );
-        return physicsSphere;
+    lua["CreateRigidBodySphere"] = []( const Transform& trans, f32 mass, f32 radius ){
+        auto rigidBody = RigidBody::CreateSphere( mass, radius );
+        rigidBody.SetTransform( trans.mPosition, trans.mRotation );
+        return rigidBody;
     };
 
-    lua["CreatePhysicsBox"] = []( const Transform& trans, f32 mass, vec3 halfExtend ) {
-        auto physicsBox = PhysicsObject::CreateBox( mass, halfExtend );
-        physicsBox.SetTransform( trans.mPosition, trans.mRotation );
-        return physicsBox;
+    lua["CreateRigidBodyBox"] = []( const Transform& trans, f32 mass, vec3 halfExtend ) {
+        auto rigidBody = RigidBody::CreateBox( mass, halfExtend );
+        rigidBody.SetTransform( trans.mPosition, trans.mRotation );
+        return rigidBody;
     };
+
+    lua["CreateRigidBodyCapsule"] = []( const Transform& trans, f32 mass, f32 radius, f32 height ) {
+        auto rigidBody = RigidBody::CreateCapsule( mass, radius, height );
+        rigidBody.SetTransform( trans.mPosition, trans.mRotation );
+        return rigidBody;
+    };
+
+    //// RigidBodyComponent bindings
+    //lua.new_usertype<RigidBodyComponent>(
+    //    "RigidBodyComponent",
+    //    "mRigidBody", &RigidBodyComponent::mRigidBody
+    //);
 }
 
-PhysicsComponent::PhysicsComponent( const PhysicsObject& physicsObject )
-    : mPhysicsObject( physicsObject )
-{
 
+
+// CharacterControllerComponent
+CharacterControllerComponent::CharacterControllerComponent()
+    : mController( CharacterController( 0.5f, 1.0f, 0.35f ) )
+{
 }
 
-PhysicsComponent::~PhysicsComponent()
+CharacterControllerComponent::CharacterControllerComponent( f32 radius, f32 height, f32 stepHeight )
+    : mController( CharacterController( radius, height, stepHeight ) )
 {
+}
 
+CharacterControllerComponent::~CharacterControllerComponent()
+{
+}
+
+void CharacterControllerComponent::OnComponentDraw( const Project& project, const Entity& entity, CharacterControllerComponent& component )
+{
+    ImGui::TextColored( TEXT_COLOR, "CharacterController component" );
+
+    auto& controller = component.mController;
+
+    f32 radius = controller.GetRadius();
+    f32 height = controller.GetHeight();
+
+    ImGui::Text( "Capsule Shape" );
+    ImGui::Text( "Radius: %.2f", radius );
+    ImGui::Text( "Height: %.2f", height );
+    ImGui::Text( "Total Height: %.2f", height + 2.0f * radius );
+
+    ImGui::Separator();
+    ImGui::Text( "Runtime Info:" );
+    ImGui::Text( "On Ground: %s", controller.IsOnGround() ? "Yes" : "No" );
+    vec3 pos = controller.GetPosition();
+    ImGui::Text( "Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z );
+}
+
+void CharacterControllerComponent::ToJson( json& j, const Project& project, const CharacterControllerComponent& component )
+{
+    const auto& controller = component.mController;
+    j["Radius"sv] = controller.GetRadius();
+    j["Height"sv] = controller.GetHeight();
+    j["StepHeight"sv] = 0.35f; // Could store this in CharacterController
+}
+
+void CharacterControllerComponent::FromJson( const json& j, Project& project, CharacterControllerComponent& component )
+{
+    f32 radius = j["Radius"sv];
+    f32 height = j["Height"sv];
+    f32 stepHeight = j.value( "StepHeight"sv, 0.35f );
+    component.mController = CharacterController( radius, height, stepHeight );
+}
+
+void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
+{
+    // CharacterControllerComponent bindings
+    //lua.new_usertype<CharacterControllerComponent>(
+    //    "CharacterControllerComponent",
+    //    "mController", []( CharacterControllerComponent& c ) -> CharacterController& { return c.mController; }
+    //);
+
+
+    // CharacterController bindings
+    lua.new_usertype<CharacterController>(
+        "CharacterController",
+        sol::constructors<CharacterController( f32, f32, f32 )>(),
+
+        "SetWalkDirection", &CharacterController::SetWalkDirection,
+        "SetVelocityForTimeInterval", &CharacterController::SetVelocityForTimeInterval,
+        "Jump", &CharacterController::Jump,
+        "Warp", &CharacterController::Warp,
+
+        "IsOnGround", &CharacterController::IsOnGround,
+        "GetPosition", &CharacterController::GetPosition,
+        "GetLinearVelocity", &CharacterController::GetLinearVelocity,
+
+        "SetMaxJumpHeight", &CharacterController::SetMaxJumpHeight,
+        "SetJumpSpeed", &CharacterController::SetJumpSpeed,
+        "SetFallSpeed", &CharacterController::SetFallSpeed,
+        "SetGravity", &CharacterController::SetGravity,
+        "SetMaxSlope", &CharacterController::SetMaxSlope,
+        "SetStepHeight", &CharacterController::SetStepHeight,
+
+        "GetRadius", &CharacterController::GetRadius,
+        "GetHeight", &CharacterController::GetHeight
+    );
+
+    lua["CreateCharacterController"] = []( f32 radius, f32 height, f32 stepHeight ) {
+        return CharacterController( radius, height, stepHeight );
+    };
 }
 
 

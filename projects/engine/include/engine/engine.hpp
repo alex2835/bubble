@@ -68,7 +68,7 @@ public:
         Mesh mMesh;
     };
     MeshHelpers mBoundingBoxes;
-    MeshHelpers mPhysicsObjects;
+    MeshHelpers mPhysicsShapes;
 
     // Visualization Camera, Lights billboards
     Ref<Mesh> mBillboardQuad;

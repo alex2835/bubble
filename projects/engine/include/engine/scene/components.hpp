@@ -10,6 +10,7 @@
 #include "engine/renderer/camera.hpp"
 #include "engine/renderer/transform.hpp"
 #include "engine/physics/physics_engine.hpp"
+#include "engine/physics/character_controller.hpp"
 
 namespace recs
 {
@@ -33,7 +34,8 @@ enum class ComponentID
 	Light,
 	Shader,
 	Script,
-	Physics,
+	RigidBody,
+	CharacterController,
 	State
 };
 
@@ -154,22 +156,42 @@ public:
 
 
 
-struct PhysicsComponent
+struct RigidBodyComponent
 {
-    static int ID() { return static_cast<int>( ComponentID::Physics ); }
-    static string_view Name() { return "Physics"sv; }
+    static int ID() { return static_cast<int>( ComponentID::RigidBody ); }
+    static string_view Name() { return "RigidBody"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, PhysicsComponent& component );
-    static void ToJson( json& json, const Project& project, const PhysicsComponent& component );
-    static void FromJson( const json& json, Project& project, PhysicsComponent& component );
+    static void OnComponentDraw( const Project& project, const Entity& entity, RigidBodyComponent& component );
+    static void ToJson( json& json, const Project& project, const RigidBodyComponent& component );
+    static void FromJson( const json& json, Project& project, RigidBodyComponent& component );
     static void CreateLuaBinding( sol::state& lua );
 
 public:
-    PhysicsComponent();
-    PhysicsComponent( const PhysicsObject& physicsObject );
-    ~PhysicsComponent();
+    RigidBodyComponent();
+    RigidBodyComponent( RigidBody rigidBody );
+    ~RigidBodyComponent();
 
-    PhysicsObject mPhysicsObject;
+    RigidBody mRigidBody;
+};
+
+
+
+struct CharacterControllerComponent
+{
+    static int ID() { return static_cast<int>( ComponentID::CharacterController ); }
+    static string_view Name() { return "CharacterController"sv; }
+
+    static void OnComponentDraw( const Project& project, const Entity& entity, CharacterControllerComponent& component );
+    static void ToJson( json& json, const Project& project, const CharacterControllerComponent& component );
+    static void FromJson( const json& json, Project& project, CharacterControllerComponent& component );
+    static void CreateLuaBinding( sol::state& lua );
+
+public:
+    CharacterControllerComponent();
+    CharacterControllerComponent( f32 radius, f32 height, f32 stepHeight = 0.35f );
+    ~CharacterControllerComponent();
+
+    CharacterController mController;
 };
 
 

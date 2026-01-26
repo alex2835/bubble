@@ -7,13 +7,13 @@
 
 namespace bubble
 {
-class PhysicsObject
+class RigidBody
 {
 public:
-    PhysicsObject( const PhysicsObject& other );
-    PhysicsObject& operator=( const PhysicsObject& other );
-    PhysicsObject( PhysicsObject&& ) = default;
-    PhysicsObject& operator=( PhysicsObject&& ) = default;
+    RigidBody( const RigidBody& other );
+    RigidBody& operator=( const RigidBody& other );
+    RigidBody( RigidBody&& ) = default;
+    RigidBody& operator=( RigidBody&& ) = default;
 
     void SetMass( float mass );
     float GetMass();
@@ -34,19 +34,23 @@ public:
     btCollisionShape* getShape();
     const btCollisionShape* getShape() const;
 
-    static PhysicsObject CreateSphere( f32 mass, f32 radius );
-    static PhysicsObject CreateBox( f32 mass, vec3 halfExtends );
+    const ShapeData& GetShapeData() const { return mShapeData; }
+
+    static RigidBody CreateSphere( f32 mass, f32 radius );
+    static RigidBody CreateBox( f32 mass, vec3 halfExtends );
+    static RigidBody CreateCapsule( f32 mass, f32 radius, f32 height );
 
 
 private:
-    PhysicsObject();
+    RigidBody();
+    friend class PhysicsEngine;
 
 public:
     Scope<btCollisionShape> mColisionShape;
     Scope<btRigidBody> mBody;
     ShapeData mShapeData;
 private:
-    void CopyFrom( const PhysicsObject& other );
+    void CopyFrom( const RigidBody& other );
 };
 
 }

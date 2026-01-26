@@ -14,6 +14,7 @@ struct ShapeData
 };
 ShapeData GenerateSphereLinesShape( float radius = 1.0f );
 ShapeData GenerateCubeLinesShape( vec3 he = vec3( 1.0f ) );
+ShapeData GenerateCapsuleLinesShape( float radius = 0.5f, float height = 1.0f );
 
 
 // BBox

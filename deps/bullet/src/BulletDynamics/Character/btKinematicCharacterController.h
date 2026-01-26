@@ -170,6 +170,7 @@ public:
 	void setJumpSpeed(btScalar jumpSpeed);
 	btScalar getJumpSpeed() const { return m_jumpSpeed; }
 	void setMaxJumpHeight(btScalar maxJumpHeight);
+	btScalar getMaxJumpHeight() const { return m_maxJumpHeight; };
 	bool canJump() const;
 
 	void jump(const btVector3& v = btVector3(0, 0, 0));
