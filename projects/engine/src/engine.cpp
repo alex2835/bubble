@@ -319,8 +319,8 @@ void Engine::DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene )
 
 
 void Engine::DrawBillboardEntityId( const Entity entity,
-                                      const vec3& position,
-                                      const vec2& size )
+                                    const vec3& position,
+                                    const vec2& size )
 {
     if ( not mEntityIdBillboardShader )
     {

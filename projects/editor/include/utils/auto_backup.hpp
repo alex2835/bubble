@@ -59,12 +59,7 @@ private:
 
             // Generate timestamp for backup filename
             auto now = std::chrono::system_clock::now();
-            auto timeT = std::chrono::system_clock::to_time_t( now );
-            std::tm tm;
-            localtime_s( &tm, &timeT );
-
-            char timestamp[64];
-            std::strftime( timestamp, sizeof( timestamp ), "%Y%m%d_%H%M%S", &tm );
+            string timestamp = std::format( "{:%Y%m%d_%H%M%S}", now );
 
             // Create backup filename: project_name_timestamp.bubble
             string backupFilename = std::format( "{}_{}.bubble", mProject.mName, timestamp );

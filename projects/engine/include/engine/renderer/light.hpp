@@ -18,8 +18,8 @@ struct Light
     LightType mType = LightType::Directional;
 
     f32 mConstant = 1.0f;
-    f32 mLinear = 0.0f;
-    f32 mQuadratic = 0.0f;
+    f32 mLinear = 1.0f;
+    f32 mQuadratic = 1.0f;
 
     f32 mCutOff = 12.5f;
     f32 mOuterCutOff = 17.5f;
