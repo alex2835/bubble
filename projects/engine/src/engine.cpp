@@ -39,10 +39,10 @@ Engine::~Engine()
     mPhysicsEngine.ClearWorld();
 }
 
-void Engine::OnStart()
+void Engine::OnStart( Scene scene, Loader loader )
 {
-    /// Physics
-    mPhysicsEngine.ClearWorld();
+    mScene = std::move( scene );
+    mLoader = std::move( loader );
 
     // Add RigidBody components to physics world
     mScene.ForEach<TransformComponent, RigidBodyComponent>(
@@ -69,6 +69,14 @@ void Engine::OnStart()
             throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
         mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
     } );
+}
+
+void Engine::OnEnd()
+{
+    mPhysicsEngine.ClearWorld();
+    mPhysicsEngine = PhysicsEngine();
+    mScene = Scene();
+    mLoader = Loader();
 }
 
 void Engine::OnUpdate() 

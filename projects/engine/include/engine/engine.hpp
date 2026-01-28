@@ -15,7 +15,7 @@ struct Engine
     Engine( Window& window );
     ~Engine();
 
-    void OnStart();
+    void OnStart( Scene scene, Loader loader );
     void OnEnd();
     void OnUpdate();
     void PropagateTransforms( Scene& scene );

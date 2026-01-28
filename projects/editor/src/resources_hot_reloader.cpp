@@ -24,15 +24,17 @@ vector<path> GetShaderFiles( const path& shaderPath )
 filesystem::file_time_type ReadFilesLastTime( const vector<path>& resoucePaths )
 {
     filesystem::file_time_type lastFileTime = filesystem::file_time_type::min();
+    std::error_code error;
     for ( const auto& resoucePath : resoucePaths )
-        lastFileTime = std::max( lastFileTime, filesystem::last_write_time( resoucePath ) );
+        lastFileTime = std::max( lastFileTime, filesystem::last_write_time( resoucePath, error ) );
     return lastFileTime;
 }
 
 
 
-ProjectResourcesHotReloader::ProjectResourcesHotReloader( Project& project )
-    : mProject( project )
+ProjectResourcesHotReloader::ProjectResourcesHotReloader( Project& project, UIGlobals& uiGlobals )
+    : mProject( project ),
+      mUIGlobals( uiGlobals )
 {
     mFileUpdateChecker = std::thread( [&]()
     {
@@ -65,8 +67,11 @@ ProjectResourcesHotReloader::~ProjectResourcesHotReloader()
 void ProjectResourcesHotReloader::OnUpdate()
 {
     // Update map
-    if ( mProject.mLoader.mShaders.size() +
-         mProject.mLoader.mScripts.size() != mFilesToUpdateMap.size() )
+    const bool newFiles = mProject.mLoader.mShaders.size() + mProject.mLoader.mScripts.size() != mFilesToUpdateMap.size();
+    const bool needUpdate = newFiles or mForceFilesUpdate;
+    mForceFilesUpdate = false;
+
+    if ( needUpdate )
     {
         std::lock_guard<std::mutex> lock( mMapMutex );
 
@@ -76,15 +81,15 @@ void ProjectResourcesHotReloader::OnUpdate()
             {
                 auto [relPath, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
                 auto files = type == ResourceType::Shader
-                    ? GetShaderFiles( absPath )
-                    : vector<path>{ absPath };
+                             ? GetShaderFiles( absPath )
+                             : vector<path>{ absPath };
 
                 mFilesToUpdateMap.emplace( loaderPath, ResourceReloadInfo{
                     .mType = type,
                     .mFiles = files,
                     .mFileLastUpdateTime = ReadFilesLastTime( files ),
                     .mNeedUpdate = false
-                                           } );
+                } );
             }
         };
         filler( mProject.mLoader.mShaders, ResourceType::Shader );
@@ -106,8 +111,20 @@ void ProjectResourcesHotReloader::OnUpdate()
                     try
                     {
                         auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
-                        auto newShader = LoadShader( absPath );
-                        mProject.mLoader.mShaders[loaderPath]->Swap( *newShader );
+                        const auto newShader = LoadShader( absPath );
+                        if ( newShader )
+                            mProject.mLoader.mShaders[loaderPath]->Swap( *newShader );
+                        else
+                        {
+                            auto shaderToRemove = mProject.mLoader.mShaders[loaderPath];
+                            mProject.mLoader.mShaders.erase( loaderPath );
+                            mProject.mScene.ForEach<ShaderComponent>( [&]( Entity _, ShaderComponent& shaderComp ) {
+                                if ( shaderComp.mShader and shaderComp.mShader->mName == shaderToRemove->mName )
+                                    shaderComp.mShader = nullptr;
+                            } );
+                            mForceFilesUpdate = true;
+                            mUIGlobals.mNeedUpdateProjectFilesWindow = true;
+                        }
                     }
                     catch ( const std::exception& e )
                     {
@@ -122,8 +139,20 @@ void ProjectResourcesHotReloader::OnUpdate()
                     try
                     {
                         auto [_, absPath] = mProject.mLoader.RelAbsFromProjectPath( loaderPath );
-                        auto newScript = LoadScript( absPath );
-                        mProject.mLoader.mScripts[loaderPath]->Swap( *newScript );
+                        const auto newScript = LoadScript( absPath );
+                        if ( newScript )
+                            mProject.mLoader.mScripts[loaderPath]->Swap( *newScript );
+                        else
+                        {
+                            auto scriptToRemove = mProject.mLoader.mScripts[loaderPath];
+                            mProject.mLoader.mScripts.erase( loaderPath );
+                            mProject.mScene.ForEach<ScriptComponent>( [&]( Entity _, ScriptComponent& scriptComp ) {
+                                if ( scriptComp.mScript and scriptComp.mScript->mName == scriptToRemove->mName )
+                                    scriptComp.mScript = nullptr;
+                            } );
+                            mForceFilesUpdate = true;
+                            mUIGlobals.mNeedUpdateProjectFilesWindow = true;
+                        }
                     }
                     catch ( const std::exception& e )
                     {

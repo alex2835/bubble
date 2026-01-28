@@ -847,19 +847,66 @@ void CharacterControllerComponent::OnComponentDraw( const Project& project, cons
 
     auto& controller = component.mController;
 
+    // Capsule shape controls
     f32 radius = controller.GetRadius();
     f32 height = controller.GetHeight();
+    bool shapeChanged = false;
+    shapeChanged |= ImGui::DragFloat( "Radius", &radius, 0.01f, 0.1f, 10.0f );
+    shapeChanged |= ImGui::DragFloat( "Height", &height, 0.01f, 0.0f, 10.0f );
+    if ( shapeChanged )
+    {
+        // Recreate with new dimensions, preserving other settings
+        f32 stepHeight = controller.GetStepHeight();
+        f32 jumpSpeed = controller.GetJumpSpeed();
+        f32 fallSpeed = controller.GetFallSpeed();
+        f32 maxSlope = controller.GetMaxSlopeRadians();
+        vec3 gravity = controller.GetGravity();
+        vec3 pos = controller.GetPosition();
 
-    ImGui::Text( "Capsule Shape" );
-    ImGui::Text( "Radius: %.2f", radius );
-    ImGui::Text( "Height: %.2f", height );
+        component.mController = CharacterController( radius, height, stepHeight );
+        component.mController.SetJumpSpeed( jumpSpeed );
+        component.mController.SetFallSpeed( fallSpeed );
+        component.mController.SetMaxSlope( maxSlope );
+        component.mController.SetGravity( gravity );
+        component.mController.Warp( pos );
+    }
     ImGui::Text( "Total Height: %.2f", height + 2.0f * radius );
 
     ImGui::Separator();
+
+    // Movement configuration
+    f32 stepHeight = controller.GetStepHeight();
+    if ( ImGui::DragFloat( "Step Height", &stepHeight, 0.01f, 0.0f, 2.0f ) )
+        controller.SetStepHeight( stepHeight );
+
+    f32 maxSlopeDegrees = glm::degrees( controller.GetMaxSlopeRadians() );
+    if ( ImGui::SliderFloat( "Max Slope (deg)", &maxSlopeDegrees, 0.0f, 90.0f ) )
+        controller.SetMaxSlope( glm::radians( maxSlopeDegrees ) );
+
+    ImGui::Separator();
+
+    // Jump/Fall configuration
+    f32 jumpSpeed = controller.GetJumpSpeed();
+    if ( ImGui::DragFloat( "Jump Speed", &jumpSpeed, 0.1f, 0.0f, 50.0f ) )
+        controller.SetJumpSpeed( jumpSpeed );
+
+    f32 fallSpeed = controller.GetFallSpeed();
+    if ( ImGui::DragFloat( "Fall Speed", &fallSpeed, 0.1f, 0.0f, 100.0f ) )
+        controller.SetFallSpeed( fallSpeed );
+
+    vec3 gravity = controller.GetGravity();
+    if ( ImGui::DragFloat3( "Gravity", &gravity.x, 0.1f ) )
+        controller.SetGravity( gravity );
+
+    ImGui::Separator();
+
+    // Runtime info (read-only)
     ImGui::Text( "Runtime Info:" );
     ImGui::Text( "On Ground: %s", controller.IsOnGround() ? "Yes" : "No" );
     vec3 pos = controller.GetPosition();
     ImGui::Text( "Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z );
+    vec3 vel = controller.GetLinearVelocity();
+    ImGui::Text( "Velocity: (%.2f, %.2f, %.2f)", vel.x, vel.y, vel.z );
 }
 
 void CharacterControllerComponent::ToJson( json& j, const Project& project, const CharacterControllerComponent& component )
@@ -867,7 +914,11 @@ void CharacterControllerComponent::ToJson( json& j, const Project& project, cons
     const auto& controller = component.mController;
     j["Radius"sv] = controller.GetRadius();
     j["Height"sv] = controller.GetHeight();
-    j["StepHeight"sv] = 0.35f; // Could store this in CharacterController
+    j["StepHeight"sv] = controller.GetStepHeight();
+    j["JumpSpeed"sv] = controller.GetJumpSpeed();
+    j["FallSpeed"sv] = controller.GetFallSpeed();
+    j["MaxSlopeRadians"sv] = controller.GetMaxSlopeRadians();
+    j["Gravity"sv] = controller.GetGravity();
 }
 
 void CharacterControllerComponent::FromJson( const json& j, Project& project, CharacterControllerComponent& component )
@@ -876,6 +927,15 @@ void CharacterControllerComponent::FromJson( const json& j, Project& project, Ch
     f32 height = j["Height"sv];
     f32 stepHeight = j.value( "StepHeight"sv, 0.35f );
     component.mController = CharacterController( radius, height, stepHeight );
+
+    if ( j.contains( "JumpSpeed"sv ) )
+        component.mController.SetJumpSpeed( j["JumpSpeed"sv] );
+    if ( j.contains( "FallSpeed"sv ) )
+        component.mController.SetFallSpeed( j["FallSpeed"sv] );
+    if ( j.contains( "MaxSlopeRadians"sv ) )
+        component.mController.SetMaxSlope( j["MaxSlopeRadians"sv] );
+    if ( j.contains( "Gravity"sv ) )
+        component.mController.SetGravity( j["Gravity"sv] );
 }
 
 void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )

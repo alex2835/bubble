@@ -10,6 +10,7 @@
 #include <tuple>
 #include <ranges>
 #include <cassert>
+#include <stdexcept>
 #include "recs/impex.hpp"
 #include "recs/utils.hpp"
 #include "recs/entity.hpp"
@@ -147,8 +148,9 @@ Registry& Registry::AddComponent()
 template <ComponentType Component, typename ...Args>
 Component& Registry::AddComponent( Entity entity, Args&& ...args )
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
-    
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "AddComponent: Invalid entity" );
+
     if ( mComponents.emplace( Component::ID() ).second )
         mPools.emplace( Component::ID(), Pool::CreatePool<Component>() );
 
@@ -170,8 +172,9 @@ Component& Registry::AddComponent( Entity entity, Args&& ...args )
 template <ComponentType Component>
 Component& Registry::GetComponent( Entity entity )
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
-    assert( HasComponent<Component>( entity ) and "Entity doesn't have such component");
+    if ( !HasComponent<Component>( entity ) )
+        throw std::runtime_error( std::format( "GetComponent: Entity {} doesn't have component {}", (size_t)entity, Component::ID() ) );
+
     Pool& pool = GetComponentPool( Component::ID() );
     return pool.Get<Component>( entity );
 }
@@ -185,22 +188,27 @@ const Component& Registry::GetComponent( Entity entity ) const
 template <ComponentType ...Components>
 std::tuple<Components&...> Registry::GetComponents( Entity entity )
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
-    assert( HasComponents<Components...>( entity ) );
+    if ( !HasComponents<Components...>( entity ) )
+        throw std::runtime_error( std::format( "GetComponents: Entity {} doesn't have required components", (size_t)entity ) );
+
     return std::forward_as_tuple( GetComponent<Components>( entity )... );
 }
 
 template <ComponentType Component>
 bool Registry::HasComponent( Entity entity ) const
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "HasComponent: Invalid entity" );
+
     return EntityHasComponent( entity, Component::ID() );
 }
 
 template <ComponentType ...Components>
 bool Registry::HasComponents( Entity entity ) const
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "HasComponents: Invalid entity" );
+
     return ( EntityHasComponent( entity, GetComponentTypeId<Components>() ) && ... );
 }
 
@@ -208,7 +216,8 @@ bool Registry::HasComponents( Entity entity ) const
 template <ComponentType Component>
 void Registry::RemoveComponent( Entity entity )
 {
-    assert( entity != INVALID_ENTITY and "Invalid entity" );
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "RemoveComponent: Invalid entity" );
 
     //ComponentTypeId component = GetComponentTypeId<Component>();
     if ( EntityHasComponent( entity, Component::ID() ) )
@@ -226,7 +235,8 @@ void Registry::RemoveComponent( Entity entity )
 template <typename F>
 void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
 {
-    assert( entity != INVALID_ENTITY and "ForEachEntityComponentRaw: Invalid entity" );
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "ForEachEntityComponentRaw: Invalid entity" );
 
     const auto& components = mEntitiesComponentTypeIds[entity];
     for ( const auto id : mComponents )
@@ -258,7 +268,8 @@ void Registry::ForEachEntity( F&& func )
 template <ComponentType ...Components, typename F>
 void Registry::ForEachTuple( F&& func )
 {
-    assert( ( mComponents.contains( Components::ID() ) || ... ) and "Invalid components" );
+    if ( !( mComponents.contains( Components::ID() ) || ... ) )
+        throw std::runtime_error( "ForEachTuple: Invalid components - registry doesn't contain required component types" );
 
     constexpr auto size = sizeof...( Components );
     std::array<Pool*, size> pools;

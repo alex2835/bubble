@@ -41,6 +41,7 @@ public:
     SceneCamera mSceneCamera;
     Framebuffer mSceneViewport; // Viewport
     Framebuffer mEntityIdViewport; // Entity picking viewport (Handles scene object picking in viewport)
+    UIGlobals mUIGlobals;
 
     /// Game editing
     Project mProject;
@@ -50,8 +51,7 @@ public:
     AutoBackup mAutoBackup;
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
 
-    // Editor UI windows
-    UIGlobals mUIGlobals;
+    // Editor windows
     EditorUserInterface mEditorUserInterface;
 };
 

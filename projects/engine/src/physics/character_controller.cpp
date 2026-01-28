@@ -18,6 +18,7 @@ CharacterController::CharacterController( f32 radius, f32 height, f32 stepHeight
     mGhostObject = CreateScope<btPairCachingGhostObject>();
     mGhostObject->setCollisionShape( mShape.get() );
     mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT );
+    mGhostObject->setActivationState( DISABLE_DEACTIVATION );
 
     // Set initial transform
     btTransform startTransform;
@@ -34,18 +35,21 @@ CharacterController::CharacterController( f32 radius, f32 height, f32 stepHeight
         btVector3( 0, 1, 0 )  // up vector
     );
 
-    // Default configuration
-    mController->setGravity( btVector3( 0, -30, 0 ) );
-    mController->setMaxJumpHeight( 1.5f );
-    mController->setJumpSpeed( 10.0f );
-    mController->setFallSpeed( 55.0f );
-    mController->setMaxSlope( btRadians( 45.0f ) );
+    // Default configuration (use stored member values)
+    mController->setGravity( btVector3( mGravity.x, mGravity.y, mGravity.z ) );
+    mController->setJumpSpeed( mJumpSpeed );
+    mController->setFallSpeed( mFallSpeed );
+    mController->setMaxSlope( mMaxSlopeRadians );
 }
 
 CharacterController::CharacterController( const CharacterController& other )
     : mRadius( other.mRadius )
     , mHeight( other.mHeight )
     , mStepHeight( other.mStepHeight )
+    , mJumpSpeed( other.mJumpSpeed )
+    , mFallSpeed( other.mFallSpeed )
+    , mMaxSlopeRadians( other.mMaxSlopeRadians )
+    , mGravity( other.mGravity )
     , mShapeData( other.mShapeData )
 {
     // Create capsule shape (Y-axis aligned)
@@ -68,11 +72,10 @@ CharacterController::CharacterController( const CharacterController& other )
     );
 
     // Copy configuration from source
-    mController->setGravity( other.mController->getGravity() );
-    mController->setMaxJumpHeight( other.mController->getMaxJumpHeight() );
-    mController->setJumpSpeed( other.mController->getJumpSpeed() );
-    mController->setFallSpeed( other.mController->getFallSpeed() );
-    mController->setMaxSlope( other.mController->getMaxSlope() );
+    mController->setGravity( btVector3( mGravity.x, mGravity.y, mGravity.z ) );
+    mController->setJumpSpeed( mJumpSpeed );
+    mController->setFallSpeed( mFallSpeed );
+    mController->setMaxSlope( mMaxSlopeRadians );
 }
 
 CharacterController& CharacterController::operator=( const CharacterController& other )
@@ -83,6 +86,10 @@ CharacterController& CharacterController::operator=( const CharacterController& 
     mRadius = other.mRadius;
     mHeight = other.mHeight;
     mStepHeight = other.mStepHeight;
+    mJumpSpeed = other.mJumpSpeed;
+    mFallSpeed = other.mFallSpeed;
+    mMaxSlopeRadians = other.mMaxSlopeRadians;
+    mGravity = other.mGravity;
     mShapeData = other.mShapeData;
 
     // Create capsule shape (Y-axis aligned)
@@ -105,11 +112,10 @@ CharacterController& CharacterController::operator=( const CharacterController& 
     );
 
     // Copy configuration from source
-    mController->setGravity( other.mController->getGravity() );
-    mController->setMaxJumpHeight( other.mController->getMaxJumpHeight() );
-    mController->setJumpSpeed( other.mController->getJumpSpeed() );
-    mController->setFallSpeed( other.mController->getFallSpeed() );
-    mController->setMaxSlope( other.mController->getMaxSlope() );
+    mController->setGravity( btVector3( mGravity.x, mGravity.y, mGravity.z ) );
+    mController->setJumpSpeed( mJumpSpeed );
+    mController->setFallSpeed( mFallSpeed );
+    mController->setMaxSlope( mMaxSlopeRadians );
 
     return *this;
 }
@@ -162,26 +168,31 @@ void CharacterController::SetMaxJumpHeight( f32 height )
 
 void CharacterController::SetJumpSpeed( f32 speed )
 {
+    mJumpSpeed = speed;
     mController->setJumpSpeed( speed );
 }
 
 void CharacterController::SetFallSpeed( f32 speed )
 {
+    mFallSpeed = speed;
     mController->setFallSpeed( speed );
 }
 
 void CharacterController::SetGravity( const vec3& gravity )
 {
+    mGravity = gravity;
     mController->setGravity( btVector3( gravity.x, gravity.y, gravity.z ) );
 }
 
 void CharacterController::SetMaxSlope( f32 slopeRadians )
 {
+    mMaxSlopeRadians = slopeRadians;
     mController->setMaxSlope( slopeRadians );
 }
 
 void CharacterController::SetStepHeight( f32 height )
 {
+    mStepHeight = height;
     mController->setStepHeight( height );
 }
 

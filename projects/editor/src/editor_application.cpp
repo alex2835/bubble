@@ -19,7 +19,7 @@ BubbleEditor::BubbleEditor()
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       
       mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
-      mProjectResourcesHotReloader( mProject ),
+      mProjectResourcesHotReloader( mProject, mUIGlobals ),
       mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
@@ -78,8 +78,9 @@ void BubbleEditor::Run()
                 }
                 catch ( const std::exception& e )
                 {
-                    LogError( e.what() );
                     mEditorMode = EditorMode::Editing;
+                    LogError( e.what() );
+                    mEngine.OnEnd();
                 };
                 break;
             }
@@ -120,14 +121,13 @@ void BubbleEditor::OnUpdateHotKeys()
         try
         {
             mEditorMode = EditorMode::Running;
-            mEngine.mScene = mProject.mScene;
-            mEngine.mLoader = mProject.mLoader;
-            mEngine.OnStart();
+            mEngine.OnStart( mProject.mScene, mProject.mLoader );
         }
         catch ( const std::exception& e )
         {
             mEditorMode = EditorMode::Editing;
             LogError( e.what() );
+            mEngine.OnEnd();
         };
     }
 
@@ -136,6 +136,7 @@ void BubbleEditor::OnUpdateHotKeys()
          input.IsKeyClicked( KeyboardKey::F6 ) )
     {
         mEditorMode = EditorMode::Editing;
+        mEngine.OnEnd();
     }
 
 

@@ -33,6 +33,8 @@ class PhysicsEngine
 
 public:
     PhysicsEngine();
+    PhysicsEngine( PhysicsEngine&& ) = default;
+    PhysicsEngine& operator= ( PhysicsEngine&& ) = default;
     ~PhysicsEngine();
 
     void Update( DeltaTime dt );

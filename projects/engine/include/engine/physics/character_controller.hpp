@@ -44,6 +44,10 @@ public:
     f32 GetRadius() const { return mRadius; }
     f32 GetHeight() const { return mHeight; }
     f32 GetStepHeight() const { return mStepHeight; }
+    f32 GetJumpSpeed() const { return mJumpSpeed; }
+    f32 GetFallSpeed() const { return mFallSpeed; }
+    f32 GetMaxSlopeRadians() const { return mMaxSlopeRadians; }
+    vec3 GetGravity() const { return mGravity; }
     const ShapeData& GetShapeData() const { return mShapeData; }
 
     btPairCachingGhostObject* GetGhostObject() { return mGhostObject.get(); }
@@ -55,6 +59,10 @@ private:
     f32 mRadius;
     f32 mHeight;
     f32 mStepHeight;
+    f32 mJumpSpeed = 10.0f;
+    f32 mFallSpeed = 55.0f;
+    f32 mMaxSlopeRadians = glm::radians( 45.0f );
+    vec3 mGravity = vec3( 0, -30, 0 );
     ShapeData mShapeData;
 
     Scope<btCapsuleShape> mShape;

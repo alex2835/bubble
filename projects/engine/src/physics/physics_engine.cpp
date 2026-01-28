@@ -20,12 +20,17 @@ PhysicsEngine::PhysicsEngine()
     );
 
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
+
+    btOverlappingPairCache* pairCache = overlappingPairCache->getOverlappingPairCache();
+    pairCache->setInternalGhostPairCallback( new btGhostPairCallback() );
 }
 
 void PhysicsEngine::Add( const RigidBody& obj, Entity entity )
 {
     obj.mBody->setUserPointer( new Entity( entity ) );
-    dynamicsWorld->addRigidBody( obj.mBody.get() );
+    dynamicsWorld->addRigidBody( obj.mBody.get(),
+                                 btBroadphaseProxy::DefaultFilter,
+                                 btBroadphaseProxy::AllFilter );
     obj.mBody->activate();
 }
 

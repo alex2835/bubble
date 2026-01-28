@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/types/map.hpp"
 #include "engine/loader/loader.hpp"
+#include "utils/ui_globals.hpp"
 #include <thread>
 
 namespace bubble
@@ -25,12 +26,15 @@ class ProjectResourcesHotReloader
     };
 
 public:
-    ProjectResourcesHotReloader( Project& project );
+    ProjectResourcesHotReloader( Project& project, UIGlobals& uiGlobals );
     ~ProjectResourcesHotReloader();
     void OnUpdate();
 
 private:
     Project& mProject;
+    UIGlobals& mUIGlobals;
+    bool mForceFilesUpdate = false;
+    
     std::mutex mMapMutex;
     map<path, ResourceReloadInfo> mFilesToUpdateMap;
     std::thread mFileUpdateChecker;
