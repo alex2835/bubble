@@ -180,6 +180,40 @@ ShapeData GenerateCapsuleLinesShape( f32 radius /*= 0.5f*/, f32 height /*= 1.0f*
     return ShapeData{ std::move( vertices ), std::move( indices ) };
 }
 
+ShapeData GenerateFrustumLinesShape( f32 fov, f32 aspectRatio, f32 nearDist, f32 farDist )
+{
+    f32 tanHalfFov = glm::tan( fov * 0.5f );
+    f32 nearHeight = nearDist * tanHalfFov;
+    f32 nearWidth = nearHeight * aspectRatio;
+    f32 farHeight = farDist * tanHalfFov;
+    f32 farWidth = farHeight * aspectRatio;
+
+    // Near plane corners (looking down -Z axis)
+    // nTL, nTR, nBR, nBL
+    vector<vec3> vertices = {
+        vec3( -nearWidth,  nearHeight, -nearDist ), // 0 - near top left
+        vec3(  nearWidth,  nearHeight, -nearDist ), // 1 - near top right
+        vec3(  nearWidth, -nearHeight, -nearDist ), // 2 - near bottom right
+        vec3( -nearWidth, -nearHeight, -nearDist ), // 3 - near bottom left
+
+        vec3( -farWidth,  farHeight, -farDist ),    // 4 - far top left
+        vec3(  farWidth,  farHeight, -farDist ),    // 5 - far top right
+        vec3(  farWidth, -farHeight, -farDist ),    // 6 - far bottom right
+        vec3( -farWidth, -farHeight, -farDist ),    // 7 - far bottom left
+    };
+
+    vector<u32> indices = {
+        // Near plane
+        0, 1,  1, 2,  2, 3,  3, 0,
+        // Far plane
+        4, 5,  5, 6,  6, 7,  7, 4,
+        // Connecting edges
+        0, 4,  1, 5,  2, 6,  3, 7
+    };
+
+    return ShapeData{ std::move( vertices ), std::move( indices ) };
+}
+
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform )
 {
     AABB newBox;

@@ -15,6 +15,7 @@ Engine::Engine( Window& window )
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
       mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mCameraFrustums{ .mMesh=Mesh( "CameraFrustum", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
 
       // billboards
       mBillboardShader( LoadShader( BILBOARD_SHADER ) ),
@@ -278,6 +279,40 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
 
     mPhysicsShapes.mMesh.UpdateDynamicVertexBufferData( mPhysicsShapes.mVertices, mPhysicsShapes.mIndices );
     mRenderer.DrawMesh( mPhysicsShapes.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+}
+
+
+void Engine::DrawCameraFrustums( Framebuffer& framebuffer, Scene& scene )
+{
+    framebuffer.Bind();
+    if ( scene.Size() == 0 )
+        return;
+
+    u32 elementIndexStride = 0;
+    mCameraFrustums.mVertices.Clear();
+    mCameraFrustums.mIndices.clear();
+
+    // Get framebuffer aspect ratio for frustum calculation
+    f32 aspectRatio = (f32)framebuffer.Width() / (f32)framebuffer.Height();
+
+    scene.ForEach<CameraComponent, TransformComponent>(
+        [&]( Entity _,
+             const CameraComponent& camera,
+             const TransformComponent& transform )
+    {
+        const mat4 trans = transform.TranslationRotationMat();
+        f32 clampedFar = glm::min( camera.mFar, 100.0f );
+        const auto& [vertices, indices] = GenerateFrustumLinesShape( camera.mFov, aspectRatio, camera.mNear, clampedFar );
+
+        for ( auto vertex : vertices )
+            mCameraFrustums.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
+        for ( u32 index : indices )
+            mCameraFrustums.mIndices.push_back( index + elementIndexStride );
+        elementIndexStride = (u32)mCameraFrustums.mVertices.mPositions.size();
+    } );
+
+    mCameraFrustums.mMesh.UpdateDynamicVertexBufferData( mCameraFrustums.mVertices, mCameraFrustums.mIndices );
+    mRenderer.DrawMesh( mCameraFrustums.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
 }
 
 

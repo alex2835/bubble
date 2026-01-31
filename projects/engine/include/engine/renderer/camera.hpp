@@ -2,6 +2,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "engine/utils/timer.hpp"
 #include "engine/utils/math.hpp"
+#include "engine/utils/geometry.hpp"
 #include "engine/window/event.hpp"
 
 namespace bubble
@@ -94,6 +95,5 @@ public:
     // Third person camera
     void ProcessRotation( CameraMovement direction );
     void OnUpdateThirdPerson( DeltaTime dt );
-
 };
 }

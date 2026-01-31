@@ -25,6 +25,7 @@ struct Engine
     // Helpers
     void DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene );
     void DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene );
+    void DrawCameraFrustums( Framebuffer& framebuffer, Scene& scene );
 
     // Billboards
     static constexpr auto cBillboardSize = vec2( 5.0f );
@@ -69,6 +70,7 @@ public:
     };
     MeshHelpers mBoundingBoxes;
     MeshHelpers mPhysicsShapes;
+    MeshHelpers mCameraFrustums;
 
     // Visualization Camera, Lights billboards
     Ref<Mesh> mBillboardQuad;

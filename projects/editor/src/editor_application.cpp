@@ -63,6 +63,7 @@ void BubbleEditor::Run()
                     mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
                 if ( mUIGlobals.mDrawPhysicsShapes )
                     mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
+                mEngine.DrawCameraFrustums( mSceneViewport, mProject.mScene );
                 break;
             }
             case EditorMode::Running:
