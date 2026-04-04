@@ -5,7 +5,7 @@
 #include "engine/types/number.hpp"
 #include "engine/types/json.hpp"
 #include "engine/types/glm.hpp"
-#include "engine/types/dynamic.hpp"
+#include "engine/types/any.hpp"
 #include "engine/renderer/light.hpp"
 #include "engine/renderer/camera.hpp"
 #include "engine/renderer/transform.hpp"
@@ -151,7 +151,7 @@ public:
     ScriptComponent( const Ref<Script>& scirpt );
     ~ScriptComponent();
     Ref<Script> mScript;
-    sol::function mOnUpdate;
+    sol::protected_function mOnUpdate;
 };
 
 
@@ -208,10 +208,10 @@ struct StateComponent
 
 public:
     StateComponent();
-	StateComponent( Any any );
-	StateComponent( const StateComponent& );
-	StateComponent& operator= ( const StateComponent& );
-	~StateComponent();
+    ~StateComponent();
+    StateComponent( const Any& any );
+    StateComponent( const StateComponent& );
+    StateComponent& operator=( const StateComponent& );
     Scope<Any> mState;
 };
 

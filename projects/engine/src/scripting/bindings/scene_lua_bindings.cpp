@@ -145,8 +145,7 @@ void CreateSceneBindings( Scene& scene,
 
 
         // For each entity's components
-        auto componentsAny = Any{};
-        auto componentsTable = componentsAny.as<Table>();
+        auto componentsTable = lua.create_table();
 
         scene.RuntimeForEach( componentsIds,
         [&]( Entity entity, ComponentsDataArray componentsData )
@@ -194,7 +193,7 @@ void CreateSceneBindings( Scene& scene,
                         throw std::runtime_error( "ForEachEntity: invalid set of components provided" );
                 }
             }
-            func( entity, componentsAny );
+            func( entity, componentsTable );
         } );
     };
 }

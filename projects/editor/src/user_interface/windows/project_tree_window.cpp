@@ -2,6 +2,7 @@
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
+#include <sol/sol.hpp>
 #include <imgui.h>
 #include <cstring>
 
@@ -185,7 +186,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             mProject.mScene.AddComponent<ModelComponent>( entity );
             mProject.mScene.AddComponent<ShaderComponent>( entity );
             mProject.mScene.AddComponent<CharacterControllerComponent>( entity );
-            mProject.mScene.AddComponent<StateComponent>( entity );
+            mProject.mScene.AddComponent<StateComponent>( entity, mProject.mScriptingEngine.CreateTable() );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
 
             auto command = std::make_unique<CreateNodeCommand>(
@@ -200,7 +201,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
         {
             auto entity = mProject.mScene.CreateEntity();
             mProject.mScene.AddComponent<TagComponent>( entity, "Script" );
-            mProject.mScene.AddComponent<StateComponent>( entity );
+            mProject.mScene.AddComponent<StateComponent>( entity, mProject.mScriptingEngine.CreateTable() );
             mProject.mScene.AddComponent<ScriptComponent>( entity );
 
             auto command = std::make_unique<CreateNodeCommand>(

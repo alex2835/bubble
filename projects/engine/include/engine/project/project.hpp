@@ -2,13 +2,18 @@
 #include "engine/utils/filesystem.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/loader/loader.hpp"
+#include "engine/scripting/scripting_engine.hpp"
+#include "engine/types/any.hpp"
 #include "project_tree.hpp"
 
 namespace bubble
 {
 class Project
 {
+private:
     void LoadDefaultResources();
+
+protected:
     json SaveScene();
     void LoadScene( const json& j );
     
@@ -27,8 +32,10 @@ public:
 
     string mName;
     path mRootFile;
-    Scene mScene;
     Loader mLoader;
+    ScriptingEngine mScriptingEngine;
+    Scope<Any> mGlobalState;
+    Scene mScene;
     Ref<ProjectTreeNode> mProjectTreeRoot; // Tree view for a scene
 };
 

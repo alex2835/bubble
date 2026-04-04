@@ -1,5 +1,6 @@
 
 #include "editor_application/editor_application.hpp"
+#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -45,7 +46,7 @@ void BubbleEditor::Run()
             {
                 if ( not mUIGlobals.mIsViewManipulatorUsing )
                     mSceneCamera.OnUpdate( deltaTime );
-                mEngine.mActiveCamera = (Camera)mSceneCamera;
+                mEngine.mCamera = (Camera)mSceneCamera;
 
                 // Draw project scene
                 mEngine.PropagateTransforms( mProject.mScene );
@@ -58,12 +59,12 @@ void BubbleEditor::Run()
                 mAutoBackup.OnUpdate( deltaTime );
                 mEditorUserInterface.OnUpdate( deltaTime );
 
-                // Bounding boxes and physics shape
+                // Bounding helper lines
+                mEngine.DrawCameraFrustums( mSceneViewport, mProject.mScene );
                 if ( mUIGlobals.mDrawBoundingBoxes )
                     mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
                 if ( mUIGlobals.mDrawPhysicsShapes )
                     mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
-                mEngine.DrawCameraFrustums( mSceneViewport, mProject.mScene );
                 break;
             }
             case EditorMode::Running:
@@ -72,7 +73,7 @@ void BubbleEditor::Run()
                 {
                     // temp
                     mSceneCamera.OnUpdate( deltaTime );
-                    mEngine.mActiveCamera = (Camera)mSceneCamera;
+                    mEngine.mCamera = (Camera)mSceneCamera;
 
                     mEngine.OnUpdate();
                     mEngine.DrawScene( mSceneViewport );
@@ -122,7 +123,9 @@ void BubbleEditor::OnUpdateHotKeys()
         try
         {
             mEditorMode = EditorMode::Running;
-            mEngine.OnStart( mProject.mScene, mProject.mLoader );
+            mProject.Save();
+            mEngine.mLoader = mProject.mLoader;
+            mEngine.OnStart( mProject.mRootFile );
         }
         catch ( const std::exception& e )
         {

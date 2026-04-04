@@ -10,9 +10,6 @@
 #include <sol/sol.hpp>
 
 constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
-constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                             ImGuiTreeNodeFlags_SpanAllColumns |
-                             ImGuiTreeNodeFlags_Framed;
 
 namespace bubble
 {
@@ -981,42 +978,13 @@ void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
 
 // StateComponent
 StateComponent::StateComponent()
+    : mState( CreateScope<Any>( sol::nil ) )
 {
-    mState = CreateScope<Any>( Any{} );
 }
 
-
-Any AnyDeepCopy( Any any )
+StateComponent::StateComponent( const Any& any )
+    : mState( CreateScope<Any>( AnyDeepCopy( any ) ) )
 {
-    if ( any.is<Table>() )
-    {
-        auto newAny = Any{};
-        auto newTable = newAny.as<Table>();
-
-        auto table = any.as<Table>();
-        for ( auto& [k, v] : table )
-            newTable[k] = v.is<Table>() ? AnyDeepCopy( v ) : v;
-
-        return newAny;
-    }
-    return any;
-}
-
-StateComponent::StateComponent( const StateComponent& other )
-{
-    mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
-}
-
-StateComponent& StateComponent::operator= ( const StateComponent& other )
-{
-    if ( this != &other )
-        mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
-    return *this;
-}
-
-StateComponent::StateComponent( Any any )
-{
-    mState = CreateScope<Any>( AnyDeepCopy( any ) );
 }
 
 StateComponent::~StateComponent()
@@ -1024,170 +992,18 @@ StateComponent::~StateComponent()
 
 }
 
-void DrawFieldsAdding( Table table )
+StateComponent::StateComponent( const StateComponent& other )
+    : mState( CreateScope<Any>( AnyDeepCopy( *other.mState ) ) )
 {
-    auto isEmpty = table.empty();
-    auto isArray = IsArray( table );
-    int newId = (int)table.size() + 1;
 
-    bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
-    ImGui::SameLine();
-
-    static string fieldName;
-    if ( not isArray )
-    {
-        ImGui::SetNextItemWidth( 100.0f );
-        ImGui::InputText( "##state", fieldName );
-        ImGui::SameLine();
-    }
-    if ( auto val = TryParseInt( fieldName ); 
-         isEmpty and val and val >= 1 )
-    {
-        isArray = true;
-        newId = *val;
-    }
-
-    ImGui::SetNextItemWidth( 100.0f );
-    constexpr string_view types = "Int\0Float\0String\0Bool\0Table"sv;
-    static enum class Types{ Int, Float, String, Bool, Table } selectedType;
-    ImGui::Combo( "##type", (int*)&selectedType, types.data() );
-
-    if ( addValue )
-    {
-        if ( fieldName.empty() )
-            return;
-
-        switch ( selectedType )
-        {
-            case Types::Int:
-                if ( isArray )
-                    table[newId] = 0;
-                else
-                    table[fieldName] = 0;
-                break;
-            case Types::Float:
-                if ( isArray )
-                    table[newId] = 0.0f;
-                else
-                    table[fieldName] = 0.0f;
-                break;
-            case Types::String:
-                if ( isArray )
-                    table[newId] = ""s;
-                else
-                    table[fieldName] = ""s;
-                break;
-            case Types::Bool:
-                if ( isArray )
-                    table[newId] = false;
-                else
-                    table[fieldName] = false;
-                break;
-            case Types::Table:
-                table[fieldName] = Any{};
-                break;
-        }
-    }
 }
 
-opt<Any> DrawAnyValue( const string& name, Any any )
+StateComponent& StateComponent::operator=( const StateComponent& other )
 {
-    ImGui::SetNextItemWidth( 100.0f );
-    if ( any.is<int>() )
-    {
-        auto value = any.as<int>();
-        ImGui::DragInt( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(int)" );
-        return value;
-    }
-    else if ( any.is<float>() )
-    {
-        auto value = any.as<float>();
-        ImGui::DragFloat( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(float)" );
-        return value;
-    }
-    else if ( any.is<std::string>() )
-    {
-        auto value = any.as<string>();
-        ImGui::InputText( name.c_str(), value );
-        ImGui::SameLine();
-        ImGui::Text( "(string)" );
-        return value;
-    }
-    else if ( any.is<bool>() )
-    {
-        auto value = any.as<bool>();
-        ImGui::Checkbox( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(bool)" );
-        return value;
-    }
-    else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
-    {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##array", TABLE_FLAGS, "%s (array)", name.c_str() ) )
-        {                                                                
-            for ( auto& [k, v] : table )                                 
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                ImGui::SameLine();
-
-                auto name = std::to_string( k.as<int>() );
-                table[k] = DrawAnyValue( name, v );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( table );
-            ImGui::TreePop();
-        }
-        return table;
-    }
-    else if ( any.is<Table>() )
-    {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##table", TABLE_FLAGS, "%s (table)", name.c_str() ) )
-        {
-            for ( auto& [k, v] : table )
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                ImGui::SameLine();
-
-                auto name = k.as<string>();
-                table[k] = DrawAnyValue( name, v );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( table );
-            ImGui::TreePop();
-        }
-        return table;
-    }
-    throw std::runtime_error( "Invalid Any value type" );
+    if ( this != &other )
+        mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
+    return *this;
 }
-
 
 void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
 {
@@ -1195,80 +1011,14 @@ void StateComponent::OnComponentDraw( const Project& project, const Entity& enti
     DrawAnyValue( "State"s, *component.mState );
 }
 
-
-json SaveAnyValue( Any v )
-{
-    if ( v.is<int>() )
-        return v.as<int>();
-    else if ( v.is<float>() )
-        return v.as<float>();
-    else if ( v.is<string>() )
-        return v.as<string>();
-    else if ( v.is<bool>() )
-        return  v.as<bool>();
-    else if ( v.is<Table>() and IsArray( v.as<Table>() ) )
-    {
-        json j = json::array();
-        auto table = v.as<Table>();
-        for ( auto& [k, v] : table )
-            j.push_back( SaveAnyValue( v ) );
-        return j;
-    }
-    else if ( v.is<Table>() )
-    {
-        json j = json::object();
-        auto table = v.as<Table>();
-        for ( auto& [k, v] : table )
-            j[k.as<string>()] = SaveAnyValue( v );
-        return j;
-    }
-    else
-    {
-        PrintAnyValue( v );
-        throw std::runtime_error( "Value of not supported type" );
-    }
-
-}
-
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
 {
     json = SaveAnyValue( *component.mState );
 }
 
-
-Any LoadAnyValue( const json& j )
-{
-    if ( j.is_number_integer() )
-        return j.get<int>();
-    else if ( j.is_number_float() )
-        return j.get<float>();
-    else if ( j.is_string() )
-        return j.get<string>();
-    else if ( j.is_boolean() )
-        return j.get<bool>();
-    else if ( j.is_array() )
-    {
-        auto val = Any{};
-        auto table = val.as<Table>();
-        int i = 1;
-        for ( const auto& v : j )
-           table[i++] = LoadAnyValue( v );
-        return val;
-    }
-    else if ( j.is_object() )
-    {
-        auto val = Any{};
-        auto table = val.as<Table>();
-        for ( const auto& [k, v] : j.items() )
-            table[k] = LoadAnyValue( v );
-        return val;
-    }
-    throw std::runtime_error( std::format( "Value of not supported type: {}", string( j ) ) );
-}
-
 void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )
 {
-    component.mState = CreateScope<Any>( LoadAnyValue( json ) );
+    component.mState = CreateScope<Any>( LoadAnyValue( project.mScriptingEngine, json ) );
 }
 
 void StateComponent::CreateLuaBinding( sol::state& lua )

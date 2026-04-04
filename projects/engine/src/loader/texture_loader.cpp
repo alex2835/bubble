@@ -33,6 +33,8 @@ Ref<Texture2D> LoadTexture2D( const path& path )
 
     auto [data, spec, _] = std::move( *textureDataMaybe );
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
+    texture->mName = path.stem().string();
+    texture->mPath = path;
     texture->SetData( data.get(), spec.mWidth * spec.mHeight * spec.ExtractTextureSpecChannels() );
     return texture;
 }
@@ -41,6 +43,8 @@ Ref<Texture2D> LoadTexture2D( const TextureData& textureData )
 {
     const auto& [data, spec, _] = textureData;
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
+    texture->mName = textureData.mPath.stem().string();
+    texture->mPath = textureData.mPath;
     texture->SetData( data.get(), spec.mWidth * spec.mHeight * spec.ExtractTextureSpecChannels() );
     return texture;
 }

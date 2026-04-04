@@ -1,21 +1,22 @@
 #pragma once
 #include "engine/window/window.hpp"
 #include "engine/loader/loader.hpp"
+#include "engine/project/project.hpp"
 #include "engine/renderer/renderer.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/physics/physics_engine.hpp"
+#include "engine/types/any.hpp"
 
 namespace bubble
 {
-class Project;
 class Scene;
 
-struct Engine
+struct Engine : public Project
 {
     Engine( Window& window );
     ~Engine();
 
-    void OnStart( Scene scene, Loader loader );
+    void OnStart( const path& project );
     void OnEnd();
     void OnUpdate();
     void PropagateTransforms( Scene& scene );
@@ -46,13 +47,10 @@ public:
     Window& mWindow;
     Timer mTimer;
     Renderer mRenderer;
-    ScriptingEngine mScriptingEngine;
     PhysicsEngine mPhysicsEngine;
-    Loader mLoader;
-    Scene mScene;
 
-    // temp
-    Camera mActiveCamera;
+    // Engine
+    Camera mCamera;
 
     // Shaders for entity ID rendering
     Ref<Shader> mEntityIdShader;

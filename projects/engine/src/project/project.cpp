@@ -3,7 +3,8 @@
 #include "engine/serialization/loader_serialization.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/types/set.hpp"
-#include "nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
+#include <sol/sol.hpp>
 #include <fstream>
 
 namespace bubble
@@ -18,8 +19,10 @@ void Project::LoadDefaultResources()
 }
 
 Project::Project()
-    : mProjectTreeRoot( CreateRef<ProjectTreeNode>() )
-{}
+    : mProjectTreeRoot( CreateRef<ProjectTreeNode>() ),
+      mGlobalState( CreateScope<Any>( mScriptingEngine.CreateTable() ) )
+{
+}
 
 Project::~Project()
 {
@@ -171,6 +174,7 @@ void Project::Save()
     json projectJson;
     projectJson["Loader"] = mLoader;
     projectJson["Scene"] = SaveScene();
+    projectJson["GlobalState"] = SaveAnyValue( *mGlobalState );
     projectJson["ProjectTree"] = SaveProjectTree();
 
     std::ofstream projectFile( mRootFile );
@@ -191,6 +195,7 @@ void Project::Open( const path& rootFile )
     json projectJson = json::parse( stream );
     from_json( projectJson["Loader"], mLoader );
     LoadScene( projectJson["Scene"] );
+    mGlobalState = CreateScope<Any>( LoadAnyValue( mScriptingEngine, projectJson["GlobalState"] ) );
     LoadProjectTree( projectJson["ProjectTree"] );
     LogInfo( "Project opened: {}", mRootFile.string() );
 }

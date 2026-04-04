@@ -29,10 +29,6 @@ Engine::Engine( Window& window )
       mErrorModel( LoadModel( ERROR_MODEL ) ),
       mErrorTexture( LoadTexture2D( ERROR_TEXTURE ) )
 {
-    // Bind members to scripting engine
-    mScriptingEngine.BindInput( window.GetWindowInput() );
-    mScriptingEngine.BindLoader( mLoader );
-    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
 }
 
 Engine::~Engine()
@@ -40,10 +36,15 @@ Engine::~Engine()
     mPhysicsEngine.ClearWorld();
 }
 
-void Engine::OnStart( Scene scene, Loader loader )
+void Engine::OnStart( const path& project )
 {
-    mScene = std::move( scene );
-    mLoader = std::move( loader );
+    Open( project );
+
+    // Bind members to scripting engine
+    mScriptingEngine.BindInput( mWindow.GetWindowInput() );
+    mScriptingEngine.BindLoader( mLoader );
+    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
+
 
     // Add RigidBody components to physics world
     mScene.ForEach<TransformComponent, RigidBodyComponent>(
@@ -69,7 +70,9 @@ void Engine::OnStart( Scene scene, Loader loader )
         if ( not scriptComponent.mScript )
             throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
         mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
+        BUBBLE_ASSERT( scriptComponent.mOnUpdate, "Failed to extract function" );
     } );
+    mScriptingEngine.SetVar( "globalState"sv, *mGlobalState );
 }
 
 void Engine::OnEnd()
@@ -78,6 +81,8 @@ void Engine::OnEnd()
     mPhysicsEngine = PhysicsEngine();
     mScene = Scene();
     mLoader = Loader();
+    mGlobalState.reset();
+    mScriptingEngine = ScriptingEngine();
 }
 
 void Engine::OnUpdate() 
@@ -108,6 +113,9 @@ void Engine::OnUpdate()
     {
         transform.mPosition = controller.mController.GetPosition();
     } );
+
+    // Scripts
+    mScriptingEngine.SetVar( "DeltaTime", dt );
 
     // Call scripts
     mScene.ForEach<StateComponent, ScriptComponent>( 
@@ -186,8 +194,8 @@ void Engine::DrawScene( Framebuffer& framebuffer, Scene& scene )
     framebuffer.Bind();
     mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
 
-    mRenderer.SetCameraUniformBuffers( mActiveCamera, framebuffer );
-    mRenderer.SetLightsUniformBuffer( mActiveCamera, lights );
+    mRenderer.SetCameraUniformBuffers( mCamera, framebuffer );
+    mRenderer.SetLightsUniformBuffer( mCamera, lights );
 
     // Render models
     scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(

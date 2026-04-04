@@ -64,6 +64,9 @@ public:
 
     bool operator==( const Texture2D& other ) const;
 
+public:
+    string mName;
+    path mPath;
 private:
     u32 mRendererID = 0;
     Texture2DSpecification mSpecification;

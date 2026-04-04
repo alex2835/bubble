@@ -8,6 +8,7 @@
 #include "engine/scripting/bindings/physics_lua_bindings.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
+#include "engine/scripting/bindings/free_function_lua_bindings.hpp"
 #include "glm_lua_bindings.hpp"
 #include <sol/sol.hpp>
 
@@ -27,6 +28,7 @@ ScriptingEngine::ScriptingEngine()
                           sol::lib::io,
                           sol::lib::math );
 
+    // Geometry
     CreateVec2Bindings( *mLua );
     CreateVec3Bindings( *mLua );
     CreateVec4Bindings( *mLua );
@@ -34,6 +36,9 @@ ScriptingEngine::ScriptingEngine()
     CreateMat3Bindings( *mLua );
     CreateMat4Bindings( *mLua );
     CreateMathFreeFunctionsBindings( *mLua );
+
+    // General purpose free function
+    CreateFreeFunctionBindings( *mLua );
 }
 
 ScriptingEngine::~ScriptingEngine()
@@ -57,7 +62,7 @@ void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
     CreatePhysicsBindings( physicsEngine, *mLua );
 }
 
-void ScriptingEngine::ExtractOnUpdate( sol::function& func, const Ref<Script>& script )
+void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<Script>& script )
 {
     mLua->set( ON_UPDATE_FUNC, sol::nil );
     RunScript( script );
@@ -77,6 +82,11 @@ void ScriptingEngine::RunScript( const Script& script )
 void ScriptingEngine::RunScript( const Ref<Script>& script )
 {
     RunScript( *script );
+}
+
+Table ScriptingEngine::CreateTable()
+{
+    return mLua->create_table();
 }
 
 }
