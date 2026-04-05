@@ -7,6 +7,7 @@
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/loader/loader.hpp"
+#include "engine/project/project.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include <imgui.h>
@@ -14,10 +15,7 @@
 
 namespace bubble
 {
-constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                             ImGuiTreeNodeFlags_SpanAllColumns |
-                             ImGuiTreeNodeFlags_Framed;
-
+    
 bool IsClass( const Table& tbl )
 {
     if ( not tbl.valid() )
@@ -41,10 +39,10 @@ bool IsArray( const Table& tbl )
     return true;
 }
 
-void PrintAnyValue( const Any& value )
+string AnyValueToString( const Any& value )
 {
     if ( value.is<sol::nil_t>() )
-        std::print( "nil" );
+        return "nil";
     else if ( value.is<Table>() )
     {
         const auto& table = value.as<Table>();
@@ -56,247 +54,56 @@ void PrintAnyValue( const Any& value )
             {
                 std::string className = metatable["__name"].get_or( std::string( "user type" ) );
                 std::string objectString = ( *tostring_fn )( table );
-                std::print( "({}){}", className, objectString );
+                return std::format( "({}){}", className, objectString );
             }
             else
-                std::print( "(user class) no __tostring" );
+                return "(user class) no __tostring";
         }
         else if ( IsArray( table ) ) // array
         {
-            std::print( "[" );
-            for ( auto& [idx, value] : table )
-            {
-                PrintAnyValue( value );
-                std::print( ", " );
-            }
-            std::print( "]" );
+            string result = "[";
+            for ( auto& [idx, val] : table )
+                result += AnyValueToString( val ) + ", ";
+            result += "]";
+            return result;
         }
         else // map
         {
-            std::print( "{{" );
-            for ( auto& [key, value] : table )
-            {
-                PrintAnyValue( key );
-                std::print( " : " );
-                PrintAnyValue( value );
-                std::print( "; " );
-            }
-            std::print( "}}" );
+            string result = "{";
+            for ( auto& [key, val] : table )
+                result += AnyValueToString( key ) + " : " + AnyValueToString( val ) + "; ";
+            result += "}";
+            return result;
         }
     }
     else
     {
         if ( value.is<int>() )
-            std::print( "(int)'{}'", value.as<int>() );
+            return std::format( "(int)'{}'", value.as<int>() );
         else if ( value.is<float>() )
-            std::print( "(float)'{}'", value.as<float>() );
+            return std::format( "(float)'{}'", value.as<float>() );
         else if ( value.is<std::string>() )
-            std::print( "(string)'{}'", value.as<std::string>() );
+            return std::format( "(string)'{}'", value.as<std::string>() );
         else if ( value.is<bool>() )
-            std::print( "(bool)'{}'", value.as<bool>() );
+            return std::format( "(bool)'{}'", value.as<bool>() );
         else if ( value.is<Entity>() )
-            std::print( "(Entity)'{}'", (size_t)value.as<Entity>() );
+            return std::format( "(Entity)'{}'", (size_t)value.as<Entity>() );
         else if ( value.is<Ref<Texture2D>>() )
         {
             const auto& texture = value.as<Ref<Texture2D>>();
-            std::print( "(Texture2D)'{}'", texture ? texture->mPath.string() : "null" );
+            return std::format( "(Texture2D)'{}'", texture ? texture->mPath.string() : "null" );
         }
         else
-            std::print( "(unknown)" );
+            return "(unknown)";
     }
 }
 
-
-void DrawFieldsAdding( Table& table )
+void PrintAnyValue( const Any& value )
 {
-    auto isEmpty = table.empty();
-    auto isArray = IsArray( table );
-    int newId = (int)table.size() + 1;
-
-    bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
-    ImGui::SameLine();
-
-    static string fieldName;
-    if ( not isArray )
-    {
-        ImGui::SetNextItemWidth( 100.0f );
-        ImGui::InputText( "##state", fieldName );
-        ImGui::SameLine();
-    }
-    if ( auto val = TryParseInt( fieldName );
-         isEmpty and val and val >= 1 )
-    {
-        isArray = true;
-        newId = *val;
-    }
-
-    ImGui::SetNextItemWidth( 100.0f );
-    constexpr string_view types = "Int\0Float\0String\0Bool\0Table\0"sv;
-    static enum class Types { Int, Float, String, Bool, Table } selectedType;
-    ImGui::Combo( "##type", (int*)&selectedType, types.data() );
-
-    if ( addValue )
-    {
-        if ( fieldName.empty() )
-            return;
-
-        switch ( selectedType )
-        {
-            case Types::Int:
-                if ( isArray )
-                    table[newId] = 0;
-                else
-                    table[fieldName] = 0;
-                break;
-            case Types::Float:
-                if ( isArray )
-                    table[newId] = 0.0f;
-                else
-                    table[fieldName] = 0.0f;
-                break;
-            case Types::String:
-                if ( isArray )
-                    table[newId] = ""s;
-                else
-                    table[fieldName] = ""s;
-                break;
-            case Types::Bool:
-                if ( isArray )
-                    table[newId] = false;
-                else
-                    table[fieldName] = false;
-                break;
-            case Types::Table:
-            {
-                sol::state_view lua = table.lua_state();
-                table[fieldName] = lua.create_table();
-                break;
-            }
-        }
-    }
+    std::println( "{}", AnyValueToString( value ) );
 }
 
-opt<Any> DrawAnyValue( const string& name, Any any )
-{
-    ImGui::SetNextItemWidth( 100.0f );
-    if ( any.is<int>() )
-    {
-        auto value = any.as<int>();
-        ImGui::DragInt( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(int)" );
-        return value;
-    }
-    else if ( any.is<float>() )
-    {
-        auto value = any.as<float>();
-        ImGui::DragFloat( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(float)" );
-        return value;
-    }
-    else if ( any.is<std::string>() )
-    {
-        auto value = any.as<string>();
-        ImGui::InputText( name.c_str(), value );
-        ImGui::SameLine();
-        ImGui::Text( "(string)" );
-        return value;
-    }
-    else if ( any.is<bool>() )
-    {
-        auto value = any.as<bool>();
-        ImGui::Checkbox( name.c_str(), &value );
-        ImGui::SameLine();
-        ImGui::Text( "(bool)" );
-        return value;
-    }
-    else if ( any.is<Entity>() )
-    {
-        auto value = any.as<Entity>();
-        int id = (int)(size_t)value;
-        ImGui::DragInt( name.c_str(), &id, 1.0f, 0, INT_MAX );
-        ImGui::SameLine();
-        ImGui::Text( "(Entity)" );
-        return Entity{}; // Entity can only be created by registry, return as-is
-    }
-    else if ( any.is<Ref<Texture2D>>() )
-    {
-        auto texture = any.as<Ref<Texture2D>>();
-        string texPath = texture ? texture->mPath.string() : "null";
-        ImGui::Text( "%s: %s", name.c_str(), texPath.c_str() );
-        ImGui::SameLine();
-        ImGui::Text( "(Texture2D)" );
-        if ( texture )
-        {
-            ImGui::Image( (ImTextureID)(u64)texture->RendererID(), ImVec2( 64, 64 ) );
-        }
-        return texture;
-    }
-    else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
-    {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##array", TABLE_FLAGS, "%s (array)", name.c_str() ) )
-        {
-            for ( auto& [k, v] : table )
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                ImGui::SameLine();
-
-                auto name = std::to_string( k.as<int>() );
-                table[k] = DrawAnyValue( name, v );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( table );
-            ImGui::TreePop();
-        }
-        return table;
-    }
-    else if ( any.is<Table>() )
-    {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##table", TABLE_FLAGS, "%s (table)", name.c_str() ) )
-        {
-            for ( auto& [k, v] : table )
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                ImGui::SameLine();
-
-                auto name = k.as<string>();
-                table[k] = DrawAnyValue( name, v );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( table );
-            ImGui::TreePop();
-        }
-        return table;
-    }
-    throw std::runtime_error( "Invalid Any value type" );
-}
-
-json SaveAnyValue( const Any& v )
+json SaveAnyValue( const Project& project, const Any& v )
 {
     if ( v.is<int>() )
         return v.as<int>();
@@ -325,16 +132,16 @@ json SaveAnyValue( const Any& v )
     {
         json j = json::array();
         auto table = v.as<Table>();
-        for ( auto& [k, v] : table )
-            j.push_back( SaveAnyValue( v ) );
+        for ( auto& [k, val] : table )
+            j.push_back( SaveAnyValue( project, val ) );
         return j;
     }
     else if ( v.is<Table>() )
     {
         json j = json::object();
         auto table = v.as<Table>();
-        for ( auto& [k, v] : table )
-            j[k.as<string>()] = SaveAnyValue( v );
+        for ( auto& [k, val] : table )
+            j[k.as<string>()] = SaveAnyValue( project, val );
         return j;
     }
     else
@@ -345,9 +152,9 @@ json SaveAnyValue( const Any& v )
 }
 
 
-Any LoadAnyValue( ScriptingEngine& scripting, const json& j )
+Any LoadAnyValue( Project& project, const json& j )
 {
-    auto& lua = *scripting.mLua;
+    auto& lua = *project.mScriptingEngine.mLua;
     if ( j.is_number_integer() )
         return Any( lua, j.get<int>() );
     else if ( j.is_number_float() )
@@ -361,9 +168,9 @@ Any LoadAnyValue( ScriptingEngine& scripting, const json& j )
         auto type = j["__type"].get<string>();
         if ( type == "Entity" )
         {
-            // Note: Entity loaded this way won't be valid in the registry
-            // It's just storing the ID for reference
-            return Any( lua, Entity{} );
+            auto id = j["id"].get<size_t>();
+            auto entity = project.mScene.GetEntityById( id );
+            return Any( lua, entity );
         }
         else if ( type == "Texture2D" )
         {
@@ -375,17 +182,17 @@ Any LoadAnyValue( ScriptingEngine& scripting, const json& j )
     }
     else if ( j.is_array() )
     {
-        auto table = scripting.CreateTable();
+        auto table = project.mScriptingEngine.CreateTable();
         int i = 1;
         for ( const auto& v : j )
-            table[i++] = LoadAnyValue( scripting, v );
+            table[i++] = LoadAnyValue( project, v );
         return table;
     }
     else if ( j.is_object() )
     {
-        auto table = scripting.CreateTable();
+        auto table = project.mScriptingEngine.CreateTable();
         for ( const auto& [k, v] : j.items() )
-            table[k] = LoadAnyValue( scripting, v );
+            table[k] = LoadAnyValue( project, v );
         return table;
     }
     throw std::runtime_error( std::format( "Value of not supported type: {}", string( j ) ) );
@@ -412,5 +219,282 @@ Scope<Any> AnyDeepCopy( const Scope<Any>& any )
     return CreateScope<Any>( AnyDeepCopy( *any ) );
 }
 
+
+void DrawFieldsAdding( Project& project, Table& table )
+{
+    auto isEmpty = table.empty();
+    auto isArray = IsArray( table );
+    int newId = (int)table.size() + 1;
+
+    bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
+    ImGui::SameLine();
+
+    static string fieldName;
+    if ( not isArray )
+    {
+        ImGui::SetNextItemWidth( 100.0f );
+        ImGui::InputText( "##state", fieldName );
+        ImGui::SameLine();
+    }
+    if ( auto val = TryParseInt( fieldName );
+         isEmpty and val and val >= 1 )
+    {
+        isArray = true;
+        newId = *val;
+    }
+
+    ImGui::SetNextItemWidth( 100.0f );
+    constexpr string_view types = "Int\0Float\0String\0Bool\0Table\0Texture2D\0Entity\0"sv;
+    static enum class Types { Int, Float, String, Bool, Table, Texture2D, Entity } selectedType;
+    ImGui::Combo( "##type", (int*)&selectedType, types.data() );
+
+    if ( addValue )
+    {
+        if ( fieldName.empty() )
+            return;
+
+        sol::state_view lua = table.lua_state();
+        auto key = isArray ? sol::object( lua, sol::in_place, newId )
+            : sol::object( lua, sol::in_place, fieldName );
+
+        switch ( selectedType )
+        {
+            case Types::Int:
+                table[key] = Any( lua, 0 );
+                break;
+            case Types::Float:
+                table[key] = Any( lua, 0.0f );
+                break;
+            case Types::String:
+                table[key] = Any( lua, ""s );
+                break;
+            case Types::Bool:
+                table[key] = Any( lua, false );
+                break;
+            case Types::Table:
+                table[key] = lua.create_table();
+                break;
+            case Types::Texture2D:
+                table[key] = Any( lua, Ref<Texture2D>{} );
+                break;
+            case Types::Entity:
+            {
+                auto entity = project.mScene.CreateEntity();
+                table[key] = Any( lua, entity );
+                break;
+            }
+        }
+    }
 }
+
+Any DrawAnyValue( Project& project, string_view name, Any any )
+{
+    constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
+                                 ImGuiTreeNodeFlags_SpanAllColumns |
+                                 ImGuiTreeNodeFlags_Framed;
+
+    auto& lua = *project.mScriptingEngine.mLua;
+
+    ImGui::SetNextItemWidth( 100.0f );
+    if ( any.is<sol::nil_t>() )
+    {
+        ImGui::SameLine();
+        ImGui::Text( "(nill)" );
+        return any;
+    }
+    else if ( any.is<int>() )
+    {
+        auto value = any.as<int>();
+        ImGui::DragInt( name.data(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(int)" );
+        return Any( lua, value );
+    }
+    else if ( any.is<float>() )
+    {
+        auto value = any.as<float>();
+        ImGui::DragFloat( name.data(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(float)" );
+        return Any( lua, value );
+    }
+    else if ( any.is<std::string>() )
+    {
+        auto value = any.as<string>();
+        ImGui::InputText( name.data(), value );
+        ImGui::SameLine();
+        ImGui::Text( "(string)" );
+        return Any( lua, value );
+    }
+    else if ( any.is<bool>() )
+    {
+        auto value = any.as<bool>();
+        ImGui::Checkbox( name.data(), &value );
+        ImGui::SameLine();
+        ImGui::Text( "(bool)" );
+        return Any( lua, value );
+    }
+    else if ( any.is<Entity>() )
+    {
+        auto current = any.as<Entity>();
+
+        // Build list of all entities that have a tag
+        vector<Entity> entities;
+        vector<string> entityNames;
+        project.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
+        {
+            entities.push_back( entity );
+            entityNames.push_back( std::format( "[{}] {}", (size_t)entity, tag.mName ) );
+        } );
+
+        // Find current selection index
+        int selectedIdx = -1;
+        for ( int i = 0; i < (int)entities.size(); i++ )
+            if ( entities[i] == current )
+            {
+                selectedIdx = i;
+                break;
+            }
+
+        // Build c-string array for combo
+        vector<const char*> items;
+        items.reserve( entityNames.size() );
+        for ( const auto& n : entityNames )
+            items.push_back( n.c_str() );
+
+        ImGui::SetNextItemWidth( 150.0f );
+        string preview = selectedIdx >= 0 ? entityNames[selectedIdx] : "None";
+        if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
+        {
+            for ( int i = 0; i < (int)entities.size(); i++ )
+            {
+                bool isSelected = ( i == selectedIdx );
+                if ( ImGui::Selectable( items[i], isSelected ) )
+                    current = entities[i];
+                if ( isSelected )
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine();
+        ImGui::Text( "(Entity)" );
+        return Any( lua, current );
+    }
+    else if ( any.is<Ref<Texture2D>>() )
+    {
+        auto current = any.as<Ref<Texture2D>>();
+
+        // Build list from loader
+        vector<Ref<Texture2D>> textures;
+        vector<string> textureNames;
+        for ( const auto& [texPath, tex] : project.mLoader.mTextures )
+        {
+            textures.push_back( tex );
+            textureNames.push_back( texPath.filename().string() );
+        }
+
+        // Find current selection index
+        int selectedIdx = -1;
+        for ( int i = 0; i < (int)textures.size(); i++ )
+        {
+            if ( textures[i] == current )
+            {
+                selectedIdx = i;
+                break;
+            }
+        }
+
+        string preview = selectedIdx >= 0 ? textureNames[selectedIdx] : "None";
+        ImGui::SetNextItemWidth( 150.0f );
+        if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
+        {
+            if ( ImGui::Selectable( "None", selectedIdx == -1 ) )
+                current = nullptr;
+
+            for ( int i = 0; i < (int)textures.size(); i++ )
+            {
+                bool isSelected = ( i == selectedIdx );
+                ImGui::Image( (ImTextureID)(u64)textures[i]->RendererID(), ImVec2( 24, 24 ) );
+                ImGui::SameLine();
+                if ( ImGui::Selectable( textureNames[i].c_str(), isSelected ) )
+                    current = textures[i];
+                if ( isSelected )
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine();
+        ImGui::Text( "(Texture2D)" );
+        if ( current )
+            ImGui::Image( (ImTextureID)(u64)current->RendererID(), ImVec2( 64, 64 ) );
+        return Any( lua, current );
+    }
+    else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
+    {
+        int i = 0;
+        auto table = any.as<Table>();
+        if ( ImGui::TreeNodeEx( "##array", TABLE_FLAGS, "%s (array)", name.data() ) )
+        {
+            for ( auto& [k, v] : table )
+            {
+                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
+
+                if ( ImGui::Button( "-" ) )
+                {
+                    table[k] = sol::nil;
+                    ImGui::PopID();
+                    continue;
+                }
+                ImGui::SameLine();
+
+                auto entryName = std::to_string( k.as<int>() );
+                table[k] = DrawAnyValue( project, entryName, v.as<Any>() );
+
+                ImGui::Separator();
+                ImGui::PopID();
+                i++;
+            }
+            DrawFieldsAdding( project, table );
+            ImGui::TreePop();
+        }
+    }
+    else if ( any.is<Table>() )
+    {
+        int i = 0;
+        auto table = any.as<Table>();
+        if ( ImGui::TreeNodeEx( "##table", TABLE_FLAGS, "%s (table)", name.data() ) )
+        {
+            for ( auto& [k, v] : table )
+            {
+                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
+
+                if ( ImGui::Button( "-" ) )
+                {
+                    table[k] = sol::nil;
+                    ImGui::PopID();
+                    continue;
+                }
+                ImGui::SameLine();
+
+                auto entryName = k.as<string>();
+                table[k] = DrawAnyValue( project, entryName, v.as<Any>() );
+
+                ImGui::Separator();
+                ImGui::PopID();
+                i++;
+            }
+            DrawFieldsAdding( project, table );
+            ImGui::TreePop();
+        }
+    }
+    else
+    {
+        BUBBLE_ASSERT( false, "Invalid any value" );
+        throw std::runtime_error( "DrawAny(): Invalid Any value type" );
+    }
+    return any;
+}
+
+
+} // namespace bubble
 

@@ -1008,17 +1008,17 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
 void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    DrawAnyValue( "State"s, *component.mState );
+    *component.mState = DrawAnyValue( const_cast<Project&>( project ), "State"sv, *component.mState );
 }
 
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
 {
-    json = SaveAnyValue( *component.mState );
+    json = SaveAnyValue( project, *component.mState );
 }
 
 void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )
 {
-    component.mState = CreateScope<Any>( LoadAnyValue( project.mScriptingEngine, json ) );
+    component.mState = CreateScope<Any>( LoadAnyValue( project, json ) );
 }
 
 void StateComponent::CreateLuaBinding( sol::state& lua )

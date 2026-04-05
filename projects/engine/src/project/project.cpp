@@ -174,7 +174,7 @@ void Project::Save()
     json projectJson;
     projectJson["Loader"] = mLoader;
     projectJson["Scene"] = SaveScene();
-    projectJson["GlobalState"] = SaveAnyValue( *mGlobalState );
+    projectJson["GlobalState"] = SaveAnyValue( *this, *mGlobalState );
     projectJson["ProjectTree"] = SaveProjectTree();
 
     std::ofstream projectFile( mRootFile );
@@ -195,7 +195,7 @@ void Project::Open( const path& rootFile )
     json projectJson = json::parse( stream );
     from_json( projectJson["Loader"], mLoader );
     LoadScene( projectJson["Scene"] );
-    mGlobalState = CreateScope<Any>( LoadAnyValue( mScriptingEngine, projectJson["GlobalState"] ) );
+    mGlobalState = CreateScope<Any>( LoadAnyValue( *this, projectJson["GlobalState"] ) );
     LoadProjectTree( projectJson["ProjectTree"] );
     LogInfo( "Project opened: {}", mRootFile.string() );
 }

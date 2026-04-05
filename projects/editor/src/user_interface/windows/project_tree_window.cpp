@@ -16,7 +16,6 @@ constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
 
 constexpr auto SELECTED_PROJECT_TREE_NODE_FLAGS = PROJECT_TREE_NODE_FLAGS | ImGuiTreeNodeFlags_Framed;
 
-
 bool RenamableTreeNode( string& name,
                         bool& editing,
                         ImGuiTreeNodeFlags treeFlags )
@@ -125,7 +124,6 @@ void ProjectTreeWindow::RemoveSelected()
 
     mSelection = {};
 }
-
 
 void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
 {
@@ -341,14 +339,20 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
         {
             if ( ImGui::BeginMenu( "Add component" ) )
             {
-                for ( auto componentID : componentIDs )
+                for ( const auto componentId : componentIDs )
                 {
-                    if ( entityComponents.contains( componentID ) )
+                    if ( entityComponents.contains( componentId ) )
                         continue;
 
-                    auto name = ComponentManager::GetName( componentID );
+                    const auto name = ComponentManager::GetName( componentId );
                     if ( ImGui::MenuItem( name.data() ) )
-                        mProject.mScene.EntityAddComponentId( selectedEntity, componentID );
+                    {
+                        // custom creation if needed
+                        if ( componentId == (int)ComponentID::State )
+                            mProject.mScene.AddComponent<StateComponent>( selectedEntity, mProject.mScriptingEngine.CreateTable() );
+                        else
+                            mProject.mScene.EntityAddComponentId( selectedEntity, componentId );
+                    }
                 }
                 ImGui::EndMenu();
             }

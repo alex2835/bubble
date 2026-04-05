@@ -6,7 +6,7 @@ namespace bubble
 {
 void CreateFreeFunctionBindings( sol::state& lua )
 {
-    lua["PrintAny"] = []( const Any& value ) { PrintAnyValue( value ); };
+    lua["PrintAny"] = []( const Any& value ) { PrintAnyValue( value ) ; };
 }
 
 } // namespace bubble
