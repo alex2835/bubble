@@ -300,11 +300,13 @@ public:
     CreateNodeCommand( Ref<ProjectTreeNode> parent,
                       ProjectTreeNodeType type,
                       ProjectTreeNode::StateType state,
-                      Scene& scene )
+                      Scene& scene,
+                      u64& nodeIDCounter )
         : mParent( parent )
         , mType( type )
         , mState( state )
         , mScene( scene )
+        , mNodeIDCounter( nodeIDCounter )
     {
     }
 
@@ -324,7 +326,7 @@ public:
         // Create the new node if first execution
         if ( not mCreatedNode )
         {
-            mCreatedNode = CreateRef<ProjectTreeNode>();
+            mCreatedNode = CreateRef<ProjectTreeNode>( mNodeIDCounter );
             mCreatedNode->mType = mType;
             mCreatedNode->mState = mState;
         }
@@ -376,6 +378,7 @@ private:
     ProjectTreeNodeType mType;
     ProjectTreeNode::StateType mState;
     Scene& mScene;
+    u64& mNodeIDCounter;
     Scene mBackupScene; // Backup scene for undo/redo
     Entity mBackupEntity = INVALID_ENTITY; // Backup entity in backup scene
 };

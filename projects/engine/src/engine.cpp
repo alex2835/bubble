@@ -36,18 +36,19 @@ Engine::~Engine()
     mPhysicsEngine.ClearWorld();
 }
 
-void Engine::OnStart( const path& project )
+void Engine::OnStart( const path& projectRootFile )
 {
-    Open( project );
+    mProject.mScriptingEngine.SetCurrentState();
+    mProject.Open( projectRootFile );
 
     // Bind members to scripting engine
-    mScriptingEngine.BindInput( mWindow.GetWindowInput() );
-    mScriptingEngine.BindLoader( mLoader );
-    mScriptingEngine.BindScene( mScene, mPhysicsEngine );
+    mProject.mScriptingEngine.BindInput( mWindow.GetWindowInput() );
+    mProject.mScriptingEngine.BindLoader( mProject.mLoader );
+    mProject.mScriptingEngine.BindScene( mProject.mScene, mPhysicsEngine );
 
 
     // Add RigidBody components to physics world
-    mScene.ForEach<TransformComponent, RigidBodyComponent>(
+    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
     [&]( Entity entity, TransformComponent& transform, RigidBodyComponent& rigidBody )
     {
         rigidBody.mRigidBody.SetTransform( transform.mPosition, transform.mRotation );
@@ -56,7 +57,7 @@ void Engine::OnStart( const path& project )
     } );
 
     // Add CharacterController components to physics world
-    mScene.ForEach<TransformComponent, CharacterControllerComponent>(
+    mProject.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
     [&]( Entity entity, TransformComponent& transform, CharacterControllerComponent& controller )
     {
         controller.mController.Warp( transform.mPosition );
@@ -65,39 +66,48 @@ void Engine::OnStart( const path& project )
 
     /// Scripts
     // Extract scripts functions
-    mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& scriptComponent )
+    mProject.mScene.ForEach<ScriptComponent, StateComponent>( [&]( Entity entity, 
+                                                                   ScriptComponent& scriptComponent,
+                                                                   StateComponent& stateComponent )
     {
         if ( not scriptComponent.mScript )
             throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
-        mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
+
+        mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
         BUBBLE_ASSERT( scriptComponent.mOnUpdate, "Failed to extract function" );
+        BUBBLE_ASSERT( stateComponent.mState->as<Table>().lua_state() == scriptComponent.mOnUpdate.lua_state(), "Lua state missmatch" );
     } );
-    mScriptingEngine.SetVar( "globalState"sv, *mGlobalState );
+    mProject.mScriptingEngine.SetVar( "globalState"sv, *mProject.mGlobalState );
+
+    // Active camera control
+    mProject.mScriptingEngine.SetVar( "SetActiveCamera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
+    mProject.mScriptingEngine.SetVar( "GetActiveCamera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
 }
 
 void Engine::OnEnd()
 {
+    //mProject = Project();
     mPhysicsEngine.ClearWorld();
     mPhysicsEngine = PhysicsEngine();
-    mScene = Scene();
-    mLoader = Loader();
-    mGlobalState.reset();
-    mScriptingEngine = ScriptingEngine();
+    mProject.mScene = Scene();
+    mProject.mLoader = Loader();
+    mProject.mGlobalState.reset();
+    mProject.mScriptingEngine = ScriptingEngine();
 }
 
 void Engine::OnUpdate() 
 {
     mTimer.OnUpdate();
-    auto dt = mTimer.GetDeltaTime();
+    const auto dt = mTimer.GetDeltaTime();
 
-    // Update physics world
+    /// Update physics world
     mPhysicsEngine.Update( dt );
 
     // Propagate transforms
-    PropagateTransforms( mScene );
+    PropagateTransforms( mProject.mScene );
 
     // Update transforms from RigidBody components
-    mScene.ForEach<TransformComponent, RigidBodyComponent>(
+    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
     []( Entity entity,
         TransformComponent& transform,
         const RigidBodyComponent& rigidBody )
@@ -106,7 +116,7 @@ void Engine::OnUpdate()
     } );
 
     // Update transforms from CharacterController components
-    mScene.ForEach<TransformComponent, CharacterControllerComponent>(
+    mProject.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
     []( Entity entity,
         TransformComponent& transform,
         const CharacterControllerComponent& controller )
@@ -114,11 +124,12 @@ void Engine::OnUpdate()
         transform.mPosition = controller.mController.GetPosition();
     } );
 
-    // Scripts
-    mScriptingEngine.SetVar( "DeltaTime", dt );
+
+    /// Update Scripts
+    mProject.mScriptingEngine.SetVar( "DeltaTime", dt );
 
     // Call scripts
-    mScene.ForEach<StateComponent, ScriptComponent>( 
+    mProject.mScene.ForEach<StateComponent, ScriptComponent>(
     []( Entity entity,
         const StateComponent& stateComponent,
         const ScriptComponent& scriptComponent )
@@ -133,6 +144,13 @@ void Engine::OnUpdate()
             }
         }
     });
+
+    /// Sync active camera entity to rendering camera
+    if ( mActiveCameraEntity != INVALID_ENTITY &&
+         mProject.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
+    {
+        mCamera = mProject.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
+    }
 }
 
 void Engine::PropagateTransforms( Scene& scene )
@@ -172,10 +190,10 @@ void Engine::PropagateTransforms( Scene& scene )
 
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
-    DrawScene( framebuffer, mScene );
+    DrawScene( framebuffer, mProject.mScene );
 }
 
-void Engine::DrawScene( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
 {
     // Set up lights
     std::vector<Light> lights;
@@ -213,7 +231,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, Scene& scene )
 }
 
 
-void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
 {
     framebuffer.Bind();
     if ( scene.Size() == 0 )
@@ -245,7 +263,7 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene )
 }
 
 
-void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
 {
     framebuffer.Bind();
     if ( scene.Size() == 0 )
@@ -290,7 +308,7 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene )
 }
 
 
-void Engine::DrawCameraFrustums( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
 {
     framebuffer.Bind();
     if ( scene.Size() == 0 )
@@ -366,7 +384,7 @@ const Ref<Texture2D>& Engine::GetLightTexture( const LightType& lightType )
 }
 
 
-void Engine::DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene )
 {
     framebuffer.Bind();
 
@@ -423,7 +441,7 @@ void Engine::DrawBillboardEntityId( const Entity entity,
 }
 
 
-void Engine::DrawEntityIds( Framebuffer& framebuffer, Scene& scene )
+void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
 {
     // Draw scene's entity ids to buffer
     framebuffer.Bind();

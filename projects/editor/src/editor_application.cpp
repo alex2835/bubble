@@ -24,6 +24,7 @@ BubbleEditor::BubbleEditor()
       mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
+    mProject.mScriptingEngine.SetCurrentState();
 }
 
 
@@ -118,13 +119,14 @@ void BubbleEditor::OnUpdateHotKeys()
 
     // Run game
     if ( mEditorMode == EditorMode::Editing and
-         input.IsKeyClicked( KeyboardKey::F5 ) )
+         input.IsKeyClicked( KeyboardKey::F5 ) and 
+         mProject.IsValid() )
     {
         try
         {
             mEditorMode = EditorMode::Running;
             mProject.Save();
-            mEngine.mLoader = mProject.mLoader;
+            mEngine.mProject.mLoader = mProject.mLoader;
             mEngine.OnStart( mProject.mRootFile );
         }
         catch ( const std::exception& e )
@@ -132,15 +134,17 @@ void BubbleEditor::OnUpdateHotKeys()
             mEditorMode = EditorMode::Editing;
             LogError( e.what() );
             mEngine.OnEnd();
+            mProject.mScriptingEngine.SetCurrentState();
         };
     }
 
     // Stop game
-    if ( mEditorMode == EditorMode::Running and
+     if ( mEditorMode == EditorMode::Running and
          input.IsKeyClicked( KeyboardKey::F6 ) )
     {
         mEditorMode = EditorMode::Editing;
         mEngine.OnEnd();
+        mProject.mScriptingEngine.SetCurrentState();
     }
 
 

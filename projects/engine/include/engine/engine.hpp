@@ -11,7 +11,7 @@ namespace bubble
 {
 class Scene;
 
-struct Engine : public Project
+struct Engine
 {
     Engine( Window& window );
     ~Engine();
@@ -22,11 +22,11 @@ struct Engine : public Project
     void PropagateTransforms( Scene& scene );
     void DrawScene( Framebuffer& framebuffer );
 
-    void DrawScene( Framebuffer& framebuffer, Scene& scene );
+    void DrawScene( Framebuffer& framebuffer, const Scene& scene );
     // Helpers
-    void DrawBoundingBoxes( Framebuffer& framebuffer, Scene& scene );
-    void DrawPhysicsShapes( Framebuffer& framebuffer, Scene& scene );
-    void DrawCameraFrustums( Framebuffer& framebuffer, Scene& scene );
+    void DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene );
+    void DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene );
+    void DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene );
 
     // Billboards
     static constexpr auto cBillboardSize = vec2( 5.0f );
@@ -37,10 +37,10 @@ struct Engine : public Project
                         const vec3& position,
                         const vec2& size = vec2( 1.0f ),
                         const vec4& tintColor = vec4( 1.0f ) );
-    void DrawEditorBillboards( Framebuffer& framebuffer, Scene& scene );
+    void DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene );
 
     // Draw entity id to framebuffer for object picking
-    void DrawEntityIds( Framebuffer& framebuffer, Scene& scene );
+    void DrawEntityIds( Framebuffer& framebuffer, const Scene& scene );
     void DrawBillboardEntityId( const Entity entity, const vec3& position, const vec2& size = vec2( 1.0f ) );
 
 public:
@@ -48,9 +48,11 @@ public:
     Timer mTimer;
     Renderer mRenderer;
     PhysicsEngine mPhysicsEngine;
+    Project mProject;
 
     // Engine
     Camera mCamera;
+    Entity mActiveCameraEntity = INVALID_ENTITY;
 
     // Shaders for entity ID rendering
     Ref<Shader> mEntityIdShader;

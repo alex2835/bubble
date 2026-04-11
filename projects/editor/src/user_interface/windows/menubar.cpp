@@ -122,7 +122,7 @@ void Menubar::DrawMenubar()
             if ( ImGui::MenuItem( "Open" ) )
                 mOpenProjectModal = true;
 
-            if ( ImGui::MenuItem( "Save" ) )
+            if ( ImGui::MenuItem( "Save" ) and mProject.IsValid() )
                 mProject.Save();
 
             ImGui::EndMenu();

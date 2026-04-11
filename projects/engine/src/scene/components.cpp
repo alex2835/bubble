@@ -247,6 +247,8 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "Pitch", &Camera::mPitch,
         "MaxSpeed", &Camera::mMaxSpeed,
         "MouseSensitivity", &Camera::mMouseSensitivity,
+        "Center", &Camera::mCenter,
+        "Radius", &Camera::mRadius,
 
         // Methods
         "GetLookatMat", &Camera::GetLookatMat,
@@ -993,7 +995,7 @@ StateComponent::~StateComponent()
 }
 
 StateComponent::StateComponent( const StateComponent& other )
-    : mState( CreateScope<Any>( AnyDeepCopy( *other.mState ) ) )
+    : mState( AnyDeepCopy( other.mState ) )
 {
 
 }
@@ -1001,7 +1003,7 @@ StateComponent::StateComponent( const StateComponent& other )
 StateComponent& StateComponent::operator=( const StateComponent& other )
 {
     if ( this != &other )
-        mState = CreateScope<Any>( AnyDeepCopy( *other.mState ) );
+        mState = AnyDeepCopy( other.mState );
     return *this;
 }
 
@@ -1013,6 +1015,14 @@ void StateComponent::OnComponentDraw( const Project& project, const Entity& enti
 
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
 {
+    // validate that state belong to proper lua state
+    if ( component.mState and component.mState->is<Table>() )
+    {
+        lua_State* componentLua = component.mState->as<Table>().lua_state();
+        lua_State* projectLua   = project.mScriptingEngine.mLua->lua_state();
+        BUBBLE_ASSERT( componentLua == projectLua, "StateComponent Lua state mismatch: component belongs to a different sol::state than the project" );
+    }
+
     json = SaveAnyValue( project, *component.mState );
 }
 

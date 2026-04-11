@@ -139,7 +139,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::Folder,
                 "folder"s,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -155,7 +156,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::ModelObject,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -172,7 +174,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::PhysicsObject,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -191,7 +194,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::GameObject,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -206,7 +210,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::Script,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -221,7 +226,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::Light,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }
@@ -236,7 +242,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
                 node,
                 ProjectTreeNodeType::Camera,
                 entity,
-                mProject.mScene
+                mProject.mScene,
+                mProject.mNodeIDCounter
             );
             mHistory.ExecuteCommand( std::move( command ) );
         }

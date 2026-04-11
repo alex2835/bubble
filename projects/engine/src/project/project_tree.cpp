@@ -3,18 +3,15 @@
 
 namespace bubble
 {
-u64 ProjectTreeNode::mIDCounter = 0;
-
-
-ProjectTreeNode::ProjectTreeNode()
-    : mID( mIDCounter++ )
+ProjectTreeNode::ProjectTreeNode( u64& idCounter )
+    : mID( idCounter++ ),
+      mIDCounter( &idCounter )
 {
-
 }
 
 Ref<ProjectTreeNode> ProjectTreeNode::CreateChild( ProjectTreeNodeType type, StateType state )
 {
-    auto& child = mChildren.emplace_back( CreateRef<ProjectTreeNode>() );
+    auto& child = mChildren.emplace_back( CreateRef<ProjectTreeNode>( *mIDCounter ) );
     child->mType = type;
     child->mParent = weak_from_this();
     child->mState = state;
@@ -54,7 +51,7 @@ void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node, Scene& scene )
 Ref<ProjectTreeNode> ProjectTreeNode::CopyNode( const Ref<ProjectTreeNode>& node, Scene& scene )
 {
     // Create a new node with the same type
-    auto copiedNode = CreateRef<ProjectTreeNode>();
+    auto copiedNode = CreateRef<ProjectTreeNode>( *node->mIDCounter );
     copiedNode->mType = node->mType;
     copiedNode->mIsEditingInUI = false;
 

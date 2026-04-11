@@ -11,7 +11,7 @@ void Selection::Clear()
     mGroupTransform = Transform{};
 }
 
-void Selection::SelectTreeNode( const Ref<ProjectTreeNode>& node, Scene& scene )
+void Selection::SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& scene )
 {
     Clear();
     mProjectTreeNode = node;
@@ -23,7 +23,7 @@ void Selection::SelectTreeNode( const Ref<ProjectTreeNode>& node, Scene& scene )
     }
 }
 
-void Selection::AddEntity( Entity entity, Scene& scene )
+void Selection::AddEntity( Entity entity, const Scene& scene )
 {
     if ( mEntities.insert( entity ).second )
     {
@@ -31,7 +31,7 @@ void Selection::AddEntity( Entity entity, Scene& scene )
     }
 }
 
-void Selection::AddEntities( const set<Entity>& entities, Scene& scene )
+void Selection::AddEntities( const set<Entity>& entities, const Scene& scene )
 {
     bool changed = false;
     for ( auto entity : entities )
@@ -44,7 +44,7 @@ void Selection::AddEntities( const set<Entity>& entities, Scene& scene )
         UpdateGroupTransform( scene );
 }
 
-void Selection::RemoveEntity( Entity entity, Scene& scene )
+void Selection::RemoveEntity( Entity entity, const Scene& scene )
 {
     if ( mEntities.erase( entity ) > 0 )
     {
@@ -58,7 +58,7 @@ Entity Selection::GetSingleEntity() const
     return *mEntities.begin();
 }
 
-void Selection::UpdateGroupTransform( Scene& scene )
+void Selection::UpdateGroupTransform( const Scene& scene )
 {
     if ( mEntities.empty() )
     {

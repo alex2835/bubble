@@ -166,6 +166,14 @@ void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
         return input.IsKeyPressed( KeyboardKey( key ) );
     } );
 
+    // Mouse position (normalized 0..1 relative to window)
+    lua.set( "MousePosX",    [&]() { return input.MousePos().x; } );
+    lua.set( "MousePosY",    [&]() { return input.MousePos().y; } );
+
+    // Mouse delta since last frame
+    lua.set( "MouseOffsetX", [&]() { return input.MouseOffset().x; } );
+    lua.set( "MouseOffsetY", [&]() { return input.MouseOffset().y; } );
+
     lua.safe_script( keyboardKeys );
     lua.safe_script( mouseKeys );
 }

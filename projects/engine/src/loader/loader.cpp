@@ -8,8 +8,8 @@ Loader::ProjectPath Loader::RelAbsFromProjectPath( const path& resourcePath ) co
     if ( resourcePath.string().starts_with( "." ) )
         return { resourcePath, resourcePath };
 
-    auto relPath = resourcePath.is_relative() ? resourcePath : filesystem::relative( resourcePath, mProjectRootPath );
-    auto absPath = resourcePath.is_absolute() ? resourcePath : mProjectRootPath / resourcePath;
+    auto relPath = resourcePath.is_relative() ? resourcePath : filesystem::relative( resourcePath, mProjectRootDir );
+    auto absPath = resourcePath.is_absolute() ? resourcePath : mProjectRootDir / resourcePath;
     return ProjectPath{ .rel = relPath.generic_string(),
                         .abs = absPath.generic_string() };
 }

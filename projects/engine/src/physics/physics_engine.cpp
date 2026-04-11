@@ -169,7 +169,6 @@ std::vector<RayHitResult> PhysicsEngine::RaycastAll( const vec3& from, const vec
 
 PhysicsEngine::~PhysicsEngine()
 {
-
 }
 
 }

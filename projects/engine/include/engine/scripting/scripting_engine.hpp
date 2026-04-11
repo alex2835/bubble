@@ -29,11 +29,12 @@ public:
     void RunScript( const Ref<Script>& script );
     void ExtractOnUpdate( sol::protected_function& func, const Ref<Script>& script );
     Table CreateTable();
+    void SetCurrentState();
 
     template <typename T>
-    void SetVar( string_view name, T& var )
+    void SetVar( string_view name, T&& var )
     {
-        (*mLua)[name] = var;
+        (*mLua)[name] = std::forward<T>( var );
     }
 
 public:

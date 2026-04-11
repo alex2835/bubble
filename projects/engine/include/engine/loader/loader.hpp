@@ -83,7 +83,7 @@ struct Loader
 
 
 public:
-    path mProjectRootPath;
+    path mProjectRootDir;
     hash_map<path, Ref<Texture2D>> mTextures;
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;

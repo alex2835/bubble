@@ -76,26 +76,23 @@ string AnyValueToString( const Any& value )
             return result;
         }
     }
-    else
+    else if ( value.is<int>() )
+        return std::format( "(int)'{}'", value.as<int>() );
+    else if ( value.is<float>() )
+        return std::format( "(float)'{}'", value.as<float>() );
+    else if ( value.is<std::string>() )
+        return std::format( "(string)'{}'", value.as<std::string>() );
+    else if ( value.is<bool>() )
+        return std::format( "(bool)'{}'", value.as<bool>() );
+    else if ( value.is<Entity>() )
+        return std::format( "(Entity)'{}'", (size_t)value.as<Entity>() );
+    else if ( value.is<Ref<Texture2D>>() )
     {
-        if ( value.is<int>() )
-            return std::format( "(int)'{}'", value.as<int>() );
-        else if ( value.is<float>() )
-            return std::format( "(float)'{}'", value.as<float>() );
-        else if ( value.is<std::string>() )
-            return std::format( "(string)'{}'", value.as<std::string>() );
-        else if ( value.is<bool>() )
-            return std::format( "(bool)'{}'", value.as<bool>() );
-        else if ( value.is<Entity>() )
-            return std::format( "(Entity)'{}'", (size_t)value.as<Entity>() );
-        else if ( value.is<Ref<Texture2D>>() )
-        {
-            const auto& texture = value.as<Ref<Texture2D>>();
-            return std::format( "(Texture2D)'{}'", texture ? texture->mPath.string() : "null" );
-        }
-        else
-            return "(unknown)";
+        const auto& texture = value.as<Ref<Texture2D>>();
+        return std::format( "(Texture2D)'{}'", texture ? texture->mPath.string() : "null" );
     }
+    else
+        return "(unknown)";
 }
 
 void PrintAnyValue( const Any& value )
@@ -132,7 +129,7 @@ json SaveAnyValue( const Project& project, const Any& v )
     {
         json j = json::array();
         auto table = v.as<Table>();
-        for ( auto& [k, val] : table )
+        for ( const auto& [k, val] : table )
             j.push_back( SaveAnyValue( project, val ) );
         return j;
     }
@@ -140,7 +137,7 @@ json SaveAnyValue( const Project& project, const Any& v )
     {
         json j = json::object();
         auto table = v.as<Table>();
-        for ( auto& [k, val] : table )
+        for ( const auto& [k, val] : table )
             j[k.as<string>()] = SaveAnyValue( project, val );
         return j;
     }
@@ -155,6 +152,8 @@ json SaveAnyValue( const Project& project, const Any& v )
 Any LoadAnyValue( Project& project, const json& j )
 {
     auto& lua = *project.mScriptingEngine.mLua;
+    LogInfo( "LoadAnyValue lua_State* {}", (i64)lua.lua_state() );
+
     if ( j.is_number_integer() )
         return Any( lua, j.get<int>() );
     else if ( j.is_number_float() )

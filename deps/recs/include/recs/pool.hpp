@@ -53,7 +53,13 @@ public:
     T& Get( Entity entity );
 
     template <ComponentType T>
+    const T& Get( Entity entity ) const;
+
+    template <ComponentType T>
     T& Get( size_t index );
+
+    template <ComponentType T>
+    const T& Get( size_t index ) const;
 
     size_t Size() const noexcept;
 
@@ -123,10 +129,27 @@ T& Pool::Get( Entity entity )
 }
 
 template <ComponentType T>
+const T& Pool::Get( Entity entity ) const
+{
+    const void* raw_data = GetRaw( entity );
+    if ( raw_data )
+        return *static_cast<const T*>( raw_data );
+    throw std::runtime_error( "Entity has component, but pool doesn't (Incorrect working)" );
+}
+
+template <ComponentType T>
 T& Pool::Get( size_t index )
 {
     if ( index < Size() )
         return *static_cast<T*>( GetElemAddress( index ) );
+    throw std::runtime_error( "Pool::Get, out of bound access" );
+}
+
+template <ComponentType T>
+const T& Pool::Get( size_t index ) const
+{
+    if ( index < Size() )
+        return *static_cast<const T*>( GetElemAddressConst( index ) );
     throw std::runtime_error( "Pool::Get, out of bound access" );
 }
 

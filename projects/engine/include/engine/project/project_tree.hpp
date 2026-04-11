@@ -24,7 +24,7 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
 {
     using StateType = std::variant<Entity, string>;
 
-    ProjectTreeNode();
+    explicit ProjectTreeNode( u64& idCounter );
     Ref<ProjectTreeNode> CreateChild( ProjectTreeNodeType type, StateType state );
     static void RemoveNode( Ref<ProjectTreeNode> node, Scene& scene );
     static Ref<ProjectTreeNode> CopyNode( const Ref<ProjectTreeNode>& node, Scene& scene );
@@ -40,8 +40,8 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
     bool operator== ( const ProjectTreeNode& other ) const { return mID == other.mID; }
 
 private:
-    static u64 mIDCounter;
     u64 mID = 0;
+    u64* mIDCounter = nullptr; // non-owning ref back to Project::mNodeIDCounter
 public:
     ProjectTreeNodeType mType = ProjectTreeNodeType::Level;
     StateType mState = "Level"s;

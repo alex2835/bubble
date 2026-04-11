@@ -4,6 +4,8 @@
 #include "engine/scripting/script.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
+#include "engine/types/set.hpp"
+#include "engine/types/any.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scripting/bindings/physics_lua_bindings.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
@@ -87,6 +89,12 @@ void ScriptingEngine::RunScript( const Ref<Script>& script )
 Table ScriptingEngine::CreateTable()
 {
     return mLua->create_table();
+}
+
+
+void ScriptingEngine::SetCurrentState()
+{
+    Any::set_lua_state( mLua->lua_state() );
 }
 
 }

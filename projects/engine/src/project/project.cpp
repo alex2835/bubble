@@ -19,7 +19,7 @@ void Project::LoadDefaultResources()
 }
 
 Project::Project()
-    : mProjectTreeRoot( CreateRef<ProjectTreeNode>() ),
+    : mProjectTreeRoot( CreateRef<ProjectTreeNode>( mNodeIDCounter ) ),
       mGlobalState( CreateScope<Any>( mScriptingEngine.CreateTable() ) )
 {
 }
@@ -41,7 +41,7 @@ void Project::Create( const path& rootDir, const string& projectName )
     Save();
 }
 
-json Project::SaveScene()
+json Project::SaveScene() const
 {
     json j;
     j["Entity counter"] = mScene.mEntityCounter;
@@ -53,7 +53,7 @@ json Project::SaveScene()
     json& poolsJson = j["Component pools"];
     for ( const auto& componentID : mScene.mComponents )
     {
-        auto iter = mScene.mPools.find( componentID );
+        const auto iter = mScene.mPools.find( componentID );
         if ( iter == mScene.mPools.end() )
             throw std::runtime_error( std::format( "No pool for component: {}", componentID ) );
 
@@ -63,7 +63,7 @@ json Project::SaveScene()
         const auto& componentToJson = ComponentManager::GetToJson( componentID );
         for ( size_t i = 0; i < pool.mEntities.size(); i++ )
         {
-            auto entityStr = std::to_string( pool.mEntities[i] );
+            const auto entityStr = std::to_string( pool.mEntities[i] );
             componentToJson( poolJson[entityStr], *this, pool.GetRaw( i ) );
         }
     }
@@ -111,7 +111,7 @@ void Project::LoadScene( const json& j )
 }
 
 
-json Project::SaveProjectTreeNode( const Ref<ProjectTreeNode>& node )
+json Project::SaveProjectTreeNode( const Ref<ProjectTreeNode>& node ) const
 {
     json j;
     j["ID"] = node->mID;
@@ -130,10 +130,10 @@ json Project::SaveProjectTreeNode( const Ref<ProjectTreeNode>& node )
     return j;
 }
 
-json Project::SaveProjectTree()
+json Project::SaveProjectTree() const
 {
     json j;
-    j["Counter"] = ProjectTreeNode::mIDCounter;
+    j["Counter"] = mNodeIDCounter;
     j["Tree"] = SaveProjectTreeNode( mProjectTreeRoot );
     return j;
 }
@@ -141,7 +141,7 @@ json Project::SaveProjectTree()
 
 Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, const Ref<ProjectTreeNode>& parent )
 {
-    auto node = CreateRef<ProjectTreeNode>();
+    auto node = CreateRef<ProjectTreeNode>( mNodeIDCounter );
 
     node->mID = j["ID"];
     auto optType = magic_enum::enum_cast<ProjectTreeNodeType>( string( j["Type"] ) );
@@ -165,17 +165,19 @@ Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, const Ref<Proj
 
 void Project::LoadProjectTree( const json& j )
 {
-    ProjectTreeNode::mIDCounter = j["Counter"];
+    mNodeIDCounter = j["Counter"];
     mProjectTreeRoot = LoadProjectTreeNode( j["Tree"], nullptr );
 }
 
-void Project::Save()
+void Project::Save() const
 {
+    BUBBLE_ASSERT( IsValid(), "Try to save invalid project" );
+
     json projectJson;
     projectJson["Loader"] = mLoader;
     projectJson["Scene"] = SaveScene();
-    projectJson["GlobalState"] = SaveAnyValue( *this, *mGlobalState );
     projectJson["ProjectTree"] = SaveProjectTree();
+    projectJson["GlobalState"] = SaveAnyValue( *this, *mGlobalState );
 
     std::ofstream projectFile( mRootFile );
     projectFile << projectJson.dump( 1 );
@@ -189,19 +191,19 @@ void Project::Open( const path& rootFile )
         throw std::runtime_error( "Invalid project path: " + rootFile.string() );
 
     mRootFile = rootFile;
-    mLoader.mProjectRootPath = rootFile.parent_path();
+    mLoader.mProjectRootDir = rootFile.parent_path();
 
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
     from_json( projectJson["Loader"], mLoader );
     LoadScene( projectJson["Scene"] );
-    mGlobalState = CreateScope<Any>( LoadAnyValue( *this, projectJson["GlobalState"] ) );
     LoadProjectTree( projectJson["ProjectTree"] );
+    mGlobalState = CreateScope<Any>( LoadAnyValue( *this, projectJson["GlobalState"] ) );
     LogInfo( "Project opened: {}", mRootFile.string() );
 }
 
 
-bool Project::IsValid()
+bool Project::IsValid() const
 {
     return not mRootFile.empty();
 }

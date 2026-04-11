@@ -14,16 +14,16 @@ public:
     void Clear();
 
     // Select a tree node (clears previous selection and fills entities from node)
-    void SelectTreeNode( const Ref<ProjectTreeNode>& node, Scene& scene );
+    void SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& scene );
 
     // Add entity to selection (updates group transform)
-    void AddEntity( Entity entity, Scene& scene );
+    void AddEntity( Entity entity, const Scene& scene );
 
     // Add multiple entities to selection
-    void AddEntities( const set<Entity>& entities, Scene& scene );
+    void AddEntities( const set<Entity>& entities, const Scene& scene );
 
     // Remove entity from selection
-    void RemoveEntity( Entity entity, Scene& scene );
+    void RemoveEntity( Entity entity, const Scene& scene );
 
     // Query methods
     const set<Entity>& GetEntities() const { return mEntities; }
@@ -41,7 +41,7 @@ public:
     Entity GetSingleEntity() const;
 
     // Update group transform based on current entity positions
-    void UpdateGroupTransform( Scene& scene );
+    void UpdateGroupTransform( const Scene& scene );
 
     // Apply transform delta to all selected entities
     void ApplyTransformDelta( const vec3& positionDelta, const vec3& rotationDelta, const vec3& scaleDelta, Scene& scene );

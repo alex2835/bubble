@@ -61,8 +61,8 @@ public:
     void RemoveComponent( Entity entity );
     
     // ComponentTypeIds API
-    const std::set<ComponentTypeId>& AllComponentTypeIds();
-    const std::set<ComponentTypeId>& EntityComponentTypeIds( Entity entity );
+    const std::set<ComponentTypeId>& AllComponentTypeIds() const;
+    const std::set<ComponentTypeId>& EntityComponentTypeIds( Entity entity ) const;
     void EntityAddComponentId( Entity entity, ComponentTypeId componentId );
     void EntityRemoveComponentId( Entity entity, ComponentTypeId componentId );
 
@@ -70,9 +70,12 @@ public:
     template <ComponentType ...Components, typename F>
     void ForEach( F&& func );
 
+    template <ComponentType ...Components, typename F>
+    void ForEach( F&& func ) const;
+
     // For each on provided components Ids
-    // If id is INVALID_COMPONENT_TYPE_ID(=-1) this component will be 
-    // skipped while iteration and filled just with nullptr 
+    // If id is INVALID_COMPONENT_TYPE_ID(=-1) this component will be
+    // skipped while iteration and filled just with nullptr
     template <size_t SIZE, typename F>
     void RuntimeForEach( const std::array<ComponentTypeId, SIZE>& components, F&& func );
 
@@ -80,9 +83,12 @@ public:
     void ForEachEntity( F&& func );
 
     template <typename F>
+    void ForEachEntity( F&& func ) const;
+
+    template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
 
-    size_t Size()
+    size_t Size() const noexcept
     {
         return mEntitiesComponentTypeIds.size();
     }
@@ -101,15 +107,20 @@ private:
     // For each
     template <ComponentType ...Components, typename F>
     void ForEachTuple( F&& func );
-    
+
+    template <ComponentType ...Components, typename F>
+    void ForEachTuple( F&& func ) const;
+
     template <typename ...Args, size_t Size, size_t ...Is>
-    std::tuple<Args&...> MakeTupleFromPoolsAndIndicies( const std::array<Pool*, Size>& pools, 
-                                                        const std::array<size_t, Size>& indicies,
-                                                        std::index_sequence<Is...> )
+    std::tuple<const Args&...> MakeTupleFromPoolsAndIndiciesConst( const std::array<const Pool*, Size>& pools,
+                                                                   const std::array<size_t, Size>& indicies,
+                                                                   std::index_sequence<Is...> ) const
     {
         return std::forward_as_tuple( pools[Is]->template Get<Args>( indicies[Is] )... );
     }
+
     Pool& GetComponentPool( ComponentTypeId id );
+    const Pool& GetComponentPool( ComponentTypeId id ) const;
 
 protected:
     size_t mEntityCounter = 1;
@@ -250,6 +261,15 @@ void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
 }
 
 template <ComponentType ...Components, typename F>
+void Registry::ForEach( F&& func ) const
+{
+    ForEachTuple<Components...>( [&func]( Entity entity, std::tuple<const Components&...> components )
+    {
+        std::apply( std::forward<F>( func ), std::tuple_cat( std::make_tuple( entity ), components ) );
+    } );
+}
+
+template <ComponentType ...Components, typename F>
 void Registry::ForEach( F&& func )
 {
     ForEachTuple<Components...>( [&func]( Entity entity, std::tuple<Components&...> components )
@@ -259,20 +279,26 @@ void Registry::ForEach( F&& func )
 }
 
 template <typename F>
-void Registry::ForEachEntity( F&& func )
+void Registry::ForEachEntity( F&& func ) const
 {
     for ( const auto& [entity, _] : mEntitiesComponentTypeIds )
         func( entity );
 }
 
+template <typename F>
+void Registry::ForEachEntity( F&& func )
+{
+    std::as_const( *this ).ForEachEntity( std::forward<F>( func ) );
+}
+
 template <ComponentType ...Components, typename F>
-void Registry::ForEachTuple( F&& func )
+void Registry::ForEachTuple( F&& func ) const
 {
     if ( !( mComponents.contains( Components::ID() ) || ... ) )
         throw std::runtime_error( "ForEachTuple: Invalid components - registry doesn't contain required component types" );
 
     constexpr auto size = sizeof...( Components );
-    std::array<Pool*, size> pools;
+    std::array<const Pool*, size> pools;
 
     auto componentTypes = GetComponentsTypeId<Components...>();
     for ( size_t i = 0; i < componentTypes.size(); i++ )
@@ -308,10 +334,10 @@ void Registry::ForEachTuple( F&& func )
                     return;
             }
         }
-        if ( skip ) 
+        if ( skip )
             continue;
 
-        func( Entity( maxId ), MakeTupleFromPoolsAndIndicies<Components...>( pools, indicies, std::make_index_sequence<size>{} ) );
+        func( Entity( maxId ), MakeTupleFromPoolsAndIndiciesConst<Components...>( pools, indicies, std::make_index_sequence<size>{} ) );
 
         for ( int i = 0; i < size; i++ )
             indicies[i]++;
@@ -402,6 +428,22 @@ void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componen
         for ( int i = 0; i < componentIds.size(); i++ )
             indicies[i]++;
     }
+}
+
+template <ComponentType ...Components, typename F>
+void Registry::ForEachTuple( F&& func )
+{
+    std::as_const( *this ).ForEachTuple<Components...>(
+        [&func]( Entity entity, std::tuple<const Components&...> components )
+        {
+            [&]<size_t ...Is>( std::index_sequence<Is...> )
+            {
+                func( entity, std::tuple<Components&...>(
+                    const_cast<Components&>( std::get<Is>( components ) )...
+                ) );
+            }( std::make_index_sequence<sizeof...( Components )>{} );
+        }
+    );
 }
 
 
