@@ -86,7 +86,6 @@ void Engine::OnStart( const path& projectRootFile )
 
 void Engine::OnEnd()
 {
-    //mProject = Project();
     mPhysicsEngine.ClearWorld();
     mPhysicsEngine = PhysicsEngine();
     mProject.mScene = Scene();
@@ -104,29 +103,12 @@ void Engine::OnUpdate()
     mPhysicsEngine.Update( dt );
 
     // Propagate transforms
+    PropagatePhysicsTransforms( mProject.mScene );
     PropagateTransforms( mProject.mScene );
-
-    // Update transforms from RigidBody components
-    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
-    []( Entity entity,
-        TransformComponent& transform,
-        const RigidBodyComponent& rigidBody )
-    {
-        rigidBody.mRigidBody.GetTransform( transform.mPosition, transform.mRotation );
-    } );
-
-    // Update transforms from CharacterController components
-    mProject.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
-    []( Entity entity,
-        TransformComponent& transform,
-        const CharacterControllerComponent& controller )
-    {
-        transform.mPosition = controller.mController.GetPosition();
-    } );
 
 
     /// Update Scripts
-    mProject.mScriptingEngine.SetVar( "DeltaTime", dt );
+    mProject.mScriptingEngine.SetVar( "DeltaTime", dt.Seconds() );
 
     // Call scripts
     mProject.mScene.ForEach<StateComponent, ScriptComponent>(
@@ -146,30 +128,48 @@ void Engine::OnUpdate()
     });
 
     /// Sync active camera entity to rendering camera
-    if ( mActiveCameraEntity != INVALID_ENTITY &&
+    if ( mActiveCameraEntity != INVALID_ENTITY and
          mProject.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
     {
         mCamera = mProject.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
     }
 }
 
+void Engine::PropagatePhysicsTransforms( Scene& scene )
+{
+    // Update transforms from RigidBody components
+    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
+        []( Entity entity,
+            TransformComponent& transform,
+            const RigidBodyComponent& rigidBody )
+    {
+        rigidBody.mRigidBody.GetTransform( transform.mPosition, transform.mRotation );
+    } );
+
+    // Update transforms from CharacterController components
+    scene.ForEach<TransformComponent, CharacterControllerComponent>(
+        []( Entity entity,
+            TransformComponent& transform,
+            const CharacterControllerComponent& controller )
+    {
+        transform.mPosition = controller.mController.GetPosition();
+    } );
+}
+
 void Engine::PropagateTransforms( Scene& scene )
 {
-    // Update camera position and orientation from TransformComponent
+    // Update camera position and orientation from TransformComponent (free cameras only)
     scene.ForEach<CameraComponent, TransformComponent>(
     []( Entity entity,
         CameraComponent& camera,
         const TransformComponent& transform )
     {
-        // Update position
+        if ( !camera.mUseTransformPropagation )
+            return;
+
         camera.mPosition = transform.mPosition;
-
-        // Convert quaternion rotation to yaw/pitch
-        vec3 eulerAngles = transform.mRotation;
-        camera.mPitch = eulerAngles.x;
-        camera.mYaw = eulerAngles.y;
-
-        // Update camera vectors from yaw/pitch
+        camera.mYaw      = transform.mRotation.y;
+        camera.mPitch    = transform.mRotation.x;
         camera.EulerAnglesToVectors();
     } );
 

@@ -5,6 +5,7 @@
 namespace bubble
 {
 class Project;
+class ScriptingEngine;
 
 using Any = sol::lua_value;
 using Table = sol::table;
@@ -15,8 +16,8 @@ bool IsArray( const Table& tbl );
 string AnyValueToString( const Any& value );
 void PrintAnyValue( const Any& value );
 
-json SaveAnyValue( const Project& project, const Any& v );
-Any LoadAnyValue( Project& project, const json& j );
+json SaveAnyValue( const Any& v );
+Any LoadAnyValue( ScriptingEngine& se, const json& j );
 
 Any AnyDeepCopy( const Any& any );
 Scope<Any> AnyDeepCopy( const Scope<Any>& any );

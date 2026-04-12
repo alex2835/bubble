@@ -16,10 +16,13 @@ class ScriptingEngine
 public:
     ScriptingEngine();
     ScriptingEngine( const ScriptingEngine& ) = delete;
-    ScriptingEngine( ScriptingEngine&& ) = delete;
-    ScriptingEngine& operator=( const ScriptingEngine& ) = default;
+    ScriptingEngine& operator=( const ScriptingEngine& ) = delete;
+    ScriptingEngine( ScriptingEngine&& ) = default;
     ScriptingEngine& operator=( ScriptingEngine&& ) = default;
     ~ScriptingEngine();
+
+    static sol::state& GlobalState();
+
 
     void BindInput( WindowInput& input );
     void BindLoader( Loader& loader );
@@ -36,6 +39,9 @@ public:
     {
         (*mLua)[name] = std::forward<T>( var );
     }
+
+private:
+    static sol::state* sGlobalLua;
 
 public:
     Scope<sol::state> mLua;

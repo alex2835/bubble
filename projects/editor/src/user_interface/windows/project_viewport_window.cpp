@@ -11,7 +11,7 @@ namespace bubble
 ProjectViewportWindow::ProjectViewportWindow( BubbleEditor& editorState )
     : UserInterfaceWindowBase( editorState )
 {
-    mNewSize = mSceneViewport.Size();
+    mSize = mSceneViewport.Size();
 }
 
 
@@ -29,10 +29,10 @@ string_view ProjectViewportWindow::Name()
 
 void ProjectViewportWindow::OnUpdate( DeltaTime )
 {
-    if ( mNewSize != mSceneViewport.Size() )
+    if ( mSize != mSceneViewport.Size() )
     {
-        mEntityIdViewport.Resize( mNewSize );
-        mSceneViewport.Resize( mNewSize );
+        mEntityIdViewport.Resize( mSize );
+        mSceneViewport.Resize( mSize );
     }
 }
 
@@ -128,7 +128,7 @@ void ProjectViewportWindow::DrawViewport()
                                  (float)mSceneViewport.Height() );
 
     ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
-    mNewSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
+    mSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
     if ( ImGui::IsItemHovered() )
         mSceneCamera.mIsActive = mWindow.IsKeyPressed( MouseKey::RIGHT );
@@ -159,7 +159,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 
 
     const auto lookAt = mSceneCamera.GetLookatMat();
-    const auto projection = mSceneCamera.GetProjectionMat( mNewSize.x, mNewSize.y );
+    const auto projection = mSceneCamera.GetProjectionMat( mSize.x, mSize.y );
 
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
@@ -217,7 +217,7 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
                                              glm::value_ptr( transformNew ) );
 
     auto lookAt = mSceneCamera.GetLookatMat();
-    auto projection = mSceneCamera.GetProjectionMat( mNewSize.x, mNewSize.y );
+    auto projection = mSceneCamera.GetProjectionMat( mSize.x, mSize.y );
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,
@@ -372,7 +372,7 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
             /// Gizmo
             ImGuizmo::SetDrawlist();
             auto windowPos = ImGui::GetWindowPos();
-            ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mNewSize.x, (f32)mNewSize.y );
+            ImGuizmo::SetRect( windowPos.x, windowPos.y, (f32)mSize.x, (f32)mSize.y );
 
             if ( not mSelection.GetEntities().empty() )
             {

@@ -19,8 +19,8 @@ namespace bubble
 {
 constexpr string_view ON_UPDATE_FUNC = "OnUpdate"sv;
 
-ScriptingEngine::ScriptingEngine() 
-	: mLua( CreateScope<sol::state>() )
+ScriptingEngine::ScriptingEngine()
+    : mLua( CreateScope<sol::state>() )
 {
     mLua->open_libraries( sol::lib::base,
                           sol::lib::table,

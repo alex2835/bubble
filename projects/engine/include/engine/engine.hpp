@@ -19,10 +19,15 @@ struct Engine
     void OnStart( const path& project );
     void OnEnd();
     void OnUpdate();
+    
+    // physics -> transform component
+    void PropagatePhysicsTransforms( Scene& scene );
+    // transform component -> lights or cameras
     void PropagateTransforms( Scene& scene );
-    void DrawScene( Framebuffer& framebuffer );
 
+    void DrawScene( Framebuffer& framebuffer );
     void DrawScene( Framebuffer& framebuffer, const Scene& scene );
+
     // Helpers
     void DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene );
     void DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene );

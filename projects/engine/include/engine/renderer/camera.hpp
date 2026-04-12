@@ -72,6 +72,9 @@ struct Camera
     bool mIsRotatingRight = false;
     bool mIsRotatingUp = false;
 
+    /// Engine
+    bool mUseTransformPropagation = false;
+
 
 public:
     Camera( vec3 position = vec3( 0.0f, 0.0f, 0.0f ),
@@ -85,15 +88,17 @@ public:
     mat4 GetProjectionMat( i32 window_width, i32 window_height ) const;
 
     // Free camera 
-    void ProcessMovement( DeltaTime dt, CameraMovement direction );
+    void ProcessMovement( float dt, CameraMovement direction );
     void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
     void ProcessMouseMovementOffset( f32 xOffset, f32 yOffset );
     void ProcessMouseScroll( f32 offset );
     void EulerAnglesToVectors();
-    void OnUpdateFreeCamera( DeltaTime dt );
+    void OnUpdateFreeCamera( float dt );
 
     // Third person camera
-    void ProcessRotation( CameraMovement direction );
-    void OnUpdateThirdPerson( DeltaTime dt );
+    void ProcessThirdPersonRotation( CameraMovement direction );
+    void UpdateOrbit();                  // pure math: spherical → position + basis (call from Lua)
+    void OnUpdateThirdPerson( float dt ); // inertia + UpdateOrbit (call from C++)
+
 };
 }

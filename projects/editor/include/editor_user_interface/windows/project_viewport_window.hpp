@@ -33,7 +33,8 @@ public:
 
 
 private:
-    uvec2 mNewSize;
+    // Size represent actual viewport size
+    uvec2 mSize;
     ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
 

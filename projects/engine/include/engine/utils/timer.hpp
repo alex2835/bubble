@@ -11,8 +11,8 @@ public:
     // Time in seconds
     explicit DeltaTime( f32 time );
 
-    f32 Seconds();
-    f32 Milliseconds();
+    f32 Seconds() const;
+    f32 Milliseconds() const;
 
     // second
     operator float() { return mTime; }

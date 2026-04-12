@@ -73,7 +73,7 @@ void Camera::ProcessMouseScroll( f32 offset )
 
 // Free camera 
 
-void Camera::ProcessMovement( DeltaTime dt, CameraMovement direction )
+void Camera::ProcessMovement( float dt, CameraMovement direction )
 {
     f32 max_speed = mMaxSpeed * mDeltaSpeed;
 
@@ -82,14 +82,14 @@ void Camera::ProcessMovement( DeltaTime dt, CameraMovement direction )
     {
         if ( mSpeedForwardOrUp < 0 )
             mSpeedForwardOrUp *= 0.5f;
-        mSpeedForwardOrUp = mSpeedForwardOrUp + mDeltaSpeed * dt.Seconds();
+        mSpeedForwardOrUp = mSpeedForwardOrUp + mDeltaSpeed * dt;
         mIsMovingForward = true;
     }
     else if ( direction == CameraMovement::BACKWARD )
     {
         if ( mSpeedForwardOrUp > 0 )
             mSpeedForwardOrUp *= 0.5f;
-        mSpeedForwardOrUp = mSpeedForwardOrUp - mDeltaSpeed * dt.Seconds();
+        mSpeedForwardOrUp = mSpeedForwardOrUp - mDeltaSpeed * dt;
         mIsMovingForward = true;
     }
 
@@ -98,14 +98,14 @@ void Camera::ProcessMovement( DeltaTime dt, CameraMovement direction )
     {
         if ( mSpeedRight < 0 )
             mSpeedRight *= 0.5f;
-        mSpeedRight = mSpeedRight + mDeltaSpeed * dt.Seconds();
+        mSpeedRight = mSpeedRight + mDeltaSpeed * dt;
         mIsMovingRight = true;
     }
     else if ( direction == CameraMovement::LEFT )
     {
         if ( mSpeedRight > 0 )
             mSpeedRight *= 0.5f;
-        mSpeedRight = mSpeedRight - mDeltaSpeed * dt.Seconds();
+        mSpeedRight = mSpeedRight - mDeltaSpeed * dt;
         mIsMovingRight = true;
     }
 
@@ -126,7 +126,7 @@ void Camera::EulerAnglesToVectors()
     mUp = normalize( cross( mRight, mForward ) );
 }
 
-void Camera::OnUpdateFreeCamera( DeltaTime dt )
+void Camera::OnUpdateFreeCamera( float dt )
 {
     // Inertia
     if ( !mIsMovingForward )
@@ -134,7 +134,7 @@ void Camera::OnUpdateFreeCamera( DeltaTime dt )
         if ( std::abs( mSpeedForwardOrUp ) < 0.1f * mDeltaSpeed )
             mSpeedForwardOrUp = 0;
         else
-            mSpeedForwardOrUp = mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed * dt.Seconds();
+            mSpeedForwardOrUp = mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed * dt;
     }
 
     if ( !mIsMovingRight )
@@ -142,44 +142,44 @@ void Camera::OnUpdateFreeCamera( DeltaTime dt )
         if ( std::abs( mSpeedRight ) < 0.1f * mDeltaSpeed )
             mSpeedRight = 0;
         else
-            mSpeedRight = mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed * dt.Seconds();
+            mSpeedRight = mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed * dt;
     }
 
     mIsMovingForward = false;
     mIsMovingRight = false;
 
-    mPosition += mForward * mSpeedForwardOrUp * dt.Seconds();
-    mPosition += mRight * mSpeedRight * dt.Seconds();
+    mPosition += mForward * mSpeedForwardOrUp * dt;
+    mPosition += mRight * mSpeedRight * dt;
 
     EulerAnglesToVectors();
 }
 
 
 
+
 // Third person camera 
 
-
-void Camera::ProcessRotation( CameraMovement direction )
+void Camera::ProcessThirdPersonRotation( CameraMovement direction )
 {
     f32 max_speed = mMaxSpeed * mDeltaSpeed;
 
-    // Horizontal speed
+    // Horizontal speed (yaw) — guarded by mIsRotatingUp in OnUpdateThirdPerson
     if ( direction == CameraMovement::LEFT )
-    {   
+    {
         if ( mSpeedForwardOrUp < 0 )
             mSpeedForwardOrUp = 0;
         mSpeedForwardOrUp = mSpeedForwardOrUp < max_speed ? mSpeedForwardOrUp + mDeltaSpeed : max_speed;
-        mIsRotatingRight = true;
+        mIsRotatingUp = true;
     }
     else if ( direction == CameraMovement::RIGHT )
     {
         if ( mSpeedForwardOrUp > 0 )
             mSpeedForwardOrUp = 0;
         mSpeedForwardOrUp = mSpeedForwardOrUp > -max_speed ? mSpeedForwardOrUp - mDeltaSpeed : -max_speed;
-        mIsRotatingRight = true;
+        mIsRotatingUp = true;
     }
 
-    // Vertical speed
+    // Vertical speed (pitch) — guarded by mIsRotatingRight in OnUpdateThirdPerson
     if ( direction == CameraMovement::UP )
     {
         if ( mSpeedRight < 0 )
@@ -203,34 +203,36 @@ void Camera::ProcessRotation( CameraMovement direction )
         mSpeedRight = Sign( mSpeedRight ) * max_speed;
 }
 
-
-void Camera::OnUpdateThirdPerson( DeltaTime dt )
+void Camera::UpdateOrbit()
 {
-    // Inertia
+    // Spherical → Cartesian: position on the orbit sphere around mCenter
+    mPosition.x = mCenter.x + mRadius * std::cos( mPitch ) * std::sin( mYaw );
+    mPosition.y = mCenter.y - mRadius * std::sin( mPitch );
+    mPosition.z = mCenter.z + mRadius * std::cos( mPitch ) * std::cos( mYaw );
+
+    // Basis vectors
+    mForward = normalize( mCenter - mPosition );
+    mRight   = normalize( cross( mForward, mWorldUp ) );
+    mUp      = normalize( cross( mRight, mForward ) );
+}
+
+void Camera::OnUpdateThirdPerson( float dt )
+{
+    // Inertia (driven by ProcessThirdPersonRotation)
     if ( !mIsRotatingUp )
-        mSpeedForwardOrUp = std::abs( mSpeedForwardOrUp ) < 0.01f ? mSpeedForwardOrUp = 0 : mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed;
+        mSpeedForwardOrUp = std::abs( mSpeedForwardOrUp ) < 0.01f ? 0.0f : mSpeedForwardOrUp - Sign( mSpeedForwardOrUp ) * mDeltaSpeed * dt;
 
     if ( !mIsRotatingRight )
-        mSpeedRight = std::abs( mSpeedRight ) < 0.01f ? mSpeedRight = 0 : mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed;
+        mSpeedRight = std::abs( mSpeedRight ) < 0.01f ? 0.0f : mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed * dt;
 
-    mIsRotatingUp = false;
+    mIsRotatingUp    = false;
     mIsRotatingRight = false;
 
-    mYaw += mSpeedForwardOrUp * dt;
+    mYaw   += mSpeedForwardOrUp * dt;
     mPitch += mSpeedRight * dt;
+    mPitch  = std::clamp( mPitch, -camera::PI / 2.0f + 0.05f, camera::PI / 2.0f - 0.05f );
 
-    // Transformation matrix
-    mat4 transform = mat4( 1.0f );
-    transform = rotate( transform, mYaw, vec3( 0, 1, 0 ) );
-    transform = rotate( transform, mPitch, vec3( 1, 0, 0 ) );
-    transform = translate( transform, mCenter );
-
-    mPosition = transform * vec4( 0, 0, mRadius, 0 );
-
-    // Basis
-    mForward = normalize( mCenter - mPosition );
-    mRight = normalize( cross( mForward, mWorldUp ) );
-    mUp = normalize( cross( mRight, mForward ) );
+    UpdateOrbit();
 }
 
 

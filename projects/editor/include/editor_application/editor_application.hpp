@@ -31,6 +31,10 @@ private:
     void OnUpdate();
     void OnUpdateHotKeys();
 
+    void StartEngine();
+    void StopEngine();
+    void Validation();
+
 public:
     Timer mTimer;
     Window mWindow;

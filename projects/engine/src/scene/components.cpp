@@ -155,6 +155,7 @@ void CameraComponent::OnComponentDraw( const Project& project, const Entity& ent
     //ImGui::DragFloat( "Pitch", &cameraComponent.mPitch, 0.01f );
 
     // Clipping planes
+    ImGui::Checkbox( "Use Transform Propagation", &cameraComponent.mUseTransformPropagation );
     ImGui::DragFloat( "Near", &cameraComponent.mNear, 0.01f, 0.01f, cameraComponent.mFar );
     ImGui::DragFloat( "Far", &cameraComponent.mFar, 1.0f, cameraComponent.mNear, 10000.0f );
 
@@ -162,8 +163,8 @@ void CameraComponent::OnComponentDraw( const Project& project, const Entity& ent
     ImGui::SliderFloat( "FOV", &cameraComponent.mFov, 0.1f, 3.14f );
 
     // Speed settings
-    //ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
-    //ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
+    ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
+    ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
 
     // Update camera vectors when angles change
     cameraComponent.EulerAnglesToVectors();
@@ -183,6 +184,7 @@ void CameraComponent::ToJson( json& json, const Project& project, const CameraCo
     json["Pitch"] = cameraComponent.mPitch;
     json["MaxSpeed"] = cameraComponent.mMaxSpeed;
     json["MouseSensitivity"] = cameraComponent.mMouseSensitivity;
+    json["UseTransformPropagation"] = cameraComponent.mUseTransformPropagation;
 }
 
 void CameraComponent::FromJson( const json& json, Project& project, CameraComponent& cameraComponent )
@@ -223,7 +225,9 @@ void CameraComponent::FromJson( const json& json, Project& project, CameraCompon
     if ( json.contains( "MouseSensitivity" ) )
         cameraComponent.mMouseSensitivity = json["MouseSensitivity"];
 
-    // Update camera vectors after loading
+    if ( json.contains( "UseTransformPropagation" ) )
+        cameraComponent.mUseTransformPropagation = json["UseTransformPropagation"];
+
     cameraComponent.EulerAnglesToVectors();
 }
 
@@ -249,31 +253,13 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "MouseSensitivity", &Camera::mMouseSensitivity,
         "Center", &Camera::mCenter,
         "Radius", &Camera::mRadius,
+        "UseTransformPropagation", &Camera::mUseTransformPropagation,
 
         // Methods
         "GetLookatMat", &Camera::GetLookatMat,
         "GetProjectionMat", &Camera::GetProjectionMat,
-        "ProcessMovement", &Camera::ProcessMovement,
-        "ProcessMouseMovement", &Camera::ProcessMouseMovement,
-        "ProcessMouseMovementOffset", &Camera::ProcessMouseMovementOffset,
-        "ProcessMouseScroll", &Camera::ProcessMouseScroll,
         "EulerAnglesToVectors", &Camera::EulerAnglesToVectors,
-        "OnUpdateFreeCamera", &Camera::OnUpdateFreeCamera,
-        "ProcessRotation", &Camera::ProcessRotation,
-        "OnUpdateThirdPerson", &Camera::OnUpdateThirdPerson
-    );
-
-    // CameraMovement enum
-    lua.new_enum<CameraMovement>(
-        "CameraMovement",
-        {
-            { "FORWARD", CameraMovement::FORWARD },
-            { "BACKWARD", CameraMovement::BACKWARD },
-            { "LEFT", CameraMovement::LEFT },
-            { "RIGHT", CameraMovement::RIGHT },
-            { "UP", CameraMovement::UP },
-            { "DOWN", CameraMovement::DOWN }
-        }
+        "UpdateOrbit", &Camera::UpdateOrbit
     );
 }
 
@@ -1023,12 +1009,12 @@ void StateComponent::ToJson( json& json, const Project& project, const StateComp
         BUBBLE_ASSERT( componentLua == projectLua, "StateComponent Lua state mismatch: component belongs to a different sol::state than the project" );
     }
 
-    json = SaveAnyValue( project, *component.mState );
+    json = SaveAnyValue( *component.mState );
 }
 
 void StateComponent::FromJson( const json& json, Project& project, StateComponent& component )
 {
-    component.mState = CreateScope<Any>( LoadAnyValue( project, json ) );
+    component.mState = CreateScope<Any>( LoadAnyValue( project.mScriptingEngine, json ) );
 }
 
 void StateComponent::CreateLuaBinding( sol::state& lua )

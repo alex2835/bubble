@@ -100,7 +100,7 @@ void PrintAnyValue( const Any& value )
     std::println( "{}", AnyValueToString( value ) );
 }
 
-json SaveAnyValue( const Project& project, const Any& v )
+json SaveAnyValue( const Any& v )
 {
     if ( v.is<int>() )
         return v.as<int>();
@@ -130,7 +130,7 @@ json SaveAnyValue( const Project& project, const Any& v )
         json j = json::array();
         auto table = v.as<Table>();
         for ( const auto& [k, val] : table )
-            j.push_back( SaveAnyValue( project, val ) );
+            j.push_back( SaveAnyValue( val ) );
         return j;
     }
     else if ( v.is<Table>() )
@@ -138,7 +138,7 @@ json SaveAnyValue( const Project& project, const Any& v )
         json j = json::object();
         auto table = v.as<Table>();
         for ( const auto& [k, val] : table )
-            j[k.as<string>()] = SaveAnyValue( project, val );
+            j[k.as<string>()] = SaveAnyValue( val );
         return j;
     }
     else
@@ -149,49 +149,45 @@ json SaveAnyValue( const Project& project, const Any& v )
 }
 
 
-Any LoadAnyValue( Project& project, const json& j )
+Any LoadAnyValue( ScriptingEngine& se, const json& j )
 {
-    auto& lua = *project.mScriptingEngine.mLua;
-    LogInfo( "LoadAnyValue lua_State* {}", (i64)lua.lua_state() );
-
     if ( j.is_number_integer() )
-        return Any( lua, j.get<int>() );
+        return j.get<int>();
     else if ( j.is_number_float() )
-        return Any( lua, j.get<float>() );
+        return j.get<float>();
     else if ( j.is_string() )
-        return Any( lua, j.get<string>() );
+        return j.get<string>();
     else if ( j.is_boolean() )
-        return Any( lua, j.get<bool>() );
+        return j.get<bool>();
     else if ( j.is_object() and j.contains( "__type" ) )
     {
         auto type = j["__type"].get<string>();
         if ( type == "Entity" )
         {
             auto id = j["id"].get<size_t>();
-            auto entity = project.mScene.GetEntityById( id );
-            return Any( lua, entity );
+            return *(Entity*)&id;
         }
         else if ( type == "Texture2D" )
         {
             auto texPath = j["path"].get<string>();
             if ( texPath.empty() )
-                return Any( lua, Ref<Texture2D>{} );
-            return Any( lua, LoadTexture2D( texPath ) );
+                return Ref<Texture2D>{};
+            return LoadTexture2D( texPath );
         }
     }
     else if ( j.is_array() )
     {
-        auto table = project.mScriptingEngine.CreateTable();
+        auto table = se.CreateTable();
         int i = 1;
         for ( const auto& v : j )
-            table[i++] = LoadAnyValue( project, v );
+            table[i++] = LoadAnyValue( se, v );
         return table;
     }
     else if ( j.is_object() )
     {
-        auto table = project.mScriptingEngine.CreateTable();
+        auto table = se.CreateTable();
         for ( const auto& [k, v] : j.items() )
-            table[k] = LoadAnyValue( project, v );
+            table[k] = LoadAnyValue( se, v );
         return table;
     }
     throw std::runtime_error( std::format( "Value of not supported type: {}", string( j ) ) );
@@ -259,27 +255,27 @@ void DrawFieldsAdding( Project& project, Table& table )
         switch ( selectedType )
         {
             case Types::Int:
-                table[key] = Any( lua, 0 );
+                table[key] = 0;
                 break;
             case Types::Float:
-                table[key] = Any( lua, 0.0f );
+                table[key] = 0.0f;
                 break;
             case Types::String:
-                table[key] = Any( lua, ""s );
+                table[key] = ""s;
                 break;
             case Types::Bool:
-                table[key] = Any( lua, false );
+                table[key] = false;
                 break;
             case Types::Table:
                 table[key] = lua.create_table();
                 break;
             case Types::Texture2D:
-                table[key] = Any( lua, Ref<Texture2D>{} );
+                table[key] = Ref<Texture2D>{};
                 break;
             case Types::Entity:
             {
                 auto entity = project.mScene.CreateEntity();
-                table[key] = Any( lua, entity );
+                table[key] = entity;
                 break;
             }
         }
@@ -307,7 +303,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::DragInt( name.data(), &value );
         ImGui::SameLine();
         ImGui::Text( "(int)" );
-        return Any( lua, value );
+        return value;
     }
     else if ( any.is<float>() )
     {
@@ -315,7 +311,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::DragFloat( name.data(), &value );
         ImGui::SameLine();
         ImGui::Text( "(float)" );
-        return Any( lua, value );
+        return value;
     }
     else if ( any.is<std::string>() )
     {
@@ -323,7 +319,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::InputText( name.data(), value );
         ImGui::SameLine();
         ImGui::Text( "(string)" );
-        return Any( lua, value );
+        return value;
     }
     else if ( any.is<bool>() )
     {
@@ -331,7 +327,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::Checkbox( name.data(), &value );
         ImGui::SameLine();
         ImGui::Text( "(bool)" );
-        return Any( lua, value );
+        return value;
     }
     else if ( any.is<Entity>() )
     {
@@ -377,7 +373,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         }
         ImGui::SameLine();
         ImGui::Text( "(Entity)" );
-        return Any( lua, current );
+        return current;
     }
     else if ( any.is<Ref<Texture2D>>() )
     {
@@ -426,7 +422,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::Text( "(Texture2D)" );
         if ( current )
             ImGui::Image( (ImTextureID)(u64)current->RendererID(), ImVec2( 64, 64 ) );
-        return Any( lua, current );
+        return current;
     }
     else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
     {

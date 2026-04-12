@@ -11,12 +11,12 @@ DeltaTime::DeltaTime( f32 time )
 {
 }
 
-f32 DeltaTime::Seconds()
+f32 DeltaTime::Seconds() const
 {
     return mTime;
 }
 
-f32 DeltaTime::Milliseconds()
+f32 DeltaTime::Milliseconds() const
 {
     return mTime * 1000.0f;
 }

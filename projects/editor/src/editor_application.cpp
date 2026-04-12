@@ -39,12 +39,13 @@ void BubbleEditor::Run()
         mWindow.PollEvents();
         OnUpdate();
         mTimer.OnUpdate();
-        auto deltaTime = mTimer.GetDeltaTime();
+        const auto deltaTime = mTimer.GetDeltaTime();
 
         switch ( mEditorMode )
         {
             case EditorMode::Editing:
             {
+                // Update scene camera
                 if ( not mUIGlobals.mIsViewManipulatorUsing )
                     mSceneCamera.OnUpdate( deltaTime );
                 mEngine.mCamera = (Camera)mSceneCamera;
@@ -58,7 +59,7 @@ void BubbleEditor::Run()
                 // Update editor helpers
                 mProjectResourcesHotReloader.OnUpdate();
                 mAutoBackup.OnUpdate( deltaTime );
-                mEditorUserInterface.OnUpdate( deltaTime );
+                Validation();
 
                 // Bounding helper lines
                 mEngine.DrawCameraFrustums( mSceneViewport, mProject.mScene );
@@ -72,10 +73,6 @@ void BubbleEditor::Run()
             {
                 try
                 {
-                    // temp
-                    mSceneCamera.OnUpdate( deltaTime );
-                    mEngine.mCamera = (Camera)mSceneCamera;
-
                     mEngine.OnUpdate();
                     mEngine.DrawScene( mSceneViewport );
                 }
@@ -83,7 +80,7 @@ void BubbleEditor::Run()
                 {
                     mEditorMode = EditorMode::Editing;
                     LogError( e.what() );
-                    mEngine.OnEnd();
+                    StopEngine();
                 };
                 break;
             }
@@ -92,6 +89,9 @@ void BubbleEditor::Run()
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();
         mWindow.OnUpdate();
+
+        // should be after all ui
+        mEditorUserInterface.OnUpdate( deltaTime );
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
@@ -125,16 +125,13 @@ void BubbleEditor::OnUpdateHotKeys()
         try
         {
             mEditorMode = EditorMode::Running;
-            mProject.Save();
-            mEngine.mProject.mLoader = mProject.mLoader;
-            mEngine.OnStart( mProject.mRootFile );
+            StartEngine();
         }
         catch ( const std::exception& e )
         {
             mEditorMode = EditorMode::Editing;
             LogError( e.what() );
-            mEngine.OnEnd();
-            mProject.mScriptingEngine.SetCurrentState();
+            StopEngine();
         };
     }
 
@@ -143,8 +140,7 @@ void BubbleEditor::OnUpdateHotKeys()
          input.IsKeyClicked( KeyboardKey::F6 ) )
     {
         mEditorMode = EditorMode::Editing;
-        mEngine.OnEnd();
-        mProject.mScriptingEngine.SetCurrentState();
+        StopEngine();
     }
 
 
@@ -274,6 +270,29 @@ void BubbleEditor::OnUpdateHotKeys()
             }
         }
     }
+}
+
+void BubbleEditor::StartEngine()
+{
+    mProject.Save();
+    mEngine.mProject.mLoader = mProject.mLoader;
+    mEngine.OnStart( mProject.mRootFile );
+}
+
+void BubbleEditor::StopEngine()
+{
+    mEngine.OnEnd();
+    mProject.mScriptingEngine.SetCurrentState();
+}
+
+void BubbleEditor::Validation()
+{
+    /// Validate editor state
+
+    // Check scene's state components binded to right LuaVM
+    mProject.mScene.ForEach<StateComponent>( [&]( Entity, StateComponent& c ) {
+        BUBBLE_ASSERT( mProject.mScriptingEngine.mLua->lua_state() == c.mState->as<Table>().lua_state(), "Wrong lua binded" );
+    } );
 }
 
 } // namespace bubble
