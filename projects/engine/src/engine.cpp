@@ -327,8 +327,8 @@ void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
              const TransformComponent& transform )
     {
         const mat4 trans = transform.TranslationRotationMat();
-        f32 clampedFar = glm::min( camera.mFar, 100.0f );
-        const auto& [vertices, indices] = GenerateFrustumLinesShape( camera.mFov, aspectRatio, camera.mNear, clampedFar );
+        const f32 cameraFarPlane = camera.mNear + 20.0f;
+        const auto& [vertices, indices] = GenerateFrustumLinesShape( camera.mFov, aspectRatio, camera.mNear, cameraFarPlane );
 
         for ( auto vertex : vertices )
             mCameraFrustums.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );

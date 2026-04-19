@@ -36,11 +36,14 @@ void Pool::Clone( Pool& pool ) const
     pool.mDoCopy = mDoCopy;
 
     pool.mComponentSize = mComponentSize;
-    pool.mSize = mSize;
+    pool.mSize = 0;
     pool.Realloc( mCapacity );
 
-    for ( size_t i = 0; i < pool.mSize; i++ )
+    for ( size_t i = 0; i < mSize; i++ )
+    {
         pool.mDoCopy( GetElemAddressConst( i ), pool.GetElemAddress( i ) );
+        pool.mSize++;
+    }
 }
 
 Pool::~Pool()
@@ -72,7 +75,7 @@ void* Pool::PushEmpty( Entity entity )
 void Pool::Remove( Entity entity )
 {
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
-    assert( iterator != mEntities.end() );
+    assert( iterator != mEntities.end() && *iterator == entity );
 
     auto position = std::distance( mEntities.begin(), iterator );
     mEntities.erase( iterator );
@@ -89,7 +92,7 @@ size_t Pool::Size() const noexcept
 void* Pool::GetRaw( Entity entity )
 {
     auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
-    if ( iterator != mEntities.end() )
+    if ( iterator != mEntities.end() && *iterator == entity )
     {
         auto position = std::distance( mEntities.begin(), iterator );
         return GetElemAddress( position );

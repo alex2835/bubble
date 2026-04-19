@@ -84,6 +84,25 @@ string AnyValueToString( const Any& value )
         return std::format( "(string)'{}'", value.as<std::string>() );
     else if ( value.is<bool>() )
         return std::format( "(bool)'{}'", value.as<bool>() );
+    else if ( value.is<vec2>() )
+    {
+        const auto& v = value.as<vec2>();
+        return std::format( "(vec2)'[{},{}]'", v.x, v.y );
+    }
+    else if ( value.is<vec3>() )
+    {
+        const auto& v = value.as<vec3>();
+        return std::format( "(vec3)'[{},{},{}]'", v.x, v.y, v.z );
+    }
+    else if ( value.is<vec4>() )
+    {
+        const auto& v = value.as<vec4>();
+        return std::format( "(vec4)'[{},{},{},{}]'", v.x, v.y, v.z, v.w );
+    }
+    else if ( value.is<mat3>() )
+        return "(mat3)";
+    else if ( value.is<mat4>() )
+        return "(mat4)";
     else if ( value.is<Entity>() )
         return std::format( "(Entity)'{}'", (size_t)value.as<Entity>() );
     else if ( value.is<Ref<Texture2D>>() )
@@ -123,6 +142,39 @@ json SaveAnyValue( const Any& v )
         j["__type"] = "Texture2D";
         auto& tex = v.as<Ref<Texture2D>>();
         j["path"] = tex ? tex->mPath.string() : "";
+        return j;
+    }
+    else if ( v.is<vec2>() )
+    {
+        const auto& val = v.as<vec2>();
+        return json{ { "__type", "vec2" }, { "x", val.x }, { "y", val.y } };
+    }
+    else if ( v.is<vec3>() )
+    {
+        const auto& val = v.as<vec3>();
+        return json{ { "__type", "vec3" }, { "x", val.x }, { "y", val.y }, { "z", val.z } };
+    }
+    else if ( v.is<vec4>() )
+    {
+        const auto& val = v.as<vec4>();
+        return json{ { "__type", "vec4" }, { "x", val.x }, { "y", val.y }, { "z", val.z }, { "w", val.w } };
+    }
+    else if ( v.is<mat3>() )
+    {
+        const auto& val = v.as<mat3>();
+        json j;
+        j["__type"] = "mat3";
+        for ( int i = 0; i < 3; i++ )
+            j["cols"].push_back( { val[i].x, val[i].y, val[i].z } );
+        return j;
+    }
+    else if ( v.is<mat4>() )
+    {
+        const auto& val = v.as<mat4>();
+        json j;
+        j["__type"] = "mat4";
+        for ( int i = 0; i < 4; i++ )
+            j["cols"].push_back( { val[i].x, val[i].y, val[i].z, val[i].w } );
         return j;
     }
     else if ( v.is<Table>() and IsArray( v.as<Table>() ) )
@@ -174,6 +226,26 @@ Any LoadAnyValue( ScriptingEngine& se, const json& j )
                 return Ref<Texture2D>{};
             return LoadTexture2D( texPath );
         }
+        else if ( type == "vec2" )
+            return vec2( j["x"], j["y"] );
+        else if ( type == "vec3" )
+            return vec3( j["x"], j["y"], j["z"] );
+        else if ( type == "vec4" )
+            return vec4( j["x"], j["y"], j["z"], j["w"] );
+        else if ( type == "mat3" )
+        {
+            mat3 m;
+            for ( int i = 0; i < 3; i++ )
+                m[i] = vec3( j["cols"][i][0], j["cols"][i][1], j["cols"][i][2] );
+            return m;
+        }
+        else if ( type == "mat4" )
+        {
+            mat4 m;
+            for ( int i = 0; i < 4; i++ )
+                m[i] = vec4( j["cols"][i][0], j["cols"][i][1], j["cols"][i][2], j["cols"][i][3] );
+            return m;
+        }
     }
     else if ( j.is_array() )
     {
@@ -217,11 +289,11 @@ Scope<Any> AnyDeepCopy( const Scope<Any>& any )
 
 void DrawFieldsAdding( Project& project, Table& table )
 {
-    auto isEmpty = table.empty();
-    auto isArray = IsArray( table );
+    const auto isEmpty = table.empty();
+    bool isArray = IsArray( table );
     int newId = (int)table.size() + 1;
 
-    bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
+    const bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
     ImGui::SameLine();
 
     static string fieldName;
@@ -239,8 +311,8 @@ void DrawFieldsAdding( Project& project, Table& table )
     }
 
     ImGui::SetNextItemWidth( 100.0f );
-    constexpr string_view types = "Int\0Float\0String\0Bool\0Table\0Texture2D\0Entity\0"sv;
-    static enum class Types { Int, Float, String, Bool, Table, Texture2D, Entity } selectedType;
+    constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0Entity\0"sv;
+    static enum class Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, Table, Texture2D, Entity } selectedType;
     ImGui::Combo( "##type", (int*)&selectedType, types.data() );
 
     if ( addValue )
@@ -254,24 +326,17 @@ void DrawFieldsAdding( Project& project, Table& table )
 
         switch ( selectedType )
         {
-            case Types::Int:
-                table[key] = 0;
-                break;
-            case Types::Float:
-                table[key] = 0.0f;
-                break;
-            case Types::String:
-                table[key] = ""s;
-                break;
-            case Types::Bool:
-                table[key] = false;
-                break;
-            case Types::Table:
-                table[key] = lua.create_table();
-                break;
-            case Types::Texture2D:
-                table[key] = Ref<Texture2D>{};
-                break;
+            case Types::Int:       table[key] = 0; break;
+            case Types::Float:     table[key] = 0.0f; break;
+            case Types::String:    table[key] = ""s; break;
+            case Types::Bool:      table[key] = false; break;
+            case Types::Vec2:      table[key] = vec2( 0 ); break;
+            case Types::Vec3:      table[key] = vec3( 0 ); break;
+            case Types::Vec4:      table[key] = vec4( 0 ); break;
+            case Types::Mat3:      table[key] = mat3( 1 ); break;
+            case Types::Mat4:      table[key] = mat4( 1 ); break;
+            case Types::Table:     table[key] = lua.create_table(); break;
+            case Types::Texture2D: table[key] = Ref<Texture2D>{}; break;
             case Types::Entity:
             {
                 auto entity = project.mScene.CreateEntity();
@@ -329,9 +394,55 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         ImGui::Text( "(bool)" );
         return value;
     }
+    else if ( any.is<vec2>() )
+    {
+        auto value = any.as<vec2>();
+        ImGui::DragFloat2( name.data(), &value.x );
+        ImGui::SameLine();
+        ImGui::Text( "(vec2)" );
+        return value;
+    }
+    else if ( any.is<vec3>() )
+    {
+        auto value = any.as<vec3>();
+        ImGui::DragFloat3( name.data(), &value.x );
+        ImGui::SameLine();
+        ImGui::Text( "(vec3)" );
+        return value;
+    }
+    else if ( any.is<vec4>() )
+    {
+        auto value = any.as<vec4>();
+        ImGui::DragFloat4( name.data(), &value.x );
+        ImGui::SameLine();
+        ImGui::Text( "(vec4)" );
+        return value;
+    }
+    else if ( any.is<mat3>() )
+    {
+        auto value = any.as<mat3>();
+        ImGui::Text( "%s (mat3)", name.data() );
+        for ( int i = 0; i < 3; i++ )
+        {
+            auto label = std::format( "{}[{}]", name, i );
+            ImGui::DragFloat3( label.c_str(), &value[i].x );
+        }
+        return value;
+    }
+    else if ( any.is<mat4>() )
+    {
+        auto value = any.as<mat4>();
+        ImGui::Text( "%s (mat4)", name.data() );
+        for ( int i = 0; i < 4; i++ )
+        {
+            auto label = std::format( "{}[{}]", name, i );
+            ImGui::DragFloat4( label.c_str(), &value[i].x );
+        }
+        return value;
+    }
     else if ( any.is<Entity>() )
     {
-        auto current = any.as<Entity>();
+        auto currentEntity = any.as<Entity>();
 
         // Build list of all entities that have a tag
         vector<Entity> entities;
@@ -345,7 +456,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         // Find current selection index
         int selectedIdx = -1;
         for ( int i = 0; i < (int)entities.size(); i++ )
-            if ( entities[i] == current )
+            if ( entities[i] == currentEntity )
             {
                 selectedIdx = i;
                 break;
@@ -365,7 +476,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
             {
                 bool isSelected = ( i == selectedIdx );
                 if ( ImGui::Selectable( items[i], isSelected ) )
-                    current = entities[i];
+                    currentEntity = entities[i];
                 if ( isSelected )
                     ImGui::SetItemDefaultFocus();
             }
@@ -373,11 +484,11 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         }
         ImGui::SameLine();
         ImGui::Text( "(Entity)" );
-        return current;
+        return currentEntity;
     }
     else if ( any.is<Ref<Texture2D>>() )
     {
-        auto current = any.as<Ref<Texture2D>>();
+        auto currentTexture = any.as<Ref<Texture2D>>();
 
         // Build list from loader
         vector<Ref<Texture2D>> textures;
@@ -392,7 +503,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         int selectedIdx = -1;
         for ( int i = 0; i < (int)textures.size(); i++ )
         {
-            if ( textures[i] == current )
+            if ( textures[i] == currentTexture )
             {
                 selectedIdx = i;
                 break;
@@ -404,7 +515,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
         {
             if ( ImGui::Selectable( "None", selectedIdx == -1 ) )
-                current = nullptr;
+                currentTexture = nullptr;
 
             for ( int i = 0; i < (int)textures.size(); i++ )
             {
@@ -412,7 +523,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
                 ImGui::Image( (ImTextureID)(u64)textures[i]->RendererID(), ImVec2( 24, 24 ) );
                 ImGui::SameLine();
                 if ( ImGui::Selectable( textureNames[i].c_str(), isSelected ) )
-                    current = textures[i];
+                    currentTexture = textures[i];
                 if ( isSelected )
                     ImGui::SetItemDefaultFocus();
             }
@@ -420,9 +531,9 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
         }
         ImGui::SameLine();
         ImGui::Text( "(Texture2D)" );
-        if ( current )
-            ImGui::Image( (ImTextureID)(u64)current->RendererID(), ImVec2( 64, 64 ) );
-        return current;
+        if ( currentTexture )
+            ImGui::Image( (ImTextureID)(u64)currentTexture->RendererID(), ImVec2( 64, 64 ) );
+        return currentTexture;
     }
     else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
     {

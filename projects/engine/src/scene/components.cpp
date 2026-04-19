@@ -801,12 +801,6 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
     };
-
-    //// RigidBodyComponent bindings
-    //lua.new_usertype<RigidBodyComponent>(
-    //    "RigidBodyComponent",
-    //    "mRigidBody", &RigidBodyComponent::mRigidBody
-    //);
 }
 
 
@@ -884,14 +878,6 @@ void CharacterControllerComponent::OnComponentDraw( const Project& project, cons
         controller.SetGravity( gravity );
 
     ImGui::Separator();
-
-    // Runtime info (read-only)
-    ImGui::Text( "Runtime Info:" );
-    ImGui::Text( "On Ground: %s", controller.IsOnGround() ? "Yes" : "No" );
-    vec3 pos = controller.GetPosition();
-    ImGui::Text( "Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z );
-    vec3 vel = controller.GetLinearVelocity();
-    ImGui::Text( "Velocity: (%.2f, %.2f, %.2f)", vel.x, vel.y, vel.z );
 }
 
 void CharacterControllerComponent::ToJson( json& j, const Project& project, const CharacterControllerComponent& component )

@@ -220,7 +220,7 @@ bool Registry::HasComponents( Entity entity ) const
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "HasComponents: Invalid entity" );
 
-    return ( EntityHasComponent( entity, GetComponentTypeId<Components>() ) && ... );
+    return ( EntityHasComponent( entity, Components::ID() ) && ... );
 }
 
 
@@ -249,7 +249,10 @@ void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
     if ( entity == INVALID_ENTITY )
         throw std::runtime_error( "ForEachEntityComponentRaw: Invalid entity" );
 
-    const auto& components = mEntitiesComponentTypeIds[entity];
+    auto entityIter = mEntitiesComponentTypeIds.find( entity );
+    if ( entityIter == mEntitiesComponentTypeIds.end() )
+        return;
+    const auto& components = entityIter->second;
     for ( const auto id : mComponents )
     {
         if ( components.count( id ) )
@@ -323,15 +326,14 @@ void Registry::ForEachTuple( F&& func ) const
         {
             while ( pools[i]->mEntities[indicies[i]].mId < maxId )
             {
-                if ( pools[i]->mEntities[indicies[i]].mId > maxId )
-                {
-                    skip = true;
-                    break;
-                }
-
                 indicies[i]++;
                 if ( indicies[i] >= pools[i]->Size() )
                     return;
+            }
+            if ( pools[i]->mEntities[indicies[i]].mId > maxId )
+            {
+                skip = true;
+                break;
             }
         }
         if ( skip )
@@ -397,15 +399,14 @@ void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componen
 
             while ( poolEntities[entityIndex].mId < maxId )
             {
-                if ( poolEntities[entityIndex].mId > maxId )
-                {
-                    skip = true;
-                    break;
-                }
-
                 entityIndex++;
                 if ( entityIndex >= pool->Size() )
                     return;
+            }
+            if ( poolEntities[entityIndex].mId > maxId )
+            {
+                skip = true;
+                break;
             }
         }
         if ( skip )

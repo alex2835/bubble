@@ -43,39 +43,8 @@ CharacterController::CharacterController( f32 radius, f32 height, f32 stepHeight
 }
 
 CharacterController::CharacterController( const CharacterController& other )
-    : mRadius( other.mRadius )
-    , mHeight( other.mHeight )
-    , mStepHeight( other.mStepHeight )
-    , mJumpSpeed( other.mJumpSpeed )
-    , mFallSpeed( other.mFallSpeed )
-    , mMaxSlopeRadians( other.mMaxSlopeRadians )
-    , mGravity( other.mGravity )
-    , mShapeData( other.mShapeData )
 {
-    // Create capsule shape (Y-axis aligned)
-    mShape = CreateScope<btCapsuleShape>( mRadius, mHeight );
-
-    // Create ghost object for collision detection
-    mGhostObject = CreateScope<btPairCachingGhostObject>();
-    mGhostObject->setCollisionShape( mShape.get() );
-    mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT );
-
-    // Copy transform from source
-    mGhostObject->setWorldTransform( other.mGhostObject->getWorldTransform() );
-
-    // Create character controller
-    mController = CreateScope<btKinematicCharacterController>(
-        mGhostObject.get(),
-        mShape.get(),
-        mStepHeight,
-        btVector3( 0, 1, 0 )  // up vector
-    );
-
-    // Copy configuration from source
-    mController->setGravity( btVector3( mGravity.x, mGravity.y, mGravity.z ) );
-    mController->setJumpSpeed( mJumpSpeed );
-    mController->setFallSpeed( mFallSpeed );
-    mController->setMaxSlope( mMaxSlopeRadians );
+    *this = other;
 }
 
 CharacterController& CharacterController::operator=( const CharacterController& other )
@@ -133,9 +102,7 @@ void CharacterController::SetVelocityForTimeInterval( const vec3& velocity, f32 
 void CharacterController::Jump( const vec3& direction /*= vec3( 0, 1, 0 )*/ )
 {
     if ( mController->onGround() )
-    {
         mController->jump( btVector3( direction.x, direction.y, direction.z ) );
-    }
 }
 
 void CharacterController::Warp( const vec3& position )

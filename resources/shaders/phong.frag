@@ -6,7 +6,7 @@
 // Fragment input
 in vec3 vFragPos;
 in vec3 vNormal;
-in vec2 vTexCoord;
+in vec2 vTexCoords;
 in mat3 vTBN;
 
 // Fragment output
@@ -15,19 +15,19 @@ out vec4 FragColor;
     
 void main()
 {
-    vec4 diffuse_texel = texture(uMaterial.diffuseMap, vTexCoord);
+    vec4 diffuse_texel = texture(uMaterial.diffuseMap, vTexCoords);
     if (diffuse_texel.a < 0.0001f)
         discard;
         
-    vec4 specular_texel = texture(uMaterial.specularMap, vTexCoord);
+    vec4 specular_texel = texture(uMaterial.specularMap, vTexCoords);
     
     vec3 norm = vNormal;
     if (uNormalMapping)
     {
-        norm = texture(uMaterial.normalMap, vTexCoord).rgb;
-        norm = norm * 2.0f - 1.0f;
-        norm.xy *= uNormalMappingStrength;
-        norm = normalize(vTBN * norm);
+       norm = texture(uMaterial.normalMap, vTexCoords).rgb;
+       norm = norm * 2.0f - 1.0f;
+       norm.xy *= uNormalMappingStrength;
+       norm = normalize(vTBN * norm);
     }
     
     vec4 diff_spec = CalcLighting(norm, vFragPos);
@@ -35,10 +35,12 @@ void main()
     float specular_light = diff_spec.a;
     
     // Diffuse: ambient + light contribution
-    vec3 diffuse = max(uMaterial.ambientColor.rgb, diffuse_light) * diffuse_texel.rgb;
+    // vec3 diffuse = max(uMaterial.ambientColor.rgb, diffuse_light) * diffuse_texel.rgb;
+    vec3 diffuse = diffuse_light * diffuse_texel.rgb;
     
     // Specular: light contribution only (no ambient)
-    vec3 specular = specular_light * uMaterial.specularColor.rgb * specular_texel.rgb;
+    // vec3 specular = specular_light * uMaterial.specularColor.rgb * specular_texel.rgb;
+    vec3 specular = vec3(0);
     
     vec3 result = diffuse + specular;
     

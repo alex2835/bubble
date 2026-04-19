@@ -37,7 +37,7 @@ void Registry::RemoveEntity( Entity entity )
 {
     auto components = GetEntityComponentsIds( entity );
     for ( auto component : components )
-        mPools[component].Remove( entity );
+        GetPool( component ).Remove( entity );
 
     auto iter = mEntitiesComponentTypeIds.find( entity );
     assert( iter != mEntitiesComponentTypeIds.end() );
@@ -52,8 +52,9 @@ Entity Registry::CopyEntity( Entity entity )
     {
         newEntityComponentIds.insert( componentId );
         auto& pool = GetPool( componentId );
-        void* newCompMem = pool.PushEmpty( newEntity );
         const void* compMem = pool.GetRaw( entity );
+        void* newCompMem = pool.PushEmpty( newEntity );
+        pool.mDoDelete( newCompMem );
         pool.mDoCopy( compMem, newCompMem );
     }
     return newEntity;
@@ -77,8 +78,9 @@ Entity Registry::CopyEntityInto( Registry& targetRegistry, Entity entity )
         auto& targetPool = targetRegistry.GetPool( componentId );
 
         // Allocate space in target pool and copy data
-        void* newCompMem = targetPool.PushEmpty( newEntity );
         const void* compMem = sourcePool.GetRaw( entity );
+        void* newCompMem = targetPool.PushEmpty( newEntity );
+        targetPool.mDoDelete( newCompMem );
         targetPool.mDoCopy( compMem, newCompMem );
     }
     return newEntity;
@@ -102,8 +104,9 @@ Entity Registry::CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, 
         auto& targetPool = targetRegistry.GetPool( componentId );
 
         // Allocate space in target pool and copy data
-        void* newCompMem = targetPool.PushEmpty( newEntity );
         const void* compMem = sourcePool.GetRaw( entity );
+        void* newCompMem = targetPool.PushEmpty( newEntity );
+        targetPool.mDoDelete( newCompMem );
         targetPool.mDoCopy( compMem, newCompMem );
     }
     return newEntity;
