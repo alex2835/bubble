@@ -57,12 +57,10 @@ void CreateVec2Bindings( sol::state& lua )
         []( const glm::vec2& v ) { return std::format( "[{}, {}]", v.x, v.y ); },
         "length",
         []( const glm::vec2& v ) { return glm::length( v ); },
-        "lengthSq",
+        "length2",
         []( const glm::vec2& v ) { return glm::length2( v ); },
         "normalize",
-        []( const glm::vec2& v1 ) { return glm::normalize( v1 ); },
-        "normalize2",
-        []( const glm::vec2& v1, const glm::vec2& v2 ) { return glm::normalize( v2 - v1 ); }
+        []( const glm::vec2& v1 ) { return glm::normalize( v1 ); }
     );
 }
 

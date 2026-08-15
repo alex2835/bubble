@@ -8,9 +8,9 @@ namespace bubble
 {
 void CreateMathFreeFunctionsBindings( sol::state& lua )
 {
-    lua.set_function( "identity_mat2", glm::identity<glm::mat2> );
-	lua.set_function( "identity_mat3", glm::identity<glm::mat3> );
-	lua.set_function( "identity_mat4", glm::identity<glm::mat4> );
+    lua.set_function( "identityMat2", glm::identity<glm::mat2> );
+	lua.set_function( "identityMat3", glm::identity<glm::mat3> );
+	lua.set_function( "identityMat4", glm::identity<glm::mat4> );
 
 	lua.set_function( "distance",
 		sol::overload( 
@@ -48,7 +48,7 @@ void CreateMathFreeFunctionsBindings( sol::state& lua )
 		)
 	);
 
-	lua.set_function( "nearly_zero", 
+	lua.set_function( "isNearlyZero", 
 		sol::overload(
 			[]( const glm::vec2& v )
 			{

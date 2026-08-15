@@ -112,18 +112,14 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
                             p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z );
     };
 
-    lua.new_usertype<Transform>(
+    lua.new_usertype<TransformComponent>(
         "Transform",
         sol::call_constructor,
-        sol::constructors<Transform(), Transform( vec3 ), Transform( vec3, vec3, vec3 )>(),
-        "Position",
-        &Transform::mPosition,
-        "Rotation",
-        &Transform::mRotation,
-        "Scale",
-        &Transform::mScale,
-        sol::meta_function::to_string,
-        to_string
+        sol::constructors<TransformComponent(), TransformComponent( vec3 ), TransformComponent( vec3, vec3, vec3 )>(),
+        "Position",  &TransformComponent::mPosition,
+        "Rotation",  &TransformComponent::mRotation,
+        "Scale",     &TransformComponent::mScale,
+        sol::meta_function::to_string, to_string
     );
 }
 
@@ -233,33 +229,31 @@ void CameraComponent::FromJson( const json& json, Project& project, CameraCompon
 
 void CameraComponent::CreateLuaBinding( sol::state& lua )
 {
-    lua.new_usertype<Camera>(
+    lua.new_usertype<CameraComponent>(
         "Camera",
         sol::call_constructor,
-        sol::constructors<Camera(), Camera( vec3, f32, f32, f32, vec3 )>(),
+        sol::constructors<CameraComponent(), CameraComponent( vec3, f32, f32, f32, vec3 )>(),
 
-        // Attributes
-        "Position", &Camera::mPosition,
-        "Forward", &Camera::mForward,
-        "Up", &Camera::mUp,
-        "Right", &Camera::mRight,
-        "WorldUp", &Camera::mWorldUp,
-        "Near", &Camera::mNear,
-        "Far", &Camera::mFar,
-        "Fov", &Camera::mFov,
-        "Yaw", &Camera::mYaw,
-        "Pitch", &Camera::mPitch,
-        "MaxSpeed", &Camera::mMaxSpeed,
-        "MouseSensitivity", &Camera::mMouseSensitivity,
-        "Center", &Camera::mCenter,
-        "Radius", &Camera::mRadius,
-        "UseTransformPropagation", &Camera::mUseTransformPropagation,
+        "Position",              &CameraComponent::mPosition,
+        "Forward",               &CameraComponent::mForward,
+        "Up",                    &CameraComponent::mUp,
+        "Right",                 &CameraComponent::mRight,
+        "WorldUp",               &CameraComponent::mWorldUp,
+        "Near",                  &CameraComponent::mNear,
+        "Far",                   &CameraComponent::mFar,
+        "Fov",                   &CameraComponent::mFov,
+        "Yaw",                   &CameraComponent::mYaw,
+        "Pitch",                 &CameraComponent::mPitch,
+        "MaxSpeed",              &CameraComponent::mMaxSpeed,
+        "MouseSensitivity",      &CameraComponent::mMouseSensitivity,
+        "Center",                &CameraComponent::mCenter,
+        "Radius",                &CameraComponent::mRadius,
+        "UseTransformPropagation", &CameraComponent::mUseTransformPropagation,
 
-        // Methods
-        "GetLookatMat", &Camera::GetLookatMat,
-        "GetProjectionMat", &Camera::GetProjectionMat,
-        "EulerAnglesToVectors", &Camera::EulerAnglesToVectors,
-        "UpdateOrbit", &Camera::UpdateOrbit
+        "GetLookatMat",          &CameraComponent::GetLookatMat,
+        "GetProjectionMat",      &CameraComponent::GetProjectionMat,
+        "EulerAnglesToVectors",  &CameraComponent::EulerAnglesToVectors,
+        "UpdateOrbit",           &CameraComponent::UpdateOrbit
     );
 }
 
@@ -386,36 +380,33 @@ void LightComponent::FromJson( const json& json, Project& project, LightComponen
 
 void LightComponent::CreateLuaBinding( sol::state& lua )
 {
-    // LightType enum
-    lua.new_enum<LightType>(
-        "LightType",
+    constexpr string_view lightTypes = R"(
+        LightType = 
         {
-            { "Directional", LightType::Directional },
-            { "Point", LightType::Point },
-            { "Spot", LightType::Spot }
+            Directional = 0,
+            Point = 1,
+            Spot = 2
         }
-    );
+    )";
+    lua.safe_script( lightTypes );
 
-    // Light component
-    lua.new_usertype<Light>(
+    lua.new_usertype<LightComponent>(
         "Light",
         sol::call_constructor,
-        sol::constructors<Light()>(),
+        sol::constructors<LightComponent()>(),
 
-        // Properties
-        "Type", &Light::mType,
-        "Color", &Light::mColor,
-        "Brightness", &Light::mBrightness,
-        "Position", &Light::mPosition,
-        "Direction", &Light::mDirection,
-        "Distance", &Light::mDistance,
-        "CutOff", &Light::mCutOff,
-        "OuterCutOff", &Light::mOuterCutOff,
+        "Type",        &LightComponent::mType,
+        "Color",       &LightComponent::mColor,
+        "Brightness",  &LightComponent::mBrightness,
+        "Position",    &LightComponent::mPosition,
+        "Direction",   &LightComponent::mDirection,
+        "Distance",    &LightComponent::mDistance,
+        "CutOff",      &LightComponent::mCutOff,
+        "OuterCutOff", &LightComponent::mOuterCutOff,
 
-        // Static factory methods
-        "CreateDirLight", &Light::CreateDirLight,
-        "CreatePointLight", &Light::CreatePointLight,
-        "CreateSpotLight", &Light::CreateSpotLight
+        "CreateDirLight",   &LightComponent::CreateDirLight,
+        "CreatePointLight", &LightComponent::CreatePointLight,
+        "CreateSpotLight",  &LightComponent::CreateSpotLight
     );
 }
 
@@ -460,10 +451,11 @@ void ModelComponent::FromJson( const json& json, Project& project, ModelComponen
 
 void ModelComponent::CreateLuaBinding( sol::state& lua )
 {
-    lua.new_usertype<Model>(
-        "Model",
+    lua.new_usertype<ModelComponent>(
+        "ModelComponent",
+        "Model", &ModelComponent::mModel,
         sol::meta_function::to_string,
-        []( const Model& model ) { return model.mName; }
+        []( const ModelComponent& mc ) { return mc.mModel ? mc.mModel->mName : "null"; }
     );
 }
 
@@ -487,52 +479,124 @@ void ShaderComponent::OnComponentDraw( const Project& project, const Entity& ent
     auto shaderName = shader ? shader->mName.c_str() : "Not selected";
     if ( ImGui::BeginCombo( "shaders", shaderName ) )
     {
-        for ( const auto& [shaderPath, shader] : project.mLoader.mShaders )
+        for ( const auto& [shaderPath, shaderRef] : project.mLoader.mShaders )
         {
             auto shaderComboName = shaderPath.stem().string();
             if ( ImGui::Selectable( shaderComboName.c_str(), shaderComboName == shaderName ) )
-                shaderComponent = shader;
+                shaderComponent.mShader = shaderRef;
         }
         ImGui::EndCombo();
     }
+
+    if ( shaderComponent.mUniforms and shaderComponent.mUniforms->is<Table>() )
+        DrawAnyValue( const_cast<Project&>( project ), "Uniforms##shader", *shaderComponent.mUniforms, true );
 }
 
-void ShaderComponent::ToJson( json& json, const Project& project, const ShaderComponent& shaderComponent )
+void ShaderComponent::ToJson( json& j, const Project& project, const ShaderComponent& shaderComponent )
 {
     if ( not shaderComponent.mShader )
     {
-        json = nullptr;
+        j = nullptr;
         return;
     }
 
     auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent.mShader->mPath );
-    json["Path"] = relPath;
+    j["Path"] = relPath;
+
+    if ( shaderComponent.mUniforms )
+        j["Uniforms"] = SaveAnyValue( *shaderComponent.mUniforms );
 }
 
-void ShaderComponent::FromJson( const json& json, Project& project, ShaderComponent& shaderComponent )
+void ShaderComponent::FromJson( const json& j, Project& project, ShaderComponent& shaderComponent )
 {
-    if ( not json.is_null() )
-        shaderComponent = project.mLoader.LoadShader( json["Path"] );
+    if ( j.is_null() )
+        return;
+
+    shaderComponent.mShader = project.mLoader.LoadShader( j["Path"] );
+    shaderComponent.RebuildUniforms( project.mScriptingEngine );
+
+    if ( j.contains( "Uniforms" ) and
+         shaderComponent.mUniforms and
+         shaderComponent.mUniforms->is<Table>() )
+    {
+        auto table = shaderComponent.mUniforms->as<Table>();
+        for ( const auto& [key, val] : j["Uniforms"].items() )
+            table[key] = LoadAnyValue( project.mScriptingEngine, val );
+    }
 }
 
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
 {
-    lua.new_usertype<Shader>(
-        "Shader",
+    lua.new_usertype<ShaderComponent>(
+        "ShaderComponent",
+        "Shader", &ShaderComponent::mShader,
+        "Uniforms", sol::property(
+            []( ShaderComponent& sc ) -> sol::object
+            {
+                assert( sc.mUniforms );
+                return sc.mUniforms->as<Table>();
+            },
+            []( ShaderComponent& sc, const Table& t ) 
+            { 
+                *sc.mUniforms = t;
+            }
+        ),
         sol::meta_function::to_string,
-        []( const Shader& shader ) { return shader.mName; }
+        []( const ShaderComponent& sc ) { return sc.mShader ? sc.mShader->mName : "null"; }
     );
 }
 
 ShaderComponent::ShaderComponent( const Ref<Shader>& shader )
     : mShader( shader )
 {
+}
 
+ShaderComponent::ShaderComponent( const ShaderComponent& shaderComponent )
+{
+    *this = shaderComponent;
+}
+
+ShaderComponent& ShaderComponent::operator=( const ShaderComponent& shaderComponent )
+{
+    if ( this != &shaderComponent )
+    {
+        mShader = shaderComponent.mShader;
+        mUniforms = AnyDeepCopy( shaderComponent.mUniforms );
+    }
+    return *this;
 }
 
 ShaderComponent::~ShaderComponent()
 {
+}
 
+void ShaderComponent::RebuildUniforms( ScriptingEngine& lua )
+{
+    if ( !mShader )
+    {
+        mUniforms.reset();
+        return;
+    }
+    auto table = lua.CreateTable();
+    for ( const auto& [name, type] : mShader->mUniformDescriptors )
+    {
+        switch ( type )
+        {
+            case GLSLDataType::Texture2D: table[name] = Ref<Texture2D>(); break;
+            case GLSLDataType::Float:  table[name] = 0.0f;       break;
+            case GLSLDataType::Float2: table[name] = vec2( 0 );  break;
+            case GLSLDataType::Float3: table[name] = vec3( 0 );  break;
+            case GLSLDataType::Float4: table[name] = vec4( 0 );  break;
+            case GLSLDataType::Mat3:   table[name] = mat3( 1 );  break;
+            case GLSLDataType::Mat4:   table[name] = mat4( 1 );  break;
+            case GLSLDataType::Int:    table[name] = 0;          break;
+            case GLSLDataType::Bool:   table[name] = false;      break;
+            case GLSLDataType::Int2:   table[name] = ivec2( 0 ); break;
+            case GLSLDataType::Int3:   table[name] = ivec3( 0 ); break;
+            case GLSLDataType::Int4:   table[name] = ivec4( 0 ); break;
+        }
+    }
+    mUniforms = CreateScope<Any>( std::move( table ) );
 }
 
 
@@ -765,38 +829,31 @@ void RigidBodyComponent::FromJson( const json& j, Project& project, RigidBodyCom
 
 void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
 {
-    // RigidBody class bindings
     lua.new_usertype<RigidBody>(
         "RigidBody",
-
-        // SetMass is set in physics_lua_bindings
-        "GetMass",
-        &RigidBody::GetMass,
-
-        "SetFriction",
-        &RigidBody::SetFriction,
-        "GetFriction",
-        &RigidBody::GetFriction,
-
-        "ApplyCentralImpulse",
-        &RigidBody::ApplyCentralImpulse,
-        "ApplyTorqueImpulse",
-        &RigidBody::ApplyTorqueImpulse
+        "GetMass",             &RigidBody::GetMass,
+        "SetFriction",         &RigidBody::SetFriction,
+        "GetFriction",         &RigidBody::GetFriction,
+        "ApplyCentralImpulse", &RigidBody::ApplyCentralImpulse,
+        "ApplyTorqueImpulse",  &RigidBody::ApplyTorqueImpulse
     );
 
-    lua["CreateRigidBodySphere"] = []( const Transform& trans, f32 mass, f32 radius ){
+    lua.new_usertype<RigidBodyComponent>(
+        "RigidBodyComponent",
+        "RigidBody", &RigidBodyComponent::mRigidBody
+    );
+
+    lua["CreateRigidBodySphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ) {
         auto rigidBody = RigidBody::CreateSphere( mass, radius );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
     };
-
-    lua["CreateRigidBodyBox"] = []( const Transform& trans, f32 mass, vec3 halfExtend ) {
+    lua["CreateRigidBodyBox"] = []( const TransformComponent& trans, f32 mass, vec3 halfExtend ) {
         auto rigidBody = RigidBody::CreateBox( mass, halfExtend );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
     };
-
-    lua["CreateRigidBodyCapsule"] = []( const Transform& trans, f32 mass, f32 radius, f32 height ) {
+    lua["CreateRigidBodyCapsule"] = []( const TransformComponent& trans, f32 mass, f32 radius, f32 height ) {
         auto rigidBody = RigidBody::CreateCapsule( mass, radius, height );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
@@ -813,6 +870,11 @@ CharacterControllerComponent::CharacterControllerComponent()
 
 CharacterControllerComponent::CharacterControllerComponent( f32 radius, f32 height, f32 stepHeight )
     : mController( CharacterController( radius, height, stepHeight ) )
+{
+}
+
+CharacterControllerComponent::CharacterControllerComponent( CharacterController controller )
+    : mController( std::move( controller ) )
 {
 }
 
@@ -911,36 +973,30 @@ void CharacterControllerComponent::FromJson( const json& j, Project& project, Ch
 
 void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
 {
-    // CharacterControllerComponent bindings
-    //lua.new_usertype<CharacterControllerComponent>(
-    //    "CharacterControllerComponent",
-    //    "mController", []( CharacterControllerComponent& c ) -> CharacterController& { return c.mController; }
-    //);
-
-
-    // CharacterController bindings
     lua.new_usertype<CharacterController>(
         "CharacterController",
         sol::constructors<CharacterController( f32, f32, f32 )>(),
 
-        "SetWalkDirection", &CharacterController::SetWalkDirection,
-        "SetVelocityForTimeInterval", &CharacterController::SetVelocityForTimeInterval,
-        "Jump", &CharacterController::Jump,
-        "Warp", &CharacterController::Warp,
+        "SetWalkDirection",          &CharacterController::SetWalkDirection,
+        "SetVelocityForTimeInterval",&CharacterController::SetVelocityForTimeInterval,
+        "Jump",                      &CharacterController::Jump,
+        "Warp",                      &CharacterController::Warp,
+        "IsOnGround",                &CharacterController::IsOnGround,
+        "GetPosition",               &CharacterController::GetPosition,
+        "GetLinearVelocity",         &CharacterController::GetLinearVelocity,
+        "SetMaxJumpHeight",          &CharacterController::SetMaxJumpHeight,
+        "SetJumpSpeed",              &CharacterController::SetJumpSpeed,
+        "SetFallSpeed",              &CharacterController::SetFallSpeed,
+        "SetGravity",                &CharacterController::SetGravity,
+        "SetMaxSlope",               &CharacterController::SetMaxSlope,
+        "SetStepHeight",             &CharacterController::SetStepHeight,
+        "GetRadius",                 &CharacterController::GetRadius,
+        "GetHeight",                 &CharacterController::GetHeight
+    );
 
-        "IsOnGround", &CharacterController::IsOnGround,
-        "GetPosition", &CharacterController::GetPosition,
-        "GetLinearVelocity", &CharacterController::GetLinearVelocity,
-
-        "SetMaxJumpHeight", &CharacterController::SetMaxJumpHeight,
-        "SetJumpSpeed", &CharacterController::SetJumpSpeed,
-        "SetFallSpeed", &CharacterController::SetFallSpeed,
-        "SetGravity", &CharacterController::SetGravity,
-        "SetMaxSlope", &CharacterController::SetMaxSlope,
-        "SetStepHeight", &CharacterController::SetStepHeight,
-
-        "GetRadius", &CharacterController::GetRadius,
-        "GetHeight", &CharacterController::GetHeight
+    lua.new_usertype<CharacterControllerComponent>(
+        "CharacterControllerComponent",
+        "Controller", &CharacterControllerComponent::mController
     );
 
     lua["CreateCharacterController"] = []( f32 radius, f32 height, f32 stepHeight ) {
@@ -982,12 +1038,12 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
 void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    *component.mState = DrawAnyValue( const_cast<Project&>( project ), "State"sv, *component.mState );
+    *component.mState = DrawAnyValue( const_cast<Project&>( project ), "State##state"sv, *component.mState );
 }
 
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )
 {
-    // validate that state belong to proper lua state
+    // validate that var state belong to proper lua state
     if ( component.mState and component.mState->is<Table>() )
     {
         lua_State* componentLua = component.mState->as<Table>().lua_state();

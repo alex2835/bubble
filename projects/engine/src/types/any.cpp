@@ -6,6 +6,7 @@
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/texture.hpp"
+#include "engine/renderer/shader.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/project/project.hpp"
 #include <nlohmann/json.hpp>
@@ -287,8 +288,11 @@ Scope<Any> AnyDeepCopy( const Scope<Any>& any )
 }
 
 
-void DrawFieldsAdding( Project& project, Table& table )
+void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen )
 {
+    if ( frozen )
+        return;
+
     const auto isEmpty = table.empty();
     bool isArray = IsArray( table );
     int newId = (int)table.size() + 1;
@@ -296,11 +300,18 @@ void DrawFieldsAdding( Project& project, Table& table )
     const bool addValue = ImGui::Button( "+", ImVec2( 20, 20 ) );
     ImGui::SameLine();
 
-    static string fieldName;
+    // Per-scope statics keyed by table pointer so different callers don't share state
+    static std::unordered_map<const void*, string> sFieldNames;
+    static std::unordered_map<const void*, int>    sSelectedTypes;
+    const void* key = table.pointer();
+    string& fieldName   = sFieldNames[key];
+    int&    selectedType = sSelectedTypes[key];
+
     if ( not isArray )
     {
         ImGui::SetNextItemWidth( 100.0f );
-        ImGui::InputText( "##state", fieldName );
+        auto fieldLabel = std::format( "##field_{}", scopeName );
+        ImGui::InputText( fieldLabel.c_str(), fieldName );
         ImGui::SameLine();
     }
     if ( auto val = TryParseInt( fieldName );
@@ -312,8 +323,8 @@ void DrawFieldsAdding( Project& project, Table& table )
 
     ImGui::SetNextItemWidth( 100.0f );
     constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0Entity\0"sv;
-    static enum class Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, Table, Texture2D, Entity } selectedType;
-    ImGui::Combo( "##type", (int*)&selectedType, types.data() );
+    auto typeLabel = std::format( "##type_{}", scopeName );
+    ImGui::Combo( typeLabel.c_str(), &selectedType, types.data() );
 
     if ( addValue )
     {
@@ -321,39 +332,48 @@ void DrawFieldsAdding( Project& project, Table& table )
             return;
 
         sol::state_view lua = table.lua_state();
-        auto key = isArray ? sol::object( lua, sol::in_place, newId )
+        auto entryKey = isArray ? sol::object( lua, sol::in_place, newId )
             : sol::object( lua, sol::in_place, fieldName );
 
+        enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, Table, Texture2D, Entity };
         switch ( selectedType )
         {
-            case Types::Int:       table[key] = 0; break;
-            case Types::Float:     table[key] = 0.0f; break;
-            case Types::String:    table[key] = ""s; break;
-            case Types::Bool:      table[key] = false; break;
-            case Types::Vec2:      table[key] = vec2( 0 ); break;
-            case Types::Vec3:      table[key] = vec3( 0 ); break;
-            case Types::Vec4:      table[key] = vec4( 0 ); break;
-            case Types::Mat3:      table[key] = mat3( 1 ); break;
-            case Types::Mat4:      table[key] = mat4( 1 ); break;
-            case Types::Table:     table[key] = lua.create_table(); break;
-            case Types::Texture2D: table[key] = Ref<Texture2D>{}; break;
-            case Types::Entity:
+            case Int:       table[entryKey] = 0; break;
+            case Float:     table[entryKey] = 0.0f; break;
+            case String:    table[entryKey] = ""s; break;
+            case Bool:      table[entryKey] = false; break;
+            case Vec2:      table[entryKey] = vec2( 0 ); break;
+            case Vec3:      table[entryKey] = vec3( 0 ); break;
+            case Vec4:      table[entryKey] = vec4( 0 ); break;
+            case Mat3:      table[entryKey] = mat3( 1 ); break;
+            case Mat4:      table[entryKey] = mat4( 1 ); break;
+            case Table:     table[entryKey] = lua.create_table(); break;
+            case Texture2D: table[entryKey] = Ref<bubble::Texture2D>{}; break;
+            case Entity:
             {
                 auto entity = project.mScene.CreateEntity();
-                table[key] = entity;
+                table[entryKey] = entity;
                 break;
             }
         }
     }
 }
 
-Any DrawAnyValue( Project& project, string_view name, Any any )
+Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
 {
     constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
                                  ImGuiTreeNodeFlags_SpanAllColumns |
                                  ImGuiTreeNodeFlags_Framed;
 
     auto& lua = *project.mScriptingEngine.mLua;
+
+    // Scope all widget IDs under `name` so identical field names in different
+    // components (State vs ShaderUniforms) don't collide.
+    struct IDGuard
+    {
+        IDGuard( string_view id ) { ImGui::PushID( id.data(), id.data() + id.size() ); }
+        ~IDGuard() { ImGui::PopID(); }
+    } idGuard( name );
 
     ImGui::SetNextItemWidth( 100.0f );
     if ( any.is<sol::nil_t>() )
@@ -545,22 +565,22 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
             {
                 ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
 
-                if ( ImGui::Button( "-" ) )
+                if ( !frozen && ImGui::Button( "-" ) )
                 {
                     table[k] = sol::nil;
                     ImGui::PopID();
                     continue;
                 }
-                ImGui::SameLine();
+                if ( !frozen ) ImGui::SameLine();
 
                 auto entryName = std::to_string( k.as<int>() );
-                table[k] = DrawAnyValue( project, entryName, v.as<Any>() );
+                table[k] = DrawAnyValue( project, entryName, v.as<Any>(), frozen );
 
                 ImGui::Separator();
                 ImGui::PopID();
                 i++;
             }
-            DrawFieldsAdding( project, table );
+            DrawFieldsAdding( project, table, name, frozen );
             ImGui::TreePop();
         }
     }
@@ -574,22 +594,22 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
             {
                 ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
 
-                if ( ImGui::Button( "-" ) )
+                if ( !frozen && ImGui::Button( "-" ) )
                 {
                     table[k] = sol::nil;
                     ImGui::PopID();
                     continue;
                 }
-                ImGui::SameLine();
+                if ( !frozen ) ImGui::SameLine();
 
                 auto entryName = k.as<string>();
-                table[k] = DrawAnyValue( project, entryName, v.as<Any>() );
+                table[k] = DrawAnyValue( project, entryName, v.as<Any>(), frozen );
 
                 ImGui::Separator();
                 ImGui::PopID();
                 i++;
             }
-            DrawFieldsAdding( project, table );
+            DrawFieldsAdding( project, table, name, frozen );
             ImGui::TreePop();
         }
     }
@@ -601,6 +621,46 @@ Any DrawAnyValue( Project& project, string_view name, Any any )
     return any;
 }
 
+
+void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
+{
+    for ( const auto& [name, type] : shader.mUniformDescriptors )
+    {
+        sol::object val = uniforms[name];
+        if ( !val.valid() || val.is<sol::nil_t>() )
+            continue;
+
+        switch ( type )
+        {
+            case GLSLDataType::Float:
+                if ( val.is<float>() )  shader.SetUni1f( name, val.as<float>() );
+                break;
+            case GLSLDataType::Float2:
+                if ( val.is<vec2>() )   shader.SetUni2f( name, val.as<vec2>() );
+                break;
+            case GLSLDataType::Float3:
+                if ( val.is<vec3>() )   shader.SetUni3f( name, val.as<vec3>() );
+                break;
+            case GLSLDataType::Float4:
+                if ( val.is<vec4>() )   shader.SetUni4f( name, val.as<vec4>() );
+                break;
+            case GLSLDataType::Mat3:
+                if ( val.is<mat3>() )   shader.SetUniMat3( name, val.as<mat3>() );
+                break;
+            case GLSLDataType::Mat4:
+                if ( val.is<mat4>() )   shader.SetUniMat4( name, val.as<mat4>() );
+                break;
+            case GLSLDataType::Int:
+            case GLSLDataType::Bool:
+                if ( val.is<int>() )    shader.SetUni1i( name, val.as<int>() );
+                break;
+            case GLSLDataType::Int2:
+            case GLSLDataType::Int3:
+            case GLSLDataType::Int4:
+                break; // not yet exposed via SetUni*
+        }
+    }
+}
 
 } // namespace bubble
 

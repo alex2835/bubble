@@ -6,6 +6,12 @@ namespace bubble
 {
 struct Transform
 {
+    Transform() = default;
+    Transform( vec3 position, vec3 rotation = vec3( 0 ), vec3 scale = vec3( 1 ) )
+        : mPosition( position ), mRotation( rotation ), mScale( scale )
+    {
+    }
+
     vec3 mPosition = vec3( 0 );
     vec3 mRotation = vec3( 0 );
     vec3 mScale = vec3( 1 );

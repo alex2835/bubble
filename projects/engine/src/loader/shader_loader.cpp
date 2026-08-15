@@ -240,6 +240,57 @@ void CompileShaders( Shader& shader,
 }
 
 
+UniformDescription LoadUniformDescriptions( const Ref<Shader>& shader )
+{
+	UniformDescription uniformDescriptors;
+
+    // Introspect active uniforms — skip engine-managed ones set by the renderer
+    static const std::unordered_set<string_view> sEngineUniforms = { "uModel"sv,  "uLights"sv,
+    "uView"sv, "uViewPos"sv, "uProjection"sv, "uNormalMapping"sv, "uNormalMappingStrength"sv, "uNumLights"sv, };
+
+    static const std::unordered_map<GLenum, GLSLDataType> sGLenumToGLSLType = {
+		{ GL_SAMPLER_2D, GLSLDataType::Texture2D },
+		{ GL_FLOAT,      GLSLDataType::Float  },
+		{ GL_FLOAT_VEC2, GLSLDataType::Float2 },
+		{ GL_FLOAT_VEC3, GLSLDataType::Float3 },
+		{ GL_FLOAT_VEC4, GLSLDataType::Float4 },
+		{ GL_FLOAT_MAT3, GLSLDataType::Mat3   },
+		{ GL_FLOAT_MAT4, GLSLDataType::Mat4   },
+		{ GL_INT,        GLSLDataType::Int    },
+		{ GL_INT_VEC2,   GLSLDataType::Int2   },
+		{ GL_INT_VEC3,   GLSLDataType::Int3   },
+		{ GL_INT_VEC4,   GLSLDataType::Int4   },
+		{ GL_BOOL,       GLSLDataType::Bool   },
+	};
+
+	GLint numUniforms = 0;
+	glGetProgramiv( shader->mShaderId, GL_ACTIVE_UNIFORMS, &numUniforms );
+	for ( GLint i = 0; i < numUniforms; i++ )
+	{
+		char nameBuf[256];
+		GLsizei length = 0;
+		GLint size = 0;
+		GLenum glType = 0;
+		glGetActiveUniform( shader->mShaderId, i, sizeof( nameBuf ), &length, &size, &glType, nameBuf );
+
+		string name( nameBuf, length );
+		auto typeIt = sGLenumToGLSLType.find( glType );
+		if ( typeIt == sGLenumToGLSLType.end() )
+			continue; // skip unsupported types
+		
+		auto isSystemUni = false;
+		for ( const auto& systemUni : sEngineUniforms ) 
+			if ( name.starts_with( systemUni ) )
+				isSystemUni |= true;
+		if ( isSystemUni )
+			continue;// skip system uniforms
+
+		uniformDescriptors.emplace( std::move( name ), typeIt->second );
+	}
+	return uniformDescriptors;
+}
+
+
 Ref<Shader> LoadShader( const path& path )
 {
     Ref<Shader> shader = CreateRef<Shader>();
@@ -253,6 +304,7 @@ Ref<Shader> LoadShader( const path& path )
 	auto [vertex, fragment, geometry, modules] = *shaders;
     CompileShaders( *shader, vertex, fragment, geometry );
     shader->mModules = std::move( modules );
+	shader->mUniformDescriptors = LoadUniformDescriptions( shader );
     return shader;
 }
 

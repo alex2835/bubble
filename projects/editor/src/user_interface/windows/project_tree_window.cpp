@@ -131,7 +131,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
     if ( ImGui::BeginPopup( "Create entity popup" ) )
     {
         // Temp: creation position. TODO: test raycast
-        Transform trans{ .mPosition = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f };
+        Transform trans( mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f );
 
         if ( ImGui::MenuItem( "Create folder" ) )
         {

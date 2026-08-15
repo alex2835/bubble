@@ -1,4 +1,4 @@
-
+#pragma once
 #include <sol/forward.hpp>
 #include "engine/types/json.hpp"
 
@@ -6,6 +6,7 @@ namespace bubble
 {
 class Project;
 class ScriptingEngine;
+class Shader;
 
 using Any = sol::lua_value;
 using Table = sol::table;
@@ -22,7 +23,9 @@ Any LoadAnyValue( ScriptingEngine& se, const json& j );
 Any AnyDeepCopy( const Any& any );
 Scope<Any> AnyDeepCopy( const Scope<Any>& any );
 
-void DrawFieldsAdding( Project& project, Table& table );
-Any DrawAnyValue( Project& project, string_view name, Any any );
+void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen = false );
+Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen = false );
+
+void ApplyShaderUniforms( const Shader& shader, const Table& uniforms );
 
 }

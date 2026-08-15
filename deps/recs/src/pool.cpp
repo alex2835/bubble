@@ -60,7 +60,7 @@ void* Pool::PushEmpty( Entity entity )
     if ( mCapacity <= mSize + 1 )
         Realloc( 2 * mSize + 1 );
 
-    auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
+    const auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
     size_t position = iterator != mEntities.end() ? iterator - mEntities.begin() : mSize;
 
     mEntities.insert( iterator, entity );
@@ -72,12 +72,24 @@ void* Pool::PushEmpty( Entity entity )
     return new_elem_address;
 }
 
+std::vector<Entity>::iterator Pool::BFind( Entity entity )
+{
+    auto it = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
+    return ( it != mEntities.end() && *it == entity ) ? it : mEntities.end();
+}
+
+std::vector<Entity>::const_iterator Pool::BFind( Entity entity ) const
+{
+    auto it = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
+    return ( it != mEntities.end() && *it == entity ) ? it : mEntities.end();
+}
+
 void Pool::Remove( Entity entity )
 {
-    auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
-    assert( iterator != mEntities.end() && *iterator == entity );
+    const auto iterator = BFind( entity );
+    assert( iterator != mEntities.end() );
 
-    auto position = std::distance( mEntities.begin(), iterator );
+    const auto position = std::distance( mEntities.begin(), iterator );
     mEntities.erase( iterator );
     mDoDelete( GetElemAddress( position ) );
     std::memmove( GetElemAddress( position ), GetElemAddress( position + 1 ), mComponentSize * ( mSize - position - 1 ) );
@@ -91,12 +103,9 @@ size_t Pool::Size() const noexcept
 
 void* Pool::GetRaw( Entity entity )
 {
-    auto iterator = std::lower_bound( mEntities.begin(), mEntities.end(), entity );
-    if ( iterator != mEntities.end() && *iterator == entity )
-    {
-        auto position = std::distance( mEntities.begin(), iterator );
-        return GetElemAddress( position );
-    }
+    const auto iterator = BFind( entity );
+    if ( iterator != mEntities.end() )
+        return GetElemAddress( std::distance( mEntities.begin(), iterator ) );
     return nullptr;
 }
 
@@ -135,4 +144,5 @@ const void* Pool::GetElemAddressConst( size_t size ) const
 {
     return &mData[mComponentSize * size];
 }
-}
+
+} // namespace recs

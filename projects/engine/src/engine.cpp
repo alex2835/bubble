@@ -3,6 +3,7 @@
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/renderer/helpers/create_billboard.hpp"
+#include "engine/types/any.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
@@ -108,7 +109,7 @@ void Engine::OnUpdate()
 
 
     /// Update Scripts
-    mProject.mScriptingEngine.SetVar( "DeltaTime", dt.Seconds() );
+    mProject.mScriptingEngine.SetVar( "dt", dt.Seconds() );
 
     // Call scripts
     mProject.mScene.ForEach<StateComponent, ScriptComponent>(
@@ -223,10 +224,18 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
              const TransformComponent& transformComponent )
     {
         const bool valid = modelComponent.mModel and shaderComponent.mShader;
-        const auto& model = valid ? modelComponent.mModel : mErrorModel;
-        const auto& shader = valid ? shaderComponent.mShader : mWhiteShader;
-        const auto tansform = valid ? transformComponent.TransformMat() : transformComponent.TranslationRotationMat();
-        mRenderer.DrawModel( model, shader, tansform );
+        if ( not valid )
+        {
+            mRenderer.DrawModel( mErrorModel, mWhiteShader, transformComponent.TranslationRotationMat() );
+            return;
+        }
+
+        if ( shaderComponent.mUniforms and shaderComponent.mUniforms->is<Table>() )
+        {
+            shaderComponent.mShader->Bind();
+            ApplyShaderUniforms( *shaderComponent.mShader, shaderComponent.mUniforms->as<Table>() );
+        }
+        mRenderer.DrawModel( modelComponent.mModel, shaderComponent.mShader, transformComponent.TransformMat() );
     } );
 }
 

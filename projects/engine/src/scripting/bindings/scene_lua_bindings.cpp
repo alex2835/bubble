@@ -42,51 +42,103 @@ void CreateSceneBindings( Scene& scene,
         
         // Add
         "AddTagComponent",
-        [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
-        "AddTransformComponent", 
-        [&]( const Entity& entity, Transform transform ) { scene.AddComponent<TransformComponent>( entity, transform ); },
+        sol::overload(
+            [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
+            [&]( const Entity& entity, const TagComponent& c ) { scene.AddComponent<TagComponent>( entity, c ); }
+        ),
+        "AddTransformComponent",
+        sol::overload(
+            [&]( const Entity& entity, const Transform& t ) { scene.AddComponent<TransformComponent>( entity, t ); },
+            [&]( const Entity& entity, const TransformComponent& c ) { scene.AddComponent<TransformComponent>( entity, c ); }
+        ),
         "AddModelComponent",
-        [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
+        sol::overload(
+            [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
+            [&]( const Entity& entity, const ModelComponent& c ) { scene.AddComponent<ModelComponent>( entity, c ); }
+        ),
         "AddShaderComponent",
-        [&]( const Entity& entity, const Ref<Shader>& shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
+        sol::overload(
+            [&]( const Entity& entity, const Ref<Shader>& shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
+            [&]( const Entity& entity, const ShaderComponent& c ) { scene.AddComponent<ShaderComponent>( entity, c ); }
+        ),
         "AddCameraComponent",
-        [&]( const Entity& entity, const Camera& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
+        sol::overload(
+            [&]( const Entity& entity, const Camera& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
+            [&]( const Entity& entity, const CameraComponent& c ) { scene.AddComponent<CameraComponent>( entity, c ); }
+        ),
         "AddLightComponent",
-        [&]( const Entity& entity, const Light& light ) { scene.AddComponent<LightComponent>( entity, light ); },
+        sol::overload(
+            [&]( const Entity& entity, const Light& light ) { scene.AddComponent<LightComponent>( entity, light ); },
+            [&]( const Entity& entity, const LightComponent& c ) { scene.AddComponent<LightComponent>( entity, c ); }
+        ),
         "AddRigidBodyComponent",
-        [&]( const Entity& entity, RigidBody object )
-        {
-            auto& rigidBodyComponent = scene.AddComponent<RigidBodyComponent>( entity, std::move( object ) );
-            physicsEngine.Add( rigidBodyComponent.mRigidBody, entity );
-        },
+        sol::overload(
+            [&]( const Entity& entity, RigidBody object )
+            {
+                auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( object ) );
+                physicsEngine.Add( c.mRigidBody, entity );
+            },
+            [&]( const Entity& entity, RigidBodyComponent comp )
+            {
+                auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( comp ) );
+                physicsEngine.Add( c.mRigidBody, entity );
+            }
+        ),
         "AddCharacterControllerComponent",
-        [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
-        {
-            auto& controllerComponent = scene.AddComponent<CharacterControllerComponent>( entity, radius, height, stepHeight );
-            physicsEngine.Add( controllerComponent.mController, entity );
-        },
+        sol::overload(
+            [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
+            {
+                auto& c = scene.AddComponent<CharacterControllerComponent>( entity, radius, height, stepHeight );
+                physicsEngine.Add( c.mController, entity );
+            },
+            [&]( const Entity& entity, CharacterControllerComponent comp )
+            {
+                auto& c = scene.AddComponent<CharacterControllerComponent>( entity, std::move( comp ) );
+                physicsEngine.Add( c.mController, entity );
+            }
+        ),
         "AddStateComponent",
         [&]( const Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
 
-        // Get
+        // Get — inner/base type shortcuts (convenient field access)
+        "GetTag",
+        [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
+        "GetTransform",
+        [&]( const Entity& entity ) -> Transform& { return scene.GetComponent<TransformComponent>( entity ); },
+        "GetModel",
+        [&]( const Entity& entity ) -> Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
+        "GetShader",
+        [&]( const Entity& entity ) -> Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        "GetCamera",
+        [&]( const Entity& entity ) -> Camera& { return scene.GetComponent<CameraComponent>( entity ); },
+        "GetLight",
+        [&]( const Entity& entity ) -> Light& { return scene.GetComponent<LightComponent>( entity ); },
+        "GetRigidBody",
+        [&]( const Entity& entity ) -> RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
+        "GetCharacterController",
+        [&]( const Entity& entity ) -> CharacterController& { return scene.GetComponent<CharacterControllerComponent>( entity ).mController; },
+        "GetState",
+        [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
+
+        // Get — full component wrapper (access component-level fields like mUniforms)
         "GetTagComponent",
-        [&]( const Entity& entity ) ->TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
+        [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "GetTransformComponent",
-        [&]( const Entity& entity ) ->Transform& { return *(Transform*)&scene.GetComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) -> TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "GetModelComponent",
-        [&]( const Entity& entity ) ->Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
+        [&]( const Entity& entity ) -> ModelComponent& { return scene.GetComponent<ModelComponent>( entity ); },
         "GetShaderComponent",
-        [&]( const Entity& entity ) ->Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        [&]( const Entity& entity ) -> ShaderComponent& { return scene.GetComponent<ShaderComponent>( entity ); },
         "GetCameraComponent",
-        [&]( const Entity& entity ) ->Camera& { return *(Camera*)&scene.GetComponent<CameraComponent>( entity ); },
+        [&]( const Entity& entity ) -> CameraComponent& { return scene.GetComponent<CameraComponent>( entity ); },
         "GetLightComponent",
-        [&]( const Entity& entity ) ->Light& { return *(Light*)&scene.GetComponent<LightComponent>( entity ); },
+        [&]( const Entity& entity ) -> LightComponent& { return scene.GetComponent<LightComponent>( entity ); },
         "GetRigidBodyComponent",
-        [&]( const Entity& entity ) ->RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
+        [&]( const Entity& entity ) -> RigidBodyComponent& { return scene.GetComponent<RigidBodyComponent>( entity ); },
         "GetCharacterControllerComponent",
-        [&]( const Entity& entity ) ->CharacterController& { return scene.GetComponent<CharacterControllerComponent>( entity ).mController; },
+        [&]( const Entity& entity ) -> CharacterControllerComponent& { return scene.GetComponent<CharacterControllerComponent>( entity ); },
         "GetStateComponent",
-        [&]( const Entity& entity ) ->Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
+        [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
         // Has
         "HasTagComponent",
@@ -163,28 +215,28 @@ void CreateSceneBindings( Scene& scene,
                         componentsTable[ComponentID::Tag] = (TagComponent*)componentDataPtr;
                         break;
                     case ComponentID::Transform:
-                        componentsTable[ComponentID::Transform] = (Transform*)componentDataPtr;
+                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentDataPtr;
                         break;
                     case ComponentID::Model:
-                        componentsTable[ComponentID::Model] = ((ModelComponent*)componentDataPtr)->mModel;
+                        componentsTable[ComponentID::Model] = (ModelComponent*)componentDataPtr;
                         break;
                     case ComponentID::Shader:
-                        componentsTable[ComponentID::Shader] = ((ShaderComponent*)componentDataPtr)->mShader;
+                        componentsTable[ComponentID::Shader] = (ShaderComponent*)componentDataPtr;
                         break;
                     case ComponentID::Script:
-                        componentsTable[ComponentID::Script] = ((ScriptComponent*)componentDataPtr)->mScript;
+                        componentsTable[ComponentID::Script] = (ScriptComponent*)componentDataPtr;
                         break;
                     case ComponentID::RigidBody:
-                        componentsTable[ComponentID::RigidBody] = &((RigidBodyComponent*)componentDataPtr)->mRigidBody;
+                        componentsTable[ComponentID::RigidBody] = (RigidBodyComponent*)componentDataPtr;
                         break;
                     case ComponentID::CharacterController:
-                        componentsTable[ComponentID::CharacterController] = &((CharacterControllerComponent*)componentDataPtr)->mController;
+                        componentsTable[ComponentID::CharacterController] = (CharacterControllerComponent*)componentDataPtr;
                         break;
                     case ComponentID::Camera:
-                        componentsTable[ComponentID::Camera] = (Camera*)componentDataPtr;
+                        componentsTable[ComponentID::Camera] = (CameraComponent*)componentDataPtr;
                         break;
                     case ComponentID::Light:
-                        componentsTable[ComponentID::Light] = (Light*)componentDataPtr;
+                        componentsTable[ComponentID::Light] = (LightComponent*)componentDataPtr;
                         break;
                     case ComponentID::State:
                         componentsTable[ComponentID::State] = *((StateComponent*)componentDataPtr)->mState;

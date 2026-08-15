@@ -13,6 +13,7 @@ class UniformArray;
 
 enum class GLSLDataType
 {
+    Texture2D,
     Float,
     Float2,
     Float3,

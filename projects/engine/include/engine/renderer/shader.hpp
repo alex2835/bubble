@@ -12,6 +12,8 @@
 
 namespace bubble
 {
+using UniformDescription = map<string, GLSLDataType>;
+
 enum class ShaderModule
 {
     None,
@@ -66,6 +68,7 @@ public:
     path mPath;
     ShaderModules mModules;
     u32 mShaderId = 0;
+    UniformDescription mUniformDescriptors;
 private:
     mutable str_hash_map<i32> mUniformCache;
 };

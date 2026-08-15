@@ -81,6 +81,9 @@ private:
     void* GetElemAddress( size_t size );
     const void* GetElemAddressConst( size_t size ) const;
 
+    std::vector<Entity>::iterator BFind( Entity entity );
+    std::vector<Entity>::const_iterator BFind( Entity entity ) const;
+
 public:
     size_t mSize = 0;
     size_t mCapacity = 0;

@@ -61,6 +61,10 @@ public:
 
 struct TransformComponent : public Transform
 {
+    using Transform::Transform;  // aggregate-init ctors (C++20 parenthesized aggregate init)
+    TransformComponent() = default;
+    explicit TransformComponent( const Transform& t ) : Transform( t ) {}
+
     static int ID() { return static_cast<int>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
 
@@ -74,6 +78,10 @@ struct TransformComponent : public Transform
 
 struct CameraComponent : public Camera
 {
+    using Camera::Camera;           // inherit Camera(vec3, f32, f32, f32, vec3) etc.
+    CameraComponent() = default;
+    explicit CameraComponent( const Camera& c ) : Camera( c ) {}
+
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 
@@ -87,6 +95,10 @@ struct CameraComponent : public Camera
 
 struct LightComponent : public Light
 {
+    using Light::Light;             // inherit any Light constructors
+    LightComponent() = default;
+    explicit LightComponent( const Light& l ) : Light( l ) {}
+
     static int ID() { return static_cast<int>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }
 
@@ -130,8 +142,12 @@ struct ShaderComponent
 public:
 	ShaderComponent() = default;
 	ShaderComponent( const Ref<Shader>& shader );
+    ShaderComponent( const ShaderComponent& shaderComponent );
+    ShaderComponent& operator= ( const ShaderComponent& shaderComponent );
     ~ShaderComponent();
+    void RebuildUniforms( ScriptingEngine& lua );
     Ref<Shader> mShader;
+    Scope<Any> mUniforms;
 };
 
 
@@ -189,6 +205,7 @@ struct CharacterControllerComponent
 public:
     CharacterControllerComponent();
     CharacterControllerComponent( f32 radius, f32 height, f32 stepHeight = 0.35f );
+    explicit CharacterControllerComponent( CharacterController controller );
     ~CharacterControllerComponent();
 
     CharacterController mController;
