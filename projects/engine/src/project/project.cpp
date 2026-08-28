@@ -61,9 +61,10 @@ json Project::SaveScene() const
         json& poolJson = poolsJson[ComponentManager::GetName( componentID )];
 
         const auto& componentToJson = ComponentManager::GetToJson( componentID );
-        for ( size_t i = 0; i < pool.mEntities.size(); i++ )
+        const auto& poolEntities = pool.Entities();
+        for ( size_t i = 0; i < poolEntities.size(); i++ )
         {
-            const auto entityStr = std::to_string( pool.mEntities[i] );
+            const auto entityStr = std::to_string( poolEntities[i] );
             componentToJson( poolJson[entityStr], *this, pool.GetRaw( i ) );
         }
     }

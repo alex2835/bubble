@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <mutex>
+#include <cstring>
 #include <tuple>
 #include <vector>
 #include <algorithm>
@@ -13,6 +14,11 @@ namespace recs
 {
 /**
  * @brief Store sorted components data
+ *
+ * Components are stored unboxed in one buffer, kept sorted by entity id, and
+ * relocated with memmove. A component type must therefore be trivially
+ * relocatable: no self-references and no pointers registered elsewhere that
+ * point back into the object. std::string / std::vector members are fine.
  */
 class RECS_EXPORT Pool
 {
@@ -22,6 +28,12 @@ public:
     template <ComponentType T>
     static Pool CreatePool()
     {
+        // Realloc allocates with plain new[], which only guarantees alignment up
+        // to __STDCPP_DEFAULT_NEW_ALIGNMENT__. Fail loudly rather than handing
+        // back misaligned storage for an over-aligned (e.g. SIMD) component.
+        static_assert( alignof( T ) <= __STDCPP_DEFAULT_NEW_ALIGNMENT__,
+                       "recs: over-aligned component types are not supported" );
+
         auto init_func = []( void* component )
         {
             new ( component ) T();
@@ -39,8 +51,8 @@ public:
 
     Pool( const Pool& );
     Pool& operator=( const Pool& );
-    Pool( Pool&& ) = default;
-    Pool& operator=( Pool&& ) = default;
+    Pool( Pool&& ) noexcept;
+    Pool& operator=( Pool&& ) noexcept;
     ~Pool();
 
     template <ComponentType T, typename ...Args>
@@ -63,6 +75,10 @@ public:
 
     size_t Size() const noexcept;
 
+    // Entities in this pool, sorted by id and parallel to the component
+    // storage: the component at index i belongs to Entities()[i].
+    const std::vector<Entity>& Entities() const noexcept;
+
     void* GetRaw( Entity entity );
     void* GetRaw( size_t index );
 
@@ -76,6 +92,7 @@ private:
           void( *delete_func )( void* ),
           void( *copy_func )( const void*, void* ) );
 
+    void Clear();
     void Clone( Pool& pool ) const;
     void Realloc( size_t new_capacity );
     void* GetElemAddress( size_t size );
@@ -84,7 +101,7 @@ private:
     std::vector<Entity>::iterator BFind( Entity entity );
     std::vector<Entity>::const_iterator BFind( Entity entity ) const;
 
-public:
+private:
     size_t mSize = 0;
     size_t mCapacity = 0;
     size_t mComponentSize = 0;
@@ -104,6 +121,16 @@ public:
 template <ComponentType T, typename ...Args>
 T& Pool::Push( Entity entity, Args&& ...args )
 {
+    // One slot per entity. Pushing an entity that is already here replaces its
+    // component instead of inserting a duplicate, which would silently corrupt
+    // the sorted merge-join that ForEach and View rely on.
+    if ( void* existing = GetRaw( entity ) )
+    {
+        mDoDelete( existing );
+        new ( existing ) T( std::forward<Args>( args )... );
+        return *static_cast<T*>( existing );
+    }
+
     if ( mCapacity <= mSize + 1 )
         Realloc( 2 * mSize + 1 );
 

@@ -4,6 +4,9 @@
 #include <iostream>
 #include <string_view>
 #include <stdexcept>
+#include <memory>
+#include <vector>
+#include <array>
 
 enum class Component
 {
@@ -416,6 +419,167 @@ void test_has_components_multi()
     assert( (registry.HasComponents<Speed, Position>( e )) );
 }
 
+// ---- regression: CopyEntity across a pool reallocation ----
+// The source component address must be re-read after PushEmpty, which can
+// reallocate and shift the pool out from under a cached pointer.
+void test_copy_entity_across_realloc()
+{
+    recs::Registry registry;
+    registry.AddComponent<Position>();
+
+    std::vector<recs::Entity> entities;
+    for ( int i = 0; i < 64; i++ )
+    {
+        recs::Entity e = registry.CreateEntity();
+        registry.AddComponent<Position>( e, i, i * 2 );
+        entities.push_back( e );
+    }
+
+    // Copying repeatedly forces the pool through several growth steps.
+    for ( size_t i = 0; i < entities.size(); i++ )
+    {
+        recs::Entity source = entities[i];
+        const Position expected = registry.GetComponent<Position>( source );
+        recs::Entity copy = registry.CopyEntity( source );
+
+        assert( registry.GetComponent<Position>( copy ) == expected );
+        assert( registry.GetComponent<Position>( source ) == expected );
+    }
+}
+
+// ---- regression: copy-assigning a registry destroys the destination's data ----
+void test_registry_copy_assign_replaces()
+{
+    recs::Registry source;
+    for ( int i = 0; i < 3; i++ )
+        source.AddComponent<Speed>( source.CreateEntity(), 7 );
+
+    recs::Registry dest;
+    for ( int i = 0; i < 9; i++ )
+        dest.AddComponent<Speed>( dest.CreateEntity(), 42 );
+
+    dest = source;
+
+    int count = 0;
+    dest.ForEach<Speed>( [&]( recs::Entity, Speed& s ) { count++; assert( s.s == 7 ); } );
+    assert( count == 3 );
+}
+
+// ---- regression: a pool holds at most one slot per entity ----
+void test_no_duplicate_component_slots()
+{
+    recs::Registry registry;
+    registry.AddComponent<Speed>();
+
+    recs::Entity e = registry.CreateEntity();
+    registry.EntityAddComponentId( e, Speed::ID() );
+    registry.EntityAddComponentId( e, Speed::ID() );
+    registry.EntityAddComponentId( e, Speed::ID() );
+
+    int count = 0;
+    registry.ForEach<Speed>( [&]( recs::Entity, Speed& ) { count++; } );
+    assert( count == 1 );
+
+    // Removing once must fully remove it.
+    registry.EntityRemoveComponentId( e, Speed::ID() );
+    assert( !registry.HasComponent<Speed>( e ) );
+
+    count = 0;
+    registry.ForEach<Speed>( [&]( recs::Entity, Speed& ) { count++; } );
+    assert( count == 0 );
+
+    // Removing again is a no-op rather than an underflow.
+    registry.EntityRemoveComponentId( e, Speed::ID() );
+    assert( !registry.HasComponent<Speed>( e ) );
+}
+
+// ---- regression: RuntimeForEach with no valid component id terminates ----
+void test_runtime_foreach_all_invalid_terminates()
+{
+    recs::Registry registry;
+    registry.AddComponent<Speed>();
+    registry.AddComponent<Speed>( registry.CreateEntity(), 1 );
+
+    std::array<recs::ComponentTypeId, 3> ids;
+    ids.fill( recs::INVALID_COMPONENT_TYPE_ID );
+
+    int count = 0;
+    registry.RuntimeForEach( ids, [&]( recs::Entity, std::array<void*, 3> ) { count++; } );
+    assert( count == 0 );
+}
+
+// ---- regression: RuntimeForEach still intersects when some ids are invalid ----
+void test_runtime_foreach_mixed_ids()
+{
+    recs::Registry registry;
+
+    recs::Entity both = registry.CreateEntity();
+    registry.AddComponent<Speed>( both, 5 );
+    registry.AddComponent<Position>( both, 1, 2 );
+
+    recs::Entity speedOnly = registry.CreateEntity();
+    registry.AddComponent<Speed>( speedOnly, 6 );
+
+    std::array<recs::ComponentTypeId, 3> ids = {
+        Speed::ID(), recs::INVALID_COMPONENT_TYPE_ID, Position::ID() };
+
+    int count = 0;
+    registry.RuntimeForEach( ids, [&]( recs::Entity e, std::array<void*, 3> data )
+    {
+        count++;
+        assert( e == both );
+        assert( data[1] == nullptr );
+        assert( static_cast<Speed*>( data[0] )->s == 5 );
+        assert( static_cast<Position*>( data[2] )->x == 1 );
+    } );
+    assert( count == 1 );
+}
+
+// ---- regression: the functor is not moved-from after the first element ----
+void test_foreach_functor_not_consumed()
+{
+    recs::Registry registry;
+    for ( int i = 0; i < 5; i++ )
+        registry.AddComponent<Speed>( registry.CreateEntity(), i );
+
+    struct CountingFunctor
+    {
+        std::shared_ptr<int> calls = std::make_shared<int>( 0 );
+        void operator()( recs::Entity, Speed& )
+        {
+            assert( calls && "functor was moved-from mid-iteration" );
+            ( *calls )++;
+        }
+    };
+
+    CountingFunctor functor;
+    auto calls = functor.calls;
+    registry.ForEach<Speed>( std::move( functor ) );
+    assert( *calls == 5 );
+}
+
+// ---- regression: id 0 collides with INVALID_ENTITY ----
+void test_create_entity_with_zero_id_rejected()
+{
+    recs::Registry registry;
+    bool caught = false;
+    try { registry.CreateEntityWithId( 0 ); }
+    catch ( std::exception& ) { caught = true; }
+    assert( caught );
+    assert( registry.Size() == 0 );
+}
+
+// ---- regression: RemoveEntity on an unknown entity does not fabricate one ----
+void test_remove_unknown_entity_does_not_insert()
+{
+    recs::Registry registry;
+    registry.CreateEntity();
+    assert( registry.Size() == 1 );
+
+    registry.RemoveEntity( registry.CreateEntity() );
+    assert( registry.Size() == 1 );
+}
+
 int main( void )
 {
     test_basic_component_ops();
@@ -435,6 +599,14 @@ int main( void )
     test_registry_copy();
     test_view_matches_foreach();
     test_has_components_multi();
+    test_copy_entity_across_realloc();
+    test_registry_copy_assign_replaces();
+    test_no_duplicate_component_slots();
+    test_runtime_foreach_all_invalid_terminates();
+    test_runtime_foreach_mixed_ids();
+    test_foreach_functor_not_consumed();
+    test_create_entity_with_zero_id_rejected();
+    test_remove_unknown_entity_does_not_insert();
 
     std::cout << "All tests passed!\n";
     return 0;

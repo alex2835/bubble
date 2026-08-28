@@ -15,6 +15,9 @@ Entity Registry::CreateEntity()
 
 Entity Registry::CreateEntityWithId( size_t id )
 {
+    if ( id == (size_t)INVALID_ENTITY )
+        throw std::runtime_error( "CreateEntityWithId: id 0 is reserved for INVALID_ENTITY" );
+
     Entity entity( id );
     mEntitiesComponentTypeIds[entity];
 
@@ -35,12 +38,16 @@ Entity Registry::GetEntityById( size_t id )
 
 void Registry::RemoveEntity( Entity entity )
 {
-    auto components = GetEntityComponentsIds( entity );
-    for ( auto component : components )
-        GetPool( component ).Remove( entity );
-
+    // Look up first: operator[] would insert an entry for an unknown entity and
+    // then happily "remove" it, hiding the caller's mistake.
     auto iter = mEntitiesComponentTypeIds.find( entity );
     assert( iter != mEntitiesComponentTypeIds.end() );
+    if ( iter == mEntitiesComponentTypeIds.end() )
+        return;
+
+    for ( auto component : iter->second )
+        GetPool( component ).Remove( entity );
+
     mEntitiesComponentTypeIds.erase( iter );
 }
 
@@ -52,8 +59,11 @@ Entity Registry::CopyEntity( Entity entity )
     {
         newEntityComponentIds.insert( componentId );
         auto& pool = GetPool( componentId );
-        const void* compMem = pool.GetRaw( entity );
+
+        // PushEmpty can reallocate and shift the pool's storage, so the source
+        // address is only valid once the new slot exists. Never cache it before.
         void* newCompMem = pool.PushEmpty( newEntity );
+        const void* compMem = pool.GetRaw( entity );
         pool.mDoDelete( newCompMem );
         pool.mDoCopy( compMem, newCompMem );
     }
@@ -71,15 +81,15 @@ Entity Registry::CopyEntityInto( Registry& targetRegistry, Entity entity )
     {
         newEntityComponentIds.insert( componentId );
 
-        // Get source pool from this registry
+        // Source and target pools. The target registry must already have the
+        // component type registered - GetPool throws otherwise.
         auto& sourcePool = GetPool( componentId );
-
-        // Get or create target pool in target registry
         auto& targetPool = targetRegistry.GetPool( componentId );
 
-        // Allocate space in target pool and copy data
-        const void* compMem = sourcePool.GetRaw( entity );
+        // PushEmpty may reallocate and shift storage. When &targetRegistry == this
+        // that is the same pool as sourcePool, so read the source only afterwards.
         void* newCompMem = targetPool.PushEmpty( newEntity );
+        const void* compMem = sourcePool.GetRaw( entity );
         targetPool.mDoDelete( newCompMem );
         targetPool.mDoCopy( compMem, newCompMem );
     }
@@ -97,15 +107,15 @@ Entity Registry::CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, 
     {
         newEntityComponentIds.insert( componentId );
 
-        // Get source pool from this registry
+        // Source and target pools. The target registry must already have the
+        // component type registered - GetPool throws otherwise.
         auto& sourcePool = GetPool( componentId );
-
-        // Get or create target pool in target registry
         auto& targetPool = targetRegistry.GetPool( componentId );
 
-        // Allocate space in target pool and copy data
-        const void* compMem = sourcePool.GetRaw( entity );
+        // PushEmpty may reallocate and shift storage. When &targetRegistry == this
+        // that is the same pool as sourcePool, so read the source only afterwards.
         void* newCompMem = targetPool.PushEmpty( newEntity );
+        const void* compMem = sourcePool.GetRaw( entity );
         targetPool.mDoDelete( newCompMem );
         targetPool.mDoCopy( compMem, newCompMem );
     }
@@ -142,10 +152,16 @@ bool Registry::EntityHasComponent( Entity entity, ComponentTypeId componentId ) 
 
 void Registry::EntityRemoveComponent( Entity entity, ComponentTypeId componentId )
 {
-    auto& entityComponents = mEntitiesComponentTypeIds[entity];
+    auto entityIter = mEntitiesComponentTypeIds.find( entity );
+    assert( entityIter != mEntitiesComponentTypeIds.end() );
+    if ( entityIter == mEntitiesComponentTypeIds.end() )
+        return;
+
+    auto& entityComponents = entityIter->second;
     auto iter = entityComponents.find( componentId );
     assert( iter != entityComponents.end() );
-    entityComponents.erase( iter );
+    if ( iter != entityComponents.end() )
+        entityComponents.erase( iter );
 }
 
 Pool& Registry::GetComponentPool( ComponentTypeId id )
@@ -176,59 +192,28 @@ const std::set<ComponentTypeId>& Registry::EntityComponentTypeIds( Entity entity
 
 void Registry::EntityAddComponentId( Entity entity, ComponentTypeId componentId )
 {
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "EntityAddComponentId: Invalid entity" );
+
     auto& pool = GetPool( componentId );
+    if ( EntityHasComponent( entity, componentId ) )
+        return;
+
     pool.PushEmpty( entity );
     mEntitiesComponentTypeIds[entity].insert( componentId );
 }
 
 void Registry::EntityRemoveComponentId( Entity entity, ComponentTypeId componentId )
 {
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "EntityRemoveComponentId: Invalid entity" );
+
     auto& pool = GetPool( componentId );
+    if ( !EntityHasComponent( entity, componentId ) )
+        return;
+
     pool.Remove( entity );
     mEntitiesComponentTypeIds[entity].erase( componentId );
 }
-
-//std::vector<Entity> Registry::GetRuntimeView( const std::vector<std::string_view>& components )
-//{
-//    std::vector<Entity> entities;
-//
-//    size_t minSize = std::numeric_limits<size_t>::max();
-//    for ( auto component : components )
-//        minSize = std::min( minSize, GetComponentPool( component ).Size() );
-//    entities.reserve( minSize );
-//
-//    RuntimeForEach( components, [&]( Entity entity )
-//    {
-//        entities.push_back( entity );
-//    } );
-//    return entities;
-//}
-
-//ComponentTypeId Registry::GetComponentTypeId( std::string_view name )
-//{
-//    auto iter = mComponents.find( name );
-//    if ( iter == mComponents.end() )
-//        return INVALID_COMPONENT_TYPE;
-//    return iter->second;
-//}
-
-
-
-// Entity 
-//const std::set<ComponentTypeId>& Entity::EntityComponentTypeIds()
-//{
-//    return mRegistry->EntityComponentTypeIds( *this );
-//}
-//
-//void Entity::EntityAddComponentId( ComponentTypeId componentId )
-//{
-//    return mRegistry->EntityAddComponentId( *this, componentId );
-//}
-//
-//void Entity::EntityRemoveComponentId( ComponentTypeId componentId )
-//{
-//    return mRegistry->EntityRemoveComponentId( *this, componentId );
-//}
-
 
 }

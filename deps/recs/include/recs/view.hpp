@@ -10,10 +10,13 @@ namespace recs
 
 // Zero-allocation lazy view. Stores only pool pointers (stack) and runs the
 // merge-join one step per iterator increment — no heap allocation.
-// Invariant: pool pointers are invalidated if new component types are
-// registered while the view is alive (unordered_map rehash).
+// Invariant: a view must not outlive the pools it points at, and adding or
+// removing components of the viewed types while iterating invalidates it, since
+// the pool's storage can reallocate and shift. Merely registering new component
+// types is safe: std::unordered_map never invalidates pointers to existing
+// elements, not even on rehash.
 template<ComponentType ...Components>
-class RECS_EXPORT View
+class View
 {
     static constexpr size_t N = sizeof...( Components );
 
@@ -63,16 +66,16 @@ public:
 
                 size_t max_id = 0;
                 for ( size_t i = 0; i < N; i++ )
-                    max_id = std::max( max_id, (size_t)mPools[i]->mEntities[mIndices[i]] );
+                    max_id = std::max( max_id, (size_t)mPools[i]->Entities()[mIndices[i]] );
 
                 bool found = true;
                 for ( size_t i = 0; i < N; i++ )
                 {
                     while ( mIndices[i] < mPools[i]->Size() &&
-                            (size_t)mPools[i]->mEntities[mIndices[i]] < max_id )
+                            (size_t)mPools[i]->Entities()[mIndices[i]] < max_id )
                         mIndices[i]++;
                     if ( mIndices[i] >= mPools[i]->Size() ) { mAtEnd = true; return; }
-                    if ( (size_t)mPools[i]->mEntities[mIndices[i]] != max_id )
+                    if ( (size_t)mPools[i]->Entities()[mIndices[i]] != max_id )
                     {
                         found = false;
                         break;

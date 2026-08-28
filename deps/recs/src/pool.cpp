@@ -30,6 +30,10 @@ Pool& Pool::operator=( const Pool& other )
 
 void Pool::Clone( Pool& pool ) const
 {
+    // Destroy whatever the destination already held. Without this, copy-assigning
+    // over a non-empty pool leaks every component that was in it.
+    pool.Clear();
+
     pool.mEntities = mEntities;
     pool.mDoInit = mDoInit;
     pool.mDoDelete = mDoDelete;
@@ -46,17 +50,68 @@ void Pool::Clone( Pool& pool ) const
     }
 }
 
+Pool::Pool( Pool&& other ) noexcept
+    : mSize( other.mSize ),
+      mCapacity( other.mCapacity ),
+      mComponentSize( other.mComponentSize ),
+      mData( std::move( other.mData ) ),
+      mEntities( std::move( other.mEntities ) ),
+      mDoInit( other.mDoInit ),
+      mDoDelete( other.mDoDelete ),
+      mDoCopy( other.mDoCopy )
+{
+    // The moved-from pool no longer owns any storage, so its size has to follow.
+    // Otherwise its destructor walks a null buffer calling component destructors.
+    other.mSize = 0;
+    other.mCapacity = 0;
+}
+
+Pool& Pool::operator=( Pool&& other ) noexcept
+{
+    if ( this == &other )
+        return *this;
+
+    Clear();
+
+    mSize = other.mSize;
+    mCapacity = other.mCapacity;
+    mComponentSize = other.mComponentSize;
+    mData = std::move( other.mData );
+    mEntities = std::move( other.mEntities );
+    mDoInit = other.mDoInit;
+    mDoDelete = other.mDoDelete;
+    mDoCopy = other.mDoCopy;
+
+    other.mSize = 0;
+    other.mCapacity = 0;
+    return *this;
+}
+
 Pool::~Pool()
 {
-    if ( !mDoDelete )
-        return;
+    Clear();
+}
 
-    for ( size_t i = 0; i < mSize; i++ )
-        mDoDelete( GetElemAddress( i ) );
+// Destroys every stored component and empties the pool, leaving the allocated
+// buffer and the component type's function pointers intact.
+void Pool::Clear()
+{
+    if ( mDoDelete )
+    {
+        for ( size_t i = 0; i < mSize; i++ )
+            mDoDelete( GetElemAddress( i ) );
+    }
+    mSize = 0;
+    mEntities.clear();
 }
 
 void* Pool::PushEmpty( Entity entity )
 {
+    // Idempotent, for the same reason as Push: an entity already in this pool
+    // keeps the component it has rather than gaining a second slot.
+    if ( void* existing = GetRaw( entity ) )
+        return existing;
+
     if ( mCapacity <= mSize + 1 )
         Realloc( 2 * mSize + 1 );
 
@@ -99,6 +154,11 @@ void Pool::Remove( Entity entity )
 size_t Pool::Size() const noexcept
 {
     return mSize;
+}
+
+const std::vector<Entity>& Pool::Entities() const noexcept
+{
+    return mEntities;
 }
 
 void* Pool::GetRaw( Entity entity )

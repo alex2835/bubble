@@ -20,7 +20,9 @@ decltype( auto ) as_tuple_impl( const T( &array )[Size], std::index_sequence<Is.
     return std::make_tuple( array[Is]... );
 }
 
-template <ComponentType T, size_t Size, ComponentType Indices = std::make_index_sequence<Size>>
+// NOTE: unused. Indices is an index_sequence, so it must not be constrained by
+// ComponentType - that made this template impossible to instantiate.
+template <ComponentType T, size_t Size, typename Indices = std::make_index_sequence<Size>>
 decltype( auto ) as_tuple( const T( &array )[Size] )
 {
     return as_tuple_impl( array, Indices{} );

@@ -15,6 +15,7 @@
 #include "recs/utils.hpp"
 #include "recs/entity.hpp"
 #include "recs/pool.hpp"
+#include "recs/view.hpp"
 
 namespace recs
 {
@@ -87,6 +88,11 @@ public:
 
     template <typename F>
     void ForEachEntityComponentRaw( Entity entity, F&& func );
+
+    // Lazy view over every entity holding all of Components. A component type
+    // that is not registered yields an empty view rather than throwing.
+    template <ComponentType ...Components>
+    View<Components...> GetView();
 
     size_t Size() const noexcept
     {
@@ -266,18 +272,20 @@ void Registry::ForEachEntityComponentRaw( Entity entity, F&& func )
 template <ComponentType ...Components, typename F>
 void Registry::ForEach( F&& func ) const
 {
+    // func is invoked once per entity, so it must not be forwarded (moved) here.
     ForEachTuple<Components...>( [&func]( Entity entity, std::tuple<const Components&...> components )
     {
-        std::apply( std::forward<F>( func ), std::tuple_cat( std::make_tuple( entity ), components ) );
+        std::apply( func, std::tuple_cat( std::make_tuple( entity ), components ) );
     } );
 }
 
 template <ComponentType ...Components, typename F>
 void Registry::ForEach( F&& func )
 {
+    // func is invoked once per entity, so it must not be forwarded (moved) here.
     ForEachTuple<Components...>( [&func]( Entity entity, std::tuple<Components&...> components )
     {
-        std::apply( std::forward<F>( func ), std::tuple_cat( std::make_tuple( entity ), components ) );
+        std::apply( func, std::tuple_cat( std::make_tuple( entity ), components ) );
     } );
 }
 
@@ -297,8 +305,10 @@ void Registry::ForEachEntity( F&& func )
 template <ComponentType ...Components, typename F>
 void Registry::ForEachTuple( F&& func ) const
 {
-    if ( !( mComponents.contains( Components::ID() ) || ... ) )
-        throw std::runtime_error( "ForEachTuple: Invalid components - registry doesn't contain required component types" );
+    // A component type nobody has registered yet simply has no entities, so the
+    // intersection is empty. That is a normal result, not an error.
+    if ( !( mComponents.contains( Components::ID() ) && ... ) )
+        return;
 
     constexpr auto size = sizeof...( Components );
     std::array<const Pool*, size> pools;
@@ -312,7 +322,7 @@ void Registry::ForEachTuple( F&& func ) const
     indicies.fill( 0u );
     while ( true )
     {
-        for ( int i = 0; i < size; i++ )
+        for ( size_t i = 0; i < size; i++ )
         {
             if ( indicies[i] >= pools[i]->Size() )
                 return;
@@ -322,7 +332,7 @@ void Registry::ForEachTuple( F&& func ) const
         }
 
         bool skip = false;
-        for ( int i = 0; i < size; i++ )
+        for ( size_t i = 0; i < size; i++ )
         {
             while ( pools[i]->mEntities[indicies[i]].mId < maxId )
             {
@@ -341,7 +351,7 @@ void Registry::ForEachTuple( F&& func ) const
 
         func( Entity( maxId ), MakeTupleFromPoolsAndIndiciesConst<Components...>( pools, indicies, std::make_index_sequence<size>{} ) );
 
-        for ( int i = 0; i < size; i++ )
+        for ( size_t i = 0; i < size; i++ )
             indicies[i]++;
     }
 }
@@ -353,6 +363,11 @@ void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componen
     std::bitset<SIZE> validBS;
     for ( size_t i = 0; i < SIZE; i++ )
         validBS.set( i, componentIds[i] != INVALID_COMPONENT_TYPE_ID );
+
+    // With no valid component id there is nothing to intersect and nothing to
+    // advance, so the loop below would never terminate.
+    if ( validBS.none() )
+        return;
 
     // pools
     std::array<Pool*, SIZE> pools;
@@ -426,8 +441,11 @@ void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componen
         // Call functor callback
         func( Entity( maxId ), components );
 
-        for ( int i = 0; i < componentIds.size(); i++ )
-            indicies[i]++;
+        for ( size_t i = 0; i < SIZE; i++ )
+        {
+            if ( validBS.test( i ) )
+                indicies[i]++;
+        }
     }
 }
 
@@ -445,6 +463,29 @@ void Registry::ForEachTuple( F&& func )
             }( std::make_index_sequence<sizeof...( Components )>{} );
         }
     );
+}
+
+
+// ------------------------ View ------------------------
+
+template <ComponentType ...Components>
+View<Components...> Registry::GetView()
+{
+    constexpr size_t size = sizeof...( Components );
+
+    std::array<Pool*, size> pools;
+    pools.fill( nullptr );
+
+    const auto componentTypes = GetComponentsTypeId<Components...>();
+    for ( size_t i = 0; i < size; i++ )
+    {
+        const auto iter = mPools.find( componentTypes[i] );
+        if ( iter != mPools.end() )
+            pools[i] = &iter->second;
+    }
+
+    // A null pool leaves the view empty - see View::Iterator's constructor.
+    return View<Components...>( pools );
 }
 
 
