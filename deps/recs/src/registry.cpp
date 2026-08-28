@@ -51,6 +51,37 @@ void Registry::RemoveEntity( Entity entity )
     mEntitiesComponentTypeIds.erase( iter );
 }
 
+void Registry::RemoveEntities( std::span<const Entity> entities )
+{
+    if ( entities.empty() )
+        return;
+
+    // Pool::Remove needs a sorted list and ignores ids it does not hold, so one
+    // sorted list serves every pool.
+    std::vector<Entity> sorted;
+    sorted.reserve( entities.size() );
+    for ( Entity entity : entities )
+    {
+        if ( mEntitiesComponentTypeIds.contains( entity ) )
+            sorted.push_back( entity );
+    }
+
+    std::sort( sorted.begin(), sorted.end(),
+               []( Entity a, Entity b ) { return (size_t)a < (size_t)b; } );
+    sorted.erase( std::unique( sorted.begin(), sorted.end(),
+                               []( Entity a, Entity b ) { return (size_t)a == (size_t)b; } ),
+                  sorted.end() );
+
+    if ( sorted.empty() )
+        return;
+
+    for ( const ComponentTypeId componentId : mComponents )
+        GetPool( componentId ).Remove( std::span<const Entity>( sorted ) );
+
+    for ( Entity entity : sorted )
+        mEntitiesComponentTypeIds.erase( entity );
+}
+
 Entity Registry::CopyEntity( Entity entity )
 {
     auto newEntity = CreateEntity();

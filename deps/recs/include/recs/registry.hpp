@@ -9,6 +9,9 @@
 #include <array>
 #include <tuple>
 #include <ranges>
+#include <span>
+#include <vector>
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 #include "recs/impex.hpp"
@@ -32,6 +35,10 @@ public:
     Entity CreateEntityWithId( size_t id );
     Entity GetEntityById( size_t id );
     void RemoveEntity( Entity entity );
+
+    // Batch erase. One compaction pass per pool instead of one tail shift per
+    // entity, which is what makes deleting a large selection O(n) not O(n*m).
+    void RemoveEntities( std::span<const Entity> entities );
     Entity CopyEntity( Entity entity );
     Entity CopyEntityInto( Registry& targetRegistry, Entity entity );
     Entity CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, size_t targetId );
@@ -189,11 +196,16 @@ Component& Registry::AddComponent( Entity entity, Args&& ...args )
 template <ComponentType Component>
 Component& Registry::GetComponent( Entity entity )
 {
-    if ( !HasComponent<Component>( entity ) )
-        throw std::runtime_error( std::format( "GetComponent: Entity {} doesn't have component {}", (size_t)entity, Component::ID() ) );
+    if ( entity == INVALID_ENTITY )
+        throw std::runtime_error( "GetComponent: Invalid entity" );
 
+    // The pool lookup already answers "does this entity have the component",
+    // so a HasComponent pre-check would just repeat the work.
     Pool& pool = GetComponentPool( Component::ID() );
-    return pool.Get<Component>( entity );
+    if ( void* raw = pool.GetRaw( entity ) )
+        return *static_cast<Component*>( raw );
+
+    throw std::runtime_error( std::format( "GetComponent: Entity {} doesn't have component {}", (size_t)entity, Component::ID() ) );
 }
 
 template <ComponentType Component>
@@ -205,9 +217,8 @@ const Component& Registry::GetComponent( Entity entity ) const
 template <ComponentType ...Components>
 std::tuple<Components&...> Registry::GetComponents( Entity entity )
 {
-    if ( !HasComponents<Components...>( entity ) )
-        throw std::runtime_error( std::format( "GetComponents: Entity {} doesn't have required components", (size_t)entity ) );
-
+    // Each GetComponent validates on its own; pre-checking here would double
+    // every lookup.
     return std::forward_as_tuple( GetComponent<Components>( entity )... );
 }
 
@@ -334,12 +345,10 @@ void Registry::ForEachTuple( F&& func ) const
         bool skip = false;
         for ( size_t i = 0; i < size; i++ )
         {
-            while ( pools[i]->mEntities[indicies[i]].mId < maxId )
-            {
-                indicies[i]++;
-                if ( indicies[i] >= pools[i]->Size() )
-                    return;
-            }
+            indicies[i] = pools[i]->AdvanceTo( indicies[i], maxId );
+            if ( indicies[i] >= pools[i]->Size() )
+                return;
+
             if ( pools[i]->mEntities[indicies[i]].mId > maxId )
             {
                 skip = true;
@@ -412,12 +421,10 @@ void Registry::RuntimeForEach( const std::array<ComponentTypeId, SIZE>& componen
             const auto& poolEntities = pool->mEntities;
             auto& entityIndex = indicies[i];
 
-            while ( poolEntities[entityIndex].mId < maxId )
-            {
-                entityIndex++;
-                if ( entityIndex >= pool->Size() )
-                    return;
-            }
+            entityIndex = pool->AdvanceTo( entityIndex, maxId );
+            if ( entityIndex >= pool->Size() )
+                return;
+
             if ( poolEntities[entityIndex].mId > maxId )
             {
                 skip = true;

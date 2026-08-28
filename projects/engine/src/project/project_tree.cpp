@@ -36,11 +36,9 @@ void ProjectTreeNode::RemoveNode( Ref<ProjectTreeNode> node, Scene& scene )
     set<Entity> entitiesToRemove;
     FillEntitiesInSubTree( entitiesToRemove, node );
 
-    // Remove all entities from the scene
-    for ( auto entity : entitiesToRemove )
-    {
-        scene.RemoveEntity( entity );
-    }
+    // Remove all entities from the scene in one compaction pass per pool
+    const std::vector<Entity> removeList( entitiesToRemove.begin(), entitiesToRemove.end() );
+    scene.RemoveEntities( removeList );
 
     // Recursively remove all children - optimized by clearing vector
     node->mChildren.clear();

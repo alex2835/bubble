@@ -71,9 +71,7 @@ public:
                 bool found = true;
                 for ( size_t i = 0; i < N; i++ )
                 {
-                    while ( mIndices[i] < mPools[i]->Size() &&
-                            (size_t)mPools[i]->Entities()[mIndices[i]] < max_id )
-                        mIndices[i]++;
+                    mIndices[i] = mPools[i]->AdvanceTo( mIndices[i], max_id );
                     if ( mIndices[i] >= mPools[i]->Size() ) { mAtEnd = true; return; }
                     if ( (size_t)mPools[i]->Entities()[mIndices[i]] != max_id )
                     {

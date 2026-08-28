@@ -2,6 +2,7 @@
 #include <memory>
 #include <mutex>
 #include <cstring>
+#include <span>
 #include <tuple>
 #include <vector>
 #include <algorithm>
@@ -61,6 +62,11 @@ public:
 
     void Remove( Entity entity );
 
+    // Batch erase. `entities` must be sorted ascending; ids that are not in this
+    // pool are ignored. Runs one compaction pass over the pool - O(Size()) total
+    // rather than a full tail shift per entity.
+    void Remove( std::span<const Entity> entities );
+
     template <ComponentType T>
     T& Get( Entity entity );
 
@@ -73,11 +79,26 @@ public:
     template <ComponentType T>
     const T& Get( size_t index ) const;
 
-    size_t Size() const noexcept;
+    // Defined in-class: these sit in the per-element hot loop of ForEach/View,
+    // where an out-of-line call costs more than the work they do.
+    size_t Size() const noexcept { return mSize; }
 
     // Entities in this pool, sorted by id and parallel to the component
     // storage: the component at index i belongs to Entities()[i].
-    const std::vector<Entity>& Entities() const noexcept;
+    const std::vector<Entity>& Entities() const noexcept { return mEntities; }
+
+    // Index of the first entity at or after `from` whose id is >= entityId,
+    // or Size() if there is none.
+    size_t AdvanceTo( size_t from, size_t entityId ) const noexcept
+    {
+        // Fast path: dense overlap, where the entry we want is already here.
+        // This is the common case and must stay inline and branch-predictable.
+        if ( from >= mSize || (size_t)mEntities[from] >= entityId )
+            return from;
+
+        // Sparse overlap: skipping a large gap costs O(log gap), not O(gap).
+        return GallopTo( from, entityId );
+    }
 
     void* GetRaw( Entity entity );
     void* GetRaw( size_t index );
@@ -95,8 +116,10 @@ private:
     void Clear();
     void Clone( Pool& pool ) const;
     void Realloc( size_t new_capacity );
-    void* GetElemAddress( size_t size );
-    const void* GetElemAddressConst( size_t size ) const;
+    size_t GallopTo( size_t from, size_t entityId ) const noexcept;
+
+    void* GetElemAddress( size_t index ) { return &mData[mComponentSize * index]; }
+    const void* GetElemAddressConst( size_t index ) const { return &mData[mComponentSize * index]; }
 
     std::vector<Entity>::iterator BFind( Entity entity );
     std::vector<Entity>::const_iterator BFind( Entity entity ) const;

@@ -151,14 +151,63 @@ void Pool::Remove( Entity entity )
     mSize--;
 }
 
-size_t Pool::Size() const noexcept
+void Pool::Remove( std::span<const Entity> entities )
 {
-    return mSize;
+    if ( entities.empty() || mSize == 0 )
+        return;
+
+    // Merge walk over the pool and the (sorted) removal list, compacting
+    // survivors down as we go.
+    size_t write = 0;
+    size_t next = 0;
+    for ( size_t read = 0; read < mSize; read++ )
+    {
+        const size_t id = (size_t)mEntities[read];
+
+        while ( next < entities.size() && (size_t)entities[next] < id )
+            next++;
+
+        if ( next < entities.size() && (size_t)entities[next] == id )
+        {
+            mDoDelete( GetElemAddress( read ) );
+            next++;
+            continue;
+        }
+
+        if ( write != read )
+        {
+            std::memmove( GetElemAddress( write ), GetElemAddress( read ), mComponentSize );
+            mEntities[write] = mEntities[read];
+        }
+        write++;
+    }
+
+    mSize = write;
+    mEntities.resize( write );
 }
 
-const std::vector<Entity>& Pool::Entities() const noexcept
+size_t Pool::GallopTo( size_t from, size_t entityId ) const noexcept
 {
-    return mEntities;
+    // Gallop outwards to bracket the answer in [lo, hi).
+    size_t lo = from;
+    size_t step = 1;
+    while ( lo + step < mSize && (size_t)mEntities[lo + step] < entityId )
+    {
+        lo += step;
+        step *= 2;
+    }
+    size_t hi = std::min( lo + step + 1, mSize );
+
+    // Then binary search the bracket.
+    while ( lo < hi )
+    {
+        const size_t mid = lo + ( hi - lo ) / 2;
+        if ( (size_t)mEntities[mid] < entityId )
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo;
 }
 
 void* Pool::GetRaw( Entity entity )
@@ -193,16 +242,6 @@ void Pool::Realloc( size_t new_capacity )
         std::memmove( new_data, mData.get(), mComponentSize * mSize );
     mData.reset( new_data );
     mCapacity = new_capacity;
-}
-
-void* Pool::GetElemAddress( size_t size )
-{
-    return &mData[mComponentSize * size];
-}
-
-const void* Pool::GetElemAddressConst( size_t size ) const
-{
-    return &mData[mComponentSize * size];
 }
 
 } // namespace recs

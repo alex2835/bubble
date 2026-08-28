@@ -560,12 +560,10 @@ public:
 
     void Execute() override
     {
-        // Delete the original entities
-        for ( auto entity : mEntities )
-        {
-            auto entityCopy = entity; // Need a copy since RemoveEntity modifies the entity
-            mScene.RemoveEntity( entityCopy );
-        }
+        // Delete the original entities in one batch: removing them one by one
+        // shifts each pool's tail per entity, which is quadratic on a big scene.
+        const std::vector<Entity> removeList( mEntities.begin(), mEntities.end() );
+        mScene.RemoveEntities( removeList );
     }
 
     void Undo() override
@@ -599,11 +597,11 @@ public:
     ~DeleteEntitiesCommand()
     {
         // Clean up the copied entities
-        for ( auto [originalEntity, copiedEntity] : mEntityCopies )
-        {
-            auto entityCopy = copiedEntity;
-            mScene.RemoveEntity( entityCopy );
-        }
+        std::vector<Entity> removeList;
+        removeList.reserve( mEntityCopies.size() );
+        for ( const auto& [originalEntity, copiedEntity] : mEntityCopies )
+            removeList.push_back( copiedEntity );
+        mScene.RemoveEntities( removeList );
     }
 
 private:

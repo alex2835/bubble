@@ -103,11 +103,19 @@ void Project::LoadScene( const json& j )
         Pool& pool = poolsIter->second;
         const auto& componentFromJson = ComponentManager::GetFromJson( componentID );
 
+        // json object keys are strings, so items() yields "1", "10", "100", "2"...
+        // Feeding a sorted pool in that order makes every insert memmove the tail
+        // (O(n^2) load). Sort numerically first so each push appends instead.
+        std::vector<std::pair<u64, const json*>> ordered;
+        ordered.reserve( poolJson.size() );
         for ( const auto& [entityIdStr, componentJson] : poolJson.items() )
-        {
-            u64 entityId = std::atoi( entityIdStr.c_str() );
-            componentFromJson( componentJson, *this, pool.PushEmpty( mScene.GetEntityById( entityId ) ) );
-        }
+            ordered.emplace_back( std::strtoull( entityIdStr.c_str(), nullptr, 10 ), &componentJson );
+
+        std::sort( ordered.begin(), ordered.end(),
+                   []( const auto& a, const auto& b ) { return a.first < b.first; } );
+
+        for ( const auto& [entityId, componentJson] : ordered )
+            componentFromJson( *componentJson, *this, pool.PushEmpty( mScene.GetEntityById( entityId ) ) );
     }
 }
 

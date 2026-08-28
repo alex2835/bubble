@@ -26,9 +26,15 @@ target_include_directories(recs PUBLIC
    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-option(RECS_TEST "" OFF)
+option(RECS_TEST "Build the recs test suite" OFF)
 if( RECS_TEST )
 	add_executable(recs_test tests/test.cpp)
 	target_link_libraries(recs_test recs)
 	add_test(NAME recs_test COMMAND recs_test)
+endif()
+
+option(RECS_BENCHMARK "Build the recs microbenchmarks" OFF)
+if( RECS_BENCHMARK )
+	add_executable(recs_benchmark benchmarks/benchmark.cpp)
+	target_link_libraries(recs_benchmark recs)
 endif()
