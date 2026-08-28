@@ -35,10 +35,12 @@ target_link_libraries(${TARGET_NAME} PUBLIC BulletDynamics)
 
 target_precompile_headers(${TARGET_NAME} PUBLIC "include/engine/pch/pch.hpp")
 
-# MSVC: components.cpp + sol2 generate too many template sections
+# MSVC: the component translation units instantiate enough sol2 templates to
+# overflow the default object-file section limit.
 if(MSVC)
+    file(GLOB COMPONENT_SRCS src/scene/components/*.cpp)
     set_source_files_properties(
-        src/scene/components.cpp
+        ${COMPONENT_SRCS}
         PROPERTIES COMPILE_FLAGS "/bigobj"
     )
 endif()
