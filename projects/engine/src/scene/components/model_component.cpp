@@ -51,7 +51,7 @@ void ModelComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<ModelComponent>(
         "ModelComponent",
-        "Model", &ModelComponent::mModel,
+        "model", &ModelComponent::mModel,
         sol::meta_function::to_string,
         []( const ModelComponent& mc ) { return mc.mModel ? mc.mModel->mName : "null"; }
     );

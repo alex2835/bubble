@@ -70,8 +70,8 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<ShaderComponent>(
         "ShaderComponent",
-        "Shader", &ShaderComponent::mShader,
-        "Uniforms", sol::property(
+        "shader", &ShaderComponent::mShader,
+        "uniforms", sol::property(
             []( ShaderComponent& sc ) -> sol::object
             {
                 assert( sc.mUniforms );

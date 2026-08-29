@@ -185,11 +185,11 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<RigidBody>(
         "RigidBody",
-        "GetMass",             &RigidBody::GetMass,
-        "SetFriction",         &RigidBody::SetFriction,
-        "GetFriction",         &RigidBody::GetFriction,
-        "ApplyCentralImpulse", &RigidBody::ApplyCentralImpulse,
-        "ApplyTorqueImpulse",  &RigidBody::ApplyTorqueImpulse
+        "get_mass",             &RigidBody::GetMass,
+        "set_friction",         &RigidBody::SetFriction,
+        "get_friction",         &RigidBody::GetFriction,
+        "apply_central_impulse", &RigidBody::ApplyCentralImpulse,
+        "apply_torque_impulse",  &RigidBody::ApplyTorqueImpulse
     );
 
     lua.new_usertype<RigidBodyComponent>(
@@ -197,17 +197,17 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
         "RigidBody", &RigidBodyComponent::mRigidBody
     );
 
-    lua["CreateRigidBodySphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ) {
+    lua["create_rigid_body_sphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ) {
         auto rigidBody = RigidBody::CreateSphere( mass, radius );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
     };
-    lua["CreateRigidBodyBox"] = []( const TransformComponent& trans, f32 mass, vec3 halfExtend ) {
+    lua["create_rigid_body_box"] = []( const TransformComponent& trans, f32 mass, vec3 halfExtend ) {
         auto rigidBody = RigidBody::CreateBox( mass, halfExtend );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;
     };
-    lua["CreateRigidBodyCapsule"] = []( const TransformComponent& trans, f32 mass, f32 radius, f32 height ) {
+    lua["create_rigid_body_capsule"] = []( const TransformComponent& trans, f32 mass, f32 radius, f32 height ) {
         auto rigidBody = RigidBody::CreateCapsule( mass, radius, height );
         rigidBody.SetTransform( trans.mPosition, trans.mRotation );
         return rigidBody;

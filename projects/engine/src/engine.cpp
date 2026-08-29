@@ -78,11 +78,11 @@ void Engine::OnStart( const path& projectRootFile )
         BUBBLE_ASSERT( scriptComponent.mOnUpdate, "Failed to extract function" );
         BUBBLE_ASSERT( stateComponent.mState->as<Table>().lua_state() == scriptComponent.mOnUpdate.lua_state(), "Lua state missmatch" );
     } );
-    mProject.mScriptingEngine.SetVar( "globalState"sv, *mProject.mGlobalState );
+    mProject.mScriptingEngine.SetVar( "global_state"sv, *mProject.mGlobalState );
 
     // Active camera control
-    mProject.mScriptingEngine.SetVar( "SetActiveCamera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
-    mProject.mScriptingEngine.SetVar( "GetActiveCamera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
+    mProject.mScriptingEngine.SetVar( "set_active_camera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
+    mProject.mScriptingEngine.SetVar( "get_active_camera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
 }
 
 void Engine::OnEnd()

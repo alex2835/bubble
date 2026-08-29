@@ -34,6 +34,15 @@ public:
     Entity CreateEntity();
     Entity CreateEntityWithId( size_t id );
     Entity GetEntityById( size_t id );
+
+    // True if the entity is live in this registry, whatever components it
+    // holds. RemoveEntity and GetComponent assert or throw on anything else,
+    // so callers holding a handle of unknown age should ask first.
+    bool HasEntity( Entity entity ) const noexcept
+    {
+        return mEntitiesComponentTypeIds.contains( entity );
+    }
+
     void RemoveEntity( Entity entity );
 
     // Batch erase. One compaction pass per pool instead of one tail shift per

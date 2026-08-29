@@ -37,9 +37,9 @@ void TagComponent::CreateLuaBinding( sol::state& lua )
         "Tag",
         sol::call_constructor,
         sol::constructors<TagComponent(), TagComponent( string ), TagComponent( string, string )>(),
-        "Name",
+        "name",
         &TagComponent::mName,
-        "Class",
+        "class",
         &TagComponent::mClass,
         sol::meta_function::to_string,
         []( const TagComponent& tag ) { return std::format( "Name: {} Class:{}", tag.mName, tag.mClass ); }

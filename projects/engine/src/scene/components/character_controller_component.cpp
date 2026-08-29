@@ -126,29 +126,29 @@ void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
         "CharacterController",
         sol::constructors<CharacterController( f32, f32, f32 )>(),
 
-        "SetWalkDirection",          &CharacterController::SetWalkDirection,
-        "SetVelocityForTimeInterval",&CharacterController::SetVelocityForTimeInterval,
-        "Jump",                      &CharacterController::Jump,
-        "Warp",                      &CharacterController::Warp,
-        "IsOnGround",                &CharacterController::IsOnGround,
-        "GetPosition",               &CharacterController::GetPosition,
-        "GetLinearVelocity",         &CharacterController::GetLinearVelocity,
-        "SetMaxJumpHeight",          &CharacterController::SetMaxJumpHeight,
-        "SetJumpSpeed",              &CharacterController::SetJumpSpeed,
-        "SetFallSpeed",              &CharacterController::SetFallSpeed,
-        "SetGravity",                &CharacterController::SetGravity,
-        "SetMaxSlope",               &CharacterController::SetMaxSlope,
-        "SetStepHeight",             &CharacterController::SetStepHeight,
-        "GetRadius",                 &CharacterController::GetRadius,
-        "GetHeight",                 &CharacterController::GetHeight
+        "set_walk_direction",          &CharacterController::SetWalkDirection,
+        "set_velocity_for_time_interval",&CharacterController::SetVelocityForTimeInterval,
+        "jump",                      &CharacterController::Jump,
+        "warp",                      &CharacterController::Warp,
+        "is_on_ground",                &CharacterController::IsOnGround,
+        "get_position",               &CharacterController::GetPosition,
+        "get_linear_velocity",         &CharacterController::GetLinearVelocity,
+        "set_max_jump_height",          &CharacterController::SetMaxJumpHeight,
+        "set_jump_speed",              &CharacterController::SetJumpSpeed,
+        "set_fall_speed",              &CharacterController::SetFallSpeed,
+        "set_gravity",                &CharacterController::SetGravity,
+        "set_max_slope",               &CharacterController::SetMaxSlope,
+        "set_step_height",             &CharacterController::SetStepHeight,
+        "get_radius",                 &CharacterController::GetRadius,
+        "get_height",                 &CharacterController::GetHeight
     );
 
     lua.new_usertype<CharacterControllerComponent>(
         "CharacterControllerComponent",
-        "Controller", &CharacterControllerComponent::mController
+        "controller", &CharacterControllerComponent::mController
     );
 
-    lua["CreateCharacterController"] = []( f32 radius, f32 height, f32 stepHeight ) {
+    lua["create_character_controller"] = []( f32 radius, f32 height, f32 stepHeight ) {
         return CharacterController( radius, height, stepHeight );
     };
 }

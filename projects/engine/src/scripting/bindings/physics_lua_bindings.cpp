@@ -9,7 +9,7 @@ void CreatePhysicsBindings( PhysicsEngine& physicsEngine, sol::state& lua )
 {
     // Set mass done by PhysicsEngine remove and create new object
     sol::usertype<RigidBody> rigidBodyType = lua["RigidBody"];
-    rigidBodyType["SetMass"] = [&]( RigidBody& obj, const float mass ) {
+    rigidBodyType["set_mass"] = [&]( RigidBody& obj, const float mass ) {
         physicsEngine.SetObjectMass( obj, mass );
     };
 
@@ -17,18 +17,18 @@ void CreatePhysicsBindings( PhysicsEngine& physicsEngine, sol::state& lua )
     // Ray casting
     lua.new_usertype<RayHitResult>(
         "RayHitResult",
-        "hitPoint", &RayHitResult::hitPoint,
-        "hitNormal", &RayHitResult::hitNormal,
-        "hitFraction", &RayHitResult::hitFraction,
-        "hitBody", &RayHitResult::hitBody,
+        "hit_point", &RayHitResult::hitPoint,
+        "hit_normal", &RayHitResult::hitNormal,
+        "hit_fraction", &RayHitResult::hitFraction,
+        "hit_body", &RayHitResult::hitBody,
         "entity", &RayHitResult::entity
     );
 
-    lua["RaycastClosest"] = [&]( const vec3& from, const vec3& to ) {
+    lua["raycast_closest"] = [&]( const vec3& from, const vec3& to ) {
         return physicsEngine.RaycastClosest( from, to );
     };
 
-    lua["RaycastAll"] = [&]( const vec3& from, const vec3& to ) {
+    lua["raycast_all"] = [&]( const vec3& from, const vec3& to ) {
         return physicsEngine.RaycastAll( from, to );
     };
 }

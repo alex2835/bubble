@@ -735,6 +735,40 @@ void test_remove_entity_does_not_fabricate_entries()
     assert( registry.Size() == 1 );
 }
 
+void test_has_entity_true_for_live_entity()
+{
+    recs::Registry registry;
+    recs::Entity entity = registry.CreateEntity();
+    assert( registry.HasEntity( entity ) );
+}
+
+void test_has_entity_false_after_removal()
+{
+    recs::Registry registry;
+    recs::Entity entity = registry.CreateEntity();
+    registry.RemoveEntity( entity );
+    assert( not registry.HasEntity( entity ) );
+}
+
+void test_has_entity_false_for_unknown_entity()
+{
+    recs::Registry registry;
+    registry.CreateEntity();
+    assert( not registry.HasEntity( registry.GetEntityById( 4242 ) ) );
+    assert( not registry.HasEntity( recs::INVALID_ENTITY ) );
+}
+
+// An entity with no components is still an entity: HasEntity answers about the
+// registry's entity set, not about any pool.
+void test_has_entity_true_without_components()
+{
+    recs::Registry registry;
+    registry.AddComponent<Speed>();
+    recs::Entity entity = registry.CreateEntity();
+    assert( not registry.HasComponent<Speed>( entity ) );
+    assert( registry.HasEntity( entity ) );
+}
+
 // =========================== batch entity removal ===========================
 
 void test_batch_remove_matches_individual_removal()
@@ -1073,6 +1107,10 @@ static const TestCase g_tests[] = {
     TEST( test_remove_entity_leaves_the_others ),
     TEST( test_remove_entity_drops_it_from_registry ),
     TEST( test_remove_entity_does_not_fabricate_entries ),
+    TEST( test_has_entity_true_for_live_entity ),
+    TEST( test_has_entity_false_after_removal ),
+    TEST( test_has_entity_false_for_unknown_entity ),
+    TEST( test_has_entity_true_without_components ),
     // batch entity removal
     TEST( test_batch_remove_matches_individual_removal ),
     TEST( test_batch_remove_survivors_stay_reachable ),

@@ -49,9 +49,9 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
         "Transform",
         sol::call_constructor,
         sol::constructors<TransformComponent(), TransformComponent( vec3 ), TransformComponent( vec3, vec3, vec3 )>(),
-        "Position",  &TransformComponent::mPosition,
-        "Rotation",  &TransformComponent::mRotation,
-        "Scale",     &TransformComponent::mScale,
+        "position",  &TransformComponent::mPosition,
+        "rotation",  &TransformComponent::mRotation,
+        "scale",     &TransformComponent::mScale,
         sol::meta_function::to_string, to_string
     );
 }

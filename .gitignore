@@ -4,6 +4,10 @@
 **/out/**
 **/build/**
 **/.claude/**
+**/__pycache__/**
+# ...but share the skills: they are project knowledge, not personal settings.
+!**/.claude/skills/
+!**/.claude/skills/**
 
 # Prerequisites
 *.d

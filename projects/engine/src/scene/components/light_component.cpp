@@ -135,9 +135,9 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
     constexpr string_view lightTypes = R"(
         LightType = 
         {
-            Directional = 0,
-            Point = 1,
-            Spot = 2
+            directional = 0,
+            point = 1,
+            spot = 2
         }
     )";
     lua.safe_script( lightTypes );
@@ -147,18 +147,18 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
         sol::call_constructor,
         sol::constructors<LightComponent()>(),
 
-        "Type",        &LightComponent::mType,
-        "Color",       &LightComponent::mColor,
-        "Brightness",  &LightComponent::mBrightness,
-        "Position",    &LightComponent::mPosition,
-        "Direction",   &LightComponent::mDirection,
-        "Distance",    &LightComponent::mDistance,
-        "CutOff",      &LightComponent::mCutOff,
-        "OuterCutOff", &LightComponent::mOuterCutOff,
+        "type",        &LightComponent::mType,
+        "color",       &LightComponent::mColor,
+        "brightness",  &LightComponent::mBrightness,
+        "position",    &LightComponent::mPosition,
+        "direction",   &LightComponent::mDirection,
+        "distance",    &LightComponent::mDistance,
+        "cut_off",      &LightComponent::mCutOff,
+        "outer_cut_off", &LightComponent::mOuterCutOff,
 
-        "CreateDirLight",   &LightComponent::CreateDirLight,
-        "CreatePointLight", &LightComponent::CreatePointLight,
-        "CreateSpotLight",  &LightComponent::CreateSpotLight
+        "create_dir_light",   &LightComponent::CreateDirLight,
+        "create_point_light", &LightComponent::CreatePointLight,
+        "create_spot_light",  &LightComponent::CreateSpotLight
     );
 }
 
