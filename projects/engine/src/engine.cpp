@@ -72,10 +72,10 @@ void Engine::OnStart( const path& projectRootFile )
                                                                    StateComponent& stateComponent )
     {
         if ( not scriptComponent.mScript )
-            throw std::runtime_error( std::format( "Entity:{} Script not set", (u64)entity ) );
+            throw std::runtime_error( std::format( "Entity {} has a ScriptComponent with no script assigned",
+                                                   (u64)entity ) );
 
         mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
-        BUBBLE_ASSERT( scriptComponent.mOnUpdate, "Failed to extract function" );
         BUBBLE_ASSERT( stateComponent.mState->as<Table>().lua_state() == scriptComponent.mOnUpdate.lua_state(), "Lua state missmatch" );
     } );
     mProject.mScriptingEngine.SetVar( "global_state"sv, *mProject.mGlobalState );
@@ -122,8 +122,13 @@ void Engine::OnUpdate()
             sol::protected_function_result result = scriptComponent.mOnUpdate( entity, *stateComponent.mState );
             if ( !result.valid() )
             {
-                sol::error err = result;
-                throw std::runtime_error( err.what() );
+                const sol::error err = result;
+                const string name = scriptComponent.mScript ? scriptComponent.mScript->mName
+                                                            : string( "<unknown>" );
+                const string path = scriptComponent.mScript ? scriptComponent.mScript->mPath.string()
+                                                            : string( "<no path>" );
+                throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
+                                                       name, (u64)entity, err.what(), path ) );
             }
         }
     });

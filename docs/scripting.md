@@ -211,13 +211,18 @@ local hits = raycast_all( from, to )
 `key` is a `KeyboardKey.*` or a `MouseKey.*` value; both go to the same
 functions, which dispatch on the numeric range.
 
-`KeyboardKey` covers `A`–`Z`, `ZERO`–`NINE`, `F1`–`F25`, `KP_0`–`KP_9`, the
-arrow keys (`LEFT`, `RIGHT`, `UP`, `DOWN`), `SPACE`, `ENTER`, `TAB`,
-`BACKSPACE`, `ESCAPE`, `DEL`, `INSERT`, `HOME`, `END`, `PAGE_UP`, `PAGE_DOWN`,
-the modifiers (`LEFT_SHIFT`, `LEFT_CONTROL`, `LEFT_ALT`, `LEFT_SUPER` and the
-`RIGHT_*` equivalents), punctuation, and `UNKNOWN`.
+`KeyboardKey` covers `a`–`z`, `zero`–`nine`, `f1`–`f25`, `kp_0`–`kp_9`, the
+arrow keys (`left`, `right`, `up`, `down`), `space`, `enter`, `tab`,
+`backspace`, `escape`, `del`, `insert`, `home`, `end_key`, `page_up`,
+`page_down`, the modifiers (`left_shift`, `left_control`, `left_alt`,
+`left_super` and the `right_*` equivalents), punctuation, and `unknown`.
 
-`MouseKey`: `LEFT`, `RIGHT`, `MIDDLE`, `ONE`–`EIGHT`, `LAST`, `UNKNOWN`.
+Two names do not follow the plain lowercasing. The End key is `end_key`,
+because `end` is a Lua reserved word and `KeyboardKey = { end = ... }` will not
+parse. The Delete key was already `del` for the same kind of reason on the C++
+side.
+
+`MouseKey`: `left`, `right`, `middle`, `one`–`eight`, `last`, `unknown`.
 
 ## Assets
 

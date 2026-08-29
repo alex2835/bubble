@@ -5,9 +5,18 @@ description: Write, review, or debug Lua gameplay scripts for the Bubble engine.
 
 # Bubble engine — Lua scripting
 
-Read `docs/scripting.md` for the full API surface before writing a script. This
-file is the *rules*: the things that are not visible from the API listing and
-that scripts get wrong.
+**Before writing or reviewing a script, read `docs/scripting.md`.** It is the
+complete API surface — every global, method, field and enum member the engine
+registers (156 names), verified against the bindings by
+`tools/check_lua_api_docs.py`. This file does *not* repeat it, on purpose: two
+copies of an API listing drift, and the reference is the one that is checked.
+
+What follows is only the part a listing cannot express — the script contract and
+the lifetime rules that make scripts crash.
+
+Naming: the Lua API is `snake_case` for globals, methods, fields and enum
+members. Type names stay PascalCase (`Entity`, `Transform`, `RayHitResult`),
+and glm keeps its GLSL spelling (`vec3`, `mat4`).
 
 ## Script contract
 

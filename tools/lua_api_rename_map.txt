@@ -26,7 +26,7 @@ enum:KeyboardKey D d
 enum:KeyboardKey DEL del
 enum:KeyboardKey DOWN down
 enum:KeyboardKey E e
-enum:KeyboardKey END end
+enum:KeyboardKey END end_key
 enum:KeyboardKey ENTER enter
 enum:KeyboardKey EQUAL equal
 enum:KeyboardKey ESCAPE escape

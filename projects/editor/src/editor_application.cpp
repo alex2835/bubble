@@ -117,7 +117,7 @@ void BubbleEditor::OnUpdateHotKeys()
     const auto& input = mWindow.GetWindowInput();
     const bool ctrlPressed = input.KeyMods().CONTROL;
 
-    // Run game
+    // Start game
     if ( mEditorMode == EditorMode::Editing and
          input.IsKeyClicked( KeyboardKey::F5 ) and 
          mProject.IsValid() )

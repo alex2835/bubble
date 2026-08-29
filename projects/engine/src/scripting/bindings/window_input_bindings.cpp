@@ -73,7 +73,7 @@ KeyboardKey =
     page_up = 266,
     page_down = 267,
     home = 268,
-    end = 269,
+    end_key = 269,
     caps_lock = 280,
     scroll_lock = 281,
     num_lock = 282,
@@ -152,15 +152,38 @@ MouseKey =
 }
 )";
 
+// Taking sol::object rather than int so a nil argument produces a sentence a
+// script author can act on. Indexing a key that does not exist yields nil
+// silently in Lua, so KeyboardKey.SPACE (a name from before the API became
+// snake_case) reaches the binding as nil, and sol2's own diagnostic for that
+// talks about stack indices and integer conversion.
+static int KeyArgument( string_view function, const sol::object& key )
+{
+    if ( key.is<int>() )
+        return key.as<int>();
+
+    if ( key == sol::nil )
+        throw std::runtime_error( std::format(
+            "{}: key is nil - the name indexed out of KeyboardKey/MouseKey does not exist. "
+            "The Lua API is snake_case: KeyboardKey.space, KeyboardKey.left_shift, "
+            "KeyboardKey.end_key, MouseKey.left.", function ) );
+
+    throw std::runtime_error( std::format(
+        "{}: expected a KeyboardKey.* or MouseKey.* value, got a {}.",
+        function, sol::type_name( key.lua_state(), key.get_type() ) ) );
+}
+
 void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
 {
-    lua.set( "is_key_clicked", [&]( int key ) {
+    lua.set( "is_key_clicked", [&]( const sol::object& keyObj ) {
+        const int key = KeyArgument( "is_key_clicked"sv, keyObj );
         if ( key <= (int)MouseKey::LAST )
             return input.IsKeyClicked( MouseKey( key ) );
         return input.IsKeyClicked( KeyboardKey( key ) );
     } );
 
-    lua.set( "is_key_pressed", [&]( int key ) {
+    lua.set( "is_key_pressed", [&]( const sol::object& keyObj ) {
+        const int key = KeyArgument( "is_key_pressed"sv, keyObj );
         if ( key <= (int)MouseKey::LAST )
             return input.IsKeyPressed( MouseKey( key ) );
         return input.IsKeyPressed( KeyboardKey( key ) );

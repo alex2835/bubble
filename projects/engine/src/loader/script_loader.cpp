@@ -12,7 +12,8 @@ Ref<Script> LoadScript( const path& scriptPath )
         Script{ 
             .mPath = scriptPath,
             .mName = scriptPath.stem().string(),
-            .mCode = filesystem::readFile( scriptPath )
+            .mCode = filesystem::readFile( scriptPath ),
+            .mChunkName = "@" + scriptPath.filename().string()
         }
     );
 }
@@ -28,7 +29,7 @@ Ref<Script> Loader::LoadScript( const path& scriptPath )
     auto script = bubble::LoadScript( absPath );
     if ( not script )
     {
-        LogError( "Failed to load script" );
+        LogError( "Failed to load script: {}", absPath.string() );
         return nullptr;
     }
 

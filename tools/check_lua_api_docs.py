@@ -51,6 +51,15 @@ PATTERNS = [
     re.compile(r'\w+Type\s*\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\]\s*='),
 ]
 
+# Lua reserved words. A binding name that collides with one of these is not a
+# style problem - it is a syntax error in the generated table, and the build
+# cannot catch it because the table is a C++ string literal.
+LUA_KEYWORDS = {
+    "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+    "goto", "if", "in", "local", "nil", "not", "or", "repeat", "return",
+    "then", "true", "until", "while",
+}
+
 # Names that exist in the bindings but are deliberately not part of the
 # scripting surface a doc reader needs. Keep this list short and justified.
 IGNORE = {
@@ -111,6 +120,30 @@ def lua_enum_keys():
     return enums
 
 
+def keyword_collisions():
+    """Names that would produce an unparseable Lua table.
+
+    `KeyboardKey = { end = 269 }` is a syntax error; it surfaces at runtime as
+    "unexpected symbol near 'end'" with no indication of which table is at
+    fault. Catch it here instead.
+    """
+    bad = []
+
+    # Keys of the enum tables written as Lua source.
+    for enum, keys in lua_enum_keys().items():
+        for key in sorted(keys):
+            if key in LUA_KEYWORDS:
+                bad.append(("%s.%s" % (enum, key), "enum table written as Lua source"))
+
+    # Every registered name is reachable as `obj.<name>` or a bare global.
+    names, _ = registered_names()
+    for name in sorted(names):
+        if name in LUA_KEYWORDS:
+            bad.append((name, names[name]))
+
+    return bad
+
+
 def main():
     doc = read("docs/scripting.md")
     skill = read(".claude/skills/bubble-scripting/SKILL.md")
@@ -119,15 +152,31 @@ def main():
     if skill is None:
         sys.exit("missing .claude/skills/bubble-scripting/SKILL.md")
 
-    documented = doc + "\n" + skill
-
+    # The reference is docs/scripting.md alone. SKILL.md deliberately carries
+    # only the rules and points at the reference, so checking against the two
+    # concatenated would hide a reference that had gone missing.
     names, missing_sources = registered_names()
     undocumented = sorted(
         (name, src) for name, src in names.items()
-        if name not in IGNORE and not re.search(r'\b%s\b' % re.escape(name), documented)
+        if name not in IGNORE and not re.search(r'\b%s\b' % re.escape(name), doc)
     )
 
     problems = 0
+
+    # The skill is only useful if its pointer to the reference still resolves.
+    if "docs/scripting.md" not in skill:
+        print("SKILL.md no longer references docs/scripting.md - the rules file")
+        print("  is the entry point, and it must name the reference it defers to.\n")
+        problems += 1
+
+    collisions = keyword_collisions()
+    if collisions:
+        print("Lua reserved words used as binding names - the generated table")
+        print("  will not parse, and the error names the keyword, not the table:")
+        for name, where in collisions:
+            print("  %-24s  %s" % (name, where))
+        print()
+        problems += len(collisions)
 
     if missing_sources:
         print("Binding sources listed in this script no longer exist:")
@@ -147,13 +196,22 @@ def main():
     # Enum tables: every key should appear somewhere in the docs, or the doc
     # should at least name the enum and say what it covers.
     for enum, keys in sorted(lua_enum_keys().items()):
-        if not re.search(r'\b%s\b' % re.escape(enum), documented):
+        if not re.search(r'\b%s\b' % re.escape(enum), doc):
             print("Enum %s is not mentioned in the docs" % enum)
             problems += 1
 
     total = len([n for n in names if n not in IGNORE])
+
+    # Informational: how much of the API the rules file happens to name. It is
+    # not meant to be complete - it defers to the reference - but a sudden jump
+    # means someone started duplicating the reference into it.
+    in_skill = len([n for n in names
+                    if n not in IGNORE and re.search(r'\b%s\b' % re.escape(n), skill)])
+
     if problems == 0:
-        print("ok: %d registered names, all documented" % total)
+        print("ok: %d registered names, all in docs/scripting.md" % total)
+        print("    (SKILL.md names %d of them, and points at the reference for the rest)"
+              % in_skill)
         return 0
 
     print("%d problem(s) across %d registered names" % (problems, total))

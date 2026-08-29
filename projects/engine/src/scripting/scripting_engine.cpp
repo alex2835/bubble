@@ -68,7 +68,12 @@ void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<
 {
     mLua->set( ON_UPDATE_FUNC, sol::nil );
     RunScript( script );
-    auto onUpdate = mLua->get<sol::function>( ON_UPDATE_FUNC );
+
+    auto onUpdate = mLua->get<sol::object>( ON_UPDATE_FUNC );
+    if ( not onUpdate.is<sol::function>() )
+        throw std::runtime_error(
+            std::format( "Script '{}' defines no global function {}( entity, state ).\n  {}",
+                         script->mName, ON_UPDATE_FUNC, script->mPath.string() ) );
     
     // Save function in lua state with script name to don't overlap with other
     auto newName = script->mName + string( ON_UPDATE_FUNC );
@@ -78,11 +83,25 @@ void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<
 
 void ScriptingEngine::RunScript( const Script& script )
 {
-    mLua->script( script.mCode );
+    // Without a chunk name every diagnostic reads [string "..."]:<line> with no
+    // way to tell which script failed. Script::mChunkName is built at load time;
+    // this fallback only covers a Script assembled by hand.
+    static const string unnamedChunk = "@<unnamed script>";
+    const string& chunkName = script.mChunkName.empty() ? unnamedChunk : script.mChunkName;
+
+    const auto result = mLua->safe_script( script.mCode, sol::script_pass_on_error, chunkName );
+    if ( not result.valid() )
+    {
+        const sol::error err = result;
+        throw std::runtime_error( std::format( "Script '{}' failed to load.\n  {}\n  {}",
+                                               script.mName, err.what(), script.mPath.string() ) );
+    }
 }
 
 void ScriptingEngine::RunScript( const Ref<Script>& script )
 {
+    if ( not script )
+        throw std::runtime_error( "RunScript: script is null (it failed to load)" );
     RunScript( *script );
 }
 
