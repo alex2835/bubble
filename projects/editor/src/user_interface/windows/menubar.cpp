@@ -110,6 +110,30 @@ void Menubar::ModalOpenProject()
     }
 }
 
+void Menubar::DrawInterfaceMenu()
+{
+    ImGui::SetNextItemWidth( 200.0f * mWindow.GetUIScale() );
+    f32 uiScale = mWindow.GetUIScale();
+    if ( ImGui::InputFloat( "Scale", &uiScale, 0.25f, 1.0f, "%.2fx" ) )
+        mWindow.SetUIScale( std::clamp( uiScale, 0.5f, 3.0f ) );
+
+    ImGui::SetNextItemWidth( 200.0f * mWindow.GetUIScale() );
+    f32 fontSize = mWindow.GetUIFontSize();
+    if ( ImGui::InputFloat( "Font size", &fontSize, 1.0f, 2.0f, "%.0f px" ) )
+        mWindow.SetUIFontSize( std::clamp( fontSize, 12.0f, 20.0f ) );
+
+    if ( ImGui::MenuItem( "Reset" ) )
+    {
+        mWindow.SetUIScale( 1.0f );
+        mWindow.SetUIFontSize( DEFAULT_UI_FONT_SIZE );
+    }
+
+    ImGui::Separator();
+    ImGui::TextDisabled( "monitor dpi scale %.2fx", mWindow.GetDPIScale() );
+
+    ImGui::EndMenu();
+}
+
 void Menubar::DrawMenubar()
 {
     if ( ImGui::BeginMainMenuBar() )
@@ -141,6 +165,10 @@ void Menubar::DrawMenubar()
                 ImGui::Checkbox( "PhysicsShapse", (bool*)&mUIGlobals.mDrawPhysicsShapes );
                 ImGui::EndMenu();
             }
+
+            if ( ImGui::BeginMenu( "Interface" ) )
+                DrawInterfaceMenu();
+
             ImGui::EndMenu();
         }
         

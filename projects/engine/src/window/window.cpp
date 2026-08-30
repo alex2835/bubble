@@ -15,10 +15,13 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
 
+#include <algorithm>
+
 #include "engine/window/event.hpp"
 #include "engine/window/input.hpp"
 #include "engine/window/window.hpp"
 #include "engine/types/number.hpp"
+#include "engine/utils/filesystem.hpp"
 #include "engine/log/log.hpp"
 
 namespace bubble
@@ -56,6 +59,8 @@ void Window::MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 m
 void Window::MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
+    // Cursor position is in screen coordinates, so the y flip must use the
+    // window size in screen coordinates, not the framebuffer size.
     auto window_size = win->Size();
     auto mouse_pos = vec2( xpos, window_size.y - ypos );
     win->mWindowInput.mMouseInput.mMouseOffset = mouse_pos - win->mWindowInput.mMouseInput.mMousePos;
@@ -81,13 +86,12 @@ void Window::WindowSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mWindowSize = uvec2{ (u32)width, (u32)height };
-    glfwSetWindowSize( win->mWindow, width, height );
 }
 
 void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
-    win->mWindowSize = uvec2{ (u32)width, (u32)height };
+    win->mFramebufferSize = uvec2{ (u32)width, (u32)height };
     glViewport( 0, 0, width, height );
 }
 
@@ -179,6 +183,16 @@ Window::Window( const string& name, uvec2 size )
     }
     glfwMakeContextCurrent( mWindow );
 
+    // Screen coordinates and pixels are not the same on DPI scaled displays,
+    // query both instead of assuming the requested size is valid for either.
+    i32 windowWidth = 0, windowHeight = 0;
+    glfwGetWindowSize( mWindow, &windowWidth, &windowHeight );
+    mWindowSize = uvec2{ (u32)windowWidth, (u32)windowHeight };
+
+    i32 framebufferWidth = 0, framebufferHeight = 0;
+    glfwGetFramebufferSize( mWindow, &framebufferWidth, &framebufferHeight );
+    mFramebufferSize = uvec2{ (u32)framebufferWidth, (u32)framebufferHeight };
+
     glfwSetWindowUserPointer( mWindow, this );
     glfwSetInputMode( mWindow, GLFW_LOCK_KEY_MODS, GLFW_TRUE );
     // set callback functions
@@ -219,6 +233,18 @@ Window::Window( const string& name, uvec2 size )
         style.WindowRounding = 0.0f;
         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
     }
+    // Keep the unscaled metrics around, ScaleAllSizes is cumulative so every
+    // rescale has to restart from these instead of the current values.
+    mBaseStyle = style;
+
+    // Monitor DPI. Stays 1.0 on large low DPI displays (a 32" 1440p panel is
+    // about 92 PPI), which is why SetUIScale exists as a separate user knob.
+    style.FontScaleDpi = GetDPIScale();
+
+    mUIFontPath = DEFAULT_UI_FONT_PATH;
+    ReloadUIFont();
+    ApplyUIScale();
+
     ImGui_ImplGlfw_InitForOpenGL( mWindow, true );
     ImGui_ImplOpenGL3_Init( mGLSLVersion );
 }
@@ -236,6 +262,11 @@ Window::~Window()
 uvec2 Window::Size() const
 {
     return mWindowSize;
+}
+
+uvec2 Window::FramebufferSize() const
+{
+    return mFramebufferSize;
 }
 
 bool Window::ShouldClose() const
@@ -258,7 +289,7 @@ void Window::OnUpdate()
     mWindowInput.mMouseInput.OnUpdate();
     mWindowInput.mKeyboardInput.OnUpdate();
     // Window is hidden so no need rendering
-    if ( Size() != uvec2( 0u ) )
+    if ( FramebufferSize() != uvec2( 0u ) )
         glfwSwapBuffers( mWindow );
 }
 
@@ -283,6 +314,99 @@ void Window::SetVSync( bool vsync )
     glfwSwapInterval( vsync );
 }
 
+void Window::SetUIScale( f32 scale )
+{
+    mUIScale = std::clamp( scale, MIN_UI_SCALE, MAX_UI_SCALE );
+    ApplyUIScale();
+}
+
+f32 Window::GetUIScale() const
+{
+    return mUIScale;
+}
+
+void Window::SetUIFontSize( f32 sizePixels )
+{
+    mUIFontSize = std::clamp( sizePixels, 8.0f, 72.0f );
+    ApplyUIScale();
+}
+
+f32 Window::GetUIFontSize() const
+{
+    return mUIFontSize;
+}
+
+void Window::SetUIFont( string_view fontPath )
+{
+    if ( mUIFontPath == fontPath )
+        return;
+
+    mUIFontPath = fontPath;
+    // The atlas must not be touched between NewFrame and Render, so defer the
+    // actual swap to the start of the next frame.
+    mUIFontDirty = true;
+}
+
+const string& Window::GetUIFont() const
+{
+    return mUIFontPath;
+}
+
+f32 Window::GetDPIScale() const
+{
+    f32 xscale = 1.0f, yscale = 1.0f;
+    glfwGetWindowContentScale( mWindow, &xscale, &yscale );
+    return xscale > 0.0f ? xscale : 1.0f;
+}
+
+void Window::ApplyUIScale()
+{
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    // Restore the unscaled metrics, keeping whatever colors are currently set
+    // so a theme change does not get reverted by a rescale.
+    ImVec4 colors[ImGuiCol_COUNT];
+    std::copy_n( style.Colors, ImGuiCol_COUNT, colors );
+    style = mBaseStyle;
+    std::copy_n( colors, ImGuiCol_COUNT, style.Colors );
+
+    style.ScaleAllSizes( mUIScale );
+    style.FontScaleMain = mUIScale;
+    style.FontScaleDpi = GetDPIScale();
+
+    // NewFrame resets FontSizeBase from its own copy, so a change made while a
+    // frame is in flight has to go through _NextFrameFontSizeBase to survive.
+    // This is what the imgui style editor does as well.
+    style.FontSizeBase = mUIFontSize;
+    style._NextFrameFontSizeBase = mUIFontSize;
+}
+
+void Window::ReloadUIFont()
+{
+    mUIFontDirty = false;
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->Clear();
+
+    if ( mUIFontPath.empty() )
+    {
+        io.Fonts->AddFontDefault();
+        return;
+    }
+
+    if ( not filesystem::exists( mUIFontPath ) )
+    {
+        LogError( "UI font not found: {}, falling back to the built in font", mUIFontPath );
+        mUIFontPath.clear();
+        io.Fonts->AddFontDefault();
+        return;
+    }
+
+    // Size 0 keeps the font dynamic, imgui 1.92 bakes it on demand at whatever
+    // size style.FontSizeBase and the scale factors ask for.
+    io.Fonts->AddFontFromFileTTF( mUIFontPath.c_str(), 0.0f );
+}
+
 WindowInput& Window::GetWindowInput()
 {
     return mWindowInput;
@@ -301,7 +425,7 @@ const char* Window::GetGLSLVersion() const
 void Window::BindWindowFramebuffer()
 {
     glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-    glViewport( 0, 0, mWindowSize.x, mWindowSize.y );
+    glViewport( 0, 0, mFramebufferSize.x, mFramebufferSize.y );
 }
 
 ImGuiContext* Window::GetImGuiContext()
@@ -311,6 +435,9 @@ ImGuiContext* Window::GetImGuiContext()
 
 void Window::ImGuiBegin()
 {
+    if ( mUIFontDirty )
+        ReloadUIFont();
+
     BindWindowFramebuffer();
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
