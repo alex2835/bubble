@@ -34,6 +34,28 @@ static string BuildComponentEnum()
 }
 
 
+// Adding a physics component to an entity that already has one makes recs
+// replace it in place, which destroys the old Bullet body while the dynamics
+// world still holds a raw pointer to it. Take it out of the world before the
+// component is overwritten - and for the same reason before the entity is
+// removed, since the component is destroyed either way.
+//
+// These are free functions, not lambdas local to CreateSceneBindings. The
+// binding closures below outlive that call, so capturing a local lambda by
+// reference would leave every one of them pointing into a dead stack frame.
+static void DetachRigidBody( Scene& scene, PhysicsEngine& physicsEngine, const Entity& entity )
+{
+    if ( scene.HasComponent<RigidBodyComponent>( entity ) )
+        physicsEngine.Remove( scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody );
+}
+
+static void DetachCharacterController( Scene& scene, PhysicsEngine& physicsEngine, const Entity& entity )
+{
+    if ( scene.HasComponent<CharacterControllerComponent>( entity ) )
+        physicsEngine.Remove( scene.GetComponent<CharacterControllerComponent>( entity ).mController );
+}
+
+
 void CreateSceneBindings( Scene& scene,
                           PhysicsEngine& physicsEngine,
                           sol::state& lua )
@@ -43,23 +65,6 @@ void CreateSceneBindings( Scene& scene,
     // Component bindings
     for ( const auto& [name, compFuncTable] : ComponentManager::Instance() )
         compFuncTable.mCreateLuaBinding( lua );
-
-    // Adding a physics component to an entity that already has one makes recs
-    // replace it in place, which destroys the old Bullet body while the
-    // dynamics world still holds a raw pointer to it. Take it out of the world
-    // before the component is overwritten - and for the same reason before the
-    // entity is removed, since the component is destroyed either way.
-    auto detachRigidBody = [&]( const Entity& entity )
-    {
-        if ( scene.HasComponent<RigidBodyComponent>( entity ) )
-            physicsEngine.Remove( scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody );
-    };
-
-    auto detachCharacterController = [&]( const Entity& entity )
-    {
-        if ( scene.HasComponent<CharacterControllerComponent>( entity ) )
-            physicsEngine.Remove( scene.GetComponent<CharacterControllerComponent>( entity ).mController );
-    };
 
     // Entity
     lua.new_usertype<Entity>(
@@ -102,13 +107,13 @@ void CreateSceneBindings( Scene& scene,
         sol::overload(
             [&]( const Entity& entity, RigidBody object )
             {
-                detachRigidBody( entity );
+                DetachRigidBody( scene, physicsEngine, entity );
                 auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( object ) );
                 physicsEngine.Add( c.mRigidBody, entity );
             },
             [&]( const Entity& entity, RigidBodyComponent comp )
             {
-                detachRigidBody( entity );
+                DetachRigidBody( scene, physicsEngine, entity );
                 auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( comp ) );
                 physicsEngine.Add( c.mRigidBody, entity );
             }
@@ -117,13 +122,13 @@ void CreateSceneBindings( Scene& scene,
         sol::overload(
             [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
             {
-                detachCharacterController( entity );
+                DetachCharacterController( scene, physicsEngine, entity );
                 auto& c = scene.AddComponent<CharacterControllerComponent>( entity, radius, height, stepHeight );
                 physicsEngine.Add( c.mController, entity );
             },
             [&]( const Entity& entity, CharacterControllerComponent comp )
             {
-                detachCharacterController( entity );
+                DetachCharacterController( scene, physicsEngine, entity );
                 auto& c = scene.AddComponent<CharacterControllerComponent>( entity, std::move( comp ) );
                 physicsEngine.Add( c.mController, entity );
             }
@@ -193,8 +198,8 @@ void CreateSceneBindings( Scene& scene,
         if ( not scene.HasEntity( entity ) )
             throw std::runtime_error( std::format( "remove_entity: no such entity {}", (size_t)entity ) );
 
-        detachRigidBody( entity );
-        detachCharacterController( entity );
+        DetachRigidBody( scene, physicsEngine, entity );
+        DetachCharacterController( scene, physicsEngine, entity );
         scene.RemoveEntity( entity );
     };
 
