@@ -651,8 +651,14 @@ void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
                 if ( val.is<mat4>() )   shader.SetUniMat4( name, val.as<mat4>() );
                 break;
             case GLSLDataType::Int:
-            case GLSLDataType::Bool:
                 if ( val.is<int>() )    shader.SetUni1i( name, val.as<int>() );
+                break;
+            case GLSLDataType::Bool:
+                // RebuildUniforms defaults a bool uniform to Lua `false`, and
+                // the inspector edits it as a checkbox - neither of which is a
+                // Lua number, so the old is<int>() test never matched and bool
+                // uniforms never reached the shader at all.
+                if ( val.is<bool>() )   shader.SetUni1i( name, val.as<bool>() ? 1 : 0 );
                 break;
             case GLSLDataType::Int2:
             case GLSLDataType::Int3:

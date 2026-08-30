@@ -4,6 +4,18 @@
 
 namespace bubble
 {
+// What reconciling a uniform table against its shader threw away. Split by
+// reason, because the explanation a user needs is different for each and this
+// report is the only record that the value existed.
+struct DroppedUniforms
+{
+    vector<string> mMissing;   // the shader has no uniform by that name any more
+    vector<string> mRetyped;   // still there, but declared as a different type
+
+    bool Empty() const { return mMissing.empty() and mRetyped.empty(); }
+};
+
+
 struct ShaderComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Shader ); }
@@ -20,9 +32,27 @@ public:
     ShaderComponent( const ShaderComponent& shaderComponent );
     ShaderComponent& operator= ( const ShaderComponent& shaderComponent );
     ~ShaderComponent();
-    void RebuildUniforms( ScriptingEngine& lua );
+
+    // Rebuild mUniforms so its keys are exactly the shader's active uniforms,
+    // carrying over any value from `previous` whose name *and* type still
+    // match. A uniform the shader no longer has is dropped; its name is
+    // returned so the caller can report it, since dropping it silently loses
+    // whatever was tuned there.
+    //
+    // "Not active" is broader than "deleted": a uniform nothing reads is
+    // optimised out of the linked program and lands here too.
+    DroppedUniforms RebuildUniforms( ScriptingEngine& lua, const Table* previous );
+
+    // Reconcile against whatever mUniforms currently holds. This is the form to
+    // call after a hot reload, where the shader changed but the values did not.
+    DroppedUniforms RebuildUniforms( ScriptingEngine& lua );
+
     Ref<Shader> mShader;
     Scope<Any> mUniforms;
 };
+
+// One line per shader rather than one per component: a shader shared by a
+// hundred entities would otherwise print the same warning a hundred times.
+void LogDroppedShaderUniforms( const Ref<Shader>& shader, const DroppedUniforms& dropped );
 
 }

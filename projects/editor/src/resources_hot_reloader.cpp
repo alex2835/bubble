@@ -278,6 +278,25 @@ void ProjectResourcesHotReloader::ReloadShader( const path& loaderPath )
     if ( const auto newShader = LoadShader( absPath ) )
     {
         existing->second->Swap( *newShader );
+
+        // The reloaded shader may have gained or lost uniforms, and every
+        // component using it still holds a table keyed by the old set. Without
+        // this, a uniform added to a shader never appears in the inspector
+        // until the project is reopened, and a removed one never leaves.
+        set<string> missing;
+        set<string> retyped;
+        mProject.mScene.ForEach<ShaderComponent>(
+        [&]( Entity, ShaderComponent& shaderComponent )
+        {
+            if ( shaderComponent.mShader != existing->second )
+                return;
+            const auto dropped = shaderComponent.RebuildUniforms( mProject.mScriptingEngine );
+            missing.insert( dropped.mMissing.begin(), dropped.mMissing.end() );
+            retyped.insert( dropped.mRetyped.begin(), dropped.mRetyped.end() );
+        } );
+        LogDroppedShaderUniforms( existing->second,
+                                  DroppedUniforms{ .mMissing = { missing.begin(), missing.end() },
+                                                   .mRetyped = { retyped.begin(), retyped.end() } } );
         return;
     }
 
