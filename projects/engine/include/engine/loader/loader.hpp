@@ -81,6 +81,12 @@ struct Loader
     };
     ProjectPath RelAbsFromProjectPath( const path& resourcePath ) const;
 
+    // Values are unique across every Loader in the process, never reused and
+    // never reset, so replacing the whole Loader on a project switch always
+    // reads as a change - even if the new project happens to load the same
+    // number of resources before anyone looks.
+    static u64 NextResourcesGeneration();
+
 
 public:
     path mProjectRootDir;
@@ -89,6 +95,12 @@ public:
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Skybox>> mSkyboxes;
     hash_map<path, Ref<Script>> mScripts;
+
+    // Stamped whenever mShaders or mScripts gains an entry, so an observer can
+    // tell in one comparison whether its view of them is out of date. Erasing
+    // from those maps directly does not go through the Loader, and so does not
+    // stamp it.
+    u64 mResourcesGeneration = NextResourcesGeneration();
 };
 
 }

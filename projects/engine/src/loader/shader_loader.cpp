@@ -325,6 +325,7 @@ Ref<Shader> Loader::LoadShader( path shaderPath )
 	}
 
     mShaders.emplace( relPath, shader );
+    mResourcesGeneration = NextResourcesGeneration();
     return shader;
 }
 

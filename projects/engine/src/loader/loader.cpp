@@ -1,7 +1,15 @@
+#include <atomic>
 #include "engine/loader/loader.hpp"
 
 namespace bubble
 {
+u64 Loader::NextResourcesGeneration()
+{
+    static std::atomic<u64> counter = 0;
+    return ++counter;
+}
+
+
 Loader::ProjectPath Loader::RelAbsFromProjectPath( const path& resourcePath ) const
 {
     // engine internal resource

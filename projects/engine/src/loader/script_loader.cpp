@@ -34,6 +34,7 @@ Ref<Script> Loader::LoadScript( const path& scriptPath )
     }
 
     mScripts.emplace( relPath, script );
+    mResourcesGeneration = NextResourcesGeneration();
     return script;
 }
 
