@@ -39,19 +39,33 @@ void Shader::Swap( Shader& other ) noexcept
     std::swap( mModules, other.mModules );
 }
 
-i32 Shader::GetUniform( string_view uniformName ) const
+i32 Shader::LookupUniform( string_view uniformName, bool warnIfMissing ) const
 {
     glcall( glUseProgram( mShaderId ) );
     auto iter = mUniformCache.find( uniformName );
     if( iter != mUniformCache.end() )
         return iter->second;
 
-    i32 uniformId = glGetUniformLocation( mShaderId, uniformName.data() );
-    if( uniformId == GL_INVALID_INDEX )
+    // glGetUniformLocation reads a null-terminated string; a string_view is not
+    // guaranteed to be one, and the key has to be materialised for the cache
+    // anyway.
+    string key( uniformName );
+    i32 uniformId = glGetUniformLocation( mShaderId, key.c_str() );
+    if( uniformId == -1 and warnIfMissing )
         LogWarning( "Shader {} doesn't have uniform: {}", mName, uniformName );
 
-    mUniformCache.emplace( uniformName, uniformId );
+    mUniformCache.emplace( std::move( key ), uniformId );
     return uniformId;
+}
+
+i32 Shader::GetUniform( string_view uniformName ) const
+{
+    return LookupUniform( uniformName, true );
+}
+
+bool Shader::HasUniform( string_view uniformName ) const
+{
+    return LookupUniform( uniformName, false ) != -1;
 }
 
 i32 Shader::GetUniformBuffer( string_view uniformName ) const

@@ -39,6 +39,12 @@ public:
     i32 GetUniform( string_view name ) const;
     i32 GetUniformBuffer( string_view name ) const;
 
+    // Silent existence check. GetUniform warns on a miss, which is what you
+    // want for a uniform the renderer requires and wrong for one a caller
+    // merely offers - a material field no shader reads is stripped by the GLSL
+    // compiler and is legitimately absent from the linked program.
+    bool HasUniform( string_view name ) const;
+
     void Bind() const;
     void Unbind() const;
 
@@ -70,6 +76,8 @@ public:
     u32 mShaderId = 0;
     UniformDescription mUniformDescriptors;
 private:
+    i32 LookupUniform( string_view name, bool warnIfMissing ) const;
+
     mutable str_hash_map<i32> mUniformCache;
 };
 

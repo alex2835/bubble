@@ -6,42 +6,66 @@ namespace bubble
 void BasicMaterial::Apply( const Ref<Shader>& shader ) const
 {
     shader->Bind();
-    shader->SetUni4f( "uMaterial.diffuseColor", mDiffuseColor );
-    shader->SetUni4f( "uMaterial.specularColor", mSpecular );
-    shader->SetUni4f( "uMaterial.ambientColor", mAmbient );
 
-    // Textures
+    // A shader that opts into the material module is not obliged to read every
+    // field of it, and the GLSL compiler strips whatever nothing reads - so a
+    // missing uniform here is by design, not a mistake. Ask before setting, and
+    // leave GetUniform's warning for the case it is actually useful for: a name
+    // that is simply wrong.
+    const auto set4f = [&]( string_view name, const vec4& value )
+    {
+        if ( shader->HasUniform( name ) )
+            shader->SetUni4f( name, value );
+    };
+    const auto set1i = [&]( string_view name, i32 value )
+    {
+        if ( shader->HasUniform( name ) )
+            shader->SetUni1i( name, value );
+    };
+    const auto set1f = [&]( string_view name, f32 value )
+    {
+        if ( shader->HasUniform( name ) )
+            shader->SetUni1f( name, value );
+    };
+
+    set4f( "uMaterial.diffuseColor", mDiffuseColor );
+    set4f( "uMaterial.specularColor", mSpecular );
+    set4f( "uMaterial.ambientColor", mAmbient );
+
+    // Textures. The bind still happens when the sampler uniform was stripped -
+    // binding a slot nothing samples is harmless, and skipping it would make
+    // the active texture units depend on which shader is in use.
     if ( mDiffuseMap )
     {
-        shader->SetUni1i( "uMaterial.hasDiffuseMap", true );
-        shader->SetUni1i( "uMaterial.diffuseMap", 0 );
+        set1i( "uMaterial.hasDiffuseMap", true );
+        set1i( "uMaterial.diffuseMap", 0 );
         mDiffuseMap->Bind( 0 );
     }
     else
-        shader->SetUni1i( "uMaterial.hasDiffuseMap", false );
+        set1i( "uMaterial.hasDiffuseMap", false );
 
     if ( mSpecularMap )
     {
-        shader->SetUni1i( "uMaterial.hasSpecularMap", true );
-        shader->SetUni1i( "uMaterial.specularMap", 1 );
+        set1i( "uMaterial.hasSpecularMap", true );
+        set1i( "uMaterial.specularMap", 1 );
         mSpecularMap->Bind( 1 );
     }
     else
-        shader->SetUni1i( "uMaterial.hasSpecularMap", false );
+        set1i( "uMaterial.hasSpecularMap", false );
 
     if( mNormalMap )
     {
-        shader->SetUni1i( "uMaterial.hasNormalMap", true );
-        shader->SetUni1i( "uMaterial.normalMap", 2 );
+        set1i( "uMaterial.hasNormalMap", true );
+        set1i( "uMaterial.normalMap", 2 );
         mNormalMap->Bind( 2 );
     }
     else
-        shader->SetUni1i( "uMaterial.hasNormalMap", false );
+        set1i( "uMaterial.hasNormalMap", false );
 
-    shader->SetUni1i( "uMaterial.shininess", mShininess );
-    shader->SetUni1f( "uMaterial.shininessStrength", mShininessStrength );
-    shader->SetUni1i( "uNormalMapping", (bool)mNormalMap );
-    shader->SetUni1f( "uNormalMappingStrength", mNormalMapStrength );
+    set1i( "uMaterial.shininess", mShininess );
+    set1f( "uMaterial.shininessStrength", mShininessStrength );
+    set1i( "uNormalMapping", (bool)mNormalMap );
+    set1f( "uNormalMappingStrength", mNormalMapStrength );
 }
 
 
