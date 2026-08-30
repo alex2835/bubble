@@ -25,9 +25,13 @@ friends no longer exist.
 
 ## Script contract
 
-A script is a Lua file that defines a global `on_update`:
+A script is a Lua file that defines a global `on_update`, and optionally a
+global `on_start`:
 
 ```lua
+function on_start( entity, state )       -- optional, once when the game starts
+end
+
 function on_update( entity, state, dt )
     -- entity: the Entity this ScriptComponent is attached to
     -- state:  this entity's StateComponent, a plain Lua table
@@ -35,8 +39,14 @@ function on_update( entity, state, dt )
 end
 ```
 
-Three things are required for it to ever run, and none of them produce a useful
-error if missing:
+`on_start` runs after every script has been extracted and every engine global is
+bound, before the first `on_update` and before the first physics step. It is the
+place for one time setup — capturing the cursor, seeding `state`, choosing the
+active camera. It is called from inside the same scene iteration as `on_update`,
+so R2 below applies to it too.
+
+Three things are required for a script to ever run, and none of them produce a
+useful error if missing:
 
 1. The entity needs **both** a `ScriptComponent` and a `StateComponent`. The
    engine calls scripts from `ForEach<StateComponent, ScriptComponent>`, so an
@@ -45,6 +55,8 @@ error if missing:
    `Entity:{} Script not set`.
 3. `on_update` must be a **global**. It is extracted by name once at startup,
    not looked up per frame. Defining it as `local` means it is never found.
+   The same goes for `on_start`, except that a missing one is not an error - it
+   is simply never called, which looks identical to a `local` one.
 
 `dt` is a parameter, not a global. All scripts share one Lua state with no
 environment isolation, so anything you assign to a global name is visible to
@@ -137,10 +149,10 @@ disagree, the source wins and the doc is stale:
 | Entity methods, `create_entity`, `remove_entity`, `for_each_entity`, `Component` enum | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
 | Per-component usertypes | `projects/engine/src/scene/components/*_component.cpp` → `CreateLuaBinding` |
 | Raycasts, `RigidBody:set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
-| Keyboard/mouse, key enums | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
+| Keyboard/mouse, key enums, cursor control | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
 | `vec2/3/4`, `mat2/3/4`, math helpers | `deps/glm_lua_bindings/src/` |
-| `dt`, `global_state`, active camera | `projects/engine/src/engine.cpp` (`OnStart` / `OnUpdate`) |
+| `dt`, `global_state`, active camera, `on_start` / `on_update` dispatch | `projects/engine/src/engine.cpp` (`OnStart` / `OnUpdate`) |
 
 Run `python tools/check_lua_api_docs.py` to check the doc against the bindings.
 

@@ -19,6 +19,14 @@ constexpr string_view EDITOR_SETTINGS_FILE = "editor_settings.json"sv;
 // these follow the machine and the user, not the thing being edited.
 struct EditorSettings
 {
+    /// Window geometry
+    // False until a session has been captured or a file has been read, the
+    // first run has to let the OS place the window instead of restoring junk.
+    bool mHasWindowGeometry = false;
+    ivec2 mWindowPosition = ivec2( 0 );
+    uvec2 mWindowSize = uvec2( 1920, 1080 );
+    bool mWindowMaximized = false;
+
     /// Interface
     f32 mUIScale = 1.0f;
     f32 mUIFontSize = DEFAULT_UI_FONT_SIZE;

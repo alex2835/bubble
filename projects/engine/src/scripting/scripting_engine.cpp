@@ -8,6 +8,7 @@
 #include "engine/types/any.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
 #include "engine/scripting/bindings/physics_lua_bindings.hpp"
+#include "engine/window/window.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
 #include "engine/scripting/bindings/free_function_lua_bindings.hpp"
@@ -17,6 +18,7 @@
 
 namespace bubble
 {
+constexpr string_view ON_START_FUNC = "on_start"sv;
 constexpr string_view ON_UPDATE_FUNC = "on_update"sv;
 
 ScriptingEngine::ScriptingEngine()
@@ -48,6 +50,11 @@ ScriptingEngine::~ScriptingEngine()
 
 }
 
+void ScriptingEngine::BindWindow( Window& window )
+{
+    CreateWindowBindings( window, *mLua );
+}
+
 void ScriptingEngine::BindInput( WindowInput& input )
 {
     CreateWindowInputBindings( input, *mLua );
@@ -64,8 +71,14 @@ void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
     CreatePhysicsBindings( physicsEngine, *mLua );
 }
 
-void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<Script>& script )
+void ScriptingEngine::ExtractCallbacks( sol::protected_function& onStart,
+                                       sol::protected_function& onUpdate,
+                                       const Ref<Script>& script )
 {
+    // Every script shares one Lua state, so both names have to be cleared
+    // first. Otherwise a script with no on_start silently inherits the one left
+    // behind by whichever script was extracted before it.
+    mLua->set( ON_START_FUNC, sol::nil );
     mLua->set( ON_UPDATE_FUNC, sol::nil );
     RunScript( script );
 
@@ -73,8 +86,15 @@ void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<
         throw std::runtime_error(
             std::format( "Script '{}' defines no global function {}( entity, state, dt ).\n  {}",
                          script->mName, ON_UPDATE_FUNC, script->mPath.string() ) );
-    
-    func = mLua->get<sol::protected_function>( ON_UPDATE_FUNC );
+
+    onUpdate = mLua->get<sol::protected_function>( ON_UPDATE_FUNC );
+
+    // Optional, a script that only needs per frame work does not have to
+    // declare an empty one.
+    if ( mLua->get<sol::object>( ON_START_FUNC ).is<sol::function>() )
+        onStart = mLua->get<sol::protected_function>( ON_START_FUNC );
+    else
+        onStart = sol::protected_function();
 }
 
 void ScriptingEngine::RunScript( const Script& script )

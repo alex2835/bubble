@@ -17,17 +17,50 @@ constexpr f32 DEFAULT_UI_FONT_SIZE = 16.0f;
 constexpr f32 MIN_UI_SCALE = 0.5f;
 constexpr f32 MAX_UI_SCALE = 3.0f;
 
+enum class CursorMode
+{
+    // Visible, free to move anywhere and to leave the window.
+    Normal,
+    // Invisible, but still a real pointer that can leave the window.
+    Hidden,
+    // Invisible and captured, movement is reported as an unbounded virtual
+    // position. This is the gameplay mode, a mouse look camera needs it.
+    Locked
+};
+
 class Window
 {
 public:
     Window( const string& name, uvec2 size );
     ~Window();
 
+    // The window is created hidden so saved geometry can be restored before it
+    // ever appears on screen. Nothing is visible until Show() is called.
+    void Show();
+
     // Window size in screen coordinates (what GLFW reports for the window).
     uvec2 Size() const;
     // Window size in pixels. Differs from Size() on DPI scaled displays,
     // this is what glViewport and any pixel math must use.
     uvec2 FramebufferSize() const;
+    void SetSize( uvec2 size );
+
+    // Position of the top left corner in screen coordinates.
+    ivec2 Position() const;
+    // Clamps onto a connected monitor, a position saved on a display that is no
+    // longer attached would otherwise bring the window back out of reach.
+    // Uses the current size, so restore the size before the position.
+    void SetPosition( ivec2 position );
+
+    // Geometry the window returns to when it is not maximized. This is what to
+    // persist, saving the maximized rectangle would leave nothing sane to
+    // restore to once the user unmaximizes.
+    ivec2 RestoredPosition() const;
+    uvec2 RestoredSize() const;
+
+    bool IsMaximized() const;
+    void SetMaximized( bool maximized );
+
     bool ShouldClose() const;
 
     const vector<Event>& PollEvents();
@@ -36,7 +69,19 @@ public:
     bool IsKeyPressed( KeyboardKey key );
     bool IsKeyPressed( MouseKey key );
 
+    void SetCursorMode( CursorMode mode );
+    CursorMode GetCursorMode() const;
+    // Convenience wrappers around SetCursorMode.
     void LockCursor( bool lock );
+    void HideCursor( bool hide );
+
+    // Cursor position in the same frame as WindowInput::MousePos, origin at the
+    // bottom left corner. Setting it also resyncs the tracked mouse position so
+    // the jump is not reported as a mouse movement offset.
+    vec2 GetCursorPos() const;
+    void SetCursorPos( vec2 position );
+    void CenterCursor();
+
     void SetVSync( bool vsync );
 
     // User interface scaling.
@@ -73,6 +118,10 @@ public:
 private:
     void ApplyUIScale();
     void ReloadUIFont();
+    // Adopts whatever the OS thinks the cursor position is as the current one,
+    // dropping the accumulated offset.
+    void SyncCursorPos();
+    void UpdateRestoredGeometry();
     Event CreateEvent() const;
     void FillKeyboardEvents();
     void FillMouseEvents();
@@ -81,6 +130,7 @@ private:
     static void MouseButtonCallback( GLFWwindow* window, i32 key, i32 action, i32 mods );
     static void MouseCallback( GLFWwindow* window, f64 xpos, f64 ypos );
     static void ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset );
+    static void WindowPosCallback( GLFWwindow* window, i32 xpos, i32 ypos );
     static void WindowSizeCallback( GLFWwindow* window, i32 width, i32 height );
     static void FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height );
 
@@ -90,6 +140,11 @@ private:
     const char* mGLSLVersion;
     uvec2 mWindowSize = uvec2( 0u );
     uvec2 mFramebufferSize = uvec2( 0u );
+    ivec2 mWindowPos = ivec2( 0 );
+    // Last geometry seen while the window was neither maximized nor iconified.
+    ivec2 mRestoredPos = ivec2( 0 );
+    uvec2 mRestoredSize = uvec2( 0u );
+    CursorMode mCursorMode = CursorMode::Normal;
     bool mShouldClose = false;
 
     // Style metrics as created by the theme, before any scaling is applied.

@@ -26,6 +26,46 @@
 
 namespace bubble
 {
+namespace
+{
+// A position saved on a monitor that is no longer attached would bring the
+// window back completely off screen with no way to grab it. Keep at least a
+// corner of it, big enough to be draggable, over some connected monitor.
+ivec2 ClampToVisibleArea( ivec2 position, uvec2 size )
+{
+#if !defined(__EMSCRIPTEN__)
+    constexpr i32 MIN_VISIBLE = 64;
+
+    i32 monitorCount = 0;
+    GLFWmonitor** monitors = glfwGetMonitors( &monitorCount );
+    for ( i32 i = 0; i < monitorCount; i++ )
+    {
+        i32 areaX = 0, areaY = 0, areaWidth = 0, areaHeight = 0;
+        glfwGetMonitorWorkarea( monitors[i], &areaX, &areaY, &areaWidth, &areaHeight );
+
+        const i32 visibleX = std::min( position.x + (i32)size.x, areaX + areaWidth ) -
+                             std::max( position.x, areaX );
+        const i32 visibleY = std::min( position.y + (i32)size.y, areaY + areaHeight ) -
+                             std::max( position.y, areaY );
+        if ( visibleX >= MIN_VISIBLE and visibleY >= MIN_VISIBLE )
+            return position;
+    }
+
+    GLFWmonitor* primary = glfwGetPrimaryMonitor();
+    if ( not primary )
+        return position;
+
+    // Nothing overlaps, fall back to the middle of the primary monitor.
+    i32 areaX = 0, areaY = 0, areaWidth = 0, areaHeight = 0;
+    glfwGetMonitorWorkarea( primary, &areaX, &areaY, &areaWidth, &areaHeight );
+    return ivec2{ areaX + std::max( 0, ( areaWidth - (i32)size.x ) / 2 ),
+                  areaY + std::max( 0, ( areaHeight - (i32)size.y ) / 2 ) };
+#else
+    return position;
+#endif
+}
+}
+
 void Window::ErrorCallback( i32 error, const char* description )
 {
     LogError( "Error: {} \nDescription: {}", error, description );
@@ -82,10 +122,31 @@ void Window::ScrollCallback( GLFWwindow* window, f64 xoffset, f64 yoffset )
     win->mEvents.push_back( event );
 }
 
+void Window::WindowPosCallback( GLFWwindow* window, i32 xpos, i32 ypos )
+{
+    Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
+    win->mWindowPos = ivec2{ xpos, ypos };
+    win->UpdateRestoredGeometry();
+}
+
 void Window::WindowSizeCallback( GLFWwindow* window, i32 width, i32 height )
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mWindowSize = uvec2{ (u32)width, (u32)height };
+    win->UpdateRestoredGeometry();
+}
+
+void Window::UpdateRestoredGeometry()
+{
+    // An iconified window reports a zero size and a garbage position, and a
+    // maximized one reports a rectangle there is no point restoring to.
+    if ( IsMaximized() or glfwGetWindowAttrib( mWindow, GLFW_ICONIFIED ) )
+        return;
+    if ( mWindowSize == uvec2( 0u ) )
+        return;
+
+    mRestoredPos = mWindowPos;
+    mRestoredSize = mWindowSize;
 }
 
 void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height )
@@ -175,6 +236,10 @@ Window::Window( const string& name, uvec2 size )
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
 #endif
 
+    // Created hidden so the caller can restore a saved position before the
+    // window ever shows up, otherwise it flashes at the default spot first.
+    glfwWindowHint( GLFW_VISIBLE, GLFW_FALSE );
+
     mWindow = glfwCreateWindow( size.x, size.y, name.c_str(), NULL, NULL );
     if( !mWindow )
     {
@@ -193,6 +258,12 @@ Window::Window( const string& name, uvec2 size )
     glfwGetFramebufferSize( mWindow, &framebufferWidth, &framebufferHeight );
     mFramebufferSize = uvec2{ (u32)framebufferWidth, (u32)framebufferHeight };
 
+    i32 windowPosX = 0, windowPosY = 0;
+    glfwGetWindowPos( mWindow, &windowPosX, &windowPosY );
+    mWindowPos = ivec2{ windowPosX, windowPosY };
+    mRestoredPos = mWindowPos;
+    mRestoredSize = mWindowSize;
+
     glfwSetWindowUserPointer( mWindow, this );
     glfwSetInputMode( mWindow, GLFW_LOCK_KEY_MODS, GLFW_TRUE );
     // set callback functions
@@ -200,6 +271,7 @@ Window::Window( const string& name, uvec2 size )
     glfwSetMouseButtonCallback( mWindow, MouseButtonCallback );
     glfwSetCursorPosCallback( mWindow, MouseCallback );
     glfwSetScrollCallback( mWindow, ScrollCallback );
+    glfwSetWindowPosCallback( mWindow, WindowPosCallback );
     glfwSetWindowSizeCallback( mWindow, WindowSizeCallback );
     glfwSetFramebufferSizeCallback( mWindow, FramebufferSizeCallback );
 
@@ -269,6 +341,55 @@ uvec2 Window::FramebufferSize() const
     return mFramebufferSize;
 }
 
+void Window::Show()
+{
+    glfwShowWindow( mWindow );
+}
+
+void Window::SetSize( uvec2 size )
+{
+    if ( size == uvec2( 0u ) )
+        return;
+    glfwSetWindowSize( mWindow, (i32)size.x, (i32)size.y );
+}
+
+ivec2 Window::Position() const
+{
+    return mWindowPos;
+}
+
+void Window::SetPosition( ivec2 position )
+{
+    i32 width = 0, height = 0;
+    glfwGetWindowSize( mWindow, &width, &height );
+
+    const auto visible = ClampToVisibleArea( position, uvec2{ (u32)width, (u32)height } );
+    glfwSetWindowPos( mWindow, visible.x, visible.y );
+}
+
+ivec2 Window::RestoredPosition() const
+{
+    return mRestoredPos;
+}
+
+uvec2 Window::RestoredSize() const
+{
+    return mRestoredSize;
+}
+
+bool Window::IsMaximized() const
+{
+    return glfwGetWindowAttrib( mWindow, GLFW_MAXIMIZED ) == GLFW_TRUE;
+}
+
+void Window::SetMaximized( bool maximized )
+{
+    if ( maximized )
+        glfwMaximizeWindow( mWindow );
+    else
+        glfwRestoreWindow( mWindow );
+}
+
 bool Window::ShouldClose() const
 {
     return mShouldClose;
@@ -303,10 +424,74 @@ bool Window::IsKeyPressed( MouseKey key )
     return mWindowInput.mMouseInput.IsKeyPressed( key );
 }
 
+void Window::SetCursorMode( CursorMode mode )
+{
+    if ( mCursorMode == mode )
+        return;
+
+    mCursorMode = mode;
+
+    i32 option = GLFW_CURSOR_NORMAL;
+    switch ( mode )
+    {
+        case CursorMode::Normal: option = GLFW_CURSOR_NORMAL; break;
+        case CursorMode::Hidden: option = GLFW_CURSOR_HIDDEN; break;
+        case CursorMode::Locked: option = GLFW_CURSOR_DISABLED; break;
+    }
+    glfwSetInputMode( mWindow, GLFW_CURSOR, option );
+
+#if !defined(__EMSCRIPTEN__)
+    // Raw motion skips the desktop pointer acceleration curve, which is what a
+    // camera wants and what a pointer never wants. Only valid while captured.
+    if ( glfwRawMouseMotionSupported() )
+        glfwSetInputMode( mWindow, GLFW_RAW_MOUSE_MOTION,
+                          mode == CursorMode::Locked ? GLFW_TRUE : GLFW_FALSE );
+#endif
+
+    // GLFW moves the cursor when entering and leaving the captured mode. Adopt
+    // the new position instead of reporting that jump as a mouse movement.
+    SyncCursorPos();
+}
+
+CursorMode Window::GetCursorMode() const
+{
+    return mCursorMode;
+}
+
 void Window::LockCursor( bool lock )
 {
-    auto option = lock ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
-    glfwSetInputMode( mWindow, GLFW_CURSOR, option );
+    SetCursorMode( lock ? CursorMode::Locked : CursorMode::Normal );
+}
+
+void Window::HideCursor( bool hide )
+{
+    SetCursorMode( hide ? CursorMode::Hidden : CursorMode::Normal );
+}
+
+vec2 Window::GetCursorPos() const
+{
+    return mWindowInput.mMouseInput.mMousePos;
+}
+
+void Window::SetCursorPos( vec2 position )
+{
+    // Same y flip as the cursor position callback, the input frame has its
+    // origin at the bottom left while GLFW puts it at the top left.
+    glfwSetCursorPos( mWindow, position.x, mWindowSize.y - position.y );
+    SyncCursorPos();
+}
+
+void Window::CenterCursor()
+{
+    SetCursorPos( vec2( mWindowSize ) * 0.5f );
+}
+
+void Window::SyncCursorPos()
+{
+    f64 xpos = 0.0, ypos = 0.0;
+    glfwGetCursorPos( mWindow, &xpos, &ypos );
+    mWindowInput.mMouseInput.mMousePos = vec2( xpos, mWindowSize.y - ypos );
+    mWindowInput.mMouseInput.mMouseOffset = vec2( 0.0f );
 }
 
 void Window::SetVSync( bool vsync )

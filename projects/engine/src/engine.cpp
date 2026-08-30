@@ -43,6 +43,7 @@ void Engine::OnStart( const path& projectRootFile )
     mProject.Open( projectRootFile );
 
     // Bind members to scripting engine
+    mProject.mScriptingEngine.BindWindow( mWindow );
     mProject.mScriptingEngine.BindInput( mWindow.GetWindowInput() );
     mProject.mScriptingEngine.BindLoader( mProject.mLoader );
     mProject.mScriptingEngine.BindScene( mProject.mScene, mPhysicsEngine );
@@ -75,7 +76,9 @@ void Engine::OnStart( const path& projectRootFile )
             throw std::runtime_error( std::format( "Entity {} has a ScriptComponent with no script assigned",
                                                    (u64)entity ) );
 
-        mProject.mScriptingEngine.ExtractOnUpdate( scriptComponent.mOnUpdate, scriptComponent.mScript );
+        mProject.mScriptingEngine.ExtractCallbacks( scriptComponent.mOnStart,
+                                                   scriptComponent.mOnUpdate,
+                                                   scriptComponent.mScript );
         BUBBLE_ASSERT( stateComponent.mState->as<Table>().lua_state() == scriptComponent.mOnUpdate.lua_state(), "Lua state missmatch" );
     } );
     mProject.mScriptingEngine.SetVar( "global_state"sv, *mProject.mGlobalState );
@@ -83,10 +86,39 @@ void Engine::OnStart( const path& projectRootFile )
     // Active camera control
     mProject.mScriptingEngine.SetVar( "set_active_camera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
     mProject.mScriptingEngine.SetVar( "get_active_camera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
+
+    // on_start runs only once every script has been extracted and every global
+    // is in place, so the first script to start already sees the whole API and
+    // whatever the others put in global_state.
+    mProject.mScene.ForEach<StateComponent, ScriptComponent>(
+    []( Entity entity,
+        const StateComponent& stateComponent,
+        const ScriptComponent& scriptComponent )
+    {
+        if ( not scriptComponent.mOnStart )
+            return;
+
+        sol::protected_function_result result =
+            scriptComponent.mOnStart( entity, *stateComponent.mState );
+        if ( not result.valid() )
+        {
+            const sol::error err = result;
+            const string name = scriptComponent.mScript ? scriptComponent.mScript->mName
+                                                        : string( "<unknown>" );
+            const string path = scriptComponent.mScript ? scriptComponent.mScript->mPath.string()
+                                                        : string( "<no path>" );
+            throw std::runtime_error( std::format( "Script '{}' failed in on_start on entity {}.\n  {}\n  {}",
+                                                   name, (u64)entity, err.what(), path ) );
+        }
+    } );
 }
 
 void Engine::OnEnd()
 {
+    // A script is free to lock the cursor and has nowhere to give it back, so
+    // the engine hands it back on the way out.
+    mWindow.LockCursor( false );
+
     mPhysicsEngine.ClearWorld();
     mPhysicsEngine = PhysicsEngine();
     mProject.mScene = Scene();

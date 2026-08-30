@@ -21,6 +21,8 @@ public:
     ScriptComponent( const Ref<Script>& scirpt );
     ~ScriptComponent();
     Ref<Script> mScript;
+    // Empty when the script defines no on_start, that callback is optional.
+    sol::protected_function mOnStart;
     sol::protected_function mOnUpdate;
 };
 

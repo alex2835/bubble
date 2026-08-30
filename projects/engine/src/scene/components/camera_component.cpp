@@ -48,6 +48,7 @@ void CameraComponent::OnComponentDraw( const Project& project, const Entity& ent
     // Speed settings
     ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
     ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
+    ImGui::DragFloat( "Radius", &cameraComponent.mRadius, 0.1f, 0.1f, 100.0f );
 
     // Update camera vectors when angles change
     cameraComponent.EulerAnglesToVectors();
@@ -67,6 +68,7 @@ void CameraComponent::ToJson( json& json, const Project& project, const CameraCo
     json["Pitch"] = cameraComponent.mPitch;
     json["MaxSpeed"] = cameraComponent.mMaxSpeed;
     json["MouseSensitivity"] = cameraComponent.mMouseSensitivity;
+    json["Radius"] = cameraComponent.mRadius;
     json["UseTransformPropagation"] = cameraComponent.mUseTransformPropagation;
 }
 
@@ -107,6 +109,9 @@ void CameraComponent::FromJson( const json& json, Project& project, CameraCompon
 
     if ( json.contains( "MouseSensitivity" ) )
         cameraComponent.mMouseSensitivity = json["MouseSensitivity"];
+
+    if ( json.contains( "Radius" ) )
+        cameraComponent.mRadius = json["Radius"];
 
     if ( json.contains( "UseTransformPropagation" ) )
         cameraComponent.mUseTransformPropagation = json["UseTransformPropagation"];

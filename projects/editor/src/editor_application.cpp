@@ -28,6 +28,10 @@ BubbleEditor::BubbleEditor()
 
     mEditorSettings.Load();
     mEditorSettings.Apply( mWindow, mSceneCamera, mUIGlobals );
+
+    // The window is created hidden, show it only once it sits where the last
+    // session left it.
+    mWindow.Show();
 }
 
 
@@ -291,6 +295,10 @@ void BubbleEditor::StartEngine()
 
 void BubbleEditor::StopEngine()
 {
+    // Engine::OnEnd releases it too, but that runs after code that can throw and
+    // an editor left without a cursor cannot be clicked out of.
+    mWindow.LockCursor( false );
+
     mEngine.OnEnd();
     mProject.mScriptingEngine.SetCurrentState();
 }

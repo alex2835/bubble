@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/types/string.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
+#include "engine/window/window.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
@@ -173,6 +174,15 @@ static int KeyArgument( string_view function, const sol::object& key )
         function, sol::type_name( key.lua_state(), key.get_type() ) ) );
 }
 
+constexpr string_view cursorModes = R"(
+CursorMode =
+{
+    normal = 0,
+    hidden = 1,
+    locked = 2,
+}
+)"sv;
+
 void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
 {
     lua.set( "is_key_clicked", [&]( const sol::object& keyObj ) {
@@ -199,6 +209,26 @@ void CreateWindowInputBindings( WindowInput& input, sol::state& lua )
 
     lua.safe_script( keyboardKeys );
     lua.safe_script( mouseKeys );
+}
+
+void CreateWindowBindings( Window& window, sol::state& lua )
+{
+    lua.set( "set_cursor_mode", [&]( i32 mode ) {
+        if ( mode < (i32)CursorMode::Normal or mode > (i32)CursorMode::Locked )
+            throw std::runtime_error(
+                std::format( "set_cursor_mode: expected a CursorMode.* value, got {}.", mode ) );
+        window.SetCursorMode( CursorMode( mode ) );
+    } );
+    lua.set( "get_cursor_mode", [&]() { return (i32)window.GetCursorMode(); } );
+
+    lua.set( "lock_cursor", [&]( bool lock ) { window.LockCursor( lock ); } );
+    lua.set( "hide_cursor", [&]( bool hide ) { window.HideCursor( hide ); } );
+
+    lua.set( "center_cursor", [&]() { window.CenterCursor(); } );
+    lua.set( "get_cursor_pos", [&]() { return window.GetCursorPos(); } );
+    lua.set( "set_cursor_pos", [&]( const vec2& position ) { window.SetCursorPos( position ); } );
+
+    lua.safe_script( cursorModes );
 }
 
 }

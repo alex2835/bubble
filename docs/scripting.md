@@ -11,23 +11,41 @@ list.
 
 ---
 
-## The script entry point
+## The script entry points
 
 ```lua
+function on_start( entity, state )     -- optional
+end
+
 function on_update( entity, state, dt )
 end
 ```
 
-Called once per frame for every entity that has **both** a `ScriptComponent`
-and a `StateComponent`.
+Both are called for every entity that has **both** a `ScriptComponent` and a
+`StateComponent`. `on_update` runs once per frame; `on_start` runs once, when
+the game starts.
 
 | Parameter | |
 |---|---|
 | `entity` | the owning `Entity` |
 | `state` | that entity's `StateComponent` — a plain Lua table that persists between frames and is saved with the project |
-| `dt` | seconds since the last frame |
+| `dt` | seconds since the last frame (`on_update` only) |
 
-`on_update` must be a global. It is read once when the project starts.
+`on_update` is required — a script without it fails to start. `on_start` is
+optional; leave it out if there is nothing to set up.
+
+Both must be globals. They are read once when the project starts, by running the
+script chunk and looking the two names up. A `local function on_start` is never
+found.
+
+`on_start` runs after every script has been loaded and every engine global is in
+place, so it can already see `global_state`, the cursor functions and anything
+another script's chunk put into a global. It runs before the first `on_update`
+and before the first physics step.
+
+The same restriction as `on_update` applies: the engine calls it from inside its
+own iteration over the scene, so **do not create or remove entities from
+`on_start`** — see the lifetime rules in the skill.
 
 `dt` is a parameter, not a global. Every script shares one Lua state with no
 environment isolation, so a global would be writable by any script and would
@@ -246,6 +264,33 @@ parse. The Delete key was already `del` for the same kind of reason on the C++
 side.
 
 `MouseKey`: `left`, `right`, `middle`, `one`–`eight`, `last`, `unknown`.
+
+### Cursor
+
+| Function | Returns |
+|---|---|
+| `set_cursor_mode( mode )` | — |
+| `get_cursor_mode()` | number, a `CursorMode.*` value |
+| `lock_cursor( bool )` | — shorthand for `locked` / `normal` |
+| `hide_cursor( bool )` | — shorthand for `hidden` / `normal` |
+| `center_cursor()` | — moves the cursor to the middle of the window |
+| `get_cursor_pos()` | `vec2`, same frame as `mouse_pos_x/y`, origin bottom left |
+| `set_cursor_pos( vec2 )` | — |
+
+`CursorMode` is one of:
+
+| | |
+|---|---|
+| `CursorMode.normal` | visible, free to leave the window |
+| `CursorMode.hidden` | invisible, but still a real pointer that can leave the window |
+| `CursorMode.locked` | invisible and captured; movement comes back as an unbounded delta, and raw motion is used where the platform supports it. This is what a mouse look camera wants. |
+
+Warping the cursor — `center_cursor`, `set_cursor_pos`, or a mode change — does
+not show up as mouse movement: the engine resyncs the tracked position, so
+`mouse_offset_x/y` stay at zero for that jump instead of snapping the camera.
+
+The engine releases the cursor when the game ends, so a script that locks it and
+never unlocks it cannot leave the editor unusable.
 
 ## Assets
 

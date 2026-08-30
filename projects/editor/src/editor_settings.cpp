@@ -17,6 +17,14 @@ void EditorSettings::Save() const
 {
     json settingsJson;
 
+    if ( mHasWindowGeometry )
+    {
+        json& windowJson = settingsJson["Window"];
+        windowJson["Position"] = mWindowPosition;
+        windowJson["Size"] = mWindowSize;
+        windowJson["Maximized"] = mWindowMaximized;
+    }
+
     json& interfaceJson = settingsJson["Interface"];
     interfaceJson["UIScale"] = mUIScale;
     interfaceJson["UIFontSize"] = mUIFontSize;
@@ -57,6 +65,16 @@ void EditorSettings::Load()
 
         // Every field is optional, a settings file written by an older build
         // must still load and just keep the defaults for whatever it is missing.
+        if ( auto windowJson = settingsJson.find( "Window" ); windowJson != settingsJson.end() )
+        {
+            if ( auto position = windowJson->find( "Position" ); position != windowJson->end() )
+                from_json( *position, mWindowPosition );
+            if ( auto size = windowJson->find( "Size" ); size != windowJson->end() )
+                from_json( *size, mWindowSize );
+            mWindowMaximized = windowJson->value( "Maximized", mWindowMaximized );
+            mHasWindowGeometry = true;
+        }
+
         if ( auto interfaceJson = settingsJson.find( "Interface" ); interfaceJson != settingsJson.end() )
         {
             mUIScale = interfaceJson->value( "UIScale", mUIScale );
@@ -91,6 +109,15 @@ void EditorSettings::Load()
 
 void EditorSettings::Apply( Window& window, SceneCamera& camera, UIGlobals& uiGlobals ) const
 {
+    if ( mHasWindowGeometry )
+    {
+        // Size first, SetPosition needs it to tell whether the window would
+        // land on a monitor that is still connected.
+        window.SetSize( mWindowSize );
+        window.SetPosition( mWindowPosition );
+        window.SetMaximized( mWindowMaximized );
+    }
+
     window.SetUIFont( mUIFontPath );
     window.SetUIFontSize( mUIFontSize );
     window.SetUIScale( mUIScale );
@@ -110,6 +137,13 @@ void EditorSettings::Apply( Window& window, SceneCamera& camera, UIGlobals& uiGl
 
 void EditorSettings::Capture( const Window& window, const SceneCamera& camera, const UIGlobals& uiGlobals )
 {
+    // The restored geometry, not the current one, a maximized window has to
+    // come back with something sane to unmaximize to.
+    mWindowPosition = window.RestoredPosition();
+    mWindowSize = window.RestoredSize();
+    mWindowMaximized = window.IsMaximized();
+    mHasWindowGeometry = true;
+
     mUIScale = window.GetUIScale();
     mUIFontSize = window.GetUIFontSize();
     mUIFontPath = window.GetUIFont();
