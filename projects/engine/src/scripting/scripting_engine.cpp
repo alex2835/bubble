@@ -17,7 +17,7 @@
 
 namespace bubble
 {
-constexpr string_view ON_UPDATE_FUNC = "OnUpdate"sv;
+constexpr string_view ON_UPDATE_FUNC = "on_update"sv;
 
 ScriptingEngine::ScriptingEngine()
     : mLua( CreateScope<sol::state>() )
@@ -69,16 +69,12 @@ void ScriptingEngine::ExtractOnUpdate( sol::protected_function& func, const Ref<
     mLua->set( ON_UPDATE_FUNC, sol::nil );
     RunScript( script );
 
-    auto onUpdate = mLua->get<sol::object>( ON_UPDATE_FUNC );
-    if ( not onUpdate.is<sol::function>() )
+    if ( not mLua->get<sol::object>( ON_UPDATE_FUNC ).is<sol::function>() )
         throw std::runtime_error(
-            std::format( "Script '{}' defines no global function {}( entity, state ).\n  {}",
+            std::format( "Script '{}' defines no global function {}( entity, state, dt ).\n  {}",
                          script->mName, ON_UPDATE_FUNC, script->mPath.string() ) );
     
-    // Save function in lua state with script name to don't overlap with other
-    auto newName = script->mName + string( ON_UPDATE_FUNC );
-    mLua->set( newName, onUpdate );
-    func = mLua->get<sol::function>( newName );
+    func = mLua->get<sol::protected_function>( ON_UPDATE_FUNC );
 }
 
 void ScriptingEngine::RunScript( const Script& script )

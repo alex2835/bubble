@@ -68,37 +68,37 @@ void CreateSceneBindings( Scene& scene,
         []( const Entity& entity ){ return std::to_string( (size_t)entity ); },
         
         // Add
-        "add_tag_component",
+        "add_tag",
         sol::overload(
             [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
             [&]( const Entity& entity, const TagComponent& c ) { scene.AddComponent<TagComponent>( entity, c ); }
         ),
-        "add_transform_component",
+        "add_transform",
         sol::overload(
             [&]( const Entity& entity, const Transform& t ) { scene.AddComponent<TransformComponent>( entity, t ); },
             [&]( const Entity& entity, const TransformComponent& c ) { scene.AddComponent<TransformComponent>( entity, c ); }
         ),
-        "add_model_component",
+        "add_model",
         sol::overload(
             [&]( const Entity& entity, const Ref<Model>& model ) { scene.AddComponent<ModelComponent>( entity, model ); },
             [&]( const Entity& entity, const ModelComponent& c ) { scene.AddComponent<ModelComponent>( entity, c ); }
         ),
-        "add_shader_component",
+        "add_shader",
         sol::overload(
             [&]( const Entity& entity, const Ref<Shader>& shader ) { scene.AddComponent<ShaderComponent>( entity, shader ); },
             [&]( const Entity& entity, const ShaderComponent& c ) { scene.AddComponent<ShaderComponent>( entity, c ); }
         ),
-        "add_camera_component",
+        "add_camera",
         sol::overload(
             [&]( const Entity& entity, const Camera& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
             [&]( const Entity& entity, const CameraComponent& c ) { scene.AddComponent<CameraComponent>( entity, c ); }
         ),
-        "add_light_component",
+        "add_light",
         sol::overload(
             [&]( const Entity& entity, const Light& light ) { scene.AddComponent<LightComponent>( entity, light ); },
             [&]( const Entity& entity, const LightComponent& c ) { scene.AddComponent<LightComponent>( entity, c ); }
         ),
-        "add_rigid_body_component",
+        "add_rigid_body",
         sol::overload(
             [&]( const Entity& entity, RigidBody object )
             {
@@ -113,7 +113,7 @@ void CreateSceneBindings( Scene& scene,
                 physicsEngine.Add( c.mRigidBody, entity );
             }
         ),
-        "add_character_controller_component",
+        "add_character_controller",
         sol::overload(
             [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
             {
@@ -128,22 +128,34 @@ void CreateSceneBindings( Scene& scene,
                 physicsEngine.Add( c.mController, entity );
             }
         ),
-        "add_state_component",
+        "add_state",
         [&]( const Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); },
 
-        // Get — inner/base type shortcuts (convenient field access)
+        // Get — one name per component. Each returns the type that actually
+        // carries the fields a script wants.
+        //
+        // For most components that is the *Component itself: TransformComponent,
+        // CameraComponent and LightComponent derive from Transform/Camera/Light,
+        // and only the derived type is registered as a usertype, so returning a
+        // base reference would push userdata with no accessible members at all
+        // (indexing it raises "attempt to index a sol.Camera * value").
+        //
+        // RigidBodyComponent and CharacterControllerComponent instead *contain*
+        // their payload and expose nothing else, so the inner object - the one
+        // holding jump(), set_walk_direction(), set_friction() - is what a script
+        // needs.
         "get_tag",
         [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "get_transform",
-        [&]( const Entity& entity ) -> Transform& { return scene.GetComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) -> TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
         "get_model",
-        [&]( const Entity& entity ) -> Ref<Model> { return scene.GetComponent<ModelComponent>( entity ).mModel; },
+        [&]( const Entity& entity ) -> ModelComponent& { return scene.GetComponent<ModelComponent>( entity ); },
         "get_shader",
-        [&]( const Entity& entity ) -> Ref<Shader> { return scene.GetComponent<ShaderComponent>( entity ).mShader; },
+        [&]( const Entity& entity ) -> ShaderComponent& { return scene.GetComponent<ShaderComponent>( entity ); },
         "get_camera",
-        [&]( const Entity& entity ) -> Camera& { return scene.GetComponent<CameraComponent>( entity ); },
+        [&]( const Entity& entity ) -> CameraComponent& { return scene.GetComponent<CameraComponent>( entity ); },
         "get_light",
-        [&]( const Entity& entity ) -> Light& { return scene.GetComponent<LightComponent>( entity ); },
+        [&]( const Entity& entity ) -> LightComponent& { return scene.GetComponent<LightComponent>( entity ); },
         "get_rigid_body",
         [&]( const Entity& entity ) -> RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
         "get_character_controller",
@@ -151,44 +163,24 @@ void CreateSceneBindings( Scene& scene,
         "get_state",
         [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
-        // Get — full component wrapper (access component-level fields like mUniforms)
-        "get_tag_component",
-        [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
-        "get_transform_component",
-        [&]( const Entity& entity ) -> TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
-        "get_model_component",
-        [&]( const Entity& entity ) -> ModelComponent& { return scene.GetComponent<ModelComponent>( entity ); },
-        "get_shader_component",
-        [&]( const Entity& entity ) -> ShaderComponent& { return scene.GetComponent<ShaderComponent>( entity ); },
-        "get_camera_component",
-        [&]( const Entity& entity ) -> CameraComponent& { return scene.GetComponent<CameraComponent>( entity ); },
-        "get_light_component",
-        [&]( const Entity& entity ) -> LightComponent& { return scene.GetComponent<LightComponent>( entity ); },
-        "get_rigid_body_component",
-        [&]( const Entity& entity ) -> RigidBodyComponent& { return scene.GetComponent<RigidBodyComponent>( entity ); },
-        "get_character_controller_component",
-        [&]( const Entity& entity ) -> CharacterControllerComponent& { return scene.GetComponent<CharacterControllerComponent>( entity ); },
-        "get_state_component",
-        [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
-
         // Has
-        "has_tag_component",
+        "has_tag",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<TagComponent>( entity ); },
-        "has_transform_component",
+        "has_transform",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<TransformComponent>( entity ); },
-        "has_model_component",
+        "has_model",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<ModelComponent>( entity ); },
-        "has_shader_component",
+        "has_shader",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<ShaderComponent>( entity ); },
-        "has_camera_component",
+        "has_camera",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<CameraComponent>( entity ); },
-        "has_light_component",
+        "has_light",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<LightComponent>( entity ); },
-        "has_rigid_body_component",
+        "has_rigid_body",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<RigidBodyComponent>( entity ); },
-        "has_character_controller_component",
+        "has_character_controller",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<CharacterControllerComponent>( entity ); },
-        "has_state_component",
+        "has_state",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); }
     );
 
@@ -233,18 +225,7 @@ void CreateSceneBindings( Scene& scene,
             componentsIds[idsCount++] = (ComponentTypeId)componentId;
         }
 
-        // One table, reused for every entity. A fresh table per entity measures
-        // ~45-90% slower on this loop (an allocation plus a rehash per component
-        // key), and buys very little: the values below are raw pointers into the
-        // component pools, so a table the callback holds on to past its own
-        // return is dangling either way.
-        //
-        // Contract for scripts: the table passed to the callback, and everything
-        // in it, is valid only for the duration of that call. Copy out what you
-        // need to keep.
-        //
-        // Safe to reuse without clearing: componentsIds is fixed for the whole
-        // call, so every key is overwritten on every iteration.
+        // Same table during whole iterations
         auto componentsTable = lua.create_table( 0, componentsCount );
 
         scene.RuntimeForEach( componentsIds,

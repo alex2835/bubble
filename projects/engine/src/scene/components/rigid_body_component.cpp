@@ -194,7 +194,7 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
 
     lua.new_usertype<RigidBodyComponent>(
         "RigidBodyComponent",
-        "RigidBody", &RigidBodyComponent::mRigidBody
+        "rigid_body", &RigidBodyComponent::mRigidBody
     );
 
     lua["create_rigid_body_sphere"] = []( const TransformComponent& trans, f32 mass, f32 radius ) {

@@ -67,8 +67,6 @@ IGNORE = {
     "call_constructor", "to_string", "index", "new_index",
     # Enum tables are emitted from Lua source strings, checked separately.
     "Component", "KeyboardKey", "MouseKey", "LightType",
-    # Internal: the per-script OnUpdate slot the engine reads and clears.
-    "OnUpdate",
 }
 
 

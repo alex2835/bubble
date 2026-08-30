@@ -1,6 +1,6 @@
 ---
 name: bubble-scripting
-description: Write, review, or debug Lua gameplay scripts for the Bubble engine. Covers the OnUpdate script contract, the Entity/component Lua API, and the object-lifetime rules that make scripts crash or corrupt memory. Use when touching .lua game scripts, ScriptComponent, StateComponent, or anything under projects/engine/src/scripting/bindings.
+description: Write, review, or debug Lua gameplay scripts for the Bubble engine. Covers the on_update script contract, the Entity/component Lua API, and the object-lifetime rules that make scripts crash or corrupt memory. Use when touching .lua game scripts, ScriptComponent, StateComponent, or anything under projects/engine/src/scripting/bindings.
 ---
 
 # Bubble engine — Lua scripting
@@ -18,14 +18,20 @@ Naming: the Lua API is `snake_case` for globals, methods, fields and enum
 members. Type names stay PascalCase (`Entity`, `Transform`, `RayHitResult`),
 and glm keeps its GLSL spelling (`vec3`, `mat4`).
 
+Component accessors carry **no `_component` suffix** and there is exactly one
+name per component: `entity:add_state( t )`, `entity:get_camera()`,
+`entity:has_rigid_body()`. `add_state_component` / `get_camera_component` and
+friends no longer exist.
+
 ## Script contract
 
-A script is a Lua file that defines a global `OnUpdate`:
+A script is a Lua file that defines a global `on_update`:
 
 ```lua
-function OnUpdate( entity, state )
+function on_update( entity, state, dt )
     -- entity: the Entity this ScriptComponent is attached to
     -- state:  this entity's StateComponent, a plain Lua table
+    -- dt:     seconds since the last frame
 end
 ```
 
@@ -37,11 +43,15 @@ error if missing:
    entity with only a `ScriptComponent` is silently skipped.
 2. The `ScriptComponent` must have a script asset assigned, or `OnStart` throws
    `Entity:{} Script not set`.
-3. `OnUpdate` must be a **global**. It is extracted by name once at startup, not
-   looked up per frame. Defining it as `local` means it is never found.
+3. `on_update` must be a **global**. It is extracted by name once at startup,
+   not looked up per frame. Defining it as `local` means it is never found.
+
+`dt` is a parameter, not a global. All scripts share one Lua state with no
+environment isolation, so anything you assign to a global name is visible to
+every other script — keep per-entity data in `state`.
 
 `state` persists across frames and is serialised into the project file. It is
-the only place to keep per-entity script data — locals in `OnUpdate` do not
+the only place to keep per-entity script data — locals in `on_update` do not
 survive the call, and globals are shared by every script in the process.
 
 ## Lifetime rules
@@ -73,14 +83,14 @@ end )
 
 Mutating the scene inside a `for_each_entity` callback invalidates the iteration
 and every component reference the engine is holding, including the ones passed
-to the callback. This applies to `OnUpdate` too: the engine calls scripts from
-inside its own iteration, so **`create_entity` / `add_*_component` / `remove_entity`
-called directly from `OnUpdate` are not safe today.**
+to the callback. This applies to `on_update` too: the engine calls scripts from
+inside its own iteration, so **`create_entity` / `add_*` / `remove_entity`
+called directly from `on_update` are not safe today.**
 
 Queue the work and apply it outside the iteration:
 
 ```lua
-function OnUpdate( entity, state )
+function on_update( entity, state, dt )
     state.pendingSpawns = state.pendingSpawns or {}
     if shouldSpawn then
         table.insert( state.pendingSpawns, position )   -- do not spawn here
@@ -111,8 +121,8 @@ again after any such change rather than holding it across one.
 - Adding a `RigidBody` or `CharacterController` component to an entity that
   already has one replaces it and re-registers it with the physics world. This
   is handled, but it is not free — do not do it per frame.
-- There are no `add_script_component` / `get_script` / `has_script_component`
-  bindings, and no `remove_*_component` bindings at all. Scripts cannot attach
+- There are no `add_script` / `get_script` / `has_script`
+  bindings, and no `remove_*` bindings at all. Scripts cannot attach
   scripts or detach components.
 - Input keys are one flat namespace: `is_key_pressed` takes either a
   `KeyboardKey.*` or a `MouseKey.*` value and dispatches on the numeric range.
@@ -136,7 +146,7 @@ Run `python tools/check_lua_api_docs.py` to check the doc against the bindings.
 
 ## If you are changing the engine, not writing a script
 
-R2 is the open one. The engine invokes `OnUpdate` from inside
+R2 is the open one. The engine invokes `on_update` from inside
 `ForEach<StateComponent, ScriptComponent>` in `Engine::OnUpdate`, which is what
 makes script-driven mutation unsafe. The candidate fixes are: snapshot the
 entity list and run scripts after the iteration ends; add a deferred mutation

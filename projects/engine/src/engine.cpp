@@ -107,19 +107,19 @@ void Engine::OnUpdate()
     PropagatePhysicsTransforms( mProject.mScene );
     PropagateTransforms( mProject.mScene );
 
-
     /// Update Scripts
-    mProject.mScriptingEngine.SetVar( "dt", dt.Seconds() );
+    const f32 deltaSeconds = dt.Seconds();
 
     // Call scripts
     mProject.mScene.ForEach<StateComponent, ScriptComponent>(
-    []( Entity entity,
+    [deltaSeconds]( Entity entity,
         const StateComponent& stateComponent,
         const ScriptComponent& scriptComponent )
     {
         if ( scriptComponent.mOnUpdate )
         {
-            sol::protected_function_result result = scriptComponent.mOnUpdate( entity, *stateComponent.mState );
+            sol::protected_function_result result =
+                scriptComponent.mOnUpdate( entity, *stateComponent.mState, deltaSeconds );
             if ( !result.valid() )
             {
                 const sol::error err = result;

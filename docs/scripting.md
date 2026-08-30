@@ -14,22 +14,26 @@ list.
 ## The script entry point
 
 ```lua
-function OnUpdate( entity, state )
+function on_update( entity, state, dt )
 end
 ```
 
 Called once per frame for every entity that has **both** a `ScriptComponent`
-and a `StateComponent`. `entity` is the owning `Entity`; `state` is that
-entity's `StateComponent`, a plain Lua table that persists between frames and is
-saved with the project.
+and a `StateComponent`.
 
-`OnUpdate` must be a global. It is read once when the project starts.
+| Parameter | |
+|---|---|
+| `entity` | the owning `Entity` |
+| `state` | that entity's `StateComponent` — a plain Lua table that persists between frames and is saved with the project |
+| `dt` | seconds since the last frame |
+
+`on_update` must be a global. It is read once when the project starts.
+
+`dt` is a parameter, not a global. Every script shares one Lua state with no
+environment isolation, so a global would be writable by any script and would
+corrupt the value for every script running later in the same frame.
 
 ## Globals
-
-| Name | Type | Notes |
-|---|---|---|
-| `dt` | number | Seconds since the last frame. Set before scripts run. |
 | `global_state` | table | Shared by every script; persisted with the project. |
 | `set_active_camera( entity )` | | Renders from that entity's `CameraComponent`. |
 | `get_active_camera()` | `Entity` | |
@@ -37,7 +41,7 @@ saved with the project.
 
 ## Entity
 
-Obtained from `create_entity()`, from an `OnUpdate` argument, from
+Obtained from `create_entity()`, from an `on_update` argument, from
 `for_each_entity`, or from `RayHitResult.entity`.
 
 ### Scene functions
@@ -63,44 +67,48 @@ Each takes an inner value or a whole component.
 
 | Method | Argument |
 |---|---|
-| `entity:add_tag_component( name )` | `string`, or a `Tag` |
-| `entity:add_transform_component( transform )` | `Transform` |
-| `entity:add_model_component( model )` | model handle from `load_model`, or a `ModelComponent` |
-| `entity:add_shader_component( shader )` | shader handle from `load_shader`, or a `ShaderComponent` |
-| `entity:add_camera_component( camera )` | `Camera` |
-| `entity:add_light_component( light )` | `Light` |
-| `entity:add_rigid_body_component( body )` | `RigidBody`, or a `RigidBodyComponent`. Registers with the physics world. |
-| `entity:add_character_controller_component( radius, height, stepHeight )` | numbers, or a `CharacterControllerComponent`. Registers with the physics world. |
-| `entity:add_state_component( table )` | any Lua value |
+| `entity:add_tag( name )` | `string`, or a `Tag` |
+| `entity:add_transform( transform )` | `Transform` |
+| `entity:add_model( model )` | model handle from `load_model`, or a `ModelComponent` |
+| `entity:add_shader( shader )` | shader handle from `load_shader`, or a `ShaderComponent` |
+| `entity:add_camera( camera )` | `Camera` |
+| `entity:add_light( light )` | `Light` |
+| `entity:add_rigid_body( body )` | `RigidBody`, or a `RigidBodyComponent`. Registers with the physics world. |
+| `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `CharacterControllerComponent`. Registers with the physics world. |
+| `entity:add_state( table )` | any Lua value |
 
-There is no `add_script_component`.
+There is no `add_script`.
 
 ### Reading components
 
-Two families. The short name gives the inner value you usually want; the
-`...Component` name gives the wrapper, for fields that live on the component
-rather than the underlying type.
+One name per component. There is no `_component` suffix anywhere in the API —
+`add_x`, `get_x` and `has_x` all name the same component.
 
-| Short | Returns | Wrapper | Returns |
-|---|---|---|---|
-| `entity:get_tag()` | `Tag` | `entity:get_tag_component()` | `Tag` |
-| `entity:get_transform()` | `Transform` | `entity:get_transform_component()` | `Transform` |
-| `entity:get_model()` | model handle | `entity:get_model_component()` | `ModelComponent` |
-| `entity:get_shader()` | shader handle | `entity:get_shader_component()` | `ShaderComponent` (has `uniforms`) |
-| `entity:get_camera()` | `Camera` | `entity:get_camera_component()` | `Camera` |
-| `entity:get_light()` | `Light` | `entity:get_light_component()` | `Light` |
-| `entity:get_rigid_body()` | `RigidBody` | `entity:get_rigid_body_component()` | `RigidBodyComponent` |
-| `entity:get_character_controller()` | `CharacterController` | `entity:get_character_controller_component()` | `CharacterControllerComponent` |
-| `entity:get_state()` | table | `entity:get_state_component()` | table |
+| Method | Returns |
+|---|---|
+| `entity:get_tag()` | `Tag` — `name`, `class` |
+| `entity:get_transform()` | `Transform` — `position`, `rotation`, `scale` |
+| `entity:get_model()` | `ModelComponent` — `model` |
+| `entity:get_shader()` | `ShaderComponent` — `shader`, `uniforms` |
+| `entity:get_camera()` | `Camera` — `position`, `yaw`, `pitch`, `radius`, `center`, … |
+| `entity:get_light()` | `Light` |
+| `entity:get_rigid_body()` | `RigidBody` — `set_friction`, `apply_central_impulse`, … |
+| `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_direction`, `is_on_ground`, … |
+| `entity:get_state()` | table |
+
+Each returns the type that actually carries the fields you want. For most
+components that is the component itself; `get_rigid_body` and
+`get_character_controller` return the inner physics object, because
+`RigidBodyComponent` and `CharacterControllerComponent` contain their payload
+and expose nothing else.
 
 Getting a component the entity does not have raises an error — check first.
 
 ### Testing for components
 
-`entity:has_tag_component()`, `has_transform_component`, `has_model_component`,
-`has_shader_component`, `has_camera_component`, `has_light_component`,
-`has_rigid_body_component`, `has_character_controller_component`,
-`has_state_component`. All return a boolean. There is no `HasScriptComponent`.
+`entity:has_tag()`, `has_transform`, `has_model`, `has_shader`, `has_camera`,
+`has_light`, `has_rigid_body`, `has_character_controller`, `has_state`.
+All return a boolean. There is no `has_script`.
 
 ## The `Component` enum
 
@@ -259,4 +267,4 @@ Free functions: `distance( a, b )`, `dot( a, b )`, `cross( a, b )` (vec3 only),
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
 | `print_any` | `projects/engine/src/scripting/bindings/free_function_lua_bindings.cpp` |
 | Math | `deps/glm_lua_bindings/src/` |
-| `dt`, `global_state`, camera | `projects/engine/src/engine.cpp` |
+| `global_state`, `dt`, camera | `projects/engine/src/engine.cpp` |
