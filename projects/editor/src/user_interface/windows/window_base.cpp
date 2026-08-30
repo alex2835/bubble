@@ -13,7 +13,8 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
       mProject( editor.mProject ),
       mSelection( editor.mSelection ),
       mHistory( editor.mHistory ),
-      mUIGlobals( editor.mUIGlobals )
+      mUIGlobals( editor.mUIGlobals ),
+      mEditorSettings( editor.mEditorSettings )
 {}
 
 }

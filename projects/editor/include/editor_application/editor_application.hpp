@@ -7,6 +7,7 @@
 #include "utils/resources_hot_reloader.hpp"
 #include "utils/selection.hpp"
 #include "utils/ui_globals.hpp"
+#include "utils/editor_settings.hpp"
 #include "utils/history.hpp"
 #include "utils/clipboard.hpp"
 #include "utils/auto_backup.hpp"
@@ -24,6 +25,7 @@ class BubbleEditor
 {
 public:
     BubbleEditor();
+    ~BubbleEditor();
     void OpenProject( const path& projectPath );
     void Run();
 
@@ -46,6 +48,7 @@ public:
     Framebuffer mSceneViewport; // Viewport
     Framebuffer mEntityIdViewport; // Entity picking viewport (Handles scene object picking in viewport)
     UIGlobals mUIGlobals;
+    EditorSettings mEditorSettings;
 
     /// Game editing
     Project mProject;

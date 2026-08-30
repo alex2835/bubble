@@ -11,6 +11,7 @@ class Window;
 class Selection;
 class History;
 struct UIGlobals;
+struct EditorSettings;
 enum class EditorMode;
 
 // View of an editor
@@ -35,6 +36,8 @@ protected:
 
     // UI global state
     UIGlobals& mUIGlobals;
+    // Persisted editor preferences
+    EditorSettings& mEditorSettings;
 };
 
 }

@@ -11,7 +11,8 @@ struct GLFWwindow;
 namespace bubble
 {
 constexpr string_view INI_FILE_PATH = "./resources/imgui/imgui.ini"sv;
-constexpr string_view DEFAULT_UI_FONT_PATH = "./resources/fonts/Roboto-Medium.ttf"sv;
+// Relative to the executable directory, see filesystem::resolveNearExecutable.
+constexpr string_view DEFAULT_UI_FONT_PATH = "resources/fonts/Roboto-Medium.ttf"sv;
 constexpr f32 DEFAULT_UI_FONT_SIZE = 16.0f;
 constexpr f32 MIN_UI_SCALE = 0.5f;
 constexpr f32 MAX_UI_SCALE = 3.0f;

@@ -25,6 +25,16 @@ BubbleEditor::BubbleEditor()
 {
     mWindow.SetVSync( false );
     mProject.mScriptingEngine.SetCurrentState();
+
+    mEditorSettings.Load();
+    mEditorSettings.Apply( mWindow, mSceneCamera, mUIGlobals );
+}
+
+
+BubbleEditor::~BubbleEditor()
+{
+    mEditorSettings.Capture( mWindow, mSceneCamera, mUIGlobals );
+    mEditorSettings.Save();
 }
 
 

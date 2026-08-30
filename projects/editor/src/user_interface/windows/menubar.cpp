@@ -114,7 +114,7 @@ void Menubar::DrawInterfaceMenu()
 {
     ImGui::SetNextItemWidth( 200.0f * mWindow.GetUIScale() );
     f32 uiScale = mWindow.GetUIScale();
-    if ( ImGui::InputFloat( "Scale", &uiScale, 0.25f, 1.0f, "%.2fx" ) )
+    if ( ImGui::InputFloat( "Scale", &uiScale, 0.1f, 0.25f, "%.2fx" ) )
         mWindow.SetUIScale( std::clamp( uiScale, 0.5f, 3.0f ) );
 
     ImGui::SetNextItemWidth( 200.0f * mWindow.GetUIScale() );
@@ -130,6 +130,26 @@ void Menubar::DrawInterfaceMenu()
 
     ImGui::Separator();
     ImGui::TextDisabled( "monitor dpi scale %.2fx", mWindow.GetDPIScale() );
+
+    ImGui::EndMenu();
+}
+
+void Menubar::DrawSettingsMenu()
+{
+    // Settings are written on exit anyway, this is for when you want them kept
+    // right now without closing the editor.
+    if ( ImGui::MenuItem( "Save editor settings" ) )
+    {
+        mEditorSettings.Capture( mWindow, mSceneCamera, mUIGlobals );
+        mEditorSettings.Save();
+        LogInfo( "Editor settings saved: {}", EditorSettings::FilePath().string() );
+    }
+
+    if ( ImGui::MenuItem( "Reset editor settings" ) )
+    {
+        mEditorSettings = EditorSettings();
+        mEditorSettings.Apply( mWindow, mSceneCamera, mUIGlobals );
+    }
 
     ImGui::EndMenu();
 }
@@ -168,6 +188,9 @@ void Menubar::DrawMenubar()
 
             if ( ImGui::BeginMenu( "Interface" ) )
                 DrawInterfaceMenu();
+
+            if ( ImGui::BeginMenu( "Settings" ) )
+                DrawSettingsMenu();
 
             ImGui::EndMenu();
         }

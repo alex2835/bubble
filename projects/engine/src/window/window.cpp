@@ -394,9 +394,12 @@ void Window::ReloadUIFont()
         return;
     }
 
-    if ( not filesystem::exists( mUIFontPath ) )
+    // Relative paths are resolved against the executable, not the working
+    // directory, so the editor finds its font whatever it was launched from.
+    auto fontFile = filesystem::resolveNearExecutable( mUIFontPath );
+    if ( not filesystem::exists( fontFile ) )
     {
-        LogError( "UI font not found: {}, falling back to the built in font", mUIFontPath );
+        LogError( "UI font not found: {}, falling back to the built in font", fontFile.string() );
         mUIFontPath.clear();
         io.Fonts->AddFontDefault();
         return;
@@ -404,7 +407,7 @@ void Window::ReloadUIFont()
 
     // Size 0 keeps the font dynamic, imgui 1.92 bakes it on demand at whatever
     // size style.FontSizeBase and the scale factors ask for.
-    io.Fonts->AddFontFromFileTTF( mUIFontPath.c_str(), 0.0f );
+    io.Fonts->AddFontFromFileTTF( fontFile.string().c_str(), 0.0f );
 }
 
 WindowInput& Window::GetWindowInput()

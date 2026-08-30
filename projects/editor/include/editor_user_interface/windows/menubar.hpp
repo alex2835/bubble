@@ -18,6 +18,7 @@ public:
     void ModalCreateProject();
     void ModalOpenProject();
     void DrawInterfaceMenu();
+    void DrawSettingsMenu();
     void DrawMenubar();
     void OnDraw( DeltaTime dt );
 
