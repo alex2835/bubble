@@ -12,6 +12,13 @@ namespace bubble
 {
 using namespace recs;
 
+// Bullet steps at a fixed rate and runs actions (the character controller) once
+// per substep, so anything expressed per second converts through this.
+constexpr f32 PHYSICS_FIXED_STEP = 1.0f / 60.0f;
+// Allow the simulation to catch up over several substeps in one frame, otherwise
+// physics silently runs in slow motion whenever the frame rate drops below 60.
+constexpr i32 PHYSICS_MAX_SUBSTEPS = 10;
+
 class CharacterController;
 
 struct RayHitResult

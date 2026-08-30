@@ -126,6 +126,7 @@ void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
         "CharacterController",
         sol::constructors<CharacterController( f32, f32, f32 )>(),
 
+        "set_walk_velocity",           &CharacterController::SetWalkVelocity,
         "set_walk_direction",          &CharacterController::SetWalkDirection,
         "set_velocity_for_time_interval",&CharacterController::SetVelocityForTimeInterval,
         "jump",                      &CharacterController::Jump,

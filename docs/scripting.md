@@ -93,7 +93,7 @@ One name per component. There is no `_component` suffix anywhere in the API —
 | `entity:get_camera()` | `Camera` — `position`, `yaw`, `pitch`, `radius`, `center`, … |
 | `entity:get_light()` | `Light` |
 | `entity:get_rigid_body()` | `RigidBody` — `set_friction`, `apply_central_impulse`, … |
-| `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_direction`, `is_on_ground`, … |
+| `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
 | `entity:get_state()` | table |
 
 Each returns the type that actually carries the fields you want. For most
@@ -187,11 +187,26 @@ create_rigid_body_capsule( transform, mass, radius, height )
 
 Construct with `create_character_controller( radius, height, stepHeight )`.
 
-Methods: `set_walk_direction( vec3 )`, `set_velocity_for_time_interval( vec3, t )`,
+Methods: `set_walk_velocity( vec3 )`, `set_walk_direction( vec3 )`,
+`set_velocity_for_time_interval( vec3, t )`,
 `jump()`, `warp( vec3 )`, `is_on_ground()`, `get_position()`,
 `get_linear_velocity()`, `set_max_jump_height( h )`, `set_jump_speed( s )`,
 `set_fall_speed( s )`, `set_gravity( g )`, `set_max_slope( radians )`,
 `set_step_height( h )`, `get_radius()`, `get_height()`.
+
+`set_walk_velocity` takes **units per second** and is what movement code should
+use. `set_walk_direction` is Bullet's raw form — a displacement applied once per
+physics substep, not a velocity — and multiplying it by frame `dt` makes speed
+depend on the frame rate. Reach for it only if you mean the raw form.
+
+`jump()` is unconditional; the script decides whether jumping is allowed, which
+is what makes coyote time and jump buffering expressible. `is_on_ground()` is an
+exact-zero test on vertical velocity, so it flickers on steps and slopes — treat
+it as a sample rather than a reliable edge, and keep your own grace timer.
+
+`get_linear_velocity()` returns the walk direction you last set plus the real
+vertical velocity. The horizontal part is an echo of your own input, not a
+measured post-collision speed, so it cannot tell you that you hit a wall.
 
 ### StateComponent
 

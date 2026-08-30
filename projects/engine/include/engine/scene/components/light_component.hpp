@@ -10,6 +10,13 @@ struct LightComponent : public Light
     LightComponent() = default;
     explicit LightComponent( const Light& l ) : Light( l ) {}
 
+    // Light's factories return Light by value. Inheriting them unchanged would
+    // hand Lua a bubble::Light, which has no usertype registered, so every field
+    // access on the result fails. These shadow them with the bound type.
+    static LightComponent CreateDirLight()   { return LightComponent( Light::CreateDirLight() ); }
+    static LightComponent CreatePointLight() { return LightComponent( Light::CreatePointLight() ); }
+    static LightComponent CreateSpotLight()  { return LightComponent( Light::CreateSpotLight() ); }
+
     static int ID() { return static_cast<int>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }
 

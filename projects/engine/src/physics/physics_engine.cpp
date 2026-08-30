@@ -80,7 +80,7 @@ void PhysicsEngine::ClearWorld()
 
 void PhysicsEngine::Update( DeltaTime dt )
 {
-    dynamicsWorld->stepSimulation( dt.Seconds() );
+    dynamicsWorld->stepSimulation( dt.Seconds(), PHYSICS_MAX_SUBSTEPS, PHYSICS_FIXED_STEP );
 }
 
 void PhysicsEngine::SetObjectMass( RigidBody& obj, float mass )

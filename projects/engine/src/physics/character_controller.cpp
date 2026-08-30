@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/physics/character_controller.hpp"
+#include "engine/physics/physics_engine.hpp"   // PHYSICS_FIXED_STEP
 
 namespace bubble
 {
@@ -89,6 +90,14 @@ CharacterController& CharacterController::operator=( const CharacterController& 
     return *this;
 }
 
+void CharacterController::SetWalkVelocity( const vec3& velocity )
+{
+    // Bullet applies the walk direction once per fixed substep, so a velocity in
+    // units per second becomes a displacement per step.
+    const vec3 perStep = velocity * PHYSICS_FIXED_STEP;
+    mController->setWalkDirection( btVector3( perStep.x, perStep.y, perStep.z ) );
+}
+
 void CharacterController::SetWalkDirection( const vec3& direction )
 {
     mController->setWalkDirection( btVector3( direction.x, direction.y, direction.z ) );
@@ -101,8 +110,7 @@ void CharacterController::SetVelocityForTimeInterval( const vec3& velocity, f32 
 
 void CharacterController::Jump( const vec3& direction /*= vec3( 0, 1, 0 )*/ )
 {
-    if ( mController->onGround() )
-        mController->jump( btVector3( direction.x, direction.y, direction.z ) );
+    mController->jump( btVector3( direction.x, direction.y, direction.z ) );
 }
 
 void CharacterController::Warp( const vec3& position )

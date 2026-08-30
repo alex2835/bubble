@@ -22,8 +22,14 @@ public:
     CharacterController& operator=( CharacterController&& ) = default;
 
     // Movement
+    // Velocity in units per second. This is what gameplay code should use.
+    void SetWalkVelocity( const vec3& velocity );
+    // Raw Bullet form: a displacement applied once per physics substep, not a
+    // velocity. Prefer SetWalkVelocity, which converts from units per second.
     void SetWalkDirection( const vec3& direction );
     void SetVelocityForTimeInterval( const vec3& velocity, f32 timeInterval );
+    // Unconditional: the caller decides whether jumping is allowed. Gating this
+    // on IsOnGround() in here would make coyote time impossible to express.
     void Jump( const vec3& direction = vec3( 0, 1, 0 ) );
     void Warp( const vec3& position );
 
