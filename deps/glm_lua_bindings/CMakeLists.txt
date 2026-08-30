@@ -13,3 +13,5 @@ target_link_libraries(glm_lua_bindings PUBLIC sol2)
 target_include_directories(glm_lua_bindings PUBLIC 
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+target_compile_definitions(glm_lua_bindings PUBLIC GLM_ENABLE_EXPERIMENTAL)

@@ -39,7 +39,8 @@ void CreateVec3Bindings( sol::state& lua )
     lua.new_usertype<glm::vec3>(
         "vec3",
         sol::call_constructor,
-        sol::constructors<glm::vec3(), glm::vec3( float ), glm::vec3( float, float, float )>(),
+        sol::constructors<glm::vec3(), glm::vec3( float ), glm::vec3( float, float, float ),
+                          glm::vec3( glm::vec2, float )>(),
         "x",
         &glm::vec3::x,
         "y",
@@ -65,7 +66,14 @@ void CreateVec3Bindings( sol::state& lua )
         "length2",
         []( const glm::vec3& v ) { return glm::length2( v ); },
         "normalize",
-        []( const glm::vec3& v1 ) { return glm::normalize( v1 ); }
+        []( const glm::vec3& v1 ) { return glm::normalize( v1 ); },
+        // Without these two, `-v` is an error and `a == b` compares identity
+        // rather than value - two vectors holding the same numbers come out
+        // unequal, because Lua falls back to comparing userdata addresses.
+        sol::meta_function::unary_minus,
+        []( const glm::vec3& v ) { return -v; },
+        sol::meta_function::equal_to,
+        []( const glm::vec3& a, const glm::vec3& b ) { return a == b; }
     );
 }
 

@@ -242,17 +242,88 @@ Paths are relative to the project root.
 
 ## Math
 
-`vec2`, `vec3`, `vec4` — constructible as `vec3()`, `vec3( f )`,
-`vec3( x, y, z )`. Fields `x`, `y`, `z`, `w` as appropriate, plus numeric
-indexing (`v[0]`). Operators `+ - * /`, and `tostring`. Methods `length()`,
-`length2()`, `normalize()`.
+glm, with GLSL spelling and GLSL behaviour. Anything below that takes a scalar
+also takes a vector and works component-wise, unless it says otherwise.
 
-`mat2`, `mat3`, `mat4`, with `identity_mat2()`, `identity_mat3()`,
-`identity_mat4()`.
+### Types
 
-Free functions: `distance( a, b )`, `dot( a, b )`, `cross( a, b )` (vec3 only),
-`normalize( v )`, `lerp( a, b, t )`, `clamp( value, min, max )`,
-`is_nearly_zero( v )`.
+`vec2`, `vec3`, `vec4` — `vec3()`, `vec3( f )`, `vec3( x, y, z )`,
+`vec3( vec2, z )`; `vec4( vec3, w )` and `vec4( vec2, z, w )` as well. Fields
+`x`, `y`, `z`, `w` as appropriate, plus numeric indexing (`v[0]`). Operators
+`+ - * /`, unary `-`, `==`, and `tostring`. Methods `length()`, `length2()`,
+`normalize()`.
+
+`mat2`, `mat3`, `mat4` — `mat4()`, `mat4( diagonal )`, and the conversions
+`mat3( m4 )` (drops the translation) and `mat4( m3 )`. Operators `+ - *`,
+`==`, row indexing `m[0]`, and `tostring`. `identity_mat2()`,
+`identity_mat3()`, `identity_mat4()`.
+
+`==` on both compares values. Without it Lua would compare userdata addresses,
+so two vectors holding the same numbers would come out unequal.
+
+### Angles
+
+| | |
+|---|---|
+| `radians( degrees )` | degrees to radians |
+| `degrees( radians )` | radians to degrees |
+
+Every angle in the API is in radians — pass `radians( 60 )`, not `60`.
+
+### Common
+
+| | |
+|---|---|
+| `abs( x )`, `sign( x )` | |
+| `floor( x )`, `ceil( x )`, `fract( x )` | `fract` is always positive: `fract( -0.25 )` is `0.75` |
+| `mod( x, y )` | GLSL mod, not C `fmod` — the result takes the sign of `y`, so `mod( -1, 8 )` is `7`. Wraps an angle or an index. |
+| `min( a, b )`, `max( a, b )` | vector/vector or vector/scalar |
+| `clamp( value, low, high )` | scalars, or a vector with scalar or vector bounds |
+| `mix( a, b, t )` / `lerp( a, b, t )` | same function under both names; `t` may be scalar or per-component |
+| `step( edge, x )` | 0 below the edge, 1 at or above |
+| `smoothstep( low, high, x )` | smooth 0..1 ramp, for easing without writing the curve |
+
+### Geometric
+
+| | |
+|---|---|
+| `length( v )`, `length2( v )` | `length2` skips the square root — the one to compare against a squared radius |
+| `distance( a, b )`, `distance2( a, b )` | |
+| `dot( a, b )`, `cross( a, b )` | `cross` is vec3 only |
+| `normalize( v )` | NaN on a zero vector, as in GLSL — guard with `is_nearly_zero` |
+| `angle( a, b )` | radians between two directions; both are normalised first |
+| `reflect( incident, normal )` | `normal` must be normalised |
+| `refract( incident, normal, eta )` | zero on total internal reflection |
+| `project( v, onto )` | the part of `v` along `onto`. Subtract it for the part that is not — flattening a camera vector onto a plane. |
+
+### Comparison
+
+| | |
+|---|---|
+| `is_nearly_equal( a, b )` | epsilon defaults to `0.001` |
+| `is_nearly_equal( a, b, epsilon )` | |
+| `is_nearly_zero( v )` | |
+
+### Matrices and transforms
+
+| | |
+|---|---|
+| `inverse( m )`, `transpose( m )`, `determinant( m )` | mat2, mat3, mat4 |
+| `translate( m4, offset )`, `scale( m4, factor )` | |
+| `rotate( m4, angle, axis )` | turn a matrix |
+| `rotate( v3, angle, axis )`, `rotate( v2, angle )` | turn a vector directly — same name, resolved by the first argument |
+| `look_at( eye, center, up )` | a view matrix |
+| `perspective( fovY, aspect, near, far )` | `fovY` in radians |
+| `ortho( left, right, bottom, top )` | also with `near, far` |
+
+The transforms post-multiply the way glm does, so building one reads
+outermost-first:
+
+```lua
+local m = translate( identity_mat4(), position )
+m = rotate( m, angle, axis )
+m = scale( m, size )
+```
 
 ---
 

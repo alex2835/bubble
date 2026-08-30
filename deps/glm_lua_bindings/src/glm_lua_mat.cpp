@@ -30,7 +30,7 @@ void CreateMat2Bindings( sol::state& lua )
     lua.new_usertype<glm::mat2>(
         "mat2",
         sol::call_constructor,
-        sol::constructors<glm::mat2()>(),
+        sol::constructors<glm::mat2(), glm::mat2( float )>(),
         sol::meta_function::multiplication,
         mat2_multiply_overloads,
         sol::meta_function::addition,
@@ -40,7 +40,9 @@ void CreateMat2Bindings( sol::state& lua )
         sol::meta_function::index,
         []( glm::mat2& m, int i ) -> glm::vec2& { return m[i]; },
         sol::meta_function::to_string,
-        mat2_to_string
+        mat2_to_string,
+        sol::meta_function::equal_to,
+        []( const glm::mat2& a, const glm::mat2& b ) { return a == b; }
     );
 }
 
@@ -72,7 +74,7 @@ void CreateMat3Bindings( sol::state& lua )
     lua.new_usertype<glm::mat3>(
         "mat3",
         sol::call_constructor,
-        sol::constructors<glm::mat3()>(),
+        sol::constructors<glm::mat3(), glm::mat3( float ), glm::mat3( glm::mat4 )>(),
         sol::meta_function::multiplication,
         mat3_multiply_overloads,
         sol::meta_function::addition,
@@ -82,7 +84,9 @@ void CreateMat3Bindings( sol::state& lua )
         sol::meta_function::index,
         []( glm::mat3& m, int i ) -> glm::vec3& { return m[i]; },
         sol::meta_function::to_string,
-        mat3_to_string
+        mat3_to_string,
+        sol::meta_function::equal_to,
+        []( const glm::mat3& a, const glm::mat3& b ) { return a == b; }
     );
 }
 
@@ -116,7 +120,7 @@ void CreateMat4Bindings( sol::state& lua )
     lua.new_usertype<glm::mat4>(
         "mat4",
         sol::call_constructor,
-        sol::constructors<glm::mat4()>(),
+        sol::constructors<glm::mat4(), glm::mat4( float ), glm::mat4( glm::mat3 )>(),
         sol::meta_function::multiplication,
         mat4_multiply_overloads,
         sol::meta_function::addition,
@@ -126,7 +130,9 @@ void CreateMat4Bindings( sol::state& lua )
         sol::meta_function::index,
         []( glm::mat4& m, int i ) -> glm::vec4& { return m[i]; },
         sol::meta_function::to_string,
-        mat4_to_string
+        mat4_to_string,
+        sol::meta_function::equal_to,
+        []( const glm::mat4& a, const glm::mat4& b ) { return a == b; }
     );
 }
 
