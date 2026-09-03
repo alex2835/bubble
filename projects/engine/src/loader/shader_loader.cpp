@@ -377,11 +377,72 @@ void CompileShaders( Shader& shader,
 }
 
 
-UniformDescription LoadUniformDescriptions( const Ref<Shader>& shader )
+// How many floats or ints a type occupies in glGetUniform's output. Zero for
+// anything with no meaningful default value.
+static i32 UniformComponentCount( GLSLDataType type )
 {
-	UniformDescription uniformDescriptors;
+	switch ( type )
+	{
+		case GLSLDataType::Float:  case GLSLDataType::Int:
+		case GLSLDataType::Bool:                            return 1;
+		case GLSLDataType::Float2: case GLSLDataType::Int2: return 2;
+		case GLSLDataType::Float3: case GLSLDataType::Int3: return 3;
+		case GLSLDataType::Float4: case GLSLDataType::Int4: return 4;
+		case GLSLDataType::Mat3:                            return 9;
+		case GLSLDataType::Mat4:                            return 16;
+		case GLSLDataType::Texture2D:                       return 0;
+	}
+	return 0;
+}
 
-    // Introspect active uniforms — skip engine-managed ones set by the renderer
+
+// The value the uniform holds in the program as just linked, which is its GLSL
+// initializer when it declared one. Read here, before anything draws: shaders
+// are cached and shared, so a second entity picking up the same shader would
+// otherwise read back whatever the first one last set.
+static UniformDefault ReadUniformDefault( u32 shaderId, const string& name, GLSLDataType type )
+{
+	UniformDefault uniformDefault;
+	if ( UniformComponentCount( type ) == 0 )
+		return uniformDefault;
+
+	const i32 location = glGetUniformLocation( shaderId, name.c_str() );
+	if ( location == -1 )
+		return uniformDefault;
+
+	switch ( type )
+	{
+		case GLSLDataType::Float:  case GLSLDataType::Float2:
+		case GLSLDataType::Float3: case GLSLDataType::Float4:
+		case GLSLDataType::Mat3:   case GLSLDataType::Mat4:
+			glGetUniformfv( shaderId, location, uniformDefault.mFloats.data() );
+			break;
+		case GLSLDataType::Int:  case GLSLDataType::Bool:
+		case GLSLDataType::Int2: case GLSLDataType::Int3: case GLSLDataType::Int4:
+			glGetUniformiv( shaderId, location, uniformDefault.mInts.data() );
+			break;
+		default:
+			break;
+	}
+	return uniformDefault;
+}
+
+
+// Both halves of what introspection finds, returned together rather than one
+// returned and the other written into the shader through a reference.
+struct ShaderUniforms
+{
+	UniformDescription mDescriptors;
+	UniformDefaults mDefaults;
+};
+
+ShaderUniforms LoadShaderUniforms( u32 shaderId )
+{
+	ShaderUniforms uniforms;
+
+    // Introspect active uniforms - skip engine-managed ones set by the renderer
+    // or by BasicMaterial::Apply, which would otherwise show up as per-entity
+    // fields that are overwritten on every draw.
     static const std::unordered_set<string_view> sEngineUniforms = { "uModel"sv,  "uLights"sv,
     "uView"sv, "uViewPos"sv, "uProjection"sv, "uNormalMapping"sv, "uNormalMappingStrength"sv,
     "uNumLights"sv, "uNormalMatrix"sv, "uMaterial"sv, };
@@ -402,30 +463,31 @@ UniformDescription LoadUniformDescriptions( const Ref<Shader>& shader )
 	};
 
 	GLint numUniforms = 0;
-	glGetProgramiv( shader->mShaderId, GL_ACTIVE_UNIFORMS, &numUniforms );
+	glGetProgramiv( shaderId, GL_ACTIVE_UNIFORMS, &numUniforms );
 	for ( GLint i = 0; i < numUniforms; i++ )
 	{
 		char nameBuf[256];
 		GLsizei length = 0;
 		GLint size = 0;
 		GLenum glType = 0;
-		glGetActiveUniform( shader->mShaderId, i, sizeof( nameBuf ), &length, &size, &glType, nameBuf );
+		glGetActiveUniform( shaderId, i, sizeof( nameBuf ), &length, &size, &glType, nameBuf );
 
 		string name( nameBuf, length );
 		auto typeIt = sGLenumToGLSLType.find( glType );
 		if ( typeIt == sGLenumToGLSLType.end() )
 			continue; // skip unsupported types
-		
+
 		auto isSystemUni = false;
-		for ( const auto& systemUni : sEngineUniforms ) 
+		for ( const auto& systemUni : sEngineUniforms )
 			if ( name.starts_with( systemUni ) )
 				isSystemUni |= true;
 		if ( isSystemUni )
 			continue;// skip system uniforms
 
-		uniformDescriptors.emplace( std::move( name ), typeIt->second );
+		uniforms.mDefaults.emplace( name, ReadUniformDefault( shaderId, name, typeIt->second ) );
+		uniforms.mDescriptors.emplace( std::move( name ), typeIt->second );
 	}
-	return uniformDescriptors;
+	return uniforms;
 }
 
 
@@ -442,7 +504,9 @@ Ref<Shader> LoadShader( const path& path )
 	auto [vertex, fragment, geometry, modules] = *shaders;
     CompileShaders( *shader, vertex, fragment, geometry );
     shader->mModules = std::move( modules );
-	shader->mUniformDescriptors = LoadUniformDescriptions( shader );
+	auto [descriptors, defaults] = LoadShaderUniforms( shader->mShaderId );
+	shader->mUniformDescriptors = std::move( descriptors );
+	shader->mUniformDefaults = std::move( defaults );
     return shader;
 }
 

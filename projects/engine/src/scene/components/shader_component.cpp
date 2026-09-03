@@ -37,23 +37,44 @@ bool ValueMatchesType( const Object& value, GLSLDataType type )
     return false;
 }
 
-void SetDefaultValue( Table& table, const string& name, GLSLDataType type )
+// The value the uniform was given in GLSL, captured when the program linked.
+// `uniform vec4 uColor = vec4(1.0)` used to arrive in the inspector as vec4(0):
+// the shader's own initializer was thrown away and every float uniform started
+// at zero, which for a colour means black.
+sol::object DefaultUniformValue( lua_State* lua,
+                                 const Shader& shader,
+                                 const string& name,
+                                 GLSLDataType type )
 {
+    static const UniformDefault cZero;
+    const auto iter = shader.mUniformDefaults.find( name );
+    const UniformDefault& value = iter != shader.mUniformDefaults.end() ? iter->second : cZero;
+    const f32* f = value.mFloats.data();
+    const i32* i = value.mInts.data();
+
+    // A matrix uniform with no initializer reads back as all zeros, which
+    // collapses whatever it multiplies and is never what anyone meant. Identity
+    // is the only sane starting point, and no shader initializes one to zero.
+    const bool allZero = ranges::all_of( value.mFloats, []( f32 v ){ return v == 0.0f; } );
+
     switch ( type )
     {
-        case GLSLDataType::Texture2D: table[name] = Ref<Texture2D>(); break;
-        case GLSLDataType::Float:  table[name] = 0.0f;       break;
-        case GLSLDataType::Float2: table[name] = vec2( 0 );  break;
-        case GLSLDataType::Float3: table[name] = vec3( 0 );  break;
-        case GLSLDataType::Float4: table[name] = vec4( 0 );  break;
-        case GLSLDataType::Mat3:   table[name] = mat3( 1 );  break;
-        case GLSLDataType::Mat4:   table[name] = mat4( 1 );  break;
-        case GLSLDataType::Int:    table[name] = 0;          break;
-        case GLSLDataType::Bool:   table[name] = false;      break;
-        case GLSLDataType::Int2:   table[name] = ivec2( 0 ); break;
-        case GLSLDataType::Int3:   table[name] = ivec3( 0 ); break;
-        case GLSLDataType::Int4:   table[name] = ivec4( 0 ); break;
+        // A sampler's default is the texture unit it reads, which says nothing
+        // about which texture belongs there. Left empty for the user to fill.
+        case GLSLDataType::Texture2D: return sol::make_object( lua, Ref<Texture2D>() );
+        case GLSLDataType::Float:  return sol::make_object( lua, f[0] );
+        case GLSLDataType::Float2: return sol::make_object( lua, glm::make_vec2( f ) );
+        case GLSLDataType::Float3: return sol::make_object( lua, glm::make_vec3( f ) );
+        case GLSLDataType::Float4: return sol::make_object( lua, glm::make_vec4( f ) );
+        case GLSLDataType::Mat3:   return sol::make_object( lua, allZero ? mat3( 1 ) : glm::make_mat3( f ) );
+        case GLSLDataType::Mat4:   return sol::make_object( lua, allZero ? mat4( 1 ) : glm::make_mat4( f ) );
+        case GLSLDataType::Int:    return sol::make_object( lua, i[0] );
+        case GLSLDataType::Bool:   return sol::make_object( lua, i[0] != 0 );
+        case GLSLDataType::Int2:   return sol::make_object( lua, glm::make_vec2( i ) );
+        case GLSLDataType::Int3:   return sol::make_object( lua, glm::make_vec3( i ) );
+        case GLSLDataType::Int4:   return sol::make_object( lua, glm::make_vec4( i ) );
     }
+    return sol::make_object( lua, sol::lua_nil );
 }
 
 } // namespace
@@ -230,7 +251,7 @@ DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua, const Ta
         if ( hasCarried )
             dropped.mRetyped.push_back( name );
 
-        SetDefaultValue( table, name, type );
+        table[name] = DefaultUniformValue( table.lua_state(), *mShader, name, type );
     }
 
     // Names the shader has no uniform for at all.

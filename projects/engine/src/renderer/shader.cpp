@@ -43,6 +43,7 @@ void Shader::Swap( Shader& other ) noexcept
     // into the live one - so a reloaded shader kept the old descriptor set and
     // a uniform added to the file never reached the inspector.
     std::swap( mUniformDescriptors, other.mUniformDescriptors );
+    std::swap( mUniformDefaults, other.mUniformDefaults );
 }
 
 i32 Shader::LookupUniform( string_view uniformName, bool warnIfMissing ) const

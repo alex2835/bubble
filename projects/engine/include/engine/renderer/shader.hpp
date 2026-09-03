@@ -14,6 +14,20 @@ namespace bubble
 {
 using UniformDescription = map<string, GLSLDataType>;
 
+// The value a uniform holds in the freshly linked program - whatever its GLSL
+// initializer said, or zero when it declared none. Read once at load time
+// rather than on demand: shaders are cached and shared between entities, so by
+// the time anyone asks, a draw call has long since overwritten the live value.
+//
+// One slot big enough for a mat4 covers every float-family type, and four ints
+// cover int/bool/ivec. A sampler has no meaningful default and is not recorded.
+struct UniformDefault
+{
+    array<f32, 16> mFloats{};
+    array<i32, 4> mInts{};
+};
+using UniformDefaults = map<string, UniformDefault>;
+
 enum class ShaderModule
 {
     None,
@@ -75,6 +89,7 @@ public:
     ShaderModules mModules;
     u32 mShaderId = 0;
     UniformDescription mUniformDescriptors;
+    UniformDefaults mUniformDefaults;
 private:
     i32 LookupUniform( string_view name, bool warnIfMissing ) const;
 
