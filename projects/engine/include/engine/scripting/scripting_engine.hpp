@@ -51,6 +51,10 @@ public:
 private:
     static sol::state* sGlobalLua;
 
+    // Remembered from BindLoader so BindScene can hand it to the scene
+    // bindings, which load models and shaders by path.
+    Loader* mLoader = nullptr;
+
 public:
     Scope<sol::state> mLua;
 };

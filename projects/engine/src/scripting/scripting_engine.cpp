@@ -62,12 +62,18 @@ void ScriptingEngine::BindInput( WindowInput& input )
 
 void ScriptingEngine::BindLoader( Loader& loader )
 {
+    mLoader = &loader;
     CreateLoaderBindings( loader, *mLua );
 }
 
 void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
 {
-    CreateSceneBindings( scene, physicsEngine, *mLua );
+    // The scene bindings take resources by path - add_model("cube.obj") - so
+    // the loader has to be bound first.
+    if ( not mLoader )
+        throw std::runtime_error( "BindScene: BindLoader must be called first" );
+
+    CreateSceneBindings( scene, *mLoader, physicsEngine, *mLua );
     CreatePhysicsBindings( physicsEngine, *mLua );
 }
 
