@@ -30,7 +30,11 @@ class ProjectResourcesHotReloader
     enum class ResourceType
     {
         Shader,
-        Script
+        Script,
+        // The .glsl files behind `#include <module>`. Not a loader resource -
+        // nothing holds a handle to one - so a change reloads every shader that
+        // could have included it, which is all of them.
+        ShaderModules
     };
 
     // One entry of the watch list. A shader is several files - its stages share
@@ -75,6 +79,7 @@ private:
     void ReloadPending();
     void ReloadShader( const path& loaderPath );
     void ReloadScript( const path& loaderPath );
+    void ReloadAllShaders();
 
     // Watcher thread.
     void WatchLoop();
@@ -90,6 +95,9 @@ private:
 
     mutable std::mutex mWatchMutex;
     map<path, WatchedResource> mWatchList;
+    // Module entries are in mWatchList too but are not loader resources, so
+    // they have to be discounted when checking the list against the loader.
+    size_t mModuleWatchCount = 0;
     set<PendingReload> mPendingReloads;
 
     // Shutdown. mStop is atomic so the watcher's loop condition is not a data

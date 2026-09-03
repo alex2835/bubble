@@ -197,7 +197,7 @@ bool ProjectResourcesHotReloader::IsWatchListStale() const
     // always moves the total, so the size covers it.
     std::lock_guard lock( mWatchMutex );
     return mProject.mLoader.mShaders.size() + mProject.mLoader.mScripts.size()
-           != mWatchList.size();
+           != mWatchList.size() - mModuleWatchCount;
 }
 
 
@@ -228,6 +228,29 @@ void ProjectResourcesHotReloader::RebuildWatchList()
     watch( mProject.mLoader.mShaders, ResourceType::Shader );
     watch( mProject.mLoader.mScripts, ResourceType::Script );
 
+    // One entry per module directory, holding every .glsl in it. Modules are
+    // spliced into shaders at compile time and leave no trace in the loader, so
+    // editing one used to take effect only on the next editor restart.
+    mModuleWatchCount = 0;
+    for ( const path& moduleDir : ShaderModuleSearchDirs() )
+    {
+        vector<path> files;
+        std::error_code error;
+        for ( const auto& entry : filesystem::directory_iterator( moduleDir, error ) )
+        {
+            if ( entry.path().extension() == ".glsl" )
+                files.push_back( entry.path() );
+        }
+        if ( files.empty() )
+            continue;
+
+        mWatchList.emplace( moduleDir,
+                            WatchedResource{ .mType = ResourceType::ShaderModules,
+                                             .mFiles = files,
+                                             .mLastWriteTime = NewestWriteTime( files ) } );
+        mModuleWatchCount++;
+    }
+
     // Keep anything already queued that this project still has. A rebuild is
     // triggered by some *other* resource appearing, and the fresh timestamps
     // above would otherwise absorb a save that arrived moments earlier - the
@@ -255,11 +278,40 @@ void ProjectResourcesHotReloader::ReloadPending()
             {
                 case ResourceType::Shader: ReloadShader( reload.mLoaderPath ); break;
                 case ResourceType::Script: ReloadScript( reload.mLoaderPath ); break;
+                case ResourceType::ShaderModules: ReloadAllShaders(); break;
             }
         }
         catch ( const std::exception& e )
         {
             LogError( "Failed to reload {}: {}", reload.mLoaderPath.string(), e.what() );
+        }
+    }
+}
+
+
+// A module can be included by anything, and which shaders actually include it
+// is not recorded anywhere - the include is resolved and forgotten at compile
+// time. Reloading all of them is cheap enough at editor save frequency and is
+// the only answer that cannot be wrong.
+void ProjectResourcesHotReloader::ReloadAllShaders()
+{
+    LogInfo( "Reload shaders: a shader module changed" );
+
+    vector<path> shaderPaths;
+    shaderPaths.reserve( mProject.mLoader.mShaders.size() );
+    for ( const auto& [loaderPath, _] : mProject.mLoader.mShaders )
+        shaderPaths.push_back( loaderPath );
+
+    for ( const path& loaderPath : shaderPaths )
+    {
+        // One bad shader must not stop the rest from picking the module up.
+        try
+        {
+            ReloadShader( loaderPath );
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( "Failed to reload {}: {}", loaderPath.string(), e.what() );
         }
     }
 }
