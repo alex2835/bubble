@@ -202,6 +202,11 @@ void Project::Open( const path& rootFile )
     mRootFile = rootFile;
     mLoader.mProjectRootDir = rootFile.parent_path();
 
+    // Before anything loads: the shaders listed in the project file are
+    // compiled during from_json below, and they have to see the project's own
+    // modules while they are.
+    SetProjectShaderModulesDir( mLoader.mProjectRootDir / PROJECT_SHADER_MODULES_SUBDIR );
+
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
     from_json( projectJson["Loader"], mLoader );

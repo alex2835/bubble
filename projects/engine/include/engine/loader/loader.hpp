@@ -3,6 +3,7 @@
 #include "engine/types/string.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/types/map.hpp"
+#include "engine/types/array.hpp"
 #include "engine/types/utility.hpp"
 #include "engine/utils/filesystem.hpp"
 #include "engine/renderer/texture.hpp"
@@ -25,6 +26,9 @@ constexpr string_view SCENE_SPOT_LIGHT_TEXTURE = "./resources/images/scene/spotl
 constexpr string_view SCENE_DIR_LIGHT_TEXTURE = "./resources/images/scene/dirlight.png"sv;
 // shader modules search path
 constexpr string_view SHADER_MODULES_SEARCH_PATH = "./resources/shaders/modules"sv;
+// A project's own module directory, relative to its root. Searched before the
+// engine's, so a project can shadow an engine module with one of its own.
+constexpr string_view PROJECT_SHADER_MODULES_SUBDIR = "shaders/modules"sv;
 // shader paths
 constexpr string_view ENTITY_PICKING_SHADER = "./resources/shaders/object_picking"sv; // Object id shader to select entity from screen
 constexpr string_view ENTITY_PICKING_BILLBOARD_SHADER = "./resources/shaders/object_picking_billboard"sv;
@@ -32,6 +36,22 @@ constexpr string_view WHITE_SHADER = "./resources/shaders/white"sv;
 constexpr string_view PHONG_SHADER = "./resources/shaders/phong"sv;
 constexpr string_view ONLY_DIFFUSE_SHADER = "./resources/shaders/only_diffuse"sv;
 constexpr string_view BILBOARD_SHADER = "./resources/shaders/billboard"sv;
+// Used when a shader supplies a fragment stage and no vertex stage of its own.
+// Most shaders differ only in how they shade a fragment, and needing a copy of
+// this file per shader is what makes every new shader start as a duplicate.
+constexpr string_view DEFAULT_VERTEX_SHADER = "./resources/shaders/phong.vert"sv;
+
+
+// Where `#include <module>` looks, in addition to SHADER_MODULES_SEARCH_PATH.
+// Process-wide rather than a Loader member because shaders are also loaded
+// through the free LoadShader - by the engine at startup and by the editor's
+// hot reloader - and all of them have to resolve the same modules.
+void SetProjectShaderModulesDir( const path& dir );
+const path& GetProjectShaderModulesDir();
+
+// Every directory searched for modules, project first. Missing ones are
+// skipped, so this is also the list the hot reloader watches.
+vector<path> ShaderModuleSearchDirs();
 
 
 struct TextureData

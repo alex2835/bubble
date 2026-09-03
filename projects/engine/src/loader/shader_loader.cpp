@@ -22,84 +22,221 @@ struct ParsedShaders
 };
 
 
-map<string, string> GetModulesList()
+// A module's text plus the directory it was found in, so a relative #include
+// inside a module resolves against the module and not against whoever
+// included it.
+struct ModuleSource
 {
-    map<string, string> modules;
-	if ( modules.empty() )
+	string mText;
+	path mDir;
+};
+using ModuleTable = map<string, ModuleSource>;
+
+// One splice of source, and which engine modules it pulled in. Returned by
+// value all the way up the recursion rather than accumulated into a stream and
+// a bitset threaded down by reference.
+struct ProcessedSource
+{
+	string mText;
+	ShaderModules mModules;
+};
+
+// An include cycle would otherwise recurse until the stack runs out, and a
+// mistyped shader is not worth taking the editor down over.
+constexpr int cMaxIncludeDepth = 32;
+
+
+// Set by Project::Open, so a project's shaders see its own modules.
+static path sProjectShaderModulesDir;
+
+void SetProjectShaderModulesDir( const path& dir )
+{
+	sProjectShaderModulesDir = dir;
+}
+
+const path& GetProjectShaderModulesDir()
+{
+	return sProjectShaderModulesDir;
+}
+
+vector<path> ShaderModuleSearchDirs()
+{
+	vector<path> dirs;
+	// Project first: a project shadowing an engine module is a deliberate
+	// override, and searching the engine first would silently ignore it.
+	if ( not sProjectShaderModulesDir.empty() and filesystem::exists( sProjectShaderModulesDir ) )
+		dirs.push_back( sProjectShaderModulesDir );
+	dirs.emplace_back( SHADER_MODULES_SEARCH_PATH );
+	return dirs;
+}
+
+
+// Read fresh on every shader load. This used to be cached in a function-local
+// static, which meant a module edited on disk never took effect - not on a hot
+// reload, not on reopening the project, only on restarting the editor.
+ModuleTable GetModulesList()
+{
+	ModuleTable modules;
+	for ( const path& searchPath : ShaderModuleSearchDirs() )
 	{
-        path searchPath = SHADER_MODULES_SEARCH_PATH;
-        for ( const path& file : filesystem::directory_iterator( searchPath ) )
-        {
-			if ( file.extension() == ".glsl" )
-			{
-				auto moduleName = file.stem().string();
-                modules[moduleName] = filesystem::readFile( file );
-			}
-        }
+		std::error_code error;
+		for ( const path& file : filesystem::directory_iterator( searchPath, error ) )
+		{
+			if ( file.extension() != ".glsl" )
+				continue;
+
+			// emplace, not assignment: the first directory holding a module
+			// wins, which is what lets a project shadow an engine one.
+			modules.emplace( file.stem().string(),
+							 ModuleSource{ .mText = filesystem::readFile( file ),
+										   .mDir = file.parent_path() } );
+		}
 	}
 	return modules;
 }
 
 
-pair<string, ShaderModules> ProcessIncludes( const path& shaderPath )
+// The text between the first matching pair of delimiters, empty when the line
+// has no such pair.
+static string_view IncludeArgument( string_view line, char open, char close )
 {
-	std::stringstream shaderSrc;
-	ShaderModules shaderModules;
-    static const auto modules = GetModulesList();
-
-	std::ifstream stream = filesystem::openStream( shaderPath );
-	for ( string line; std::getline( stream, line ); )
-	{
-		if ( line.starts_with( "#include" ) )
-		{
-			auto moduleName = Slice( line, line.find( '<' ) + 1, line.find( '>' ) );
-			auto iter = modules.find( moduleName );
-			if ( iter == modules.end() )
-                throw std::runtime_error( std::format( "No such module name {}", moduleName ) );
-
-			auto enumValue = magic_enum::enum_cast<ShaderModule>( moduleName, magic_enum::case_insensitive );
-			shaderModules.set( enumValue.value_or( ShaderModule::None ) );
-			shaderSrc << iter->second << '\n';
-		}
-		else
-			shaderSrc << line << '\n';
-	}
-	return { shaderSrc.str(), std::move( shaderModules ) };
+	const auto begin = line.find( open );
+	if ( begin == string_view::npos )
+		return {};
+	const auto end = line.find( close, begin + 1 );
+	if ( end == string_view::npos )
+		return {};
+	return line.substr( begin + 1, end - begin - 1 );
 }
 
 
-pair<string, ShaderModules> ParseShaderFile( const path& shaderPath )
+static ProcessedSource ProcessSource( string_view source,
+									  const path& sourceDir,
+									  const ModuleTable& modules,
+									  int depth );
+
+static ProcessedSource ProcessFile( const path& shaderPath,
+									const ModuleTable& modules,
+									int depth );
+
+
+// One line: itself, or whatever it includes.
+static ProcessedSource ProcessLine( string_view line,
+									const path& sourceDir,
+									const ModuleTable& modules,
+									int depth )
 {
-	return ProcessIncludes( shaderPath );
+	if ( not line.starts_with( "#include" ) )
+	{
+		ProcessedSource plain;
+		plain.mText = string( line ) + '\n';
+		return plain;
+	}
+
+	if ( depth >= cMaxIncludeDepth )
+		throw std::runtime_error( std::format( "#include nested more than {} deep - cycle in {}?",
+											   cMaxIncludeDepth, sourceDir.string() ) );
+
+	// #include <module> - a name registered in one of the module directories.
+	if ( const auto moduleName = IncludeArgument( line, '<', '>' ); not moduleName.empty() )
+	{
+		const auto iter = modules.find( string( moduleName ) );
+		if ( iter == modules.end() )
+			throw std::runtime_error( std::format( "No such module name {}", moduleName ) );
+
+		ProcessedSource spliced = ProcessSource( iter->second.mText, iter->second.mDir,
+												 modules, depth + 1 );
+		const auto enumValue = magic_enum::enum_cast<ShaderModule>( moduleName, magic_enum::case_insensitive );
+		spliced.mModules.set( enumValue.value_or( ShaderModule::None ) );
+		return spliced;
+	}
+
+	// #include "path" - relative to the including file. Registering a module is
+	// the right call for an engine-owned interface and the wrong one for a user
+	// splitting their own shader in two.
+	if ( const auto relative = IncludeArgument( line, '"', '"' ); not relative.empty() )
+	{
+		const path included = sourceDir / relative;
+		if ( not filesystem::exists( included ) )
+			throw std::runtime_error( std::format( "No such included file: {}", included.string() ) );
+
+		return ProcessFile( included, modules, depth + 1 );
+	}
+
+	throw std::runtime_error( std::format( "Malformed #include, expected <module> or a quoted path: {}", line ) );
+}
+
+
+// `sourceDir` is where this text came from, and is what its own relative
+// includes resolve against.
+static ProcessedSource ProcessSource( string_view source,
+									  const path& sourceDir,
+									  const ModuleTable& modules,
+									  int depth )
+{
+	ProcessedSource processed;
+	std::istringstream stream{ string( source ) };
+	for ( string line; std::getline( stream, line ); )
+	{
+		ProcessedSource piece = ProcessLine( line, sourceDir, modules, depth );
+		processed.mText += piece.mText;
+		processed.mModules |= piece.mModules;
+	}
+	return processed;
+}
+
+
+static ProcessedSource ProcessFile( const path& shaderPath,
+									const ModuleTable& modules,
+									int depth )
+{
+	return ProcessSource( filesystem::readFile( shaderPath ), shaderPath.parent_path(), modules, depth );
 }
 
 
 ParsedShaders ParseMultipleFiles( path filePath )
 {
 	ParsedShaders parsedShaders;
+	const ModuleTable modules = GetModulesList();
+
 	filePath.replace_extension( ".vert" );
 	if ( filesystem::exists( filePath ) )
 	{
-		auto [src, modules] = ParseShaderFile( filePath );
-		parsedShaders.vertex = src;
-		parsedShaders.modules |= modules;
+		ProcessedSource processed = ProcessFile( filePath, modules, 0 );
+		parsedShaders.vertex = std::move( processed.mText );
+		parsedShaders.modules |= processed.mModules;
 	}
 
     filePath.replace_extension( ".geom" );
     if ( filesystem::exists( filePath ) )
     {
-        auto [src, modules] = ParseShaderFile( filePath );
-        parsedShaders.geometry = src;
-		parsedShaders.modules |= modules;
+        ProcessedSource processed = ProcessFile( filePath, modules, 0 );
+        parsedShaders.geometry = std::move( processed.mText );
+		parsedShaders.modules |= processed.mModules;
     }
 
     filePath.replace_extension( ".frag" );
     if ( filesystem::exists( filePath ) )
     {
-        auto [src, modules] = ParseShaderFile( filePath );
-        parsedShaders.fragment = src;
-		parsedShaders.modules |= modules;
+        ProcessedSource processed = ProcessFile( filePath, modules, 0 );
+        parsedShaders.fragment = std::move( processed.mText );
+		parsedShaders.modules |= processed.mModules;
     }
+
+	// A shader with a fragment stage and no vertex stage of its own gets the
+	// engine's. Nearly every shader wants the same vertex stage, and requiring
+	// a copy of it per shader is why two shaders in a fresh project end up
+	// byte-identical to phong.vert and to each other.
+	if ( parsedShaders.vertex.empty() and not parsedShaders.fragment.empty() )
+	{
+		const path defaultVertex = DEFAULT_VERTEX_SHADER;
+		if ( filesystem::exists( defaultVertex ) )
+		{
+			ProcessedSource processed = ProcessFile( defaultVertex, modules, 0 );
+			parsedShaders.vertex = std::move( processed.mText );
+			parsedShaders.modules |= processed.mModules;
+		}
+	}
 	return parsedShaders;
 }
 
