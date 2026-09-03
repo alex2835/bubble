@@ -73,6 +73,51 @@ static ResourceRef LoadOrThrow( Load load, string_view what, const string& resou
 
 
 
+// Optional field of a spawn table. Absent and wrong-typed are both "not given",
+// because a spawn table is written by hand and a typo'd key should not be a
+// silently ignored setting.
+template <class T>
+static std::optional<T> Field( const sol::table& table, const char* key )
+{
+    const sol::object value = table[key];
+    if ( not value.valid() or value.is<sol::nil_t>() )
+        return std::nullopt;
+    if ( not value.is<T>() )
+        throw std::runtime_error( std::format( "spawn: field '{}' has the wrong type", key ) );
+    return value.as<T>();
+}
+
+// Same field under either of two names, so `pos` and `position` both work.
+template <class T>
+static std::optional<T> Field( const sol::table& table, const char* key, const char* alias )
+{
+    if ( auto value = Field<T>( table, key ) )
+        return value;
+    return Field<T>( table, alias );
+}
+
+
+// A resource field that takes either a path to load or an already-loaded
+// handle, so `model = "cube.obj"` and `model = load_model("cube.obj")` both
+// read naturally. Null when the field is absent.
+template <class Resource, class Load>
+static Ref<Resource> ResourceField( const sol::table& table,
+                                    const char* key,
+                                    Load load,
+                                    string_view what )
+{
+    const sol::object value = table[key];
+    if ( not value.valid() or value.is<sol::nil_t>() )
+        return nullptr;
+    if ( value.is<string>() )
+        return LoadOrThrow<Ref<Resource>>( load, what, value.as<string>() );
+    if ( value.is<Ref<Resource>>() )
+        return value.as<Ref<Resource>>();
+
+    throw std::runtime_error( std::format( "spawn: field '{}' must be a path or a loaded {}", key, what ) );
+}
+
+
 void CreateSceneBindings( Scene& scene,
                           Loader& loader,
                           PhysicsEngine& physicsEngine,
@@ -195,6 +240,39 @@ void CreateSceneBindings( Scene& scene,
             [&]( const Entity& entity ) { scene.AddComponent<StateComponent>( entity ); },
             [&]( const Entity& entity, Any object ) { scene.AddComponent<StateComponent>( entity, object ); }
         ),
+        // Attaching a script at runtime. The state component comes with it -
+        // every callback is handed one, and a script on an entity without one
+        // used to be skipped by the update loop without a word. on_start runs
+        // immediately, because the entity is already live.
+        "add_script",
+        [&]( const Entity& entity, const string& scriptPath )
+        {
+            auto script = LoadOrThrow<Ref<Script>>( [&]( const path& p ){ return loader.LoadScript( p ); },
+                                                    "script", scriptPath );
+            if ( not scene.HasComponent<StateComponent>( entity ) )
+                scene.AddComponent<StateComponent>( entity );
+
+            auto& component = scene.AddComponent<ScriptComponent>( entity, script );
+            auto callbacks = ExtractScriptCallbacks( lua, script );
+            component.mOnStart = std::move( callbacks.mOnStart );
+            component.mOnUpdate = std::move( callbacks.mOnUpdate );
+            CallScriptOnStart( component.mOnStart, script, entity,
+                               *scene.GetComponent<StateComponent>( entity ).mState );
+        },
+
+        // Get — one name per component. Each returns the type that actually
+        // carries the fields a script wants.
+        //
+        // For most components that is the *Component itself: TransformComponent,
+        // CameraComponent and LightComponent derive from Transform/Camera/Light,
+        // and only the derived type is registered as a usertype, so returning a
+        // base reference would push userdata with no accessible members at all
+        // (indexing it raises "attempt to index a sol.Camera * value").
+        //
+        // RigidBodyComponent and CharacterControllerComponent instead *contain*
+        // their payload and expose nothing else, so the inner object - the one
+        // holding jump(), set_walk_direction(), set_friction() - is what a script
+        // needs.
         "get_tag",
         [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
         "get_transform",
@@ -273,6 +351,108 @@ void CreateSceneBindings( Scene& scene,
     lua["create_entity"] = [&](){ return scene.CreateEntity(); };
 
 
+    // One entity from one table. Everything is optional and everything has the
+    // obvious default, so the common case - put a cube over there - is a single
+    // call instead of the eight-line create/add/add/add/add sequence that every
+    // spawn function in every project ends up repeating.
+    //
+    //   spawn{
+    //       tag   = "cube",
+    //       pos   = vec3( 0, 5, 0 ),
+    //       model = "models/cube/cube.obj",
+    //       rigid_body = { box = vec3( 0.5 ), mass = 1, friction = 1.0 },
+    //   }
+    lua["spawn"] = [&]( const sol::table& description ) -> Entity
+    {
+        const Entity entity = scene.CreateEntity();
+
+        if ( const auto tag = Field<string>( description, "tag" ) )
+            scene.AddComponent<TagComponent>( entity, *tag );
+
+        // A transform always exists. Nothing without one is drawn, simulated or
+        // picked, and defaulting it costs nothing.
+        const Transform transform( Field<vec3>( description, "pos", "position" ).value_or( vec3( 0 ) ),
+                                   Field<vec3>( description, "rot", "rotation" ).value_or( vec3( 0 ) ),
+                                   Field<vec3>( description, "scale" ).value_or( vec3( 1 ) ) );
+        scene.AddComponent<TransformComponent>( entity, transform );
+
+        if ( const auto model = ResourceField<Model>( description, "model",
+                                                      [&]( const path& p ){ return loader.LoadModel( p ); },
+                                                      "model" ) )
+            scene.AddComponent<ModelComponent>( entity, model );
+
+        // No shader key is not an error: the renderer draws a model with no
+        // ShaderComponent using the default shader.
+        if ( const auto shader = ResourceField<Shader>( description, "shader",
+                                                        [&]( const path& p ){ return loader.LoadShader( p ); },
+                                                        "shader" ) )
+        {
+            auto& component = scene.AddComponent<ShaderComponent>( entity, shader );
+            component.RebuildUniforms( lua );
+        }
+
+        // Camera and Light are the names CameraComponent and LightComponent are
+        // registered under - the bare Camera and Light are not usertypes, so a
+        // script never holds one.
+        if ( const auto camera = Field<CameraComponent>( description, "camera" ) )
+            scene.AddComponent<CameraComponent>( entity, *camera );
+
+        if ( const auto light = Field<LightComponent>( description, "light" ) )
+            scene.AddComponent<LightComponent>( entity, *light );
+
+        if ( const auto body = Field<sol::table>( description, "rigid_body" ) )
+        {
+            const f32 mass = (f32)Field<double>( *body, "mass" ).value_or( 0.0 );
+
+            std::optional<RigidBody> rigidBody;
+            if ( const auto halfExtent = Field<vec3>( *body, "box" ) )
+                rigidBody = RigidBody::CreateBox( mass, *halfExtent );
+            else if ( const auto radius = Field<double>( *body, "sphere" ) )
+                rigidBody = RigidBody::CreateSphere( mass, (f32)*radius );
+            else if ( const auto capsule = Field<sol::table>( *body, "capsule" ) )
+                rigidBody = RigidBody::CreateCapsule( mass,
+                                                      (f32)Field<double>( *capsule, "radius" ).value_or( 0.5 ),
+                                                      (f32)Field<double>( *capsule, "height" ).value_or( 1.0 ) );
+            else
+                throw std::runtime_error( "spawn: rigid_body needs one of box, sphere or capsule" );
+
+            rigidBody->SetTransform( transform.mPosition, transform.mRotation );
+            if ( const auto friction = Field<double>( *body, "friction" ) )
+                rigidBody->SetFriction( (f32)*friction );
+
+            auto& component = scene.AddComponent<RigidBodyComponent>( entity, std::move( *rigidBody ) );
+            physicsEngine.Add( component.mRigidBody, entity );
+        }
+
+        if ( const auto controller = Field<sol::table>( description, "character_controller" ) )
+        {
+            auto& component = scene.AddComponent<CharacterControllerComponent>(
+                entity,
+                (f32)Field<double>( *controller, "radius" ).value_or( 0.5 ),
+                (f32)Field<double>( *controller, "height" ).value_or( 2.0 ),
+                (f32)Field<double>( *controller, "step_height" ).value_or( 0.35 ) );
+            component.mController.Warp( transform.mPosition );
+            physicsEngine.Add( component.mController, entity );
+        }
+
+        // State before script: on_start runs below and is handed this table.
+        scene.AddComponent<StateComponent>(
+            entity, Any( Field<Table>( description, "state" ).value_or( lua.create_table() ) ) );
+
+        if ( const auto script = ResourceField<Script>( description, "script",
+                                                        [&]( const path& p ){ return loader.LoadScript( p ); },
+                                                        "script" ) )
+        {
+            auto& component = scene.AddComponent<ScriptComponent>( entity, script );
+            auto callbacks = ExtractScriptCallbacks( lua, script );
+            component.mOnStart = std::move( callbacks.mOnStart );
+            component.mOnUpdate = std::move( callbacks.mOnUpdate );
+            CallScriptOnStart( component.mOnStart, script, entity,
+                               *scene.GetComponent<StateComponent>( entity ).mState );
+        }
+
+        return entity;
+    };
     lua["remove_entity"] = [&]( Entity entity ) {
         // Registry::RemoveEntity asserts on an unknown entity, so a stale handle
         // held by a script would take a debug build down.

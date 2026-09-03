@@ -77,30 +77,73 @@ void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
     CreatePhysicsBindings( physicsEngine, *mLua );
 }
 
-void ScriptingEngine::ExtractCallbacks( sol::protected_function& onStart,
-                                       sol::protected_function& onUpdate,
-                                       const Ref<Script>& script )
+static void RunScriptIn( sol::state& lua, const Script& script )
 {
+    // Without a chunk name every diagnostic reads [string "..."]:<line> with no
+    // way to tell which script failed. Script::mChunkName is built at load time;
+    // this fallback only covers a Script assembled by hand.
+    static const string unnamedChunk = "@<unnamed script>";
+    const string& chunkName = script.mChunkName.empty() ? unnamedChunk : script.mChunkName;
+
+    const auto result = lua.safe_script( script.mCode, sol::script_pass_on_error, chunkName );
+    if ( not result.valid() )
+    {
+        const sol::error err = result;
+        throw std::runtime_error( std::format( "Script '{}' failed to load.\n  {}\n  {}",
+                                               script.mName, err.what(), script.mPath.string() ) );
+    }
+}
+
+ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& script )
+{
+    if ( not script )
+        throw std::runtime_error( "ExtractScriptCallbacks: script is null (it failed to load)" );
+
     // Every script shares one Lua state, so both names have to be cleared
     // first. Otherwise a script with no on_start silently inherits the one left
     // behind by whichever script was extracted before it.
-    mLua->set( ON_START_FUNC, sol::nil );
-    mLua->set( ON_UPDATE_FUNC, sol::nil );
-    RunScript( script );
+    lua.set( ON_START_FUNC, sol::nil );
+    lua.set( ON_UPDATE_FUNC, sol::nil );
+    RunScriptIn( lua, *script );
 
-    if ( not mLua->get<sol::object>( ON_UPDATE_FUNC ).is<sol::function>() )
+    if ( not lua.get<sol::object>( ON_UPDATE_FUNC ).is<sol::function>() )
         throw std::runtime_error(
             std::format( "Script '{}' defines no global function {}( entity, state, dt ).\n  {}",
                          script->mName, ON_UPDATE_FUNC, script->mPath.string() ) );
 
-    onUpdate = mLua->get<sol::protected_function>( ON_UPDATE_FUNC );
+    ScriptCallbacks callbacks;
+    callbacks.mOnUpdate = lua.get<sol::protected_function>( ON_UPDATE_FUNC );
 
     // Optional, a script that only needs per frame work does not have to
     // declare an empty one.
-    if ( mLua->get<sol::object>( ON_START_FUNC ).is<sol::function>() )
-        onStart = mLua->get<sol::protected_function>( ON_START_FUNC );
-    else
-        onStart = sol::protected_function();
+    if ( lua.get<sol::object>( ON_START_FUNC ).is<sol::function>() )
+        callbacks.mOnStart = lua.get<sol::protected_function>( ON_START_FUNC );
+
+    return callbacks;
+}
+
+void CallScriptOnStart( const sol::protected_function& onStart,
+                        const Ref<Script>& script,
+                        recs::Entity entity,
+                        const Any& state )
+{
+    if ( not onStart )
+        return;
+
+    sol::protected_function_result result = onStart( entity, state );
+    if ( result.valid() )
+        return;
+
+    const sol::error err = result;
+    const string name = script ? script->mName : string( "<unknown>" );
+    const string scriptPath = script ? script->mPath.string() : string( "<no path>" );
+    throw std::runtime_error( std::format( "Script '{}' failed in on_start on entity {}.\n  {}\n  {}",
+                                           name, (u64)entity, err.what(), scriptPath ) );
+}
+
+ScriptCallbacks ScriptingEngine::ExtractCallbacks( const Ref<Script>& script )
+{
+    return ExtractScriptCallbacks( *mLua, script );
 }
 
 void ScriptingEngine::RunScript( const Script& script )

@@ -1,5 +1,7 @@
 #pragma once
 #include <sol/forward.hpp>
+#include <sol/function.hpp>
+#include <recs/entity.hpp>
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/types/any.hpp"
@@ -11,6 +13,27 @@ struct Loader;
 class Scene;
 class PhysicsEngine;
 class Window;
+
+// A script's entry points. on_update is required; on_start is empty when the
+// script does not define one.
+struct ScriptCallbacks
+{
+    sol::protected_function mOnStart;
+    sol::protected_function mOnUpdate;
+};
+
+// Run a script chunk and pull its entry points out of the state. Free rather
+// than a ScriptingEngine member because the scene bindings attach scripts too
+// (add_script, spawn{ script = ... }) and hold only the sol::state.
+ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& script );
+
+// Run one script's on_start, reporting which script and entity failed. Shared
+// by engine startup and by a script attached at runtime.
+void CallScriptOnStart( const sol::protected_function& onStart,
+                        const Ref<Script>& script,
+                        recs::Entity entity,
+                        const Any& state );
+
 
 class ScriptingEngine
 {
@@ -32,13 +55,10 @@ public:
 
     void RunScript( const Script& script );
     void RunScript( const Ref<Script>& script );
-    // Runs the script chunk once and pulls both entry points out of it.
-    // on_update is required, on_start is optional and comes back empty when the
-    // script does not define one. Both in one call because running the chunk
-    // twice would repeat whatever it does at load time.
-    void ExtractCallbacks( sol::protected_function& onStart,
-                           sol::protected_function& onUpdate,
-                           const Ref<Script>& script );
+    // Runs the script chunk once and pulls both entry points out of it. Both
+    // in one call because running the chunk twice would repeat whatever it
+    // does at load time.
+    ScriptCallbacks ExtractCallbacks( const Ref<Script>& script );
     Table CreateTable();
     void SetCurrentState();
 
