@@ -66,6 +66,11 @@ public:
     void SetUni1i( string_view name, const i32& val ) const;
     void SetUni1u( string_view name, const u32& val ) const;
 
+    // i32 vec
+    void SetUni2i( string_view name, const ivec2& val ) const;
+    void SetUni3i( string_view name, const ivec3& val ) const;
+    void SetUni4i( string_view name, const ivec4& val ) const;
+
     // f32 vec
     void SetUni1f( string_view name, const f32& val ) const;
     void SetUni2f( string_view name, const vec2& val ) const;

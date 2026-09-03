@@ -624,6 +624,11 @@ Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
 
 void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
 {
+    // Units 0-2 belong to the material (diffuse, specular, normal), which is
+    // applied per mesh after this runs. A user sampler starts above them.
+    constexpr i32 cFirstUserTextureSlot = 3;
+    i32 textureSlot = cFirstUserTextureSlot;
+
     for ( const auto& [name, type] : shader.mUniformDescriptors )
     {
         sol::object val = uniforms[name];
@@ -632,6 +637,19 @@ void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
 
         switch ( type )
         {
+            case GLSLDataType::Texture2D:
+            {
+                // A sampler slot the inspector or a script left empty is not an
+                // error - it is a texture the user has not chosen yet - so a
+                // null Ref is skipped rather than bound.
+                if ( not val.is<Ref<Texture2D>>() )
+                    break;
+                const auto& texture = val.as<Ref<Texture2D>>();
+                if ( not texture )
+                    break;
+                shader.SetTexture2D( name, texture, textureSlot++ );
+                break;
+            }
             case GLSLDataType::Float:
                 if ( val.is<float>() )  shader.SetUni1f( name, val.as<float>() );
                 break;
@@ -661,9 +679,14 @@ void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
                 if ( val.is<bool>() )   shader.SetUni1i( name, val.as<bool>() ? 1 : 0 );
                 break;
             case GLSLDataType::Int2:
+                if ( val.is<ivec2>() )  shader.SetUni2i( name, val.as<ivec2>() );
+                break;
             case GLSLDataType::Int3:
+                if ( val.is<ivec3>() )  shader.SetUni3i( name, val.as<ivec3>() );
+                break;
             case GLSLDataType::Int4:
-                break; // not yet exposed via SetUni*
+                if ( val.is<ivec4>() )  shader.SetUni4i( name, val.as<ivec4>() );
+                break;
         }
     }
 }

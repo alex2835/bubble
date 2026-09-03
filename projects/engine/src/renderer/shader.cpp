@@ -102,6 +102,22 @@ void Shader::SetUni1i( string_view name, const i32& val ) const
 void Shader::SetUni1u( string_view name, const u32& val ) const
 {
     glcall( glUniform1ui( GetUniform( name ), val ) );
+}
+
+// i32 vec
+void Shader::SetUni2i( string_view name, const ivec2& val ) const
+{
+    glcall( glUniform2iv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
+}
+
+void Shader::SetUni3i( string_view name, const ivec3& val ) const
+{
+    glcall( glUniform3iv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
+}
+
+void Shader::SetUni4i( string_view name, const ivec4& val ) const
+{
+    glcall( glUniform4iv( GetUniform( name ), 1, glm::value_ptr( val ) ) );
 }
 
 // f32 vec

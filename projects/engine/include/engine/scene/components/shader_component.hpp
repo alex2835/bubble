@@ -47,6 +47,17 @@ public:
     // call after a hot reload, where the shader changed but the values did not.
     DroppedUniforms RebuildUniforms( ScriptingEngine& lua );
 
+    // Same two, for callers that hold the sol::state and not the engine around
+    // it - the Lua bindings and the editor's inspector.
+    DroppedUniforms RebuildUniforms( sol::state& lua, const Table* previous );
+    DroppedUniforms RebuildUniforms( sol::state& lua );
+
+    // Build the table if it is missing, leave it alone if it is not. A shader
+    // set from Lua or picked in the inspector arrives with no table at all, and
+    // everything downstream - the `uniforms` property, the inspector, the draw
+    // loop - assumed one was always there.
+    void EnsureUniforms( sol::state& lua );
+
     Ref<Shader> mShader;
     Scope<Any> mUniforms;
 };

@@ -121,7 +121,16 @@ void ShaderComponent::OnComponentDraw( const Project& project, const Entity& ent
         {
             auto shaderComboName = shaderPath.stem().string();
             if ( ImGui::Selectable( shaderComboName.c_str(), shaderComboName == shaderName ) )
+            {
                 shaderComponent.mShader = shaderRef;
+
+                // The table is keyed by the *old* shader's uniforms. Without
+                // this the inspector kept showing them, and the new shader's
+                // own uniforms never appeared until the project was reopened.
+                auto& scriptingEngine = const_cast<Project&>( project ).mScriptingEngine;
+                const auto dropped = shaderComponent.RebuildUniforms( scriptingEngine );
+                LogDroppedShaderUniforms( shaderComponent.mShader, dropped );
+            }
         }
         ImGui::EndCombo();
     }
@@ -172,16 +181,31 @@ void ShaderComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<ShaderComponent>(
         "ShaderComponent",
-        "shader", &ShaderComponent::mShader,
-        "uniforms", sol::property(
-            []( ShaderComponent& sc ) -> sol::object
+        "shader", sol::property(
+            []( ShaderComponent& sc ) { return sc.mShader; },
+            [&lua]( ShaderComponent& sc, const Ref<Shader>& shader )
             {
-                assert( sc.mUniforms );
-                return sc.mUniforms->as<Table>();
+                sc.mShader = shader;
+                sc.RebuildUniforms( lua );
+            }
+        ),
+        "uniforms", sol::property(
+            // Built on demand rather than asserted on. A shader attached from
+            // Lua never went through FromJson, so mUniforms was null here - and
+            // the assert is compiled out of a release build, which turned
+            // reading `.uniforms` into a null dereference.
+            [&lua]( ShaderComponent& sc ) -> sol::object
+            {
+                sc.EnsureUniforms( lua );
+                if ( not sc.mUniforms )
+                    return sol::make_object( lua, sol::lua_nil );
+                return sol::object( sc.mUniforms->as<Table>() );
             },
-            []( ShaderComponent& sc, const Table& t ) 
-            { 
-                *sc.mUniforms = t;
+            [&lua]( ShaderComponent& sc, const Table& t )
+            {
+                sc.EnsureUniforms( lua );
+                if ( sc.mUniforms )
+                    *sc.mUniforms = t;
             }
         ),
         sol::meta_function::to_string,
@@ -215,6 +239,16 @@ ShaderComponent::~ShaderComponent()
 
 DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua )
 {
+    return RebuildUniforms( *lua.mLua );
+}
+
+DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua, const Table* previous )
+{
+    return RebuildUniforms( *lua.mLua, previous );
+}
+
+DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua )
+{
     if ( mUniforms and mUniforms->is<Table>() )
     {
         const Table previous = mUniforms->as<Table>();
@@ -223,7 +257,14 @@ DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua )
     return RebuildUniforms( lua, nullptr );
 }
 
-DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua, const Table* previous )
+void ShaderComponent::EnsureUniforms( sol::state& lua )
+{
+    if ( mUniforms and mUniforms->is<Table>() )
+        return;
+    RebuildUniforms( lua, nullptr );
+}
+
+DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua, const Table* previous )
 {
     if ( !mShader )
     {
@@ -232,7 +273,7 @@ DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua, const Ta
     }
 
     DroppedUniforms dropped;
-    auto table = lua.CreateTable();
+    auto table = lua.create_table();
 
     for ( const auto& [name, type] : mShader->mUniformDescriptors )
     {
