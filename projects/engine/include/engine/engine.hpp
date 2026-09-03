@@ -66,6 +66,10 @@ public:
     // Visualization boxes and physics shapes
     Ref<Shader> mWhiteShader;
 
+    // Draws a model whose entity has no ShaderComponent, so that adding a model
+    // is enough to see something.
+    Ref<Shader> mDefaultShader;
+
     // Visualization Bounding boxes and Physics shapes
     struct MeshHelpers
     {

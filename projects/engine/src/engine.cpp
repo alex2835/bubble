@@ -14,6 +14,7 @@ Engine::Engine( Window& window )
       mEntityIdBillboardShader( LoadShader( ENTITY_PICKING_BILLBOARD_SHADER ) ),
 
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
+      mDefaultShader( LoadShader( PHONG_SHADER ) ),
       mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
       mCameraFrustums{ .mMesh=Mesh( "CameraFrustum", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
@@ -67,6 +68,24 @@ void Engine::OnStart( const path& projectRootFile )
     } );
 
     /// Scripts
+    // A script's callbacks are handed the entity's state table, so every loop
+    // below pairs ScriptComponent with StateComponent - and an entity that had
+    // a script and no state simply never ran, silently. Giving it an empty one
+    // is what the user meant: add_script alone should work, and `state.foo = 1`
+    // in on_start should be all it takes to start using it.
+    {
+        vector<Entity> needState;
+        mProject.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& )
+        {
+            if ( not mProject.mScene.HasComponent<StateComponent>( entity ) )
+                needState.push_back( entity );
+        } );
+        // Added outside the iteration: AddComponent grows the state pool, and
+        // growing one pool while ForEach walks another is not worth relying on.
+        for ( Entity entity : needState )
+            mProject.mScene.AddComponent<StateComponent>( entity );
+    }
+
     // Extract scripts functions
     mProject.mScene.ForEach<ScriptComponent, StateComponent>( [&]( Entity entity, 
                                                                    ScriptComponent& scriptComponent,
@@ -253,26 +272,41 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
     mRenderer.SetCameraUniformBuffers( mCamera, framebuffer );
     mRenderer.SetLightsUniformBuffer( mCamera, lights );
 
-    // Render models
-    scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
-        [&]( const Entity _,
+    // Render models. Iterating on ModelComponent and TransformComponent only:
+    // a model with no ShaderComponent used to be skipped by the ForEach and
+    // never drawn at all, with nothing logged - the single most confusing way
+    // for a first entity to come out invisible. It gets the default shader.
+    scene.ForEach<ModelComponent, TransformComponent>(
+        [&]( const Entity entity,
              const ModelComponent& modelComponent,
-             const ShaderComponent& shaderComponent,
              const TransformComponent& transformComponent )
     {
-        const bool valid = modelComponent.mModel and shaderComponent.mShader;
-        if ( not valid )
+        if ( not modelComponent.mModel )
         {
             mRenderer.DrawModel( mErrorModel, mWhiteShader, transformComponent.TranslationRotationMat() );
             return;
         }
 
-        if ( shaderComponent.mUniforms and shaderComponent.mUniforms->is<Table>() )
+        const ShaderComponent* shaderComponent =
+            scene.HasComponent<ShaderComponent>( entity )
+            ? &scene.GetComponent<ShaderComponent>( entity )
+            : nullptr;
+
+        const Ref<Shader>& shader = shaderComponent and shaderComponent->mShader
+                                    ? shaderComponent->mShader
+                                    : mDefaultShader;
+        if ( not shader )
         {
-            shaderComponent.mShader->Bind();
-            ApplyShaderUniforms( *shaderComponent.mShader, shaderComponent.mUniforms->as<Table>() );
+            mRenderer.DrawModel( mErrorModel, mWhiteShader, transformComponent.TranslationRotationMat() );
+            return;
         }
-        mRenderer.DrawModel( modelComponent.mModel, shaderComponent.mShader, transformComponent.TransformMat() );
+
+        if ( shaderComponent and shaderComponent->mUniforms and shaderComponent->mUniforms->is<Table>() )
+        {
+            shader->Bind();
+            ApplyShaderUniforms( *shader, shaderComponent->mUniforms->as<Table>() );
+        }
+        mRenderer.DrawModel( modelComponent.mModel, shader, transformComponent.TransformMat() );
     } );
 }
 
@@ -494,15 +528,16 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
     mRenderer.ClearScreenUint( uvec4( 0 ) );
 
 
-    // Draw 3D models
-    scene.ForEach<ModelComponent, ShaderComponent, TransformComponent>(
+    // Draw 3D models. Matches DrawScene: whatever is visible there has to be
+    // pickable here, and a model drawn with the default shader has no
+    // ShaderComponent to iterate on.
+    scene.ForEach<ModelComponent, TransformComponent>(
         [&]( const Entity entity,
              const ModelComponent& modelComponent,
-             const ShaderComponent& shaderComponent,
              const TransformComponent& transformComponent )
     {
         mEntityIdShader->SetUni1u( "uObjectId", (u32)entity );
-        const bool valid = modelComponent.mModel and shaderComponent.mShader;
+        const bool valid = modelComponent.mModel != nullptr;
         const auto& model = valid ? modelComponent.mModel : mErrorModel;
         const auto tansform = valid ? transformComponent.TransformMat() : transformComponent.TranslationRotationMat();
         mRenderer.DrawModel( model, mEntityIdShader, tansform );
