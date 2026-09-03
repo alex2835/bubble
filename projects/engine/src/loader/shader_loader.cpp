@@ -384,7 +384,7 @@ UniformDescription LoadUniformDescriptions( const Ref<Shader>& shader )
     // Introspect active uniforms — skip engine-managed ones set by the renderer
     static const std::unordered_set<string_view> sEngineUniforms = { "uModel"sv,  "uLights"sv,
     "uView"sv, "uViewPos"sv, "uProjection"sv, "uNormalMapping"sv, "uNormalMappingStrength"sv,
-    "uNumLights"sv, "uNormalMatrix"sv, };
+    "uNumLights"sv, "uNormalMatrix"sv, "uMaterial"sv, };
 
     static const std::unordered_map<GLenum, GLSLDataType> sGLenumToGLSLType = {
 		{ GL_SAMPLER_2D, GLSLDataType::Texture2D },
