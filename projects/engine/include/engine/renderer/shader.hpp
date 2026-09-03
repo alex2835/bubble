@@ -78,7 +78,11 @@ public:
 private:
     i32 LookupUniform( string_view name, bool warnIfMissing ) const;
 
+    // Uniform locations and uniform block indices are separate namespaces in
+    // GL, so they cannot share one cache: a block and a uniform with the same
+    // name would hand each other's index out.
     mutable str_hash_map<i32> mUniformCache;
+    mutable str_hash_map<i32> mUniformBlockCache;
 };
 
 }

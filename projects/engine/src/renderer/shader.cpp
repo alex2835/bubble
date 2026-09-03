@@ -5,12 +5,13 @@
 
 namespace bubble
 {
+// Via Swap so there is exactly one list of members to keep up to date. The
+// hand-written member list this replaced moved three of them and left mPath,
+// mModules and mUniformDescriptors behind - a moved-from shader kept its path,
+// and the moved-to one had no material and no uniforms.
 Shader::Shader( Shader&& other ) noexcept
-    : mName( std::move( other.mName ) ),
-      mShaderId( other.mShaderId ),
-      mUniformCache( std::move( other.mUniformCache ) )
 {
-    other.mShaderId = 0;
+    Swap( other );
 }
 
 Shader& Shader::operator=( Shader&& other ) noexcept
@@ -35,8 +36,13 @@ void Shader::Swap( Shader& other ) noexcept
     std::swap( mShaderId, other.mShaderId );
     std::swap( mName, other.mName );
     std::swap( mUniformCache, other.mUniformCache );
+    std::swap( mUniformBlockCache, other.mUniformBlockCache );
     std::swap( mPath, other.mPath );
     std::swap( mModules, other.mModules );
+    // Missing here before, and the hot reloader swaps a freshly compiled shader
+    // into the live one - so a reloaded shader kept the old descriptor set and
+    // a uniform added to the file never reached the inspector.
+    std::swap( mUniformDescriptors, other.mUniformDescriptors );
 }
 
 i32 Shader::LookupUniform( string_view uniformName, bool warnIfMissing ) const
@@ -71,15 +77,18 @@ bool Shader::HasUniform( string_view uniformName ) const
 i32 Shader::GetUniformBuffer( string_view uniformName ) const
 {
     glcall( glUseProgram( mShaderId ) );
-    auto iter = mUniformCache.find( uniformName );
-    if ( iter != mUniformCache.end() )
+    auto iter = mUniformBlockCache.find( uniformName );
+    if ( iter != mUniformBlockCache.end() )
         return iter->second;
 
-    i32 uniformId = glGetUniformBlockIndex( mShaderId, uniformName.data() );
-    if ( uniformId == GL_INVALID_INDEX )
+    // Same reason as LookupUniform: glGetUniformBlockIndex reads a
+    // null-terminated string and a string_view is not guaranteed to be one.
+    string key( uniformName );
+    i32 uniformId = (i32)glGetUniformBlockIndex( mShaderId, key.c_str() );
+    if ( uniformId == (i32)GL_INVALID_INDEX )
         LogWarning( "Shader {} doesn't have uniform buffer: {}", mName, uniformName );
 
-    mUniformCache.emplace( uniformName, uniformId );
+    mUniformBlockCache.emplace( std::move( key ), uniformId );
     return uniformId;
 }
 
