@@ -27,6 +27,12 @@ struct BBoxShapeData
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform );
 BBoxShapeData CalculateBBoxShapeData( AABB box );
 
+// Normals
+// The matrix a normal has to be transformed by to survive a non-uniform scale:
+// transpose(inverse(model)). One value for the whole draw, so the vertex stage
+// has no business recomputing it per vertex.
+mat3 CalculateNormalMat( const mat4& transform );
+
 // Generate camera mesh
 
 }

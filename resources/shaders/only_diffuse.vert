@@ -16,14 +16,14 @@ layout(std140) uniform VertexUniformBuffer
     mat4 uView;
 };
 uniform mat4 uModel;
+// transpose(inverse(uModel)), supplied by the renderer - see phong.vert.
+uniform mat3 uNormalMatrix;
 uniform bool uNormalMapping;
 
 void main()
 {
-    mat3 ITModel = mat3(transpose(inverse(uModel)));
-
     vFragPos = vec3(uModel * vec4(aPosition, 1.0));
-    vNormal  = normalize(ITModel * aNormal);
+    vNormal  = normalize(uNormalMatrix * aNormal);
     vTexCoords = aTexCoord;
 
     gl_Position = uProjection * uView * vec4(vFragPos, 1.0);

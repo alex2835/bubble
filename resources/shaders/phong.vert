@@ -16,16 +16,21 @@ layout(std140) uniform VertexUniformBuffer
     mat4 uView;
 };
 uniform mat4 uModel;
+// transpose(inverse(uModel)), supplied by the renderer. It is the same for
+// every vertex of a draw, and computing a 4x4 inverse per vertex is a lot of
+// work to arrive at one value.
+uniform mat3 uNormalMatrix;
 uniform bool uNormalMapping;
 
 void main()
 {
-    mat3 ITModel = mat3(transpose(inverse(uModel)));
-
     vFragPos = vec3(uModel * vec4(aPosition, 1.0));
-    vNormal  = normalize(ITModel * aNormal);
+    vNormal  = normalize(uNormalMatrix * aNormal);
     vTexCoords = aTexCoords;
 
+    // Left exactly as it was: swapping uModel for uNormalMatrix here would
+    // change the basis under non-uniform scale, and this commit is meant to be
+    // the same picture computed more cheaply, nothing else.
     if (uNormalMapping)
     {
         vec3 B = normalize(vec3(uModel * vec4(aBitangent, 0.0)));

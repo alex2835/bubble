@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/renderer.hpp"
 #include "engine/renderer/helpers/opengl_state_guard.hpp"
+#include "engine/utils/geometry.hpp"
 #include <GL/glew.h>
 
 namespace bubble
@@ -133,6 +134,10 @@ void Renderer::DrawMesh( const Mesh& mesh,
 
     // Draw mesh
     shader->SetUniMat4( "uModel", transform );
+    // Only the lit shaders declare it; picking, white and billboard do not, and
+    // GetUniform would warn on every draw.
+    if ( shader->HasUniform( "uNormalMatrix" ) )
+        shader->SetUniMat3( "uNormalMatrix", CalculateNormalMat( transform ) );
     DrawMeshPrimitives( mesh, shader, drawingPrimitive );
 }
 
@@ -158,6 +163,10 @@ void Renderer::DrawModel( const Ref<Model>& model,
 
     // Draw meshes
     shader->SetUniMat4( "uModel", transform );
+    // Only the lit shaders declare it; picking, white and billboard do not, and
+    // GetUniform would warn on every draw.
+    if ( shader->HasUniform( "uNormalMatrix" ) )
+        shader->SetUniMat3( "uNormalMatrix", CalculateNormalMat( transform ) );
     for ( const auto& mesh : model->mMeshes )
         DrawMeshPrimitives( mesh, shader, drawingPrimitive );
 }

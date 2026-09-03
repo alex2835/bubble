@@ -214,6 +214,12 @@ ShapeData GenerateFrustumLinesShape( f32 fov, f32 aspectRatio, f32 nearDist, f32
     return ShapeData{ std::move( vertices ), std::move( indices ) };
 }
 
+mat3 CalculateNormalMat( const mat4& transform )
+{
+    return mat3( glm::transpose( glm::inverse( transform ) ) );
+}
+
+
 AABB CalculateTransformedBBox( const AABB& box, const mat4& transform )
 {
     AABB newBox;
