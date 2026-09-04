@@ -21,6 +21,19 @@ Shader& Shader::operator=( Shader&& other ) noexcept
     return *this;
 }
 
+// Every other GL wrapper in engine/renderer frees its object in a destructor;
+// this one had none, so a program leaked every time a Shader died. The hot
+// reloader does that on every save: it Swaps the freshly built shader into the
+// live one, which leaves the temporary holding the *old* program id.
+//
+// Safe at teardown because BubbleEditor declares mWindow before mEngine and
+// mProject, so the context outlives every shader. glDeleteProgram( 0 ) is
+// silently ignored, which covers a default-constructed or moved-from Shader.
+Shader::~Shader()
+{
+    glDeleteProgram( mShaderId );
+}
+
 void Shader::Bind() const
 {
     glcall( glUseProgram( mShaderId ) );

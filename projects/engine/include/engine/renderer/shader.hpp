@@ -47,6 +47,7 @@ public:
 
     Shader( Shader&& ) noexcept;
     Shader& operator= ( Shader&& ) noexcept;
+    ~Shader();
 
     void Swap( Shader& other ) noexcept;
 
