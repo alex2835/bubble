@@ -29,6 +29,19 @@ void Timer::OnUpdate()
     chrono::duration<f32> time_dif = duration_cast<chrono::duration<f32>>( now - mLastTime );
     mDeltatime = DeltaTime( time_dif.count() );
     mLastTime = now;
+    mElapsed = DeltaTime( mElapsed.Seconds() + mDeltatime.Seconds() );
+}
+
+void Timer::Reset()
+{
+    mLastTime = Now();
+    mDeltatime = DeltaTime( 0.0f );
+    mElapsed = DeltaTime( 0.0f );
+}
+
+DeltaTime Timer::GetElapsed() const
+{
+    return mElapsed;
 }
 
 DeltaTime Timer::GetDeltaTime()

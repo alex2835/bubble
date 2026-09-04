@@ -66,6 +66,13 @@ void ScriptingEngine::BindLoader( Loader& loader )
     CreateLoaderBindings( loader, *mLua );
 }
 
+// Held by reference: Engine declares mTimer before mProject, so the timer
+// outlives the Lua state that closes over it.
+void ScriptingEngine::BindTimer( Timer& timer )
+{
+    mLua->set( "time", [&timer]() { return timer.GetElapsed().Seconds(); } );
+}
+
 void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
 {
     // The scene bindings take resources by path - add_model("cube.obj") - so

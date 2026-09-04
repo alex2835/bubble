@@ -51,6 +51,7 @@ public:
     void BindWindow( Window& window );
     void BindInput( WindowInput& input );
     void BindLoader( Loader& loader );
+    void BindTimer( Timer& timer );
     void BindScene( Scene& scene, PhysicsEngine& physicsEngine );
 
     void RunScript( const Script& script );

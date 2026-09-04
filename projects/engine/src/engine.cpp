@@ -48,6 +48,7 @@ void Engine::OnStart( const path& projectRootFile )
     mProject.mScriptingEngine.BindInput( mWindow.GetWindowInput() );
     mProject.mScriptingEngine.BindLoader( mProject.mLoader );
     mProject.mScriptingEngine.BindScene( mProject.mScene, mPhysicsEngine );
+    mProject.mScriptingEngine.BindTimer( mTimer );
 
 
     // Add RigidBody components to physics world
@@ -117,6 +118,11 @@ void Engine::OnStart( const path& projectRootFile )
         CallScriptOnStart( scriptComponent.mOnStart, scriptComponent.mScript,
                            entity, *stateComponent.mState );
     } );
+
+    // Last, so neither loading the project nor running on_start counts against
+    // the clock scripts read, and so the first frame's delta is measured from
+    // here rather than from whenever the Engine was constructed.
+    mTimer.Reset();
 }
 
 void Engine::OnEnd()
