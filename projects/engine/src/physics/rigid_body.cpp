@@ -182,6 +182,19 @@ void RigidBody::CopyFrom( const RigidBody& other )
 
     mBody->setFriction( other.mBody->getFriction() );
 
+    // A btRigidBody built from scratch starts with default flags, so anything
+    // set on the original has to be carried across by hand. Without this a
+    // copied kinematic body reverted to inert static geometry with nothing
+    // logged - and RigidBodyComponent's copy constructor is compiler generated,
+    // so a clipboard paste or a pool that copies rather than moves hits this.
+    mBody->setCollisionFlags( other.mBody->getCollisionFlags() );
+
+    // Only the sticky state is worth carrying. Copying ISLAND_SLEEPING would
+    // hand back a body that starts asleep, whereas DISABLE_DEACTIVATION is what
+    // keeps a kinematic body being read every step.
+    if ( other.mBody->getActivationState() == DISABLE_DEACTIVATION )
+        mBody->setActivationState( DISABLE_DEACTIVATION );
+
     mShapeData = other.mShapeData;
 }
 
