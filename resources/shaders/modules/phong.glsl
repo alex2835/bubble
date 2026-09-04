@@ -66,11 +66,11 @@ vec4 PhongShade(vec4 albedo)
 
 // The whole fragment stage in one call: sample, drop fully transparent texels,
 // shade. `tint` multiplies the base colour; pass vec4(1.0) for plain phong.
-vec4 PhongFragment(vec4 tint)
+vec4 PhongFragment()
 {
     vec4 albedo = PhongAlbedo();
     if (albedo.a < 0.0001)
         discard;
 
-    return PhongShade(albedo * tint);
+    return PhongShade(albedo);
 }
