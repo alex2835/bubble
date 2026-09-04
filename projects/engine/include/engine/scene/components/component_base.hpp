@@ -26,9 +26,9 @@ enum class ComponentID
 	Model,
 	Light,
 	Shader,
-	Script,
 	RigidBody,
 	CharacterController,
+	Script,
 	State
 };
 
