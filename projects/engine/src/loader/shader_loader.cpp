@@ -203,25 +203,6 @@ void CompileShaders( Shader& shader,
 }
 
 
-// How many floats or ints a type occupies in glGetUniform's output. Zero for
-// anything with no meaningful default value.
-static i32 UniformComponentCount( GLSLDataType type )
-{
-	switch ( type )
-	{
-		case GLSLDataType::Float:  case GLSLDataType::Int:
-		case GLSLDataType::Bool:                            return 1;
-		case GLSLDataType::Float2: case GLSLDataType::Int2: return 2;
-		case GLSLDataType::Float3: case GLSLDataType::Int3: return 3;
-		case GLSLDataType::Float4: case GLSLDataType::Int4: return 4;
-		case GLSLDataType::Mat3:                            return 9;
-		case GLSLDataType::Mat4:                            return 16;
-		case GLSLDataType::Texture2D:                       return 0;
-	}
-	return 0;
-}
-
-
 // The value the uniform holds in the program as just linked, which is its GLSL
 // initializer when it declared one. Read here, before anything draws: shaders
 // are cached and shared, so a second entity picking up the same shader would
@@ -229,7 +210,10 @@ static i32 UniformComponentCount( GLSLDataType type )
 static UniformDefault ReadUniformDefault( u32 shaderId, const string& name, GLSLDataType type )
 {
 	UniformDefault uniformDefault;
-	if ( UniformComponentCount( type ) == 0 )
+	// A sampler is the one type with no meaningful default value. Everything
+	// else fits UniformDefault, whose array sizes are what the component
+	// counts are actually for - see its comment in shader.hpp.
+	if ( type == GLSLDataType::Texture2D )
 		return uniformDefault;
 
 	const i32 location = glGetUniformLocation( shaderId, name.c_str() );
