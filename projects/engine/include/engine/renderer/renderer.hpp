@@ -4,7 +4,6 @@
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/framebuffer.hpp"
 #include "engine/renderer/model.hpp"
-#include "engine/scene/scene.hpp"
 
 namespace bubble
 {

@@ -18,8 +18,10 @@ public:
     ~OpenGLStateGuard();
     OpenGLStateGuard( const OpenGLStateGuard& ) = delete;
     OpenGLStateGuard& operator=( const OpenGLStateGuard& ) = delete;
-    OpenGLStateGuard( OpenGLStateGuard&& ) noexcept = default;
-    OpenGLStateGuard& operator=( OpenGLStateGuard&& ) noexcept = default;
+    // Not movable: the members are plain GLints, so a move is a copy and both
+    // objects would restore state on destruction.
+    OpenGLStateGuard( OpenGLStateGuard&& ) = delete;
+    OpenGLStateGuard& operator=( OpenGLStateGuard&& ) = delete;
 
 private:
     // Enable/Disable states

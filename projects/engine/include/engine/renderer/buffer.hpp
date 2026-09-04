@@ -9,7 +9,6 @@ namespace bubble
 class VertexBufferLayout;
 class VertexBuffer;
 struct UniformArrayElement;
-class UniformArray;
 
 enum class GLSLDataType
 {
