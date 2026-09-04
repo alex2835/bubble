@@ -26,6 +26,19 @@ RigidBodyComponent::~RigidBodyComponent()
 {
 }
 
+namespace
+{
+// Every RigidBody::Create* builds a fresh body, so anything not passed to it is
+// gone. Friction and the kinematic flag have to be put back: changing a shape's
+// radius used to silently reset friction to Bullet's default.
+void ReplaceBody( RigidBodyComponent& component, RigidBody body, f32 friction, bool kinematic )
+{
+    component.mRigidBody = std::move( body );
+    component.mRigidBody.SetFriction( friction );
+    component.mRigidBody.SetKinematic( kinematic );
+}
+}
+
 void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& entity, RigidBodyComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "RigidBody component" );
@@ -40,6 +53,7 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
 
     f32 mass = rigidBody.GetMass();
     f32 friction = rigidBody.GetFriction();
+    bool kinematic = rigidBody.IsKinematic();
 
     /// Physics shape selection combo
     string_view curShapeName = shapes[shape->getShapeType()];
@@ -55,14 +69,14 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
                     f32 radius = 1.0f;
                     if ( box )
                         radius = box->getShortestEdge() / 2;
-                    component.mRigidBody = RigidBody::CreateSphere( mass, radius );
+                    ReplaceBody( component, RigidBody::CreateSphere( mass, radius ), friction, kinematic );
                 }
                 if ( id == BOX_SHAPE_PROXYTYPE )
                 {
                     vec3 halfExtend( 1 );
                     if ( box )
                         halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    component.mRigidBody = RigidBody::CreateBox( mass, halfExtend );
+                    ReplaceBody( component, RigidBody::CreateBox( mass, halfExtend ), friction, kinematic );
                 }
                 if ( id == CAPSULE_SHAPE_PROXYTYPE )
                 {
@@ -74,9 +88,8 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
                         radius = glm::min( size.x, size.z ) / 2.0f;
                         height = glm::max( 0.0f, size.y - 2.0f * radius );
                     }
-                    component.mRigidBody = RigidBody::CreateCapsule( mass, radius, height );
+                    ReplaceBody( component, RigidBody::CreateCapsule( mass, radius, height ), friction, kinematic );
                 }
-                component.mRigidBody.SetFriction( friction );
             }
         }
         ImGui::EndCombo();
@@ -84,8 +97,25 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
     }
 
     /// Rigid body controls
+    if ( ImGui::Checkbox( "Kinematic", &kinematic ) )
+    {
+        // Bullet only treats a massless body as kinematic, and a kinematic body
+        // is driven by set_transform from a script rather than by forces - so
+        // mass stops meaning anything the moment this is ticked.
+        if ( kinematic )
+        {
+            mass = 0.0f;
+            rigidBody.SetMass( 0.0f );
+        }
+        rigidBody.SetKinematic( kinematic );
+    }
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "Driven by set_transform from a script instead of by forces, and pushes dynamic bodies it meets. Mass must be 0." );
+
+    ImGui::BeginDisabled( kinematic );
     if ( ImGui::DragFloat( "Mass", &mass ) )
         rigidBody.SetMass( mass );
+    ImGui::EndDisabled();
 
     if ( ImGui::DragFloat( "Friction", &friction ) )
         rigidBody.SetFriction( friction );
@@ -98,7 +128,7 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
             auto sphereShape = static_cast<btSphereShape*>( shape );
             f32 radius = sphereShape->getRadius();
             if ( ImGui::DragFloat( "Radius", &radius ) )
-                component.mRigidBody = RigidBody::CreateSphere( mass, radius );
+                ReplaceBody( component, RigidBody::CreateSphere( mass, radius ), friction, kinematic );
         } break;
 
         case BOX_SHAPE_PROXYTYPE:
@@ -107,7 +137,7 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
             btVector3 he = boxShape->getHalfExtentsWithMargin();
             auto halfExtends = vec3( he.x(), he.y(), he.z() );
             if ( ImGui::DragFloat3( "Half Extends", &halfExtends.x ) )
-                component.mRigidBody = RigidBody::CreateBox( mass, halfExtends );
+                ReplaceBody( component, RigidBody::CreateBox( mass, halfExtends ), friction, kinematic );
         } break;
 
         case CAPSULE_SHAPE_PROXYTYPE:
@@ -119,7 +149,7 @@ void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& 
             changed |= ImGui::DragFloat( "Radius", &radius, 0.01f, 0.01f, 100.0f );
             changed |= ImGui::DragFloat( "Height", &height, 0.01f, 0.0f, 100.0f );
             if ( changed )
-                component.mRigidBody = RigidBody::CreateCapsule( mass, radius, height );
+                ReplaceBody( component, RigidBody::CreateCapsule( mass, radius, height ), friction, kinematic );
         } break;
     }
 }
@@ -130,6 +160,7 @@ void RigidBodyComponent::ToJson( json& j, const Project& project, const RigidBod
     auto body = rigidBody.getBody();
     j["Mass"sv] = body->getMass();
     j["Friction"sv] = body->getFriction();
+    j["Kinematic"sv] = rigidBody.IsKinematic();
 
     auto shape = rigidBody.getShape();
     switch ( shape->getShapeType() )
@@ -179,6 +210,9 @@ void RigidBodyComponent::FromJson( const json& j, Project& project, RigidBodyCom
         throw std::runtime_error( "Undefined physics shape" );
 
     component.mRigidBody.SetFriction( friction );
+    // Absent from projects saved before kinematic bodies existed.
+    if ( j.value( "Kinematic"sv, false ) )
+        component.mRigidBody.SetKinematic( true );
 }
 
 void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
