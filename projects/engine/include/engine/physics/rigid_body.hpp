@@ -24,6 +24,12 @@ public:
     void ApplyCentralImpulse( const vec3 impulse );
     void ApplyTorqueImpulse( const vec3 impulse );
 
+    // A kinematic body is driven by SetTransform instead of by forces, and
+    // pushes dynamic bodies it runs into - moving platforms, lifts, doors.
+    // Mass must be 0.
+    void SetKinematic( bool kinematic );
+    bool IsKinematic() const;
+
     void SetTransform( const vec3& pos, const vec3& rot );
     void GetTransform( vec3& pos, vec3& rot ) const;
 

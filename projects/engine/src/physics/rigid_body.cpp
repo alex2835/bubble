@@ -57,6 +57,33 @@ void RigidBody::ApplyTorqueImpulse( const vec3 impulse )
     mBody->applyTorqueImpulse( btVector3( impulse.x, impulse.y, impulse.z ) );
 }
 
+void RigidBody::SetKinematic( bool kinematic )
+{
+    if ( not kinematic )
+    {
+        mBody->setCollisionFlags( mBody->getCollisionFlags() & ~btCollisionObject::CF_KINEMATIC_OBJECT );
+        mBody->forceActivationState( ACTIVE_TAG );
+        mBody->activate( true );
+        return;
+    }
+
+    mBody->setCollisionFlags( mBody->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT );
+
+    // Not optional. setMassProps( 0, .. ) flags the body static, addRigidBody
+    // then puts every static body into ISLAND_SLEEPING, and the world's
+    // saveKinematicState - the thing that reads our motion state and derives
+    // the velocity that carries whatever is standing on us - skips sleeping
+    // bodies. Without this the platform never moves and nothing says why.
+    // PhysicsEngine::Add's activate() cannot undo it either: activate( false )
+    // is a no-op on anything flagged static or kinematic.
+    mBody->setActivationState( DISABLE_DEACTIVATION );
+}
+
+bool RigidBody::IsKinematic() const
+{
+    return mBody->isKinematicObject();
+}
+
 void RigidBody::SetTransform( const vec3& pos, const vec3& rot )
 {
     btTransform transform;

@@ -189,7 +189,18 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
         "set_friction",         &RigidBody::SetFriction,
         "get_friction",         &RigidBody::GetFriction,
         "apply_central_impulse", &RigidBody::ApplyCentralImpulse,
-        "apply_torque_impulse",  &RigidBody::ApplyTorqueImpulse
+        "apply_torque_impulse",  &RigidBody::ApplyTorqueImpulse,
+        "set_kinematic",         &RigidBody::SetKinematic,
+        "is_kinematic",          &RigidBody::IsKinematic,
+        "set_transform",         &RigidBody::SetTransform,
+        // GetTransform fills two out-params, which has no sensible Lua shape.
+        // Returned as a pair instead: local pos, rot = body:get_transform()
+        "get_transform",         []( const RigidBody& body )
+        {
+            vec3 position, rotation;
+            body.GetTransform( position, rotation );
+            return std::make_tuple( position, rotation );
+        }
     );
 
     lua.new_usertype<RigidBodyComponent>(

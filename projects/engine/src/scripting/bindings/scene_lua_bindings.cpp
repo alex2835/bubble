@@ -440,6 +440,16 @@ void CreateSceneBindings( Scene& scene,
             if ( const auto friction = Field<double>( *body, "friction" ) )
                 rigidBody->SetFriction( (f32)*friction );
 
+            // A platform is scripted, not simulated. Bullet only treats a body
+            // as kinematic when it is massless, so say that here rather than
+            // silently ignoring a mass that was asked for.
+            if ( Field<bool>( *body, "kinematic" ).value_or( false ) )
+            {
+                if ( mass != 0.0f )
+                    throw std::runtime_error( "spawn: a kinematic rigid_body must have mass 0" );
+                rigidBody->SetKinematic( true );
+            }
+
             auto& component = scene.AddComponent<RigidBodyComponent>( entity, std::move( *rigidBody ) );
             physicsEngine.Add( component.mRigidBody, entity );
         }
