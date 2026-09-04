@@ -24,6 +24,26 @@ static string ToSnakeCase( string_view name )
     return out;
 }
 
+// The name a component is addressed by in Lua: Component.transform to select
+// it, components.transform to read it back. Both are the component's own
+// Name() lowercased, so the two cannot end up disagreeing.
+//
+// Held in a static because the for_each_entity callback runs per entity, and
+// ToSnakeCase allocates.
+template <typename Component>
+static const string& ComponentLuaName()
+{
+    static const string name = ToSnakeCase( Component::Name() );
+    return name;
+}
+
+// BuildComponentEnum has ids and not types, so it reaches Name() through the
+// registry, which ComponentManager::Add fills from that same Name().
+static string ComponentLuaName( ComponentID id )
+{
+    return ToSnakeCase( ComponentManager::GetName( static_cast<int>( id ) ) );
+}
+
 // Scripts address components as Component.tag, Component.transform, ... A
 // hand-written copy of the ids would desync from ComponentID silently, and a
 // script would then iterate the wrong pool, so build the table from the enum.
@@ -31,7 +51,7 @@ static string BuildComponentEnum()
 {
     string source = "Component =\n{\n";
     for ( const auto& [value, name] : magic_enum::enum_entries<ComponentID>() )
-        source += std::format( "    {} = {},\n", ToSnakeCase( name ), static_cast<int>( value ) );
+        source += std::format( "    {} = {},\n", ComponentLuaName( value ), static_cast<int>( value ) );
     source += "}\n";
     return source;
 }
@@ -507,34 +527,34 @@ void CreateSceneBindings( Scene& scene,
                 switch ( (ComponentID)componentId )
                 {
                     case ComponentID::Tag:
-                        componentsTable[ComponentID::Tag] = (TagComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<TagComponent>()] = (TagComponent*)componentDataPtr;
                         break;
                     case ComponentID::Transform:
-                        componentsTable[ComponentID::Transform] = (TransformComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<TransformComponent>()] = (TransformComponent*)componentDataPtr;
                         break;
                     case ComponentID::Model:
-                        componentsTable[ComponentID::Model] = (ModelComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<ModelComponent>()] = (ModelComponent*)componentDataPtr;
                         break;
                     case ComponentID::Shader:
-                        componentsTable[ComponentID::Shader] = (ShaderComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<ShaderComponent>()] = (ShaderComponent*)componentDataPtr;
                         break;
                     case ComponentID::Script:
-                        componentsTable[ComponentID::Script] = (ScriptComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<ScriptComponent>()] = (ScriptComponent*)componentDataPtr;
                         break;
                     case ComponentID::RigidBody:
-                        componentsTable[ComponentID::RigidBody] = (RigidBodyComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<RigidBodyComponent>()] = (RigidBodyComponent*)componentDataPtr;
                         break;
                     case ComponentID::CharacterController:
-                        componentsTable[ComponentID::CharacterController] = (CharacterControllerComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<CharacterControllerComponent>()] = (CharacterControllerComponent*)componentDataPtr;
                         break;
                     case ComponentID::Camera:
-                        componentsTable[ComponentID::Camera] = (CameraComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<CameraComponent>()] = (CameraComponent*)componentDataPtr;
                         break;
                     case ComponentID::Light:
-                        componentsTable[ComponentID::Light] = (LightComponent*)componentDataPtr;
+                        componentsTable[ComponentLuaName<LightComponent>()] = (LightComponent*)componentDataPtr;
                         break;
                     case ComponentID::State:
-                        componentsTable[ComponentID::State] = *((StateComponent*)componentDataPtr)->mState;
+                        componentsTable[ComponentLuaName<StateComponent>()] = *((StateComponent*)componentDataPtr)->mState;
                         break;
                     default:
                         throw std::runtime_error( "for_each_entity: invalid set of components provided" );
