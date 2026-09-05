@@ -20,6 +20,10 @@ endif()
 # EMDAWNWEBGPU under emcmake. See deps/webgpu/VENDORED_VERSION.txt.
 add_subdirectory(webgpu)
 
+# WGSL reflection. WebGPU exposes none of its own, so anything that needs to
+# know what a shader declares has to read it out of the source.
+add_subdirectory(wgsl_reflect)
+
 # Creates the WGPUSurface for a GLFW window, per platform.
 #GIT_TAG v1.3.0-alpha  GIT_REPOSITORY "https://github.com/eliemichel/glfw3webgpu.git"
 add_subdirectory(glfw3webgpu)

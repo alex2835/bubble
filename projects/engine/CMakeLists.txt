@@ -46,6 +46,7 @@ if(MSVC)
 endif()
 
 target_link_libraries(${TARGET_NAME} PUBLIC webgpu)
+target_link_libraries(${TARGET_NAME} PUBLIC wgsl_reflect)
 target_link_libraries(${TARGET_NAME} PUBLIC glfw3webgpu)
 
 if(EMSCRIPTEN)
