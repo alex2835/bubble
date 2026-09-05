@@ -16,6 +16,10 @@ add_definitions(-DSOL_ALL_SAFETIES_ON)
 target_link_libraries(${TARGET_NAME} bubble_engine)
 target_link_libraries(${TARGET_NAME} argagg)
 
+# Copies wgpu_native.dll next to the executable. No-op for the Emscripten
+# backends, which link the implementation in.
+target_copy_webgpu_binaries(${TARGET_NAME})
+
 add_custom_command(
     TARGET ${TARGET_NAME} PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

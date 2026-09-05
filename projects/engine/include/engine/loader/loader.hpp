@@ -9,7 +9,6 @@
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/shader.hpp"
 #include "engine/renderer/model.hpp"
-#include "engine/renderer/skybox.hpp"
 #include "engine/scripting/script.hpp"
 #include "engine/loader/shader_module_loader.hpp"
 
@@ -60,7 +59,6 @@ Ref<Model> LoadModel( const path& path );
 Ref<Model> LoadModel( const ModelData& modelData );
 
 Ref<Shader> LoadShader( const path& path );
-Ref<Skybox> LoadSkybox( const path& path );
 
 Ref<Script> LoadScript( const path& path );
 
@@ -75,7 +73,6 @@ struct Loader
     Ref<Shader> LoadShader( path path );
     Ref<Model> LoadModel( const path& path );
     void LoadModels( const vector<path>& paths );
-    Ref<Skybox> LoadSkybox( const path& path );
 
     
     struct ProjectPath
@@ -97,7 +94,6 @@ public:
     hash_map<path, Ref<Texture2D>> mTextures;
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;
-    hash_map<path, Ref<Skybox>> mSkyboxes;
     hash_map<path, Ref<Script>> mScripts;
 
     // Stamped whenever mShaders or mScripts gains an entry, so an observer can

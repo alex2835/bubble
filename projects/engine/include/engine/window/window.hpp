@@ -4,12 +4,14 @@
 #include "engine/types/number.hpp"
 #include "engine/types/string.hpp"
 #include "engine/types/array.hpp"
+#include "engine/types/pointer.hpp"
 #include "engine/window/event.hpp"
 
 struct GLFWwindow;
 
 namespace bubble
 {
+class GpuContext;
 constexpr string_view INI_FILE_PATH = "./resources/imgui/imgui.ini"sv;
 // Relative to the executable directory, see filesystem::resolveNearExecutable.
 constexpr string_view DEFAULT_UI_FONT_PATH = "resources/fonts/Roboto-Medium.ttf"sv;
@@ -108,9 +110,7 @@ public:
     WindowInput& GetWindowInput();
 
     GLFWwindow* GetHandle() const;
-    const char* GetGLSLVersion() const;
 
-    void BindWindowFramebuffer();
     ImGuiContext* GetImGuiContext();
     void ImGuiBegin();
     void ImGuiEnd();
@@ -136,8 +136,9 @@ private:
 
 private:
     GLFWwindow* mWindow;
+    // Created first and destroyed last, so it outlives every GPU resource.
+    Scope<GpuContext> mGpuContext;
     ImGuiContext* mImGuiContext;
-    const char* mGLSLVersion;
     uvec2 mWindowSize = uvec2( 0u );
     uvec2 mFramebufferSize = uvec2( 0u );
     ivec2 mWindowPos = ivec2( 0 );
@@ -146,6 +147,13 @@ private:
     uvec2 mRestoredSize = uvec2( 0u );
     CursorMode mCursorMode = CursorMode::Normal;
     bool mShouldClose = false;
+    // Set by the framebuffer resize callback, acted on at the start of the next
+    // frame - reconfiguring the surface inside a GLFW callback would do it
+    // partway through glfwPollEvents.
+    bool mSurfaceDirty = false;
+    // Whether ImGuiEnd managed to acquire a surface texture this frame. Present
+    // must not be called otherwise.
+    bool mFramePresentable = false;
 
     // Style metrics as created by the theme, before any scaling is applied.
     // ImGuiStyle::ScaleAllSizes is cumulative so rescaling always restarts from these.

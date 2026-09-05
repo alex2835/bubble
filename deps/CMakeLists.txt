@@ -7,18 +7,24 @@ endif()
 
 
 if(NOT EMSCRIPTEN)
-	#GIT_TAG glew-cmake-2.2.0  GIT_REPOSITORY "https://github.com/Perlmint/glew-cmake.git"
-	add_subdirectory(glew)
-
-	#GIT_TAG 3.3.8  GIT_REPOSITORY "https://github.com/glfw/glfw.git"
-    option(GLFW_BUILD_EXAMPLES "" OFF)
+	#GIT_TAG 3.4  GIT_REPOSITORY "https://github.com/glfw/glfw.git"
+	# 3.4+ is required: glfw3webgpu calls glfwGetPlatform().
+	option(GLFW_BUILD_EXAMPLES "" OFF)
 	option(GLFW_BUILD_TESTS "" OFF)
 	option(GLFW_BUILD_DOCS "" OFF)
-	option(glew-cmake_BUILD_SHARED "" OFF)
 	add_subdirectory(glfw)
 endif()
 
-#GIT_TAG v1.89.9-docking  GIT_REPOSITORY "https://github.com/ocornut/imgui.git"
+# WebGPU. One 'webgpu' target; the implementation is chosen by WEBGPU_BACKEND
+# (WGPU / DAWN / EMSCRIPTEN / EMDAWNWEBGPU), defaulting to WGPU natively and to
+# EMDAWNWEBGPU under emcmake. See deps/webgpu/VENDORED_VERSION.txt.
+add_subdirectory(webgpu)
+
+# Creates the WGPUSurface for a GLFW window, per platform.
+#GIT_TAG v1.3.0-alpha  GIT_REPOSITORY "https://github.com/eliemichel/glfw3webgpu.git"
+add_subdirectory(glfw3webgpu)
+
+#GIT_TAG v1.92.0-docking  GIT_REPOSITORY "https://github.com/ocornut/imgui.git"
 add_subdirectory(imgui)
 add_subdirectory(imgui_gizmo)
 add_subdirectory(imgui-filebrowser)

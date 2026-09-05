@@ -1,111 +1,152 @@
 #include "engine/pch/pch.hpp"
-#include <GL/glew.h>
-#include <stb_image.h>
 #include "engine/renderer/texture.hpp"
+#include "engine/renderer/gpu_context.hpp"
 
 namespace bubble
 {
+namespace
+{
+
+wgpu::AddressMode ToWGPU( AddressMode mode )
+{
+    switch ( mode )
+    {
+        case AddressMode::Repeat:       return wgpu::AddressMode::Repeat;
+        case AddressMode::MirrorRepeat: return wgpu::AddressMode::MirrorRepeat;
+        case AddressMode::ClampToEdge:  return wgpu::AddressMode::ClampToEdge;
+    }
+    BUBBLE_ASSERT( false, "Unknown AddressMode" );
+    return wgpu::AddressMode::Repeat;
+}
+
+wgpu::FilterMode ToWGPU( FilterMode mode )
+{
+    switch ( mode )
+    {
+        case FilterMode::Nearest: return wgpu::FilterMode::Nearest;
+        case FilterMode::Linear:  return wgpu::FilterMode::Linear;
+    }
+    BUBBLE_ASSERT( false, "Unknown FilterMode" );
+    return wgpu::FilterMode::Linear;
+}
+
+}
+
+
+u32 TextureFormatChannels( TextureFormat format )
+{
+    switch ( format )
+    {
+        case TextureFormat::R8Unorm:        return 1;
+        case TextureFormat::RG8Unorm:       return 2;
+        case TextureFormat::RGBA8Unorm:     return 4;
+        case TextureFormat::RGBA8UnormSrgb: return 4;
+        case TextureFormat::R32Uint:        return 1;
+        case TextureFormat::Depth32Float:   return 1;
+    }
+    BUBBLE_ASSERT( false, "Unknown TextureFormat" );
+    return 4;
+}
+
+u32 TextureFormatBytesPerPixel( TextureFormat format )
+{
+    switch ( format )
+    {
+        case TextureFormat::R8Unorm:        return 1;
+        case TextureFormat::RG8Unorm:       return 2;
+        case TextureFormat::RGBA8Unorm:     return 4;
+        case TextureFormat::RGBA8UnormSrgb: return 4;
+        case TextureFormat::R32Uint:        return 4;
+        case TextureFormat::Depth32Float:   return 4;
+    }
+    BUBBLE_ASSERT( false, "Unknown TextureFormat" );
+    return 4;
+}
+
+bool TextureFormatIsDepth( TextureFormat format )
+{
+    return format == TextureFormat::Depth32Float;
+}
+
+wgpu::TextureFormat ToWGPU( TextureFormat format )
+{
+    switch ( format )
+    {
+        case TextureFormat::R8Unorm:        return wgpu::TextureFormat::R8Unorm;
+        case TextureFormat::RG8Unorm:       return wgpu::TextureFormat::RG8Unorm;
+        case TextureFormat::RGBA8Unorm:     return wgpu::TextureFormat::RGBA8Unorm;
+        case TextureFormat::RGBA8UnormSrgb: return wgpu::TextureFormat::RGBA8UnormSrgb;
+        case TextureFormat::R32Uint:        return wgpu::TextureFormat::R32Uint;
+        case TextureFormat::Depth32Float:   return wgpu::TextureFormat::Depth32Float;
+    }
+    BUBBLE_ASSERT( false, "Unknown TextureFormat" );
+    return wgpu::TextureFormat::RGBA8Unorm;
+}
+
 
 void Texture2DSpecification::SetTextureSpecChanels( i32 channels )
 {
-    switch( channels )
+    switch ( channels )
     {
-    case 1:
-        mInternalFormat = GL_R8;
-        mDataFormat = GL_RED;
-        break;
-    case 3:
-        mInternalFormat = GL_RGB8;
-        mDataFormat = GL_RGB;
-        break;
-    case 4:
-        mInternalFormat = GL_RGBA8;
-        mDataFormat = GL_RGBA;
-        break;
-    default:
-        BUBBLE_ASSERT( false, "Format not supported!" );
+        case 1:
+            mFormat = TextureFormat::R8Unorm;
+            break;
+        case 2:
+            mFormat = TextureFormat::RG8Unorm;
+            break;
+        // There is no rgb8unorm in WebGPU. The loader expands 3 channel images
+        // to 4, so this is the correct storage format for them.
+        case 3:
+        case 4:
+            mFormat = TextureFormat::RGBA8Unorm;
+            break;
+        default:
+            BUBBLE_ASSERT( false, "Format not supported!" );
     }
 }
 
 u32 Texture2DSpecification::ExtractTextureSpecChannels() const
 {
-    u32 bpp = 0;
-    switch( mDataFormat )
-    {
-    case GL_RGBA:
-        bpp = 4;
-        break;
-    case GL_RGB:
-        bpp = 3;
-        break;
-    case GL_RED:
-        bpp = 1;
-        break;
-    default:
-        BUBBLE_ASSERT( false, "Format not supported!" );
-    }
-    return bpp;
+    return TextureFormatChannels( mFormat );
 }
 
 u32 Texture2DSpecification::GetTextureSize() const
 {
-    return mWidth * mHeight * ExtractTextureSpecChannels();
+    return mWidth * mHeight * TextureFormatBytesPerPixel( mFormat );
 }
-
 
 Texture2DSpecification Texture2DSpecification::CreateRGBA8( uvec2 size )
 {
     return Texture2DSpecification( size );
 }
 
-bubble::Texture2DSpecification Texture2DSpecification::CreateRGBA32( uvec2 size )
-{
-    Texture2DSpecification specification( size );
-    specification.mChanelFormat = GL_UNSIGNED_INT;
-    specification.mDataFormat = GL_RGBA_INTEGER;
-    specification.mInternalFormat = GL_RGBA32I;
-    return specification;
-}
-
 Texture2DSpecification Texture2DSpecification::CreateObjectId( uvec2 size )
 {
     Texture2DSpecification specification( size );
-    specification.mChanelFormat = GL_UNSIGNED_INT;
-    specification.mDataFormat = GL_RED_INTEGER;
-    specification.mInternalFormat = GL_R32UI;
-    specification.mMinFiler = GL_NEAREST;
-    specification.mMagFilter = GL_NEAREST;
-    specification.mWrapS = GL_CLAMP_TO_BORDER;
-    specification.mWrapT = GL_CLAMP_TO_BORDER;
+    specification.mFormat = TextureFormat::R32Uint;
+    specification.mMinFilter = FilterMode::Nearest;
+    specification.mMagFilter = FilterMode::Nearest;
+    // WebGPU has no clamp-to-border, and the id buffer is only ever read at
+    // exact pixel coordinates, so the edge behaviour is not observable.
+    specification.mWrapS = AddressMode::ClampToEdge;
+    specification.mWrapT = AddressMode::ClampToEdge;
     return specification;
 }
 
 Texture2DSpecification Texture2DSpecification::CreateDepth( uvec2 size )
 {
     Texture2DSpecification specification( size );
-    specification.mChanelFormat = GL_FLOAT;
-    specification.mDataFormat = GL_DEPTH_COMPONENT;
-    specification.mInternalFormat = GL_DEPTH_COMPONENT32F;
-    specification.mWrapS = GL_CLAMP_TO_BORDER;
-    specification.mWrapT = GL_CLAMP_TO_BORDER;
+    specification.mFormat = TextureFormat::Depth32Float;
+    specification.mWrapS = AddressMode::ClampToEdge;
+    specification.mWrapT = AddressMode::ClampToEdge;
     return specification;
 }
 
 Texture2DSpecification::Texture2DSpecification( uvec2 size )
     : mWidth( size.x ),
-      mHeight( size.y ),
-      mChanelFormat( GL_UNSIGNED_BYTE ),
-      mDataFormat( GL_RGBA ),
-      mInternalFormat( GL_RGBA8 ),
-      mMinFiler( GL_LINEAR ),
-      mMagFilter( GL_LINEAR ),
-      mWrapS( GL_REPEAT ),
-      mWrapT( GL_REPEAT ),
-      mBorderColor( vec4( 1.0f ) ),
-      mFlip( false ),
-      mMinMap( false ),
-      mAnisotropicFiltering( false )
+      mHeight( size.y )
 {}
+
 
 Texture2D::Texture2D( const Texture2DSpecification& spec )
     : mSpecification( spec )
@@ -126,105 +167,133 @@ Texture2D& Texture2D::operator=( Texture2D&& other ) noexcept
     return *this;
 }
 
-Texture2D::~Texture2D()
-{
-    glDeleteTextures( 1, &mRendererID );
-}
-
 void Texture2D::Swap( Texture2D& other ) noexcept
 {
-    std::swap( mRendererID, other.mRendererID );
+    std::swap( mTexture, other.mTexture );
+    std::swap( mView, other.mView );
+    std::swap( mSampler, other.mSampler );
     std::swap( mSpecification, other.mSpecification );
+}
+
+void Texture2D::Invalidate()
+{
+    if ( mSpecification.mWidth == 0 or mSpecification.mHeight == 0 )
+    {
+        mTexture = {};
+        mView = {};
+        mSampler = {};
+        return;
+    }
+
+    const bool isDepth = TextureFormatIsDepth( mSpecification.mFormat );
+
+    wgpu::TextureDescriptor textureDesc = wgpu::Default;
+    textureDesc.label = wgpu::StringView( "Texture2D" );
+    textureDesc.dimension = wgpu::TextureDimension::_2D;
+    textureDesc.size = { mSpecification.mWidth, mSpecification.mHeight, 1 };
+    textureDesc.format = ToWGPU( mSpecification.mFormat );
+    textureDesc.mipLevelCount = 1;
+    textureDesc.sampleCount = 1;
+    // Usage has to be declared up front. TextureBinding so shaders can sample
+    // it, RenderAttachment so it can be a framebuffer target, CopyDst for
+    // SetData, and CopySrc so the id buffer can be read back.
+    textureDesc.usage = wgpu::TextureUsage::TextureBinding |
+                        wgpu::TextureUsage::RenderAttachment |
+                        wgpu::TextureUsage::CopySrc |
+                        ( isDepth ? wgpu::TextureUsage::None : wgpu::TextureUsage::CopyDst );
+    textureDesc.viewFormatCount = 0;
+    textureDesc.viewFormats = nullptr;
+
+    mTexture = wgpu::raii::Texture( Gpu().Device().createTexture( textureDesc ) );
+
+    wgpu::TextureViewDescriptor viewDesc = wgpu::Default;
+    viewDesc.label = wgpu::StringView( "Texture2D View" );
+    viewDesc.format = textureDesc.format;
+    viewDesc.dimension = wgpu::TextureViewDimension::_2D;
+    viewDesc.baseMipLevel = 0;
+    viewDesc.mipLevelCount = 1;
+    viewDesc.baseArrayLayer = 0;
+    viewDesc.arrayLayerCount = 1;
+    viewDesc.aspect = isDepth ? wgpu::TextureAspect::DepthOnly : wgpu::TextureAspect::All;
+
+    mView = wgpu::raii::TextureView( mTexture->createView( viewDesc ) );
+
+    wgpu::SamplerDescriptor samplerDesc = wgpu::Default;
+    samplerDesc.label = wgpu::StringView( "Texture2D Sampler" );
+    samplerDesc.addressModeU = ToWGPU( mSpecification.mWrapS );
+    samplerDesc.addressModeV = ToWGPU( mSpecification.mWrapT );
+    samplerDesc.addressModeW = wgpu::AddressMode::ClampToEdge;
+    samplerDesc.magFilter = ToWGPU( mSpecification.mMagFilter );
+    samplerDesc.minFilter = ToWGPU( mSpecification.mMinFilter );
+    samplerDesc.mipmapFilter = wgpu::MipmapFilterMode::Nearest;
+    samplerDesc.lodMinClamp = 0.0f;
+    samplerDesc.lodMaxClamp = 1.0f;
+    samplerDesc.maxAnisotropy = 1;
+    // An integer or depth texture cannot use a filtering sampler.
+    if ( isDepth or mSpecification.mFormat == TextureFormat::R32Uint )
+    {
+        samplerDesc.magFilter = wgpu::FilterMode::Nearest;
+        samplerDesc.minFilter = wgpu::FilterMode::Nearest;
+    }
+
+    mSampler = wgpu::raii::Sampler( Gpu().Device().createSampler( samplerDesc ) );
 }
 
 void Texture2D::SetData( const void* data, u32 size )
 {
-    Bind();
-    [[maybe_unused]]u32 channels = mSpecification.ExtractTextureSpecChannels();
-    BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
-    glcall( glTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0,
-            mSpecification.mWidth, mSpecification.mHeight, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
-}
+    BUBBLE_ASSERT( mTexture, "SetData on a zero sized texture" );
+    const u32 bytesPerPixel = TextureFormatBytesPerPixel( mSpecification.mFormat );
+    [[maybe_unused]] const u32 expected = mSpecification.mWidth * mSpecification.mHeight * bytesPerPixel;
+    BUBBLE_ASSERT( size == expected, "Data must be entire texture!" );
 
-void Texture2D::GetData( void* data, u32 size ) const
-{
-    Bind();
-    [[maybe_unused]] u32 channels = mSpecification.ExtractTextureSpecChannels();
-    BUBBLE_ASSERT( size == mSpecification.mWidth * mSpecification.mHeight * channels, "Data must be entire texture!" );
-    glcall( glGetTexImage( GL_TEXTURE_2D, 0, mSpecification.mDataFormat, mSpecification.mChanelFormat, data ) );
-}
+    wgpu::TexelCopyTextureInfo destination = wgpu::Default;
+    destination.texture = *mTexture;
+    destination.mipLevel = 0;
+    destination.origin = { 0, 0, 0 };
+    destination.aspect = wgpu::TextureAspect::All;
 
-void Texture2D::Bind( i32 slot ) const
-{
-    glActiveTexture( GL_TEXTURE0 + slot );
-    glBindTexture( GL_TEXTURE_2D, mRendererID );
-}
+    wgpu::TexelCopyBufferLayout source = wgpu::Default;
+    source.offset = 0;
+    source.bytesPerRow = mSpecification.mWidth * bytesPerPixel;
+    source.rowsPerImage = mSpecification.mHeight;
 
-void Texture2D::UnbindAll()
-{
-    glActiveTexture( GL_TEXTURE0 );
+    wgpu::Extent3D extent = { mSpecification.mWidth, mSpecification.mHeight, 1 };
+    Gpu().Queue().writeTexture( destination, data, size, source, extent );
 }
 
 void Texture2D::Resize( const ivec2& new_size )
 {
-    mSpecification.mWidth = new_size.x;
-    mSpecification.mHeight = new_size.y;
+    mSpecification.mWidth = (u32)std::max( 0, new_size.x );
+    mSpecification.mHeight = (u32)std::max( 0, new_size.y );
     Invalidate();
 }
 
 i32 Texture2D::Width() const
 {
-    return mSpecification.mWidth;
+    return (i32)mSpecification.mWidth;
 }
 
 i32 Texture2D::Height() const
 {
-    return mSpecification.mHeight;
+    return (i32)mSpecification.mHeight;
 }
 
-u32 Texture2D::RendererID() const
+const Texture2DSpecification& Texture2D::Specification() const
 {
-    return mRendererID;
+    return mSpecification;
 }
 
-void Texture2D::Invalidate()
+u64 Texture2D::ImTextureId() const
 {
-    glcall( glDeleteTextures( 1, &mRendererID ) );
-
-    glcall( glGenTextures( 1, &mRendererID ) );
-    glcall( glBindTexture( GL_TEXTURE_2D, mRendererID ) );
-    glcall( glTexImage2D( GL_TEXTURE_2D, 0, mSpecification.mInternalFormat,
-            mSpecification.mWidth, mSpecification.mHeight, 0, mSpecification.mDataFormat, mSpecification.mChanelFormat, nullptr ) );
-
-    glcall( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, mSpecification.mMinFiler ) );
-    glcall( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mSpecification.mMagFilter ) );
-
-    glcall( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, mSpecification.mWrapS ) );
-    glcall( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, mSpecification.mWrapS ) );
-
-    if( mSpecification.mWrapS == GL_CLAMP_TO_BORDER || 
-        mSpecification.mWrapT == GL_CLAMP_TO_BORDER )
-    {
-        glcall( glTexParameterfv( GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, (f32*)&mSpecification.mBorderColor ) );
-    }
-
-    if( mSpecification.mAnisotropicFiltering )
-    {
-        GLfloat value;
-        glcall( glGetFloatv( GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &value ) );
-        glcall( glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, value ) );
-    }
-
-    if( mSpecification.mMinMap && 
-        !mSpecification.mAnisotropicFiltering )
-    {
-        glcall( glGenerateMipmap( GL_TEXTURE_2D ) );
-    }
+    if ( not mView )
+        return 0;
+    return (u64)(uintptr_t)(WGPUTextureView)( *mView );
 }
 
 bool Texture2D::operator==( const Texture2D& other ) const
 {
-    return mRendererID == other.mRendererID;
+    return mTexture and other.mTexture and
+           (WGPUTexture)( *mTexture ) == (WGPUTexture)( *other.mTexture );
 }
 
 }

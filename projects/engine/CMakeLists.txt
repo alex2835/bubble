@@ -45,13 +45,17 @@ if(MSVC)
     )
 endif()
 
+target_link_libraries(${TARGET_NAME} PUBLIC webgpu)
+target_link_libraries(${TARGET_NAME} PUBLIC glfw3webgpu)
+
 if(EMSCRIPTEN)
 	target_compile_definitions(${TARGET_NAME} PUBLIC -DBUBBLE_STATIC)
+	# The WebGPU implementation comes from the emdawnwebgpu port selected by
+	# deps/webgpu, so no -sUSE_WEBGL2 here.
 	target_link_options(${TARGET_NAME} PUBLIC
-		--bind -sUSE_WEBGL2=1 -sUSE_GLFW=3 -sWASM=1
+		--bind -sUSE_GLFW=3 -sWASM=1
 	)
 else()
-	target_link_libraries(${TARGET_NAME} PUBLIC libglew_static)
 	target_link_libraries(${TARGET_NAME} PUBLIC glfw)
 endif()
 

@@ -2,38 +2,74 @@
 #include "engine/utils/error.hpp"
 #include "engine/types/number.hpp"
 #include "engine/types/glm.hpp"
+#include "engine/types/string.hpp"
+#include "engine/utils/filesystem.hpp"
+#include "engine/renderer/webgpu.hpp"
 
 namespace bubble
 {
+
+// Replaces the raw GL enums this struct used to hold. Nothing here was ever
+// serialized - every texture's format is re-derived at load time from the image
+// file's channel count, or comes from one of the factories below - so switching
+// to an abstract enum breaks no saved project.
+enum class TextureFormat
+{
+    R8Unorm,
+    RG8Unorm,
+    RGBA8Unorm,
+    RGBA8UnormSrgb,
+    // Single channel unsigned integer, for the entity id buffer.
+    R32Uint,
+    Depth32Float,
+};
+
+enum class FilterMode
+{
+    Nearest,
+    Linear,
+};
+
+enum class AddressMode
+{
+    Repeat,
+    MirrorRepeat,
+    ClampToEdge,
+};
+
+u32 TextureFormatChannels( TextureFormat format );
+u32 TextureFormatBytesPerPixel( TextureFormat format );
+bool TextureFormatIsDepth( TextureFormat format );
+wgpu::TextureFormat ToWGPU( TextureFormat format );
+
+
 struct Texture2DSpecification
 {
-    u32 mWidth;
-    u32 mHeight;
-    u32 mChanelFormat;   // GL_UNSIGNED_BYTE, GL_FLOAT
-    u32 mDataFormat;     // GL_RED, GL_RGB, GL_RGBA, GL_DEPTH_COMPONENT
-    u32 mInternalFormat; // GL_RED8, GL_RGB8, GL_RGBA8, GL_DEPTH_COMPONENT
-    u32 mMinFiler;       // GL_LINEAR, GL_NEAREST
-    u32 mMagFilter;      // GL_LINEAR, GL_NEAREST
-    u32 mWrapS;	         // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
-    u32 mWrapT;	         // GL_REPEAT, GL_CLAMP, GL_CLAMP_TO_BORDER, GL_MIRRORED_REPEAT 
-    vec4 mBorderColor;
-    bool mFlip;
-    bool mMinMap;
-    bool mAnisotropicFiltering;
+    u32 mWidth = 0;
+    u32 mHeight = 0;
+    TextureFormat mFormat = TextureFormat::RGBA8Unorm;
+    FilterMode mMinFilter = FilterMode::Linear;
+    FilterMode mMagFilter = FilterMode::Linear;
+    AddressMode mWrapS = AddressMode::Repeat;
+    AddressMode mWrapT = AddressMode::Repeat;
+    bool mFlip = false;
+    bool mMipmaps = false;
 
     Texture2DSpecification( const Texture2DSpecification& ) = default;
 
+    // WebGPU has no three channel format, so a 3 channel image is stored as
+    // RGBA and the loader expands it. See texture_loader.
     void SetTextureSpecChanels( i32 channels );
     u32 ExtractTextureSpecChannels() const;
     u32 GetTextureSize() const;
+
     static Texture2DSpecification CreateRGBA8( uvec2 size );
-    static Texture2DSpecification CreateRGBA32( uvec2 size );
     static Texture2DSpecification CreateObjectId( uvec2 size );
     static Texture2DSpecification CreateDepth( uvec2 size );
+
 private:
     Texture2DSpecification( uvec2 size );
 };
-
 
 
 class Texture2D
@@ -44,31 +80,38 @@ public:
     Texture2D& operator= ( const Texture2D& ) = delete;
     Texture2D( Texture2D&& ) noexcept;
     Texture2D& operator= ( Texture2D&& ) noexcept;
-    ~Texture2D();
-    
+    ~Texture2D() = default;
+
     void Swap( Texture2D& other ) noexcept;
 
-    u32 RendererID() const;
     i32 Width()  const;
     i32 Height() const;
+    const Texture2DSpecification& Specification() const;
 
-    // size in bytes
+    // Uploads the whole texture. Size is in bytes and must match exactly.
     void SetData( const void* data, u32 size );
-    void GetData( void* data, u32 size ) const;
-
-    void Bind( i32 slot = 0 ) const;
-    static void UnbindAll();
 
     void Resize( const ivec2& new_size );
     void Invalidate();
+
+    wgpu::Texture GetTexture() const { return *mTexture; }
+    wgpu::TextureView View() const { return *mView; }
+    wgpu::Sampler Sampler() const { return *mSampler; }
+
+    // The handle ImGui::Image wants. Cast to ImTextureID at the call site; this
+    // header deliberately does not pull in imgui.h.
+    u64 ImTextureId() const;
 
     bool operator==( const Texture2D& other ) const;
 
 public:
     string mName;
     path mPath;
+
 private:
-    u32 mRendererID = 0;
+    wgpu::raii::Texture mTexture;
+    wgpu::raii::TextureView mView;
+    wgpu::raii::Sampler mSampler;
     Texture2DSpecification mSpecification;
 };
 

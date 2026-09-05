@@ -5,6 +5,7 @@
 #include "engine/types/glm.hpp"
 #include "engine/types/utility.hpp"
 #include "engine/renderer/texture.hpp"
+#include "engine/renderer/webgpu.hpp"
 
 namespace bubble
 {
@@ -21,6 +22,12 @@ struct FramebufferSpecification
 };
 
 
+// A set of render targets.
+//
+// There is no framebuffer object in WebGPU - attachments are named directly on
+// a render pass descriptor - so this is now just the textures plus the helper
+// that opens a pass against them. Bind() is gone; call BeginRenderPass instead,
+// which is also where the clear-or-load decision now lives.
 class Framebuffer
 {
 public:
@@ -30,22 +37,30 @@ public:
     Framebuffer( Framebuffer&& other ) noexcept;
     Framebuffer& operator = ( Framebuffer&& other ) noexcept;
     Framebuffer( Texture2D&& color, Texture2D&& depth );
-    ~Framebuffer();
+    ~Framebuffer() = default;
 
     void Swap( Framebuffer& other ) noexcept;
 
     void SetColorAttachment( Texture2D&& texture );
     void SetDepthAttachment( Texture2D&& texture );
-    void SetStencilAttachment( Texture2D&& texture );
     Texture2D& ColorAttachment();
+    const Texture2D& ColorAttachment() const;
     Texture2D& DepthAttachment();
-    opt<Texture2D>& StencilAttachment();
 
-    u32 ReadColorAttachmentPixelRedUint( uvec2 pos );
-    const vector<u32>& ReadColorAttachmentPixelRedUint( uvec2 start, uvec2 end );
-    
-    void Bind();
-    void Unbind();
+    // Opens a render pass onto these attachments. Pass a clear colour to clear,
+    // or nullopt to load what is already there - which is how several draws land
+    // in one target without wiping each other, the job glClear-or-not used to do.
+    wgpu::raii::RenderPassEncoder BeginRenderPass( wgpu::CommandEncoder encoder,
+                                                   opt<vec4> clearColor,
+                                                   bool clearDepth,
+                                                   string_view label = "Render Pass" );
+
+    // Same, for the R32Uint entity id target, whose clear value is an integer.
+    wgpu::raii::RenderPassEncoder BeginRenderPassUint( wgpu::CommandEncoder encoder,
+                                                       opt<uvec4> clearColor,
+                                                       bool clearDepth,
+                                                       string_view label = "Id Pass" );
+
     void Invalidate();
 
     i32 Width() const;
@@ -56,10 +71,8 @@ public:
     FramebufferSpecification Specification() const;
 
 private:
-    u32 mRendererID = 0;
     Texture2D mColorAttachment;
     Texture2D mDepthAttachment;
-    opt<Texture2D> mStencilAttachment;
     FramebufferSpecification mSpecification;
 };
 }

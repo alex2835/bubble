@@ -2,18 +2,14 @@
 #if defined(__EMSCRIPTEN__)
 #   include <emscripten.h>
 #   include <emscripten/html5.h>
-#   define GL_GLEXT_PROTOTYPES
-#   define EGL_EGLEXT_PROTOTYPES
-#else
-#   include <GL/glew.h>
-#   include <GLFW/glfw3.h>
-#   if defined(IMGUI_IMPL_OPENGL_ES2)
-#       include <GLES2/gl2.h>
-#   endif
 #endif
+#include <GLFW/glfw3.h>
+
 #include <imgui.h>
-#include <imgui_impl_opengl3.h>
+#include <imgui_impl_wgpu.h>
 #include <imgui_impl_glfw.h>
+
+#include "engine/renderer/gpu_context.hpp"
 
 #include <algorithm>
 
@@ -153,7 +149,8 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height 
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mFramebufferSize = uvec2{ (u32)width, (u32)height };
-    glViewport( 0, 0, width, height );
+    // Reconfigured at the top of the next frame rather than here - see ImGuiBegin.
+    win->mSurfaceDirty = true;
 }
 
 void Window::FillKeyboardEvents()
@@ -213,28 +210,10 @@ Window::Window( const string& name, uvec2 size )
     if( !glfwInit() )
         throw std::runtime_error( "GLFW init error" );
 
-    // Decide GL+GLSL versions
-#if defined(IMGUI_IMPL_OPENGL_ES2)
-    // GL ES 2.0 + GLSL 100
-    mGLSLVersion = "#version 100";
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 2 );
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 0 );
-    glfwWindowHint( GLFW_CLIENT_API, GLFW_OPENGL_ES_API );
-#elif defined(__APPLE__)
-    // GL 3.2 + GLSL 150
-    mGLSLVersion = "#version 150";
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 3 );
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 2 );
-    glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );  // 3.2+ only
-    glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );            // Required on Mac
-#else
-    // GL 3.0 + GLSL 130
-    mGLSLVersion = "#version 130";
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 3 );
-    glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 3 );
-    glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );  // 3.2+ only
-    //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
-#endif
+    // WebGPU owns the presentation surface, so GLFW must not create a client API
+    // context of its own. This replaces the per-platform GL version hints that
+    // used to live here.
+    glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
     // Created hidden so the caller can restore a saved position before the
     // window ever shows up, otherwise it flashes at the default spot first.
@@ -246,7 +225,12 @@ Window::Window( const string& name, uvec2 size )
         glfwTerminate();
         throw std::runtime_error( "GLFW window creation error" );
     }
-    glfwMakeContextCurrent( mWindow );
+
+    // Brought up before anything else can allocate a GPU resource, and torn down
+    // in the destructor after everything else is gone - BubbleEditor declares
+    // mWindow ahead of mEngine and mProject so that ordering holds.
+    mGpuContext = std::make_unique<GpuContext>( mWindow );
+    SetGpuContext( mGpuContext.get() );
 
     // Screen coordinates and pixels are not the same on DPI scaled displays,
     // query both instead of assuming the requested size is valid for either.
@@ -274,16 +258,6 @@ Window::Window( const string& name, uvec2 size )
     glfwSetWindowPosCallback( mWindow, WindowPosCallback );
     glfwSetWindowSizeCallback( mWindow, WindowSizeCallback );
     glfwSetFramebufferSizeCallback( mWindow, FramebufferSizeCallback );
-
-#if !defined(__EMSCRIPTEN__)
-    i32 err = glewInit();
-    if ( GLEW_OK != err )
-    {
-        std::cerr << "Error: " << glewGetErrorString( err ) << std::endl;
-        glfwTerminate();
-        throw std::runtime_error( "GLEW init error" );
-    }
-#endif
 
     // Set up ImGui
     IMGUI_CHECKVERSION();
@@ -317,15 +291,28 @@ Window::Window( const string& name, uvec2 size )
     ReloadUIFont();
     ApplyUIScale();
 
-    ImGui_ImplGlfw_InitForOpenGL( mWindow, true );
-    ImGui_ImplOpenGL3_Init( mGLSLVersion );
+    ImGui_ImplGlfw_InitForOther( mWindow, true );
+
+    ImGui_ImplWGPU_InitInfo wgpuInit;
+    wgpuInit.Device = Gpu().Device();
+    wgpuInit.NumFramesInFlight = 3;
+    wgpuInit.RenderTargetFormat = (WGPUTextureFormat)Gpu().SurfaceFormat();
+    wgpuInit.DepthStencilFormat = WGPUTextureFormat_Undefined;
+    if ( not ImGui_ImplWGPU_Init( &wgpuInit ) )
+        throw std::runtime_error( "ImGui WebGPU backend init error" );
 }
 
 Window::~Window()
 {
-    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplWGPU_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+
+    // Every GPU resource is gone by now, so the device can go too. Cleared from
+    // the global first, so a use after this point asserts instead of reading a
+    // dangling pointer.
+    SetGpuContext( nullptr );
+    mGpuContext.reset();
 
     glfwDestroyWindow( mWindow );
     glfwTerminate();
@@ -409,9 +396,16 @@ void Window::OnUpdate()
 {
     mWindowInput.mMouseInput.OnUpdate();
     mWindowInput.mKeyboardInput.OnUpdate();
-    // Window is hidden so no need rendering
-    if ( FramebufferSize() != uvec2( 0u ) )
-        glfwSwapBuffers( mWindow );
+
+    // Only if ImGuiEnd actually acquired and rendered into a surface texture;
+    // presenting one that was never acquired is an error.
+    if ( mFramePresentable )
+    {
+        Gpu().Present();
+        mFramePresentable = false;
+    }
+    // Runs the device callbacks - uncaptured errors arrive here.
+    Gpu().PollDevice();
 }
 
 bool Window::IsKeyPressed( KeyboardKey key )
@@ -496,7 +490,10 @@ void Window::SyncCursorPos()
 
 void Window::SetVSync( bool vsync )
 {
-    glfwSwapInterval( vsync );
+    // There is no swap interval in WebGPU - the present mode is part of the
+    // surface configuration, so changing it means reconfiguring.
+    Gpu().SetPresentMode( vsync ? wgpu::PresentMode::Fifo
+                                : wgpu::PresentMode::Immediate );
 }
 
 void Window::SetUIScale( f32 scale )
@@ -605,17 +602,6 @@ GLFWwindow* Window::GetHandle() const
     return mWindow;
 }
 
-const char* Window::GetGLSLVersion() const
-{
-    return mGLSLVersion;
-}
-
-void Window::BindWindowFramebuffer()
-{
-    glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-    glViewport( 0, 0, mFramebufferSize.x, mFramebufferSize.y );
-}
-
 ImGuiContext* Window::GetImGuiContext()
 {
     return mImGuiContext;
@@ -626,8 +612,16 @@ void Window::ImGuiBegin()
     if ( mUIFontDirty )
         ReloadUIFont();
 
-    BindWindowFramebuffer();
-    ImGui_ImplOpenGL3_NewFrame();
+    // Deferred out of FramebufferSizeCallback: reconfiguring the surface from
+    // inside a GLFW callback would do it in the middle of glfwPollEvents, which
+    // is not a point where the frame state is known to be idle.
+    if ( mSurfaceDirty )
+    {
+        Gpu().ConfigureSurface( mFramebufferSize );
+        mSurfaceDirty = false;
+    }
+
+    ImGui_ImplWGPU_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
     ImGui::DockSpaceOverViewport( 0, ImGui::GetMainViewport() );
@@ -636,16 +630,46 @@ void Window::ImGuiBegin()
 void Window::ImGuiEnd()
 {
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData( ImGui::GetDrawData() );
 
-    // Multi view ports
-    //ImGuiIO& io = ImGui::GetIO();
-    //if ( io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable )
-    //{
-    //    ImGui::UpdatePlatformWindows();
-    //    ImGui::RenderPlatformWindowsDefault();
-    //    glfwMakeContextCurrent( mWindow );
-    //}
+    // The UI is the only thing drawn to the window surface - the scene renders
+    // into offscreen framebuffers that the editor shows with ImGui::Image.
+    wgpu::raii::TextureView surfaceView = Gpu().AcquireSurfaceView();
+    mFramePresentable = (bool)surfaceView;
+    if ( not mFramePresentable )
+        return;
+
+    wgpu::CommandEncoderDescriptor encoderDesc = wgpu::Default;
+    encoderDesc.label = wgpu::StringView( "UI Encoder" );
+    wgpu::raii::CommandEncoder encoder( Gpu().Device().createCommandEncoder( encoderDesc ) );
+
+    wgpu::RenderPassColorAttachment colorAttachment = wgpu::Default;
+    colorAttachment.view = *surfaceView;
+    // Required for non-3D targets; zero is a validation error.
+    colorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+    colorAttachment.resolveTarget = nullptr;
+    colorAttachment.loadOp = wgpu::LoadOp::Clear;
+    colorAttachment.storeOp = wgpu::StoreOp::Store;
+    colorAttachment.clearValue = wgpu::Color{ 0.0, 0.0, 0.0, 1.0 };
+
+    wgpu::RenderPassDescriptor passDesc = wgpu::Default;
+    passDesc.label = wgpu::StringView( "UI Pass" );
+    passDesc.colorAttachmentCount = 1;
+    passDesc.colorAttachments = &colorAttachment;
+    passDesc.depthStencilAttachment = nullptr;
+    passDesc.timestampWrites = nullptr;
+
+    {
+        wgpu::raii::RenderPassEncoder pass( encoder->beginRenderPass( passDesc ) );
+        ImGui_ImplWGPU_RenderDrawData( ImGui::GetDrawData(), *pass );
+        pass->end();
+    }
+
+    wgpu::CommandBufferDescriptor cmdDesc = wgpu::Default;
+    cmdDesc.label = wgpu::StringView( "UI Commands" );
+    wgpu::raii::CommandBuffer commands( encoder->finish( cmdDesc ) );
+
+    wgpu::CommandBuffer rawCommands = *commands;
+    Gpu().Queue().submit( 1, &rawCommands );
 }
 
 
