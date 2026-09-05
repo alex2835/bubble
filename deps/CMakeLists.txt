@@ -33,7 +33,7 @@ add_subdirectory(imgui)
 add_subdirectory(imgui_gizmo)
 add_subdirectory(imgui-filebrowser)
 
-#GIT_TAG v5.3.1  GIT_REPOSITORY "https://github.com/assimp/assimp.git"
+#GIT_TAG v6.0.5  GIT_REPOSITORY "https://github.com/assimp/assimp.git"
 option(ASSIMP_BUILD_TESTS "" OFF)
 option(ASSIMP_BUILD_DOCS "" OFF)
 option(BUILD_SHARED_LIBS "" OFF)
