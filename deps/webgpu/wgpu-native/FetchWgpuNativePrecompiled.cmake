@@ -93,11 +93,18 @@ set(URL "${WGPU_BINARY_MIRROR}/releases/download/${WGPU_VERSION}/${URL_NAME}.zip
 
 string(TOLOWER "${URL_NAME}" FC_NAME)
 
+# By default FetchContent swallows the output of the populate sub-build, which
+# hides the download progress bar and makes a slow or stalled transfer look
+# like a frozen configure step. Turning it off lets the SHOW_PROGRESS output of
+# the underlying file(DOWNLOAD) through.
+set(FETCHCONTENT_QUIET OFF)
+
 # Declare FetchContent, then make available
 FetchContent_Declare(${FC_NAME}
 	URL ${URL}
 )
-# TODO: Display the "Fetching" message only when actually downloading
+# When the archive is already populated the sub-build prints nothing after this
+# line; a progress bar means it is actually downloading.
 message(STATUS "Fetching WebGPU implementation from '${URL}'")
 FetchContent_MakeAvailable(${FC_NAME})
 set(ZIP_DIR "${${FC_NAME}_SOURCE_DIR}")
