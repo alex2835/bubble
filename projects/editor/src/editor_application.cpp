@@ -55,6 +55,10 @@ void BubbleEditor::Run()
         mTimer.OnUpdate();
         const auto deltaTime = mTimer.GetDeltaTime();
 
+        // One ring of per draw uniforms is handed out across every pass this
+        // frame, so it resets once here.
+        mEngine.mRenderer.BeginFrame();
+
         switch ( mEditorMode )
         {
             case EditorMode::Editing:
@@ -68,7 +72,17 @@ void BubbleEditor::Run()
                 mEngine.PropagateTransforms( mProject.mScene );
                 mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mScene );
-                mEngine.DrawEntityIds( mEntityIdViewport, mProject.mScene );
+
+                // Only on frames where something asked to pick. This used to run
+                // unconditionally - a second full traversal of the scene plus a
+                // billboard per camera and light, every frame, whether or not
+                // anyone had clicked. It has to stay after DrawScene, which is
+                // what fills the camera block it reads.
+                if ( mUIGlobals.mEntityIdPicker.WantsIdPass() )
+                {
+                    mEngine.DrawEntityIds( mEntityIdViewport, mProject.mScene );
+                    mUIGlobals.mEntityIdPicker.CaptureFrom( mEntityIdViewport );
+                }
 
                 // Update editor helpers
                 mProjectResourcesHotReloader.OnUpdate();
@@ -96,6 +110,9 @@ void BubbleEditor::Run()
                     LogError( e.what() );
                     StopEngine();
                 };
+                // The id pass only runs while editing, so a read requested just
+                // before entering play would never be answered.
+                mUIGlobals.mEntityIdPicker.Cancel();
                 break;
             }
         }

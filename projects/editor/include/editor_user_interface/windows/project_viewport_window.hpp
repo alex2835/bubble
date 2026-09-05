@@ -23,6 +23,8 @@ public:
     uvec2 CaptureWidnowMousePos();
 
     void ProcessScreenSelectedEntity();
+    // Consumes a finished entity id readback, if one has arrived.
+    void ResolvePendingSelection();
     void ProcessSreenSelectionRect();
 
     void DrawViewport();

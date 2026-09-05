@@ -1,6 +1,9 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/gpu_context.hpp"
 #include "engine/log/log.hpp"
+#include "engine/utils/error.hpp"
+#include "engine/renderer/pipeline.hpp"
+#include "engine/renderer/texture.hpp"
 
 #include <glfw3webgpu.h>
 #include <GLFW/glfw3.h>
@@ -241,6 +244,25 @@ void GpuContext::Present()
 void GpuContext::PollDevice()
 {
     mDevice->poll( false, nullptr );
+}
+
+StandardLayouts& GpuContext::Layouts()
+{
+    if ( not mLayouts )
+        mLayouts = std::make_unique<StandardLayouts>();
+    return *mLayouts;
+}
+
+Texture2D& GpuContext::WhiteTexture()
+{
+    if ( not mWhiteTexture )
+    {
+        auto spec = Texture2DSpecification::CreateRGBA8( uvec2( 1u ) );
+        mWhiteTexture = std::make_unique<Texture2D>( spec );
+        const u8 pixel[4] = { 255, 255, 255, 255 };
+        mWhiteTexture->SetData( pixel, sizeof( pixel ) );
+    }
+    return *mWhiteTexture;
 }
 
 }

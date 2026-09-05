@@ -4,6 +4,7 @@
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/renderer/helpers/create_billboard.hpp"
 #include "engine/types/any.hpp"
+#include "engine/renderer/gpu_context.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
@@ -238,10 +239,44 @@ void Engine::PropagateTransforms( Scene& scene )
     } );
 }
 
+// Every draw entry point below records and submits its own command buffer.
+//
+// OpenGL had one implicit framebuffer binding and a glClear call, so these
+// functions could each just Bind() and draw. WebGPU makes the target explicit:
+// a pass names its attachments and says up front whether it clears or loads.
+// DrawScene clears, everything after it loads, which is what keeps the helper
+// overlays from wiping the scene they are drawn on top of.
+
+namespace
+{
+// Records one pass and submits it. Keeping this in one place means every entry
+// point flushes the draw uniform ring before submitting, which is easy to
+// forget and shows up as stale transforms rather than as an error.
+template <typename RecordFn>
+void SubmitPass( Renderer& renderer, string_view label, RecordFn&& record )
+{
+    wgpu::CommandEncoderDescriptor encoderDesc = wgpu::Default;
+    encoderDesc.label = wgpu::StringView( label );
+    wgpu::raii::CommandEncoder encoder( Gpu().Device().createCommandEncoder( encoderDesc ) );
+
+    record( *encoder );
+
+    renderer.FlushDrawUniforms();
+
+    wgpu::CommandBufferDescriptor cmdDesc = wgpu::Default;
+    cmdDesc.label = wgpu::StringView( label );
+    wgpu::raii::CommandBuffer commands( encoder->finish( cmdDesc ) );
+    wgpu::CommandBuffer raw = *commands;
+    Gpu().Queue().submit( 1, &raw );
+}
+}
+
+
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
     DrawScene( framebuffer, mProject.mScene );
 }
+
 
 void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
 {
@@ -258,55 +293,59 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
     if ( lights.size() > Renderer::cMaxLights )
         throw std::runtime_error( std::format( "Max lights overflow {}/{}", lights.size(), Renderer::cMaxLights ) );
 
-    // Set up viewport
-    framebuffer.Bind();
-    mRenderer.ClearScreen( vec4( 0.2f, 0.3f, 0.3f, 1.0f ) );
-
     mRenderer.SetCameraUniformBuffers( mCamera, framebuffer );
     mRenderer.SetLightsUniformBuffer( mCamera, lights );
+    mRenderer.FlushFrameUniforms();
 
-    // Render models. Iterating on ModelComponent and TransformComponent only:
-    // a model with no ShaderComponent used to be skipped by the ForEach and
-    // never drawn at all, with nothing logged - the single most confusing way
-    // for a first entity to come out invisible. It gets the default shader.
-    scene.ForEach<ModelComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const ModelComponent& modelComponent,
-             const TransformComponent& transformComponent )
+    SubmitPass( mRenderer, "Scene", [&]( wgpu::CommandEncoder encoder )
     {
-        if ( not modelComponent.mModel )
-        {
-            mRenderer.DrawModel( mErrorModel, mWhiteShader, transformComponent.TranslationRotationMat() );
-            return;
-        }
+        auto pass = framebuffer.BeginRenderPass( encoder, vec4( 0.2f, 0.3f, 0.3f, 1.0f ), true, "Scene" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
 
-        const ShaderComponent* shaderComponent =
-            scene.HasComponent<ShaderComponent>( entity )
-            ? &scene.GetComponent<ShaderComponent>( entity )
-            : nullptr;
-
-        const Ref<Shader>& shader = shaderComponent and shaderComponent->mShader
-                                    ? shaderComponent->mShader
-                                    : mDefaultShader;
-        if ( not shader )
+        // Render models. Iterating on ModelComponent and TransformComponent only:
+        // a model with no ShaderComponent used to be skipped by the ForEach and
+        // never drawn at all, with nothing logged - the single most confusing way
+        // for a first entity to come out invisible. It gets the default shader.
+        scene.ForEach<ModelComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const ModelComponent& modelComponent,
+                 const TransformComponent& transformComponent )
         {
-            mRenderer.DrawModel( mErrorModel, mWhiteShader, transformComponent.TranslationRotationMat() );
-            return;
-        }
+            if ( not modelComponent.mModel )
+            {
+                mRenderer.DrawModel( target, mErrorModel, mWhiteShader,
+                                     transformComponent.TranslationRotationMat() );
+                return;
+            }
 
-        if ( shaderComponent and shaderComponent->mUniforms and shaderComponent->mUniforms->is<Table>() )
-        {
-            shader->Bind();
-            ApplyShaderUniforms( *shader, shaderComponent->mUniforms->as<Table>() );
-        }
-        mRenderer.DrawModel( modelComponent.mModel, shader, transformComponent.TransformMat() );
+            const ShaderComponent* shaderComponent =
+                scene.HasComponent<ShaderComponent>( entity )
+                ? &scene.GetComponent<ShaderComponent>( entity )
+                : nullptr;
+
+            const Ref<Shader>& shader = shaderComponent and shaderComponent->mShader
+                                        ? shaderComponent->mShader
+                                        : mDefaultShader;
+            if ( not shader )
+            {
+                mRenderer.DrawModel( target, mErrorModel, mWhiteShader,
+                                     transformComponent.TranslationRotationMat() );
+                return;
+            }
+
+            // The per-entity uniform table is not applied yet - see
+            // ApplyShaderUniforms in types/any.cpp. It needs WGSL reflection to
+            // know where each value belongs in a uniform buffer.
+            mRenderer.DrawModel( target, modelComponent.mModel, shader,
+                                 transformComponent.TransformMat() );
+        } );
     } );
 }
 
 
 void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
 {
-    framebuffer.Bind();
     if ( scene.Size() == 0 )
         return;
 
@@ -331,14 +370,25 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
             mBoundingBoxes.mIndices.push_back( index + elementIndexStride );
         elementIndexStride = (u32)mBoundingBoxes.mVertices.mPositions.size();
     } );
+
+    if ( mBoundingBoxes.mIndices.empty() )
+        return;
+
     mBoundingBoxes.mMesh.UpdateDynamicVertexBufferData( mBoundingBoxes.mVertices, mBoundingBoxes.mIndices );
-    mRenderer.DrawMesh( mBoundingBoxes.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+
+    SubmitPass( mRenderer, "Bounding Boxes", [&]( wgpu::CommandEncoder encoder )
+    {
+        auto pass = framebuffer.BeginRenderPass( encoder, std::nullopt, false, "Bounding Boxes" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
+        mRenderer.DrawMesh( target, mBoundingBoxes.mMesh, mWhiteShader,
+                            glm::identity<mat4>(), DrawingPrimitive::Lines );
+    } );
 }
 
 
 void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
 {
-    framebuffer.Bind();
     if ( scene.Size() == 0 )
         return;
 
@@ -376,14 +426,24 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
         elementIndexStride = (u32)mPhysicsShapes.mVertices.mPositions.size();
     } );
 
+    if ( mPhysicsShapes.mIndices.empty() )
+        return;
+
     mPhysicsShapes.mMesh.UpdateDynamicVertexBufferData( mPhysicsShapes.mVertices, mPhysicsShapes.mIndices );
-    mRenderer.DrawMesh( mPhysicsShapes.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+
+    SubmitPass( mRenderer, "Physics Shapes", [&]( wgpu::CommandEncoder encoder )
+    {
+        auto pass = framebuffer.BeginRenderPass( encoder, std::nullopt, false, "Physics Shapes" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
+        mRenderer.DrawMesh( target, mPhysicsShapes.mMesh, mWhiteShader,
+                            glm::identity<mat4>(), DrawingPrimitive::Lines );
+    } );
 }
 
 
 void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
 {
-    framebuffer.Bind();
     if ( scene.Size() == 0 )
         return;
 
@@ -410,34 +470,53 @@ void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
         elementIndexStride = (u32)mCameraFrustums.mVertices.mPositions.size();
     } );
 
+    if ( mCameraFrustums.mIndices.empty() )
+        return;
+
     mCameraFrustums.mMesh.UpdateDynamicVertexBufferData( mCameraFrustums.mVertices, mCameraFrustums.mIndices );
-    mRenderer.DrawMesh( mCameraFrustums.mMesh, mWhiteShader, glm::identity<mat4>(), DrawingPrimitive::Lines );
+
+    SubmitPass( mRenderer, "Camera Frustums", [&]( wgpu::CommandEncoder encoder )
+    {
+        auto pass = framebuffer.BeginRenderPass( encoder, std::nullopt, false, "Camera Frustums" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
+        mRenderer.DrawMesh( target, mCameraFrustums.mMesh, mWhiteShader,
+                            glm::identity<mat4>(), DrawingPrimitive::Lines );
+    } );
 }
 
 
-void Engine::DrawBillboard( const Ref<Texture2D>& texture,
+void Engine::DrawBillboard( const RenderTarget& target,
+                            const Ref<Texture2D>& texture,
                             const Ref<Shader>& shader,
                             const vec3& position,
                             const vec2& size,
-                            const vec4& tintColor )
+                            const vec4& tintColor,
+                            u32 objectId )
 {
-    if ( not texture || not shader )
+    if ( not shader )
     {
-        BUBBLE_ASSERT( false, "DrawBillboard: Texture or shader is null" );
+        BUBBLE_ASSERT( false, "DrawBillboard: shader is null" );
         return;
     }
 
-    // Set shader uniforms
-    shader->SetUni3f( "uBillboardPos", position );
-    shader->SetUni2f( "uBillboardSize", size );
-    shader->SetUni4f( "uTintColor", tintColor );
-    shader->SetUni1i( "uTexture", 0 );
+    // The billboard's texture rides in through the material bind group rather
+    // than one of its own: a billboard is a quad with exactly one map, which is
+    // what the material group already describes. The quad is shared, so its
+    // diffuse map is swapped per draw and the cached bind group dropped.
+    if ( texture and mBillboardQuad->mMaterial.mDiffuseMap != texture )
+    {
+        mBillboardQuad->mMaterial.mDiffuseMap = texture;
+        mBillboardQuad->mMaterial.InvalidateBindGroup();
+    }
 
-    // Bind texture
-    texture->Bind( 0 );
+    DrawUniforms extras;
+    extras.mBillboardPos = vec4( position, 0.0f );
+    extras.mBillboardSize = vec4( size, 0.0f, 0.0f );
+    extras.mTintColor = tintColor;
 
-    // Draw billboard quad
-    mRenderer.DrawMesh( *mBillboardQuad, shader, glm::identity<mat4>() );
+    mRenderer.DrawMesh( target, *mBillboardQuad, shader, glm::identity<mat4>(),
+                        DrawingPrimitive::Triangles, objectId, &extras );
 }
 
 
@@ -459,100 +538,84 @@ const Ref<Texture2D>& Engine::GetLightTexture( const LightType& lightType )
 
 void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene )
 {
-    framebuffer.Bind();
-
-    // Camera icons (billboards)
-    scene.ForEach<CameraComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const CameraComponent& cameraComponent,
-             const TransformComponent& transformComponent )
+    SubmitPass( mRenderer, "Editor Billboards", [&]( wgpu::CommandEncoder encoder )
     {
-        DrawBillboard(
-            mSceneCameraTexture,
-            mBillboardShader,
-            transformComponent.mPosition,
-            cBillboardSize,
-            cBillboardTint
-        );
+        auto pass = framebuffer.BeginRenderPass( encoder, std::nullopt, false, "Editor Billboards" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
+
+        // Camera icons (billboards)
+        scene.ForEach<CameraComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const CameraComponent& cameraComponent,
+                 const TransformComponent& transformComponent )
+        {
+            DrawBillboard( target, mSceneCameraTexture, mBillboardShader,
+                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+        } );
+
+        // Light icons (billboards)
+        scene.ForEach<LightComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const LightComponent& lightComponent,
+                 const TransformComponent& transformComponent )
+        {
+            const auto& lightTexture = GetLightTexture( lightComponent.mType );
+            DrawBillboard( target, lightTexture, mBillboardShader,
+                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+        } );
     } );
-
-    // Light icons (billboards)
-    scene.ForEach<LightComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const LightComponent& lightComponent,
-             const TransformComponent& transformComponent )
-    {
-        const auto& lightTexture = GetLightTexture( lightComponent.mType );
-        DrawBillboard(
-            lightTexture,
-            mBillboardShader,
-            transformComponent.mPosition,
-            cBillboardSize,
-            cBillboardTint
-        );
-    } );
-}
-
-
-void Engine::DrawBillboardEntityId( const Entity entity,
-                                    const vec3& position,
-                                    const vec2& size )
-{
-    if ( not mEntityIdBillboardShader )
-    {
-        BUBBLE_ASSERT( false, "DrawBillboardEntityId: shader is null" );
-        return;
-    }
-
-    // Set shader uniforms
-    mEntityIdBillboardShader->SetUni1u( "uObjectId", (u32)entity );
-    mEntityIdBillboardShader->SetUni3f( "uBillboardPos", position );
-    mEntityIdBillboardShader->SetUni2f( "uBillboardSize", size );
-
-    // Draw billboard quad
-    mRenderer.DrawMesh( *mBillboardQuad, mEntityIdBillboardShader, glm::identity<mat4>() );
 }
 
 
 void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
 {
-    // Draw scene's entity ids to buffer
-    framebuffer.Bind();
-    mRenderer.ClearScreenUint( uvec4( 0 ) );
-
-
-    // Draw 3D models. Matches DrawScene: whatever is visible there has to be
-    // pickable here, and a model drawn with the default shader has no
-    // ShaderComponent to iterate on.
-    scene.ForEach<ModelComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const ModelComponent& modelComponent,
-             const TransformComponent& transformComponent )
+    // The camera block is whatever DrawScene left in it. That was true under
+    // OpenGL too, and holds as long as this runs after DrawScene in the same
+    // frame - which the editor's on demand scheduling preserves.
+    SubmitPass( mRenderer, "Entity Ids", [&]( wgpu::CommandEncoder encoder )
     {
-        mEntityIdShader->SetUni1u( "uObjectId", (u32)entity );
-        const bool valid = modelComponent.mModel != nullptr;
-        const auto& model = valid ? modelComponent.mModel : mErrorModel;
-        const auto tansform = valid ? transformComponent.TransformMat() : transformComponent.TranslationRotationMat();
-        mRenderer.DrawModel( model, mEntityIdShader, tansform );
-    } );
+        auto pass = framebuffer.BeginRenderPassUint( encoder, uvec4( 0 ), true, "Entity Ids" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
 
+        // Draw 3D models. Matches DrawScene: whatever is visible there has to be
+        // pickable here, and a model drawn with the default shader has no
+        // ShaderComponent to iterate on.
+        scene.ForEach<ModelComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const ModelComponent& modelComponent,
+                 const TransformComponent& transformComponent )
+        {
+            const bool valid = modelComponent.mModel != nullptr;
+            const auto& model = valid ? modelComponent.mModel : mErrorModel;
+            const auto tansform = valid ? transformComponent.TransformMat()
+                                        : transformComponent.TranslationRotationMat();
+            mRenderer.DrawModel( target, model, mEntityIdShader, tansform,
+                                 DrawingPrimitive::Triangles, (u32)entity );
+        } );
 
-    // Draw camera billboards
-    scene.ForEach<CameraComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const CameraComponent& cameraComponent,
-             const TransformComponent& transformComponent )
-    {
-        DrawBillboardEntityId( entity, transformComponent.mPosition, cBillboardSize );
-    } );
+        // Draw camera billboards
+        scene.ForEach<CameraComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const CameraComponent& cameraComponent,
+                 const TransformComponent& transformComponent )
+        {
+            DrawBillboard( target, nullptr, mEntityIdBillboardShader,
+                           transformComponent.mPosition, cBillboardSize,
+                           vec4( 1.0f ), (u32)entity );
+        } );
 
-    // Draw light billboards
-    scene.ForEach<LightComponent, TransformComponent>(
-        [&]( const Entity entity,
-             const LightComponent& lightComponent,
-             const TransformComponent& transformComponent )
-    {
-        DrawBillboardEntityId( entity, transformComponent.mPosition, cBillboardSize );
+        // Draw light billboards
+        scene.ForEach<LightComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const LightComponent& lightComponent,
+                 const TransformComponent& transformComponent )
+        {
+            DrawBillboard( target, nullptr, mEntityIdBillboardShader,
+                           transformComponent.mPosition, cBillboardSize,
+                           vec4( 1.0f ), (u32)entity );
+        } );
     } );
 }
 

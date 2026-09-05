@@ -16,12 +16,22 @@ std::optional<TextureData> OpenTexture( const path& path )
     i32 channels = 0;
     stbi_set_flip_vertically_on_load( false );
 
-    u8* data = stbi_load( path.string().c_str(), &width, &height, &channels, 0 );
+    const string pathStr = path.string();
+
+    // WebGPU has no three channel texture format, so a 24 bit image has to be
+    // expanded to RGBA on the way in. stbi does that itself when asked for four
+    // channels, which is cheaper than doing it here and keeps the uploaded size
+    // matching what the specification reports.
+    if ( not stbi_info( pathStr.c_str(), &width, &height, &channels ) )
+        return std::nullopt;
+    const i32 desiredChannels = channels == 3 ? 4 : channels;
+
+    u8* data = stbi_load( pathStr.c_str(), &width, &height, &channels, desiredChannels );
     if ( data == nullptr )
         return std::nullopt;
 
     auto spec = Texture2DSpecification::CreateRGBA8( { width, height } );
-    spec.SetTextureSpecChanels( channels );
+    spec.SetTextureSpecChanels( desiredChannels );
     return TextureData{ Scope<u8[]>( data ), spec, path };
 }
 
@@ -35,7 +45,7 @@ Ref<Texture2D> LoadTexture2D( const path& path )
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
     texture->mName = path.stem().string();
     texture->mPath = path;
-    texture->SetData( data.get(), spec.mWidth * spec.mHeight * spec.ExtractTextureSpecChannels() );
+    texture->SetData( data.get(), spec.GetTextureSize() );
     return texture;
 }
 
@@ -45,7 +55,7 @@ Ref<Texture2D> LoadTexture2D( const TextureData& textureData )
     Ref<Texture2D> texture = CreateRef<Texture2D>( spec );
     texture->mName = textureData.mPath.stem().string();
     texture->mPath = textureData.mPath;
-    texture->SetData( data.get(), spec.mWidth * spec.mHeight * spec.ExtractTextureSpecChannels() );
+    texture->SetData( data.get(), spec.GetTextureSize() );
     return texture;
 }
 

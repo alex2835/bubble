@@ -6,21 +6,22 @@
 #include "engine/types/pointer.hpp"
 #include "engine/types/string.hpp"
 #include "engine/types/map.hpp"
+#include "engine/types/array.hpp"
 #include "engine/utils/filesystem.hpp"
-#include "engine/renderer/texture.hpp"
+#include "engine/renderer/webgpu.hpp"
 #include "engine/renderer/buffer.hpp"
+#include "engine/renderer/pipeline.hpp"
 
 namespace bubble
 {
 using UniformDescription = map<string, GLSLDataType>;
 
-// The value a uniform holds in the freshly linked program - whatever its GLSL
-// initializer said, or zero when it declared none. Read once at load time
-// rather than on demand: shaders are cached and shared between entities, so by
-// the time anyone asks, a draw call has long since overwritten the live value.
+// The value a uniform holds when the shader declares no explicit one.
 //
-// One slot big enough for a mat4 covers every float-family type, and four ints
-// cover int/bool/ivec. A sampler has no meaningful default and is not recorded.
+// Under OpenGL this was read back off the linked program with glGetUniformfv,
+// which recovered whatever the GLSL initializer said. WGSL does not allow an
+// initializer on a uniform at all and exposes no reflection, so the value now
+// comes from a `// @default(...)` annotation parsed out of the source.
 struct UniformDefault
 {
     array<f32, 16> mFloats{};
@@ -37,6 +38,13 @@ enum class ShaderModule
 using ShaderModules = magic_enum::containers::bitset<ShaderModule>;
 
 
+// A compiled WGSL module plus the pipelines built from it.
+//
+// This used to be a GL program with a uniform location cache. Both halves
+// changed: WGSL compiles one module containing both entry points, and uniforms
+// are no longer set by name - they go into the bind groups described in
+// pipeline.hpp. What is left here is the module, the reflected description of
+// the shader's own uniforms, and a cache of pipeline variants.
 class Shader
 {
 public:
@@ -47,63 +55,34 @@ public:
 
     Shader( Shader&& ) noexcept;
     Shader& operator= ( Shader&& ) noexcept;
-    ~Shader();
+    ~Shader() = default;
 
     void Swap( Shader& other ) noexcept;
 
-    i32 GetUniform( string_view name ) const;
-    i32 GetUniformBuffer( string_view name ) const;
+    bool Valid() const { return (bool)mModule; }
+    wgpu::ShaderModule GetModule() const { return *mModule; }
 
-    // Silent existence check. GetUniform warns on a miss, which is what you
-    // want for a uniform the renderer requires and wrong for one a caller
-    // merely offers - a material field no shader reads is stripped by the GLSL
-    // compiler and is legitimately absent from the linked program.
-    bool HasUniform( string_view name ) const;
+    // The pipeline for this target, topology and vertex layout, created on
+    // first use. Every combination is a separate immutable object, which is
+    // what replaced glEnable/glBlendFunc/glDepthFunc and friends.
+    wgpu::RenderPipeline GetPipeline( const PipelineKey& key, const VertexLayout& layout );
 
-    void Bind() const;
-    void Unbind() const;
+    // Drops every cached pipeline. Needed after a hot reload swaps in a new
+    // module, since the old pipelines still reference the old one.
+    void ClearPipelines();
 
-    // lone i32
-    void SetUni1i( string_view name, const i32& val ) const;
-    void SetUni1u( string_view name, const u32& val ) const;
-
-    // i32 vec
-    void SetUni2i( string_view name, const ivec2& val ) const;
-    void SetUni3i( string_view name, const ivec3& val ) const;
-    void SetUni4i( string_view name, const ivec4& val ) const;
-
-    // f32 vec
-    void SetUni1f( string_view name, const f32& val ) const;
-    void SetUni2f( string_view name, const vec2& val ) const;
-    void SetUni3f( string_view name, const vec3& val ) const;
-    void SetUni4f( string_view name, const vec4& val ) const;
-
-    // f32 matrices
-    void SetUniMat3( string_view name, const mat3& val ) const;
-    void SetUniMat4( string_view name, const mat4& val ) const;
-
-    // textures
-    void SetTexture2D( string_view name, i32 tex_id, i32 slot = 0 ) const;
-    void SetTexture2D( string_view name, const Texture2D& texture, i32 slot = 0 ) const;
-    void SetTexture2D( string_view name, const Ref<Texture2D>& texture, i32 slot = 0 ) const;
-
-    // Uniform buffer
-    void SetUniformBuffer( const Ref<UniformBuffer>& ub );
-
+public:
     string mName;
     path mPath;
     ShaderModules mModules;
-    u32 mShaderId = 0;
+    wgpu::raii::ShaderModule mModule;
     UniformDescription mUniformDescriptors;
     UniformDefaults mUniformDefaults;
-private:
-    i32 LookupUniform( string_view name, bool warnIfMissing ) const;
 
-    // Uniform locations and uniform block indices are separate namespaces in
-    // GL, so they cannot share one cache: a block and a uniform with the same
-    // name would hand each other's index out.
-    mutable str_hash_map<i32> mUniformCache;
-    mutable str_hash_map<i32> mUniformBlockCache;
+private:
+    // Linear search: a shader has a handful of variants at most, so a map would
+    // cost more than it saves.
+    vector<pair<PipelineKey, wgpu::raii::RenderPipeline>> mPipelines;
 };
 
 }

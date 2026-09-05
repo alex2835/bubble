@@ -41,7 +41,7 @@ ShaderModuleTable GetShaderModules()
 		std::error_code error;
 		for ( const path& file : filesystem::directory_iterator( searchPath, error ) )
 		{
-			if ( file.extension() != ".glsl" )
+			if ( file.extension() != MODULE_EXTENSION )
 				continue;
 
 			// emplace, not assignment: the first directory holding a module
@@ -159,4 +159,4 @@ ProcessedSource ExpandShaderIncludes( const path& shaderPath, const ShaderModule
 }
 
 }
-
+

@@ -267,7 +267,7 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
         {
             ImGui::Dummy( ImVec2( 0, 0 ) );
 
-            ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
+            ImGui::Image( (ImTextureID)icon->ImTextureId(), ImVec2{ 18, 18 } );
             ImGui::SameLine();
 
             string& name = std::get<string>( node->State() );
@@ -298,7 +298,7 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
         case ProjectTreeNodeType::Script:
         case ProjectTreeNodeType::Light:
         {
-            ImGui::Image( icon->RendererID(), ImVec2{ 18, 18 } );
+            ImGui::Image( (ImTextureID)icon->ImTextureId(), ImVec2{ 18, 18 } );
             ImGui::SameLine();
 
             auto entity = std::get<Entity>( node->State() );

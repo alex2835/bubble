@@ -4,14 +4,25 @@
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/framebuffer.hpp"
 #include "engine/renderer/model.hpp"
+#include "engine/renderer/shader.hpp"
+#include "engine/renderer/pipeline.hpp"
 
 namespace bubble
 {
-enum class DrawingPrimitive
+
+// DrawingPrimitive now lives in pipeline.hpp: topology is baked into a pipeline
+// object rather than passed to the draw call.
+
+
+// Where a draw is going. The formats are part of the pipeline key, so they have
+// to travel with the pass.
+struct RenderTarget
 {
-    Triangles = 0x0004,
-    Lines = 0x0001,
-    Points = 0x0000
+    wgpu::RenderPassEncoder mPass;
+    wgpu::TextureFormat mColorFormat = wgpu::TextureFormat::Undefined;
+    wgpu::TextureFormat mDepthFormat = wgpu::TextureFormat::Depth32Float;
+
+    static RenderTarget For( wgpu::RenderPassEncoder pass, const Framebuffer& framebuffer );
 };
 
 
@@ -21,29 +32,53 @@ public:
     static constexpr int cMaxLights = 128;
 
     Renderer();
-    void ClearScreen( vec4 color );
-    void ClearScreenUint( uvec4 color );
+
+    // Resets the draw uniform ring. Once at the top of a frame.
+    void BeginFrame();
+    // Uploads everything staged so far this frame. Every draw entry point
+    // submits its own command buffer, so this runs before each submit; offsets
+    // stay valid because the ring only resets in BeginFrame.
+    void FlushDrawUniforms();
+
     void SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer );
-    void SetLightsUniformBuffer( const Camera& camera, const std::vector<Light>& lights );
+    void SetLightsUniformBuffer( const Camera& camera, const vector<Light>& lights );
 
-    void DrawMeshPrimitives( const Mesh& mesh, 
-                             const Ref<Shader>& shader, 
-                             DrawingPrimitive drawingPrimitive );
+    // Pushes the camera and light blocks to the GPU. The old renderer wrote
+    // every scalar straight through as its own sub-buffer upload; these are
+    // staged on the CPU and sent in one go per block.
+    void FlushFrameUniforms();
 
-    void DrawMesh( const Mesh& mesh,
-                   const Ref<Shader>& shader, 
-                   const mat4& transform, 
-                   DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
+    // Sets the frame bind group. Once per render pass, not per draw.
+    void BindFrame( wgpu::RenderPassEncoder pass );
 
-    void DrawModel( const Ref<Model>& model,
+    void DrawMesh( const RenderTarget& target,
+                   const Mesh& mesh,
+                   const Ref<Shader>& shader,
+                   const mat4& transform,
+                   DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles,
+                   u32 objectId = 0,
+                   const DrawUniforms* extras = nullptr );
+
+    void DrawModel( const RenderTarget& target,
+                    const Ref<Model>& model,
                     const Ref<Shader>& shader,
                     const mat4& transform,
-                    DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles );
+                    DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles,
+                    u32 objectId = 0 );
 
 private:
+    void DrawMeshPrimitives( const RenderTarget& target,
+                             const Mesh& mesh,
+                             const Ref<Shader>& shader,
+                             DrawingPrimitive drawingPrimitive,
+                             u32 dynamicOffset );
+
     Ref<UniformBuffer> mVertexUniformBuffer;
     Ref<UniformBuffer> mLightsInfoUniformBuffer;
     Ref<UniformBuffer> mLightsUniformBuffer;
+    wgpu::raii::BindGroup mFrameBindGroup;
+    DrawUniformRing mDrawRing;
+    u64 mLightCount = 0;
 };
 
 }

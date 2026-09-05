@@ -9,6 +9,45 @@
 
 namespace bubble
 {
+
+// A render pass that ends itself.
+//
+// Releasing a RenderPassEncoder is not the same as ending it: until end() is
+// called the command encoder stays locked, and the next thing recorded on it
+// fails with "encoder is locked by a previously created pass". Tying end() to
+// scope exit means a pass cannot be left open by forgetting one line.
+class RenderPassScope
+{
+public:
+    explicit RenderPassScope( wgpu::raii::RenderPassEncoder pass )
+        : mPass( std::move( pass ) )
+    {}
+
+    RenderPassScope( const RenderPassScope& ) = delete;
+    RenderPassScope& operator=( const RenderPassScope& ) = delete;
+    RenderPassScope( RenderPassScope&& ) = default;
+    RenderPassScope& operator=( RenderPassScope&& ) = default;
+
+    ~RenderPassScope() { End(); }
+
+    void End()
+    {
+        if ( mPass and not mEnded )
+        {
+            mPass->end();
+            mEnded = true;
+        }
+    }
+
+    wgpu::RenderPassEncoder operator*() const { return *mPass; }
+    explicit operator bool() const { return (bool)mPass; }
+
+private:
+    wgpu::raii::RenderPassEncoder mPass;
+    bool mEnded = false;
+};
+
+
 struct FramebufferSpecification
 {
     i32 mWidth = 0;
@@ -50,13 +89,13 @@ public:
     // Opens a render pass onto these attachments. Pass a clear colour to clear,
     // or nullopt to load what is already there - which is how several draws land
     // in one target without wiping each other, the job glClear-or-not used to do.
-    wgpu::raii::RenderPassEncoder BeginRenderPass( wgpu::CommandEncoder encoder,
+    RenderPassScope BeginRenderPass( wgpu::CommandEncoder encoder,
                                                    opt<vec4> clearColor,
                                                    bool clearDepth,
                                                    string_view label = "Render Pass" );
 
     // Same, for the R32Uint entity id target, whose clear value is an integer.
-    wgpu::raii::RenderPassEncoder BeginRenderPassUint( wgpu::CommandEncoder encoder,
+    RenderPassScope BeginRenderPassUint( wgpu::CommandEncoder encoder,
                                                        opt<uvec4> clearColor,
                                                        bool clearDepth,
                                                        string_view label = "Id Pass" );

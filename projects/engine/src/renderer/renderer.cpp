@@ -1,25 +1,33 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/renderer.hpp"
-#include "engine/renderer/helpers/opengl_state_guard.hpp"
+#include "engine/renderer/gpu_context.hpp"
 #include "engine/utils/geometry.hpp"
-#include <GL/glew.h>
+#include "engine/log/log.hpp"
 
 namespace bubble
 {
+
+RenderTarget RenderTarget::For( wgpu::RenderPassEncoder pass, const Framebuffer& framebuffer )
+{
+    RenderTarget target;
+    target.mPass = pass;
+    target.mColorFormat = ToWGPU( framebuffer.ColorAttachment().Specification().mFormat );
+    target.mDepthFormat = wgpu::TextureFormat::Depth32Float;
+    return target;
+}
+
+
 Renderer::Renderer()
 {
-    glDisable( GL_BLEND );
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    glEnable( GL_DEPTH_TEST );
-    glEnable( GL_CULL_FACE );
-    //glDisable( GL_CULL_FACE );
+    // Blend, depth test and face culling used to be set here once and never
+    // touched again. They are pipeline state now - see PipelineKey - so there
+    // is nothing global left to configure.
 
-    // Uniform buffers
     VertexBufferLayout vertexUniformVertexBufferLayout{
         { "uProjection", GLSLDataType::Mat4  },
         { "uView", GLSLDataType::Mat4  }
     };
-    mVertexUniformBuffer = CreateRef<UniformBuffer>( 0, 
+    mVertexUniformBuffer = CreateRef<UniformBuffer>( 0,
                                                      "VertexUniformBuffer",
                                                      std::move( vertexUniformVertexBufferLayout ) );
 
@@ -30,7 +38,7 @@ Renderer::Renderer()
     mLightsInfoUniformBuffer = CreateRef<UniformBuffer>( 1,
                                                          "LightsInfoUniformBuffer",
                                                          std::move( lightsInfoUniformVertexBufferLayout ) );
-    
+
     VertexBufferLayout lightsUniformVertexBufferLayout{
         { "type", GLSLDataType::Int },
         { "brightness", GLSLDataType::Float },
@@ -47,8 +55,38 @@ Renderer::Renderer()
                                                      "LightsUniformBuffer",
                                                      std::move( lightsUniformVertexBufferLayout ),
                                                      cMaxLights );
+
+    // The three blocks never move, so the frame bind group is built once.
+    array<wgpu::BindGroupEntry, 3> entries = {};
+    const UniformBuffer* buffers[3] = { mVertexUniformBuffer.get(),
+                                        mLightsInfoUniformBuffer.get(),
+                                        mLightsUniformBuffer.get() };
+    for ( u32 i = 0; i < 3; i++ )
+    {
+        entries[i] = {};
+        entries[i].binding = i;
+        entries[i].buffer = buffers[i]->GetBuffer();
+        entries[i].offset = 0;
+        entries[i].size = buffers[i]->BufferSize();
+    }
+
+    wgpu::BindGroupDescriptor desc = wgpu::Default;
+    desc.label = wgpu::StringView( "Frame Bind Group" );
+    desc.layout = Gpu().Layouts().Frame();
+    desc.entryCount = entries.size();
+    desc.entries = entries.data();
+    mFrameBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
 }
 
+void Renderer::BeginFrame()
+{
+    mDrawRing.Reset();
+}
+
+void Renderer::FlushDrawUniforms()
+{
+    mDrawRing.Flush();
+}
 
 void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
 {
@@ -61,16 +99,13 @@ void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer&
     vertexBufferElement.SetMat4( "uView", lookAtMat );
 }
 
-
-void Renderer::SetLightsUniformBuffer( const Camera& camera, const std::vector<Light>& lights )
+void Renderer::SetLightsUniformBuffer( const Camera& camera, const vector<Light>& lights )
 {
-    // Lights info: camera pos and num lights
     auto fragmentBufferElement = mLightsInfoUniformBuffer->Element( 0 );
     fragmentBufferElement.SetInt( "uNumLights", (i32)lights.size() );
     fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
 
-    // Lights
-    for ( i32 i = 0; i < lights.size(); i++ )
+    for ( i32 i = 0; i < (i32)lights.size(); i++ )
     {
         const auto& light = lights[i];
         auto lightBufferElement = mLightsUniformBuffer->Element( i );
@@ -85,90 +120,108 @@ void Renderer::SetLightsUniformBuffer( const Camera& camera, const std::vector<L
         lightBufferElement.SetFloat3( "direction", light.mDirection );
         lightBufferElement.SetFloat3( "position", light.mPosition );
     }
+    mLightCount = lights.size();
 }
 
-
-void Renderer::ClearScreen( vec4 color )
+void Renderer::FlushFrameUniforms()
 {
-    glClearColor( color.r, color.g, color.b, color.a );
-    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
+    mVertexUniformBuffer->Flush();
+    mLightsInfoUniformBuffer->Flush();
+    // Only the lights actually present, not all 128 slots.
+    mLightsUniformBuffer->Flush( std::max<u64>( mLightCount, 1 ) );
 }
 
-
-void Renderer::ClearScreenUint( uvec4 color )
+void Renderer::BindFrame( wgpu::RenderPassEncoder pass )
 {
-    glClearBufferuiv( GL_COLOR, 0, glm::value_ptr( color ) );
-    glClear( GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
+    pass.setBindGroup( (u32)BindGroupIndex::Frame, *mFrameBindGroup, 0, nullptr );
 }
 
-
-void Renderer::DrawMeshPrimitives( const Mesh& mesh, 
-                                   const Ref<Shader>& shader, 
-                                   DrawingPrimitive drawingPrimitive )
+void Renderer::DrawMeshPrimitives( const RenderTarget& target,
+                                   const Mesh& mesh,
+                                   const Ref<Shader>& shader,
+                                   DrawingPrimitive drawingPrimitive,
+                                   u32 dynamicOffset )
 {
-    mesh.BindVertexArray();
-    if ( shader->mModules.test( ShaderModule::Material ) )
-        mesh.ApplyMaterial( shader );
-    glDrawElements( (GLenum)drawingPrimitive, (i32)mesh.IndiciesSize(), GL_UNSIGNED_INT, nullptr );
+    const VertexLayout& layout = mesh.mVertexArray.Layout();
+    if ( not mesh.mVertexArray.Valid() )
+        return;
+
+    PipelineKey key;
+    key.mColorFormat = target.mColorFormat;
+    key.mDepthFormat = target.mDepthFormat;
+    key.mPrimitive = drawingPrimitive;
+    key.mCullBackFaces = drawingPrimitive == DrawingPrimitive::Triangles;
+    key.mBlend = false;
+    key.mAttributeMask = VertexLayoutAttributeMask( layout );
+
+    wgpu::RenderPipeline pipeline = shader->GetPipeline( key, layout );
+    if ( not pipeline )
+        return;
+
+    target.mPass.setPipeline( pipeline );
+
+    // The draw group is always bound, even for shaders that read nothing from
+    // it - a pipeline layout entry has to be satisfied.
+    target.mPass.setBindGroup( (u32)BindGroupIndex::Draw, mDrawRing.GetBindGroup(),
+                               1, &dynamicOffset );
+
+    // Always bound, not just when the shader includes <material>. The pipeline
+    // layout declares all three groups, and a group the layout names has to
+    // have something set before a draw even if the shader never samples it.
+    // Meshes carry a default material, so there is always something to bind.
+    mesh.ApplyMaterial( target.mPass );
+
+    mesh.BindVertexArray( target.mPass );
+    target.mPass.drawIndexed( (u32)mesh.IndiciesSize(), 1, 0, 0, 0 );
 }
 
-
-void Renderer::DrawMesh( const Mesh& mesh,
+void Renderer::DrawMesh( const RenderTarget& target,
+                         const Mesh& mesh,
                          const Ref<Shader>& shader,
                          const mat4& transform,
-                         DrawingPrimitive drawingPrimitive )
+                         DrawingPrimitive drawingPrimitive,
+                         u32 objectId,
+                         const DrawUniforms* extras )
 {
-    if ( not shader )
+    if ( not shader or not shader->Valid() )
     {
         BUBBLE_ASSERT( false, "DrawMesh: shader is null" );
         return;
     }
 
-    // Set uniform buffers
-    shader->SetUniformBuffer( mVertexUniformBuffer );
-    if ( shader->mModules.test( ShaderModule::Light ) )
-    {
-        shader->SetUniformBuffer( mLightsInfoUniformBuffer );
-        shader->SetUniformBuffer( mLightsUniformBuffer );
-    }
+    // Billboards pass their position, size and tint through here rather than
+    // through loose uniforms, which no longer exist.
+    DrawUniforms uniforms = extras ? *extras : DrawUniforms{};
+    uniforms.mModel = transform;
+    uniforms.SetNormalMatrix( CalculateNormalMat( transform ) );
+    uniforms.mObjectId = objectId;
+    const u32 dynamicOffset = mDrawRing.Push( uniforms );
 
-    // Draw mesh
-    shader->SetUniMat4( "uModel", transform );
-    // Only the lit shaders declare it; picking, white and billboard do not, and
-    // GetUniform would warn on every draw.
-    if ( shader->HasUniform( "uNormalMatrix" ) )
-        shader->SetUniMat3( "uNormalMatrix", CalculateNormalMat( transform ) );
-    DrawMeshPrimitives( mesh, shader, drawingPrimitive );
+    DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
 }
 
-
-void Renderer::DrawModel( const Ref<Model>& model,
+void Renderer::DrawModel( const RenderTarget& target,
+                          const Ref<Model>& model,
                           const Ref<Shader>& shader,
                           const mat4& transform,
-                          DrawingPrimitive drawingPrimitive )
+                          DrawingPrimitive drawingPrimitive,
+                          u32 objectId )
 {
-    if ( not model or not shader )
+    if ( not model or not shader or not shader->Valid() )
     {
         BUBBLE_ASSERT( false, "DrawModel: Model or shader is null" );
         return;
     }
 
-    // Set uniform buffers
-    shader->SetUniformBuffer( mVertexUniformBuffer );
-    if ( shader->mModules.test( ShaderModule::Light ) )
-    {
-        shader->SetUniformBuffer( mLightsInfoUniformBuffer );
-        shader->SetUniformBuffer( mLightsUniformBuffer );
-    }
+    // One slot for the whole model: every mesh in it shares the transform.
+    DrawUniforms uniforms;
+    uniforms.mModel = transform;
+    uniforms.SetNormalMatrix( CalculateNormalMat( transform ) );
+    uniforms.mObjectId = objectId;
+    const u32 dynamicOffset = mDrawRing.Push( uniforms );
 
-    // Draw meshes
-    shader->SetUniMat4( "uModel", transform );
-    // Only the lit shaders declare it; picking, white and billboard do not, and
-    // GetUniform would warn on every draw.
-    if ( shader->HasUniform( "uNormalMatrix" ) )
-        shader->SetUniMat3( "uNormalMatrix", CalculateNormalMat( transform ) );
     for ( const auto& mesh : model->mMeshes )
-        DrawMeshPrimitives( mesh, shader, drawingPrimitive );
+        DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
 }
-    
-} // namespace bubble
+
+}

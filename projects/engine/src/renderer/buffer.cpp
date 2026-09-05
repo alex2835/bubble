@@ -1,38 +1,54 @@
 #include "engine/pch/pch.hpp"
-#include <GL/glew.h>
 #include "glm/gtc/type_ptr.hpp"
 #include "engine/types/array.hpp"
 #include "engine/renderer/buffer.hpp"
+#include "engine/renderer/gpu_context.hpp"
+#include "engine/log/log.hpp"
 
 namespace bubble
 {
+namespace
+{
+
+// Buffer sizes and writeBuffer ranges must be multiples of 4.
+u64 Align4( u64 size )
+{
+    return ( size + 3ull ) & ~3ull;
+}
+
+wgpu::raii::Buffer CreateBuffer( u64 size, wgpu::BufferUsage usage, string_view label )
+{
+    wgpu::BufferDescriptor desc = wgpu::Default;
+    desc.label = wgpu::StringView( label );
+    desc.size = Align4( size );
+    desc.usage = usage | wgpu::BufferUsage::CopyDst;
+    desc.mappedAtCreation = false;
+    auto buffer = wgpu::raii::Buffer( Gpu().Device().createBuffer( desc ) );
+    if ( not buffer )
+        LogError( "Failed to create buffer '{}' of {} bytes", label, desc.size );
+    return buffer;
+}
+
+}
+
 
 u32 GLSLDataTypeSize( GLSLDataType type )
 {
     switch ( type )
     {
-    case GLSLDataType::Float:
-        return sizeof( GLfloat );
-    case GLSLDataType::Float2:
-        return sizeof( GLfloat ) * 2;
-    case GLSLDataType::Float3:
-        return sizeof( GLfloat ) * 3;
-    case GLSLDataType::Float4:
-        return sizeof( GLfloat ) * 4;
-    case GLSLDataType::Mat3:
-        return sizeof( GLfloat ) * 3 * 3;
-    case GLSLDataType::Mat4:
-        return sizeof( GLfloat ) * 4 * 4;
-    case GLSLDataType::Int:
-        return sizeof( i32 );
-    case GLSLDataType::Int2:
-        return sizeof( i32 ) * 2;
-    case GLSLDataType::Int3:
-        return sizeof( i32 ) * 3;
-    case GLSLDataType::Int4:
-        return sizeof( i32 ) * 4;
-    case GLSLDataType::Bool:
-        return sizeof( GLboolean );
+        case GLSLDataType::Float:  return 4;
+        case GLSLDataType::Float2: return 4 * 2;
+        case GLSLDataType::Float3: return 4 * 3;
+        case GLSLDataType::Float4: return 4 * 4;
+        case GLSLDataType::Mat3:   return 4 * 3 * 3;
+        case GLSLDataType::Mat4:   return 4 * 4 * 4;
+        case GLSLDataType::Int:    return 4;
+        case GLSLDataType::Int2:   return 4 * 2;
+        case GLSLDataType::Int3:   return 4 * 3;
+        case GLSLDataType::Int4:   return 4 * 4;
+        case GLSLDataType::UInt:   return 4;
+        case GLSLDataType::Bool:   return 4;
+        case GLSLDataType::Texture2D: return 0;
     }
     BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
     return 0;
@@ -42,179 +58,297 @@ u32 GLSLDataComponentCount( GLSLDataType type )
 {
     switch ( type )
     {
-    case GLSLDataType::Float:
-        return 1;
-    case GLSLDataType::Float2:
-        return 2;
-    case GLSLDataType::Float3:
-        return 3;
-    case GLSLDataType::Float4:
-        return 4;
-    case GLSLDataType::Mat3:
-        return 3;
-    case GLSLDataType::Mat4:
-        return 4;
-    case GLSLDataType::Int:
-        return 1;
-    case GLSLDataType::Int2:
-        return 2;
-    case GLSLDataType::Int3:
-        return 3;
-    case GLSLDataType::Int4:
-        return 4;
-    case GLSLDataType::Bool:
-        return 1;
+        case GLSLDataType::Float:  return 1;
+        case GLSLDataType::Float2: return 2;
+        case GLSLDataType::Float3: return 3;
+        case GLSLDataType::Float4: return 4;
+        case GLSLDataType::Mat3:   return 3;
+        case GLSLDataType::Mat4:   return 4;
+        case GLSLDataType::Int:    return 1;
+        case GLSLDataType::Int2:   return 2;
+        case GLSLDataType::Int3:   return 3;
+        case GLSLDataType::Int4:   return 4;
+        case GLSLDataType::UInt:   return 1;
+        case GLSLDataType::Bool:   return 1;
+        case GLSLDataType::Texture2D: return 0;
     }
     BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
     return 0;
 }
-
-i32 GLSLDataTypeToOpenGLBasemType( GLSLDataType mType )
-{
-    switch ( mType )
-    {
-    case GLSLDataType::Float:
-        return GL_FLOAT;
-    case GLSLDataType::Float2:
-        return GL_FLOAT;
-    case GLSLDataType::Float3:
-        return GL_FLOAT;
-    case GLSLDataType::Float4:
-        return GL_FLOAT;
-    case GLSLDataType::Mat3:
-        return GL_FLOAT;
-    case GLSLDataType::Mat4:
-        return GL_FLOAT;
-    case GLSLDataType::Int:
-        return GL_INT;
-    case GLSLDataType::Int2:
-        return GL_INT;
-    case GLSLDataType::Int3:
-        return GL_INT;
-    case GLSLDataType::Int4:
-        return GL_INT;
-    case GLSLDataType::Bool:
-        return GL_BOOL;
-    }
-    BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
-    return 0;
-}
-
 
 u32 Std140DataTypeSize( GLSLDataType type )
 {
     switch ( type )
     {
-    case GLSLDataType::Float:
-        return 4;
-    case GLSLDataType::Float2:
-        return 4 * 2;
-    case GLSLDataType::Float3:
-        return 4 * 4;
-    case GLSLDataType::Float4:
-        return 4 * 4;
-    case GLSLDataType::Mat3:
-        return 4 * 4 * 4;
-    case GLSLDataType::Mat4:
-        return 4 * 4 * 4;
-    case GLSLDataType::Int:
-        return 4;
-    case GLSLDataType::Int2:
-        return 4 * 2;
-    case GLSLDataType::Int3:
-        return 4 * 4;
-    case GLSLDataType::Int4:
-        return 4 * 4;
-    case GLSLDataType::Bool:
-        return 4;
+        case GLSLDataType::Float:  return 4;
+        case GLSLDataType::Float2: return 4 * 2;
+        case GLSLDataType::Float3: return 4 * 4;
+        case GLSLDataType::Float4: return 4 * 4;
+        // Three column-vectors, each padded to 16 bytes. This returned 64
+        // before, which is the mat4 size; nothing used a mat3 in a uniform
+        // block so it never showed up.
+        case GLSLDataType::Mat3:   return 4 * 4 * 3;
+        case GLSLDataType::Mat4:   return 4 * 4 * 4;
+        case GLSLDataType::Int:    return 4;
+        case GLSLDataType::Int2:   return 4 * 2;
+        case GLSLDataType::Int3:   return 4 * 4;
+        case GLSLDataType::Int4:   return 4 * 4;
+        case GLSLDataType::UInt:   return 4;
+        case GLSLDataType::Bool:   return 4;
+        case GLSLDataType::Texture2D: return 0;
     }
     BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
     return 0;
 }
-
 
 u32 Std140DataTypeAligment( GLSLDataType type )
 {
     switch ( type )
     {
-    case GLSLDataType::Float:
-        return 4;
-    case GLSLDataType::Float2:
-        return 8;
-    case GLSLDataType::Float3:
-        return 16;
-    case GLSLDataType::Float4:
-        return 16;
-    case GLSLDataType::Mat3:
-        return 16;
-    case GLSLDataType::Mat4:
-        return 16;
-    case GLSLDataType::Int:
-        return 4;
-    case GLSLDataType::Int2:
-        return 8;
-    case GLSLDataType::Int3:
-        return 16;
-    case GLSLDataType::Int4:
-        return 16;
-    case GLSLDataType::Bool:
-        return 4;
+        case GLSLDataType::Float:  return 4;
+        case GLSLDataType::Float2: return 8;
+        case GLSLDataType::Float3: return 16;
+        case GLSLDataType::Float4: return 16;
+        case GLSLDataType::Mat3:   return 16;
+        case GLSLDataType::Mat4:   return 16;
+        case GLSLDataType::Int:    return 4;
+        case GLSLDataType::Int2:   return 8;
+        case GLSLDataType::Int3:   return 16;
+        case GLSLDataType::Int4:   return 16;
+        case GLSLDataType::UInt:   return 4;
+        case GLSLDataType::Bool:   return 4;
+        case GLSLDataType::Texture2D: return 0;
     }
     BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
     return 0;
 }
 
-
-auto VerteBufferDataLayout( const VertexBufferData& vbd )
+wgpu::VertexFormat ToWGPUVertexFormat( GLSLDataType type )
 {
-    return VertexBufferLayout
+    switch ( type )
     {
-        { "Position",  GLSLDataType::Float3, vbd.mPositions.size()  },
-        { "Normal",    GLSLDataType::Float3, vbd.mNormals.size()    },
-        { "TexCoords", GLSLDataType::Float2, vbd.mTexCoords.size()  },
-        { "Tangent",   GLSLDataType::Float3, vbd.mTangents.size()   },
-        { "Bitangent", GLSLDataType::Float3, vbd.mBitangents.size() }
+        case GLSLDataType::Float:  return wgpu::VertexFormat::Float32;
+        case GLSLDataType::Float2: return wgpu::VertexFormat::Float32x2;
+        case GLSLDataType::Float3: return wgpu::VertexFormat::Float32x3;
+        case GLSLDataType::Float4: return wgpu::VertexFormat::Float32x4;
+        case GLSLDataType::Int:    return wgpu::VertexFormat::Sint32;
+        case GLSLDataType::Int2:   return wgpu::VertexFormat::Sint32x2;
+        case GLSLDataType::Int3:   return wgpu::VertexFormat::Sint32x3;
+        case GLSLDataType::Int4:   return wgpu::VertexFormat::Sint32x4;
+        case GLSLDataType::UInt:   return wgpu::VertexFormat::Uint32;
+        default: break;
+    }
+    BUBBLE_ASSERT( false, "Type is not usable as a vertex attribute" );
+    return wgpu::VertexFormat::Float32x3;
+}
+
+
+// ---------------------------------------------------------------------------
+// VertexLayout
+// ---------------------------------------------------------------------------
+
+VertexLayout VertexLayout::FromData( const VertexBufferData& vbd )
+{
+    VertexLayout layout;
+    layout.mVertexCount = vbd.VertexCount();
+
+    u64 offset = 0;
+    const auto add = [&]( VertexAttributeSemantic semantic, GLSLDataType type, u64 count )
+    {
+        // The whole point: an attribute with no data produces no slot, so no
+        // pipeline ever declares one pointing outside the buffer.
+        if ( count == 0 )
+            return;
+
+        const u64 size = (u64)GLSLDataTypeSize( type ) * count;
+        layout.mSlots.push_back( VertexAttributeSlot{ semantic, type, offset, size } );
+        offset += size;
     };
+
+    add( VertexAttributeSemantic::Position,  GLSLDataType::Float3, vbd.mPositions.size() );
+    add( VertexAttributeSemantic::Normal,    GLSLDataType::Float3, vbd.mNormals.size() );
+    add( VertexAttributeSemantic::TexCoords, GLSLDataType::Float2, vbd.mTexCoords.size() );
+    add( VertexAttributeSemantic::Tangent,   GLSLDataType::Float3, vbd.mTangents.size() );
+    add( VertexAttributeSemantic::Bitangent, GLSLDataType::Float3, vbd.mBitangents.size() );
+
+    layout.mTotalSize = offset;
+    return layout;
+}
+
+bool VertexLayout::SameAttributes( const VertexLayout& other ) const
+{
+    if ( mSlots.size() != other.mSlots.size() )
+        return false;
+    for ( u64 i = 0; i < mSlots.size(); i++ )
+    {
+        if ( mSlots[i].mSemantic != other.mSlots[i].mSemantic or
+             mSlots[i].mType != other.mSlots[i].mType )
+            return false;
+    }
+    return true;
+}
+
+VertexLayoutDescriptors BuildVertexLayoutDescriptors( const VertexLayout& layout )
+{
+    VertexLayoutDescriptors out;
+    const auto& slots = layout.Slots();
+
+    // Reserved up front: mLayouts stores a pointer into mAttributes, so the
+    // vector must not reallocate afterwards.
+    out.mAttributes.reserve( slots.size() );
+    out.mLayouts.reserve( slots.size() );
+
+    for ( u64 i = 0; i < slots.size(); i++ )
+    {
+        const auto& slot = slots[i];
+
+        wgpu::VertexAttribute attribute = wgpu::Default;
+        attribute.format = ToWGPUVertexFormat( slot.mType );
+        // Each attribute is bound as its own vertex buffer slot starting at its
+        // block, so within that slot it sits at zero.
+        attribute.offset = 0;
+        attribute.shaderLocation = (u32)slot.mSemantic;
+        out.mAttributes.push_back( attribute );
+
+        wgpu::VertexBufferLayout bufferLayout = wgpu::Default;
+        bufferLayout.arrayStride = GLSLDataTypeSize( slot.mType );
+        bufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
+        bufferLayout.attributeCount = 1;
+        bufferLayout.attributes = &out.mAttributes[i];
+        out.mLayouts.push_back( bufferLayout );
+    }
+    return out;
 }
 
 vector<u8> VertexBufferDataFlat( const VertexBufferData& vbd )
 {
-    u64 size = sizeof( vec3 ) * vbd.mPositions.size() +
-        sizeof( vec3 ) * vbd.mNormals.size() +
-        sizeof( vec2 ) * vbd.mTexCoords.size() +
-        sizeof( vec3 ) * vbd.mTangents.size() +
-        sizeof( vec3 ) * vbd.mBitangents.size();
+    const VertexLayout layout = VertexLayout::FromData( vbd );
+    vector<u8> data( layout.TotalSize() );
 
-    vector<u8> data( size );
-    u64 offset = 0;
-    memmove( data.data(), vbd.mPositions.data(), sizeof( vec3 ) * vbd.mPositions.size() );
-    offset += sizeof( vec3 ) * vbd.mPositions.size();
+    const auto copy = [&]( const VertexAttributeSlot& slot, const void* src )
+    {
+        std::memcpy( data.data() + slot.mByteOffset, src, slot.mByteSize );
+    };
 
-    memmove( data.data() + offset, vbd.mNormals.data(), sizeof( vec3 ) * vbd.mNormals.size() );
-    offset += sizeof( vec3 ) * vbd.mNormals.size();
-
-    memmove( data.data() + offset, vbd.mTexCoords.data(), sizeof( vec2 ) * vbd.mTexCoords.size() );
-    offset += sizeof( vec2 ) * vbd.mTexCoords.size();
-
-    memmove( data.data() + offset, vbd.mTangents.data(), sizeof( vec3 ) * vbd.mTangents.size() );
-    offset += sizeof( vec3 ) * vbd.mTangents.size();
-
-    memmove( data.data() + offset, vbd.mBitangents.data(), sizeof( vec3 ) * vbd.mBitangents.size() );
-
+    for ( const auto& slot : layout.Slots() )
+    {
+        switch ( slot.mSemantic )
+        {
+            case VertexAttributeSemantic::Position:  copy( slot, vbd.mPositions.data() );  break;
+            case VertexAttributeSemantic::Normal:    copy( slot, vbd.mNormals.data() );    break;
+            case VertexAttributeSemantic::TexCoords: copy( slot, vbd.mTexCoords.data() );  break;
+            case VertexAttributeSemantic::Tangent:   copy( slot, vbd.mTangents.data() );   break;
+            case VertexAttributeSemantic::Bitangent: copy( slot, vbd.mBitangents.data() ); break;
+        }
+    }
     return data;
 }
 
 
+// ---------------------------------------------------------------------------
+// VertexArray
+// ---------------------------------------------------------------------------
 
-// Buffer layout
+VertexArray::VertexArray( VertexArray&& other ) noexcept
+{
+    Swap( other );
+}
+
+VertexArray& VertexArray::operator=( VertexArray&& other ) noexcept
+{
+    if ( this != &other )
+        Swap( other );
+    return *this;
+}
+
+void VertexArray::Swap( VertexArray& other ) noexcept
+{
+    std::swap( mVertexBuffer, other.mVertexBuffer );
+    std::swap( mIndexBuffer, other.mIndexBuffer );
+    std::swap( mLayout, other.mLayout );
+    std::swap( mVertexBufferSize, other.mVertexBufferSize );
+    std::swap( mIndexBufferSize, other.mIndexBufferSize );
+    std::swap( mIndexCount, other.mIndexCount );
+}
+
+void VertexArray::SetBufferData( const VertexBufferData& vbd,
+                                 const vector<u32>& indices,
+                                 BufferType )
+{
+    mLayout = VertexLayout::FromData( vbd );
+    mIndexCount = indices.size();
+
+    if ( mLayout.TotalSize() == 0 or indices.empty() )
+    {
+        mVertexBuffer = {};
+        mIndexBuffer = {};
+        mVertexBufferSize = 0;
+        mIndexBufferSize = 0;
+        return;
+    }
+
+    const vector<u8> vertexData = VertexBufferDataFlat( vbd );
+    const u64 indexBytes = indices.size() * sizeof( u32 );
+
+    // Reallocate only when the data outgrows the buffer. Sizes are fixed at
+    // creation, so a smaller update just writes into the existing allocation -
+    // which is what the per-frame debug meshes do.
+    if ( not mVertexBuffer or vertexData.size() > mVertexBufferSize )
+    {
+        mVertexBuffer = CreateBuffer( vertexData.size(), wgpu::BufferUsage::Vertex, "Vertex Buffer" );
+        mVertexBufferSize = Align4( vertexData.size() );
+    }
+    if ( not mIndexBuffer or indexBytes > mIndexBufferSize )
+    {
+        mIndexBuffer = CreateBuffer( indexBytes, wgpu::BufferUsage::Index, "Index Buffer" );
+        mIndexBufferSize = Align4( indexBytes );
+    }
+
+    Gpu().Queue().writeBuffer( *mVertexBuffer, 0, vertexData.data(), Align4( vertexData.size() ) );
+    Gpu().Queue().writeBuffer( *mIndexBuffer, 0, indices.data(), Align4( indexBytes ) );
+}
+
+void VertexArray::Bind( wgpu::RenderPassEncoder pass ) const
+{
+    if ( not Valid() )
+        return;
+
+    const auto& slots = mLayout.Slots();
+    for ( u32 i = 0; i < (u32)slots.size(); i++ )
+        pass.setVertexBuffer( i, *mVertexBuffer, slots[i].mByteOffset, slots[i].mByteSize );
+
+    pass.setIndexBuffer( *mIndexBuffer, wgpu::IndexFormat::Uint32,
+                         0, mIndexCount * sizeof( u32 ) );
+}
+
+
+// ---------------------------------------------------------------------------
+// VertexBufferLayout
+// ---------------------------------------------------------------------------
+
 VertexBufferLayout::VertexBufferLayout( const std::initializer_list<BufferElement>& elements )
     : mElements( elements )
 {
     CalculateOffsetsAndStride();
 }
 
-VertexBufferLayout::~VertexBufferLayout()
+void VertexBufferLayout::CalculateOffsetsAndStride()
 {
+    const auto alignTo = []( u64 offset, u64 alignment )
+    {
+        return ( offset + alignment - 1 ) & ~( alignment - 1 );
+    };
+
+    u64 offset = 0;
+    for ( auto& element : mElements )
+    {
+        offset = alignTo( offset, Std140DataTypeAligment( element.mType ) );
+        element.mOffset = offset;
+        element.mSize = Std140DataTypeSize( element.mType );
+        offset += element.mSize * element.mCount;
+    }
+    // A uniform block's stride is rounded up to a vec4.
+    mStride = alignTo( offset, 16 );
 }
 
 void VertexBufferLayout::SetStride( u64 stride )
@@ -241,356 +375,36 @@ vector<BufferElement>::iterator VertexBufferLayout::begin()
 {
     return mElements.begin();
 }
+
 vector<BufferElement>::iterator VertexBufferLayout::end()
 {
     return mElements.end();
 }
+
 vector<BufferElement>::const_iterator VertexBufferLayout::begin() const
 {
     return mElements.begin();
 }
+
 vector<BufferElement>::const_iterator VertexBufferLayout::end() const
 {
     return mElements.end();
 }
 
-void VertexBufferLayout::CalculateOffsetsAndStride()
-{
-    u64 offset = 0;
-    for ( auto& element : mElements )
-    {
-        element.mOffset = offset;
-        element.mSize = GLSLDataTypeSize( element.mType );
-        offset += element.mSize * element.mCount;
-        mStride += u32( element.mSize );
-    }
-    // If count more then one, it means that
-    // attributes goes one after another (1111 2222 3333)
-    // So stride will be the size of each single attribute
-    mStride = mElements[0].mCount == 1 ? mStride : 0;
-}
 
+// ---------------------------------------------------------------------------
+// UniformBuffer
+// ---------------------------------------------------------------------------
 
-
-// Vertex buffer 
-VertexBuffer::VertexBuffer( const VertexBufferLayout& layout, u64 size )
-    : mLayout( layout ), 
-      mSize( size ),
-      mType( BufferType::Dynamic )
-{
-    glcall( glGenBuffers( 1, &mRendererID ) );
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW ) );
-}
-
-VertexBuffer::VertexBuffer( VertexBuffer&& other ) noexcept
-{
-    Swap( other );
-}
-
-VertexBuffer::VertexBuffer( const VertexBufferData& vbd, BufferType type )
-{
-    glcall( glGenBuffers( 1, &mRendererID ) );
-    Reallocate( vbd, type );
-}
-
-VertexBuffer& VertexBuffer::operator=( VertexBuffer&& other ) noexcept
-{
-    if ( this != &other )
-        Swap( other );
-    return *this;
-}
-
-VertexBuffer::~VertexBuffer()
-{
-    glcall( glDeleteBuffers( 1, &mRendererID ) );
-}
-
-void VertexBuffer::Swap( VertexBuffer& other ) noexcept
-{
-    std::swap( mRendererID, other.mRendererID );
-    std::swap( mSize, other.mSize );
-    std::swap( mLayout, other.mLayout );
-    std::swap( mType, other.mType );
-}
-
-void VertexBuffer::Bind() const
-{
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-}
-
-void VertexBuffer::Unbind() const
-{
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, 0 ) );
-}
-
-void VertexBuffer::SetData( const vector<u8>& data )
-{
-    BUBBLE_ASSERT( mType == BufferType::Dynamic, "Set vertex buffer data works only with Dynamic buffers" );
-    BUBBLE_ASSERT( data.size() == mSize, "Set data of different size is forbidden" );
-
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferSubData( GL_ARRAY_BUFFER, 0, data.size(), data.data() ) );
-}
-
-void VertexBuffer::Reallocate( const VertexBufferData& vbd, BufferType type )
-{
-    mLayout = VerteBufferDataLayout( vbd );
-    const auto data = VertexBufferDataFlat( vbd );
-    mSize = data.size();
-    mType = type;
-    glcall( glBindBuffer( GL_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ARRAY_BUFFER, data.size(), data.data(), (GLenum)type ) );
-}
-
-const VertexBufferLayout& VertexBuffer::Layout() const
-{
-    return mLayout;
-}
-
-u64 VertexBuffer::Size()
-{
-    return mSize;
-}
-
-
-// Index buffer
-IndexBuffer::IndexBuffer( const vector<u32>& indices, BufferType type )
-    : mCount( indices.size() ),
-      mType( type )
-{
-    glcall( glGenBuffers( 1, &mRendererID ) );
-    Realocate( indices, mType );
-}
-
-IndexBuffer::IndexBuffer( IndexBuffer&& other ) noexcept
-{
-    Swap( other );
-}
-
-IndexBuffer& IndexBuffer::operator=( IndexBuffer&& other ) noexcept
-{
-    if ( this != &other )
-        Swap( other );
-    return *this;
-}
-
-IndexBuffer::~IndexBuffer()
-{
-    glcall( glDeleteBuffers( 1, &mRendererID ) );
-}
-
-void IndexBuffer::Swap( IndexBuffer& other ) noexcept
-{
-    std::swap( mRendererID, other.mRendererID );
-    std::swap( mCount, other.mCount );
-}
-
-void IndexBuffer::SetData( const vector<u32>& indices )
-{
-    BUBBLE_ASSERT( mType == BufferType::Dynamic, "Set vertex buffer data works only with Dynamic buffers" );
-    BUBBLE_ASSERT( indices.size() == mCount, "Set data of different size is forbidden" );
-
-    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferSubData( GL_ELEMENT_ARRAY_BUFFER, 0, indices.size() * sizeof( u32 ), indices.data() ) );
-}
-
-void IndexBuffer::Realocate( const vector<u32>& indices, BufferType type )
-{
-    mType = type;
-    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
-    glcall( glBufferData( GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof( u32 ), indices.data(), (GLenum)type ) );
-}
-
-void IndexBuffer::Bind() const
-{
-    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, mRendererID ) );
-}
-
-void IndexBuffer::Unbind() const
-{
-    glcall( glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 ) );
-}
-
-u64 IndexBuffer::GetCount() const
-{
-    return mCount;
-}
-
-
-// VertexArray
-VertexArray::VertexArray() noexcept
-{
-    glcall( glGenVertexArrays( 1, &mRendererID ) );
-    Bind();
-}
-
-VertexArray::VertexArray( VertexArray&& other ) noexcept
-{
-    Swap( other );
-}
-
-VertexArray& VertexArray::operator=( VertexArray&& other ) noexcept
-{
-    if ( this != &other )
-        Swap( other );
-    return *this;
-}
-
-VertexArray::~VertexArray()
-{
-    glcall( glDeleteVertexArrays( 1, &mRendererID ) );
-}
-
-void VertexArray::Swap( VertexArray& other ) noexcept
-{
-    std::swap( mRendererID, other.mRendererID );
-    std::swap( mVertexBufferIndex, other.mVertexBufferIndex );
-    std::swap( mVertexBuffer, other.mVertexBuffer );
-    std::swap( mIndexBuffer, other.mIndexBuffer );
-}
-
-void VertexArray::Bind() const
-{
-    glcall( glBindVertexArray( mRendererID ) );
-}
-
-void VertexArray::Unbind() const
-{
-    glcall( glBindVertexArray( 0 ) );
-}
-
-void VertexArray::SetVertexBuffer( VertexBuffer&& vertexBuffer )
-{
-    Bind();
-    BUBBLE_ASSERT( vertexBuffer.Layout().Size(), "VertexBuffer has no layout!" );
-    vertexBuffer.Bind();
-    mVertexBuffer = std::move( vertexBuffer );
-    UpdateVerteBufferLayout();
-    Unbind();
-}
-
-void VertexArray::SetIndexBuffer( IndexBuffer&& indexBuffer )
-{
-    Bind();
-    indexBuffer.Bind();
-    mIndexBuffer = std::move( indexBuffer );
-    Unbind();
-}
-
-void VertexArray::SetBufferData( const VertexBufferData& vbd,
-                                 const vector<u32>& indices,
-                                 BufferType type )
-{
-    Bind();
-    auto layout = VerteBufferDataLayout( vbd );
-    if ( mVertexBuffer.Layout() == layout and
-         mIndexBuffer.GetCount() == indices.size() )
-    {
-        mVertexBuffer.SetData( VertexBufferDataFlat( vbd ) );
-        mIndexBuffer.SetData( indices );
-    }
-    else
-    {
-        mVertexBuffer.Reallocate( vbd, type );
-        mIndexBuffer.Realocate( indices, type );
-        UpdateVerteBufferLayout();
-    }
-    Unbind();
-}
-
-void VertexArray::UpdateVerteBufferLayout()
-{
-    VertexBufferIndex( 0 );
-    const auto& layout = mVertexBuffer.Layout();
-    for ( const auto& element : layout )
-    {
-        switch ( element.mType )
-        {
-            case GLSLDataType::Float:
-            case GLSLDataType::Float2:
-            case GLSLDataType::Float3:
-            case GLSLDataType::Float4:
-            case GLSLDataType::Int:
-            case GLSLDataType::Int2:
-            case GLSLDataType::Int3:
-            case GLSLDataType::Int4:
-            case GLSLDataType::Bool:
-            {
-                glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
-                glcall( glVertexAttribPointer( mVertexBufferIndex,
-                                               GLSLDataComponentCount( element.mType ),
-                                               GLSLDataTypeToOpenGLBasemType( element.mType ),
-                                               element.mNormalized ? GL_TRUE : GL_FALSE,
-                                               i32( layout.Stride() ? layout.Stride() : element.mSize ),
-                                               (const void*)element.mOffset ) );
-                VertexBufferIndex( mVertexBufferIndex + 1 );
-            }break;
-            case GLSLDataType::Mat3:
-            case GLSLDataType::Mat4:
-            {
-                u32 count = GLSLDataComponentCount( element.mType );
-                for ( u32 i = 0; i < count; i++ )
-                {
-                    glcall( glEnableVertexAttribArray( mVertexBufferIndex ) );
-                    glcall( glVertexAttribPointer( mVertexBufferIndex,
-                                                   count,
-                                                   GLSLDataTypeToOpenGLBasemType( element.mType ),
-                                                   element.mNormalized ? GL_TRUE : GL_FALSE,
-                                                   i32( layout.Stride() ? layout.Stride() : element.mSize ),
-                                                   (const void*)( sizeof( f32 ) * count * i ) ) );
-                    glcall( glVertexAttribDivisor( mVertexBufferIndex, 1 ) );
-                    VertexBufferIndex( mVertexBufferIndex + 1 );
-                }
-            }break;
-            default:
-            {
-                BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
-            }
-        }
-    }
-}
-
-
-u32 VertexArray::RendererID() const
-{
-    return mRendererID;
-}
-
-VertexBuffer& VertexArray::GetVertexBuffer()
-{
-    return mVertexBuffer;
-}
-
-IndexBuffer& VertexArray::GetIndexBuffer()
-{
-    return mIndexBuffer;
-}
-
-void VertexArray::VertexBufferIndex( u32 val )
-{
-    mVertexBufferIndex = val;
-}
-
-
-// UniformBuffer 
-UniformBuffer::UniformBuffer( i32 index, 
-                              string name,
-                              const VertexBufferLayout& layout,
-                              u32 size )
+UniformBuffer::UniformBuffer( i32 index, string name, const VertexBufferLayout& layout, u32 size )
     : mName( std::move( name ) ),
       mLayout( layout ),
       mSize( size ),
-      mIndex( index )
+      mIndex( (u64)index )
 {
     CalculateOffsetsAndStride();
-    mBufferSize = mLayout.Stride() * size;
-
-    glGenBuffers( 1, &mRendererID );
-    glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferData( GL_UNIFORM_BUFFER, mBufferSize, NULL, GL_DYNAMIC_DRAW );
-
-    glBindBufferRange( GL_UNIFORM_BUFFER, index, mRendererID, 0, mBufferSize );
+    mStaging.assign( mBufferSize, 0 );
+    mBuffer = CreateBuffer( mBufferSize, wgpu::BufferUsage::Uniform, mName );
 }
 
 UniformBuffer::UniformBuffer( UniformBuffer&& other ) noexcept
@@ -605,14 +419,10 @@ UniformBuffer& UniformBuffer::operator=( UniformBuffer&& other ) noexcept
     return *this;
 }
 
-UniformBuffer::~UniformBuffer()
-{
-    glDeleteBuffers( 1, &mRendererID );
-}
-
 void UniformBuffer::Swap( UniformBuffer& other ) noexcept
 {
-    std::swap( mRendererID, other.mRendererID );
+    std::swap( mBuffer, other.mBuffer );
+    std::swap( mStaging, other.mStaging );
     std::swap( mName, other.mName );
     std::swap( mLayout, other.mLayout );
     std::swap( mBufferSize, other.mBufferSize );
@@ -620,9 +430,24 @@ void UniformBuffer::Swap( UniformBuffer& other ) noexcept
     std::swap( mIndex, other.mIndex );
 }
 
-i32 UniformBuffer::RendererID() const
+void UniformBuffer::CalculateOffsetsAndStride()
 {
-    return mRendererID;
+    mBufferSize = Align4( mLayout.Stride() * mSize );
+}
+
+void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
+{
+    BUBBLE_ASSERT( offset + size <= mStaging.size(), "Uniform buffer write out of range" );
+    std::memcpy( mStaging.data() + offset, data, size );
+}
+
+void UniformBuffer::Flush( u64 elementCount )
+{
+    const u64 elements = elementCount == 0 ? mSize : std::min( elementCount, mSize );
+    const u64 bytes = Align4( std::min( mLayout.Stride() * elements, (u64)mStaging.size() ) );
+    if ( bytes == 0 )
+        return;
+    Gpu().Queue().writeBuffer( *mBuffer, 0, mStaging.data(), bytes );
 }
 
 const string& UniformBuffer::Name() const
@@ -633,12 +458,6 @@ const string& UniformBuffer::Name() const
 u64 UniformBuffer::Index() const
 {
     return mIndex;
-}
-
-void UniformBuffer::SetData( const void* data, u32 size, u32 offset )
-{
-    glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferSubData( GL_UNIFORM_BUFFER, offset, size, data );
 }
 
 UniformArrayElement UniformBuffer::operator[]( u64 index )
@@ -652,113 +471,106 @@ UniformArrayElement UniformBuffer::Element( u64 index )
     return UniformArrayElement( *this, index );
 }
 
-void UniformBuffer::CalculateOffsetsAndStride()
-{
-    auto alignTo = []( u64 offset, u64 alignment )
-    {
-        return ( offset + alignment - 1 ) & ~( alignment - 1 );
-    };
-
-    u64 offset = 0;
-    for ( BufferElement& elemnt : mLayout )
-    {
-        u64 alignment = Std140DataTypeAligment( elemnt.mType );
-        elemnt.mSize = Std140DataTypeSize( elemnt.mType );
-        elemnt.mOffset = alignTo( offset, alignment );
-        offset = elemnt.mOffset + elemnt.mSize;
-    }
-    mLayout.SetStride( alignTo( offset, Std140DataTypeSize( GLSLDataType::Float4 ) ) );
-}
-
 const VertexBufferLayout& UniformBuffer::Layout() const
 {
     return mLayout;
-};
+}
 
-u64 UniformBuffer::BufferSize()
+u64 UniformBuffer::BufferSize() const
 {
     return mBufferSize;
 }
-u64 UniformBuffer::Size()
+
+u64 UniformBuffer::Size() const
 {
     return mSize;
-};
+}
 
-// UniformArrayElement 
-UniformArrayElement::UniformArrayElement( const UniformBuffer& uniform_buffer, u64 index )
-    : mRendererID( uniform_buffer.RendererID() ),
-      mArrayIndex( index ),
-      mLayout( uniform_buffer.Layout() )
+u8* UniformBuffer::StagingAt( u64 offset )
+{
+    BUBBLE_ASSERT( offset < mStaging.size(), "Uniform buffer offset out of range" );
+    return mStaging.data() + offset;
+}
+
+
+// ---------------------------------------------------------------------------
+// UniformArrayElement
+// ---------------------------------------------------------------------------
+
+UniformArrayElement::UniformArrayElement( UniformBuffer& uniformBuffer, u64 index )
+    : mBuffer( &uniformBuffer ),
+      mArrayIndex( index )
 {
 }
 
 void UniformArrayElement::SetData( const void* data, u64 size, u64 offset )
 {
-    u64 array_index_offset = mLayout.Stride() * mArrayIndex;
-    size = size ? size : mLayout.Stride();
-    glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset + offset, size, data );
+    const u64 stride = mBuffer->Layout().Stride();
+    size = size ? size : stride;
+    std::memcpy( mBuffer->StagingAt( stride * mArrayIndex + offset ), data, size );
 }
 
 void UniformArrayElement::SetInt( const string& name, i32 data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Int );
-    SetRawData( elem, &data );
+    SetRawData( FindBufferElement( name, GLSLDataType::Int ), &data, sizeof( data ) );
 }
 
+void UniformArrayElement::SetUInt( const string& name, u32 data )
+{
+    SetRawData( FindBufferElement( name, GLSLDataType::UInt ), &data, sizeof( data ) );
+}
 
 void UniformArrayElement::SetFloat( const string& name, f32 data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float );
-    SetRawData( elem, &data );
+    SetRawData( FindBufferElement( name, GLSLDataType::Float ), &data, sizeof( data ) );
 }
-
 
 void UniformArrayElement::SetFloat2( const string& name, const vec2& data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float2 );
-    SetRawData( elem, value_ptr( data ) );
+    SetRawData( FindBufferElement( name, GLSLDataType::Float2 ), value_ptr( data ), sizeof( vec2 ) );
 }
-
 
 void UniformArrayElement::SetFloat3( const string& name, const vec3& data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float3 );
-    SetRawData( elem, value_ptr( data ) );
+    SetRawData( FindBufferElement( name, GLSLDataType::Float3 ), value_ptr( data ), sizeof( vec3 ) );
 }
-
 
 void UniformArrayElement::SetFloat4( const string& name, const vec4& data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Float4 );
-    SetRawData( elem, value_ptr( data ) );
+    SetRawData( FindBufferElement( name, GLSLDataType::Float4 ), value_ptr( data ), sizeof( vec4 ) );
 }
 
+void UniformArrayElement::SetMat3( const string& name, const mat3& data )
+{
+    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Mat3 );
+    // A mat3 is three column-vectors each padded to 16 bytes, so it cannot be
+    // memcpy'd from a glm::mat3 in one go.
+    u8* dst = mBuffer->StagingAt( mBuffer->Layout().Stride() * mArrayIndex + elem.mOffset );
+    for ( i32 column = 0; column < 3; column++ )
+        std::memcpy( dst + (u64)column * 16, value_ptr( data[column] ), sizeof( vec3 ) );
+}
 
 void UniformArrayElement::SetMat4( const string& name, const mat4& data )
 {
-    const BufferElement& elem = FindBufferElement( name, GLSLDataType::Mat4 );
-    SetRawData( elem, value_ptr( data ) );
+    SetRawData( FindBufferElement( name, GLSLDataType::Mat4 ), value_ptr( data ), sizeof( mat4 ) );
 }
-
 
 const BufferElement& UniformArrayElement::FindBufferElement( const string& name, GLSLDataType type )
 {
-    auto elem = std::find_if( mLayout.begin(), mLayout.end(),
+    const auto& layout = mBuffer->Layout();
+    auto elem = std::find_if( layout.begin(), layout.end(),
                               [&name, &type]( const BufferElement& elem )
     {
         return elem.mName == name && elem.mType == type;
     } );
-    BUBBLE_ASSERT( elem != mLayout.end(), "Uniform buffer element not founded" );
+    BUBBLE_ASSERT( elem != layout.end(), "Uniform buffer element not founded" );
     return *elem;
 }
 
-void UniformArrayElement::SetRawData( const BufferElement& elem, const void* data )
+void UniformArrayElement::SetRawData( const BufferElement& elem, const void* data, u64 size )
 {
-    u64 array_index_offset = mLayout.Stride() * mArrayIndex + elem.mOffset;
-    glBindBuffer( GL_UNIFORM_BUFFER, mRendererID );
-    glBufferSubData( GL_UNIFORM_BUFFER, array_index_offset, elem.mSize, data );
-    glBindBuffer( GL_UNIFORM_BUFFER, 0 );
+    const u64 offset = mBuffer->Layout().Stride() * mArrayIndex + elem.mOffset;
+    std::memcpy( mBuffer->StagingAt( offset ), data, size );
 }
 
 }

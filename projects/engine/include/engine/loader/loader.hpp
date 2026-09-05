@@ -34,7 +34,6 @@ constexpr string_view BILBOARD_SHADER = "./resources/shaders/billboard"sv;
 // Used when a shader supplies a fragment stage and no vertex stage of its own.
 // Most shaders differ only in how they shade a fragment, and needing a copy of
 // this file per shader is what makes every new shader start as a duplicate.
-constexpr string_view DEFAULT_VERTEX_SHADER = "./resources/shaders/phong.vert"sv;
 
 
 struct TextureData

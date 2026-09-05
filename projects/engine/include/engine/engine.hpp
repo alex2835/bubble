@@ -37,16 +37,19 @@ struct Engine
     static constexpr auto cBillboardSize = vec2( 5.0f );
     static constexpr auto cBillboardTint = vec4( 1.0f );
     const Ref<Texture2D>& GetLightTexture( const LightType& lightType );
-    void DrawBillboard( const Ref<Texture2D>& texture,
+    // Draws into an already open pass, so it takes a target rather than a
+    // framebuffer - several billboards share one pass.
+    void DrawBillboard( const RenderTarget& target,
+                        const Ref<Texture2D>& texture,
                         const Ref<Shader>& shader,
                         const vec3& position,
                         const vec2& size = vec2( 1.0f ),
-                        const vec4& tintColor = vec4( 1.0f ) );
+                        const vec4& tintColor = vec4( 1.0f ),
+                        u32 objectId = 0 );
     void DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene );
 
     // Draw entity id to framebuffer for object picking
     void DrawEntityIds( Framebuffer& framebuffer, const Scene& scene );
-    void DrawBillboardEntityId( const Entity entity, const vec3& position, const vec2& size = vec2( 1.0f ) );
 
 public:
     Window& mWindow;

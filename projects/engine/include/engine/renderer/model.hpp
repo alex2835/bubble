@@ -6,6 +6,7 @@
 #include "engine/renderer/buffer.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/renderer/material.hpp"
+#include "engine/renderer/webgpu.hpp"
 
 namespace bubble
 {
@@ -25,13 +26,13 @@ public:
     Mesh( Mesh&& ) = default;
     Mesh& operator= ( Mesh&& ) = default;
 
-    void BindVertexArray() const;
+    void BindVertexArray( wgpu::RenderPassEncoder pass ) const;
     u64 IndiciesSize() const;
 
     void UpdateDynamicVertexBufferData( VertexBufferData vertices );
     void UpdateDynamicVertexBufferData( VertexBufferData vertices, vector<u32> indices );
 
-    void ApplyMaterial( const Ref<Shader>& shader ) const;
+    void ApplyMaterial( wgpu::RenderPassEncoder pass ) const;
 
 public:
     string mName;

@@ -540,7 +540,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
             for ( int i = 0; i < (int)textures.size(); i++ )
             {
                 bool isSelected = ( i == selectedIdx );
-                ImGui::Image( (ImTextureID)(u64)textures[i]->RendererID(), ImVec2( 24, 24 ) );
+                ImGui::Image( (ImTextureID)textures[i]->ImTextureId(), ImVec2( 24, 24 ) );
                 ImGui::SameLine();
                 if ( ImGui::Selectable( textureNames[i].c_str(), isSelected ) )
                     currentTexture = textures[i];
@@ -552,7 +552,7 @@ Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
         ImGui::SameLine();
         ImGui::Text( "(Texture2D)" );
         if ( currentTexture )
-            ImGui::Image( (ImTextureID)(u64)currentTexture->RendererID(), ImVec2( 64, 64 ) );
+            ImGui::Image( (ImTextureID)currentTexture->ImTextureId(), ImVec2( 64, 64 ) );
         return currentTexture;
     }
     else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
@@ -624,71 +624,25 @@ Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
 
 void ApplyShaderUniforms( const Shader& shader, const Table& uniforms )
 {
-    // Units 0-2 belong to the material (diffuse, specular, normal), which is
-    // applied per mesh after this runs. A user sampler starts above them.
-    constexpr i32 cFirstUserTextureSlot = 3;
-    i32 textureSlot = cFirstUserTextureSlot;
-
-    for ( const auto& [name, type] : shader.mUniformDescriptors )
-    {
-        sol::object val = uniforms[name];
-        if ( !val.valid() || val.is<sol::nil_t>() )
-            continue;
-
-        switch ( type )
-        {
-            case GLSLDataType::Texture2D:
-            {
-                // A sampler slot the inspector or a script left empty is not an
-                // error - it is a texture the user has not chosen yet - so a
-                // null Ref is skipped rather than bound.
-                if ( not val.is<Ref<Texture2D>>() )
-                    break;
-                const auto& texture = val.as<Ref<Texture2D>>();
-                if ( not texture )
-                    break;
-                shader.SetTexture2D( name, texture, textureSlot++ );
-                break;
-            }
-            case GLSLDataType::Float:
-                if ( val.is<float>() )  shader.SetUni1f( name, val.as<float>() );
-                break;
-            case GLSLDataType::Float2:
-                if ( val.is<vec2>() )   shader.SetUni2f( name, val.as<vec2>() );
-                break;
-            case GLSLDataType::Float3:
-                if ( val.is<vec3>() )   shader.SetUni3f( name, val.as<vec3>() );
-                break;
-            case GLSLDataType::Float4:
-                if ( val.is<vec4>() )   shader.SetUni4f( name, val.as<vec4>() );
-                break;
-            case GLSLDataType::Mat3:
-                if ( val.is<mat3>() )   shader.SetUniMat3( name, val.as<mat3>() );
-                break;
-            case GLSLDataType::Mat4:
-                if ( val.is<mat4>() )   shader.SetUniMat4( name, val.as<mat4>() );
-                break;
-            case GLSLDataType::Int:
-                if ( val.is<int>() )    shader.SetUni1i( name, val.as<int>() );
-                break;
-            case GLSLDataType::Bool:
-                // RebuildUniforms defaults a bool uniform to Lua `false`, and
-                // the inspector edits it as a checkbox - neither of which is a
-                // Lua number, so the old is<int>() test never matched and bool
-                // uniforms never reached the shader at all.
-                if ( val.is<bool>() )   shader.SetUni1i( name, val.as<bool>() ? 1 : 0 );
-                break;
-            case GLSLDataType::Int2:
-                if ( val.is<ivec2>() )  shader.SetUni2i( name, val.as<ivec2>() );
-                break;
-            case GLSLDataType::Int3:
-                if ( val.is<ivec3>() )  shader.SetUni3i( name, val.as<ivec3>() );
-                break;
-            case GLSLDataType::Int4:
-                if ( val.is<ivec4>() )  shader.SetUni4i( name, val.as<ivec4>() );
-                break;
-        }
-    }
+    // NOT YET IMPLEMENTED ON WEBGPU.
+    //
+    // This used to walk shader.mUniformDescriptors and push each value straight
+    // at the program with glUniform*. WebGPU has no loose uniforms: a
+    // user-declared uniform has to be packed into a buffer at the byte offset
+    // its shader gives it, and its textures bound as bind group entries.
+    //
+    // Two things have to land before that can work:
+    //  - the WGSL reflection that fills mUniformDescriptors, which currently
+    //    stays empty because there is no equivalent of glGetActiveUniform;
+    //  - a fourth bind group for per-shader user data, which needs the
+    //    reflected offsets to know where to write each value.
+    //
+    // Until then the Lua and inspector uniform tables round trip and persist as
+    // before, but their values do not reach the shader. Materials, lights and
+    // the per-draw transform are unaffected - those go through the material and
+    // frame bind groups.
+    (void)shader;
+    (void)uniforms;
 }
 
 } // namespace bubble

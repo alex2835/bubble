@@ -16,13 +16,12 @@ Mesh::Mesh( string name,
       mIndices( std::move( indices ) ),
       mMaterial( std::move( material ) )
 {
-    mVertexArray.SetVertexBuffer( VertexBuffer( mVertices, type ) );
-    mVertexArray.SetIndexBuffer( IndexBuffer( mIndices, type ) );
+    mVertexArray.SetBufferData( mVertices, mIndices, type );
 }
 
-void Mesh::BindVertexArray() const
+void Mesh::BindVertexArray( wgpu::RenderPassEncoder pass ) const
 {
-    mVertexArray.Bind();
+    mVertexArray.Bind( pass );
 }
 
 u64 Mesh::IndiciesSize() const
@@ -44,9 +43,9 @@ void Mesh::UpdateDynamicVertexBufferData( VertexBufferData /*vertices*/ )
     //mVertexArray.GetVertexBuffer().SetData( mVertices );
 }
 
-void Mesh::ApplyMaterial( const Ref<Shader>& shader ) const
+void Mesh::ApplyMaterial( wgpu::RenderPassEncoder pass ) const
 {
-    mMaterial.Apply( shader );
+    mMaterial.Apply( pass );
 }
 
 // Model

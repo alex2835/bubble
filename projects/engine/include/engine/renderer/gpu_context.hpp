@@ -1,12 +1,15 @@
 #pragma once
 #include "engine/types/number.hpp"
 #include "engine/types/glm.hpp"
+#include "engine/types/pointer.hpp"
 #include "engine/renderer/webgpu.hpp"
 
 struct GLFWwindow;
 
 namespace bubble
 {
+class StandardLayouts;
+class Texture2D;
 
 // Owns the WebGPU objects that live for the whole program: instance, adapter,
 // device, queue, and the window surface.
@@ -51,6 +54,16 @@ public:
     // when polled. Call once per frame or errors surface late, or never.
     void PollDevice();
 
+    // The bind group and pipeline layouts every pipeline shares. Built on first
+    // use rather than in the constructor, because creating them needs the
+    // device to already be reachable through Gpu().
+    StandardLayouts& Layouts();
+
+    // 1x1 opaque white, bound wherever a material has no map of that kind. A
+    // bind group has to fill every entry its layout declares, and this is much
+    // cheaper than a pipeline variant per combination of present maps.
+    Texture2D& WhiteTexture();
+
 private:
     void LogAdapterInfo() const;
 
@@ -69,6 +82,9 @@ private:
     // Releasing it earlier destroys it out from under the view referenced by
     // commands that have not been submitted yet. Declared last so it goes first.
     wgpu::raii::Texture mCurrentTexture;
+
+    Scope<StandardLayouts> mLayouts;
+    Scope<Texture2D> mWhiteTexture;
 };
 
 

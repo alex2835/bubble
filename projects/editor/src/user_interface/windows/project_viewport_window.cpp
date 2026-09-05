@@ -31,8 +31,47 @@ void ProjectViewportWindow::OnUpdate( DeltaTime )
 {
     if ( mSize != mSceneViewport.Size() )
     {
+        // Resizing recreates the id attachment, so anything reading from it is
+        // now pointing at a texture that no longer exists.
+        mUIGlobals.mEntityIdPicker.Cancel();
         mEntityIdViewport.Resize( mSize );
         mSceneViewport.Resize( mSize );
+    }
+
+    // A readback lands one or two frames after the click. Resolving it here,
+    // after the UI has drawn, matches when the selection used to take effect:
+    // the gizmo and the hotkeys both read mSelection before the click that set
+    // it was ever processed, so this was always a frame behind.
+    ResolvePendingSelection();
+}
+
+void ProjectViewportWindow::ResolvePendingSelection()
+{
+    vector<u32> pixels;
+    uvec2 size( 0u );
+    if ( not mUIGlobals.mEntityIdPicker.TakeResult( pixels, size ) )
+        return;
+    if ( pixels.empty() )
+        return;
+
+    mSelection.Clear();
+
+    if ( mUIGlobals.mPendingRectSelect )
+    {
+        set<Entity> entities;
+        // Every pixel, not every third. The attachment is single channel
+        // R32Uint, so one u32 is one pixel - the old stride of 3 was left over
+        // from thinking in RGB and quietly dropped two thirds of a selection.
+        for ( u64 i = 0; i < pixels.size(); i++ )
+        {
+            if ( pixels[i] > 0 )
+                entities.insert( mProject.mScene.GetEntityById( pixels[i] ) );
+        }
+        mSelection.AddEntities( entities, mProject.mScene );
+    }
+    else if ( pixels[0] > 0 )
+    {
+        mSelection.AddEntity( mProject.mScene.GetEntityById( pixels[0] ), mProject.mScene );
     }
 }
 
@@ -59,12 +98,11 @@ void ProjectViewportWindow::ProcessScreenSelectedEntity()
          ImGui::IsWindowHovered() and
          ImGui::IsMouseClicked( ImGuiMouseButton_Left, false ) )
     {
+        // Only asks for the read. The id pass is rendered next frame and the
+        // result arrives after that, through ResolvePendingSelection.
         const auto clickPos = CaptureWidnowMousePos();
-        const auto pixel = mEntityIdViewport.ReadColorAttachmentPixelRedUint( clickPos );
-
-        mSelection.Clear();
-        if ( pixel > 0 )
-            mSelection.AddEntity( mProject.mScene.GetEntityById( pixel ), mProject.mScene );
+        mUIGlobals.mPendingRectSelect = false;
+        mUIGlobals.mEntityIdPicker.Request( clickPos, clickPos );
     }
 }
 
@@ -87,23 +125,8 @@ void ProjectViewportWindow::ProcessSreenSelectionRect()
         mIsSelecting = false;
         auto startPos = GlobalToWindowPos( mStartSelection );
         auto endPos = GlobalToWindowPos( ImGui::GetMousePos() );
-        const auto& pixels = mEntityIdViewport.ReadColorAttachmentPixelRedUint( startPos, endPos );
-        if ( pixels.empty() )
-            return;
-
-        mSelection.Clear();
-        set<Entity> entities;
-        for ( int i = 0; i < pixels.size(); i+=3 )
-        {
-            auto pixel = pixels[i];
-            // Ignore invalid entities
-            if ( pixel > 0 )
-            {
-                auto entity = mProject.mScene.GetEntityById( pixel );
-                entities.insert( entity );
-            }
-        }
-        mSelection.AddEntities( entities, mProject.mScene );
+        mUIGlobals.mPendingRectSelect = true;
+        mUIGlobals.mEntityIdPicker.Request( startPos, endPos );
     }
 
     // selection rect
@@ -123,7 +146,7 @@ void ProjectViewportWindow::DrawViewport()
     vec2 viewportSize = mSceneViewport.Size();
     ImVec2 imguiViewportSize = ImGui::GetContentRegionAvail();
 
-    u64 textureId = mSceneViewport.ColorAttachment().RendererID();
+    u64 textureId = mSceneViewport.ColorAttachment().ImTextureId();
     ImVec2 textureSize = ImVec2( (float)mSceneViewport.Width(),
                                  (float)mSceneViewport.Height() );
 

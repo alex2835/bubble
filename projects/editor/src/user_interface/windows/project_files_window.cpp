@@ -184,7 +184,7 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
             if ( child.mType == FilesystemNodeType::Texture )
                 texture = mProject.mLoader.LoadTexture2D( child.mPath );
 
-            ImGui::Image( (ImTextureID)(i64)texture->RendererID(), elemSize );
+            ImGui::Image( (ImTextureID)texture->ImTextureId(), elemSize );
             ImGui::Text( "%s", child.mPath.stem().string().c_str() );
         }
         ImGui::EndChild();

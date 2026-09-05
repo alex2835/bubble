@@ -8,6 +8,10 @@
 namespace bubble
 {
 // shader modules search path
+// One WGSL file per shader; both entry points live in it.
+constexpr string_view SHADER_EXTENSION = ".wgsl"sv;
+// Includable snippets. Same language, kept in their own directory.
+constexpr string_view MODULE_EXTENSION = ".wgsl"sv;
 constexpr string_view SHADER_MODULES_SEARCH_PATH = "./resources/shaders/modules"sv;
 // A project's own module directory, relative to its root. Searched before the
 // engine's, so a project can shadow an engine module with one of its own.
@@ -46,7 +50,7 @@ struct ProcessedSource
 };
 
 
-// Every .glsl in the search directories, keyed by stem. Read fresh on every
+// Every module file in the search directories, keyed by stem. Read fresh on every
 // shader load - caching it is what once made a module edited on disk take
 // effect only after restarting the editor.
 ShaderModuleTable GetShaderModules();

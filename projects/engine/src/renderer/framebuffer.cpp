@@ -86,7 +86,7 @@ Texture2D& Framebuffer::DepthAttachment()
     return mDepthAttachment;
 }
 
-wgpu::raii::RenderPassEncoder Framebuffer::BeginRenderPass( wgpu::CommandEncoder encoder,
+RenderPassScope Framebuffer::BeginRenderPass( wgpu::CommandEncoder encoder,
                                                             opt<vec4> clearColor,
                                                             bool clearDepth,
                                                             string_view label )
@@ -112,10 +112,10 @@ wgpu::raii::RenderPassEncoder Framebuffer::BeginRenderPass( wgpu::CommandEncoder
     passDesc.depthStencilAttachment = &depthAttachment;
     passDesc.timestampWrites = nullptr;
 
-    return wgpu::raii::RenderPassEncoder( encoder.beginRenderPass( passDesc ) );
+    return RenderPassScope( wgpu::raii::RenderPassEncoder( encoder.beginRenderPass( passDesc ) ) );
 }
 
-wgpu::raii::RenderPassEncoder Framebuffer::BeginRenderPassUint( wgpu::CommandEncoder encoder,
+RenderPassScope Framebuffer::BeginRenderPassUint( wgpu::CommandEncoder encoder,
                                                                 opt<uvec4> clearColor,
                                                                 bool clearDepth,
                                                                 string_view label )
@@ -140,7 +140,7 @@ wgpu::raii::RenderPassEncoder Framebuffer::BeginRenderPassUint( wgpu::CommandEnc
     passDesc.depthStencilAttachment = &depthAttachment;
     passDesc.timestampWrites = nullptr;
 
-    return wgpu::raii::RenderPassEncoder( encoder.beginRenderPass( passDesc ) );
+    return RenderPassScope( wgpu::raii::RenderPassEncoder( encoder.beginRenderPass( passDesc ) ) );
 }
 
 void Framebuffer::Invalidate()

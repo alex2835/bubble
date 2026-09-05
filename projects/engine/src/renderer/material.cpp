@@ -1,109 +1,97 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/material.hpp"
+#include "engine/renderer/pipeline.hpp"
+#include "engine/renderer/gpu_context.hpp"
 
 namespace bubble
 {
-void BasicMaterial::Apply( const Ref<Shader>& shader ) const
+
+void BasicMaterial::InvalidateBindGroup()
 {
-    shader->Bind();
-
-    // A shader that opts into the material module is not obliged to read every
-    // field of it, and the GLSL compiler strips whatever nothing reads - so a
-    // missing uniform here is by design, not a mistake. Ask before setting, and
-    // leave GetUniform's warning for the case it is actually useful for: a name
-    // that is simply wrong.
-    const auto set4f = [&]( string_view name, const vec4& value )
-    {
-        if ( shader->HasUniform( name ) )
-            shader->SetUni4f( name, value );
-    };
-    const auto set1i = [&]( string_view name, i32 value )
-    {
-        if ( shader->HasUniform( name ) )
-            shader->SetUni1i( name, value );
-    };
-    const auto set1f = [&]( string_view name, f32 value )
-    {
-        if ( shader->HasUniform( name ) )
-            shader->SetUni1f( name, value );
-    };
-
-    set4f( "uMaterial.diffuseColor", mDiffuseColor );
-    set4f( "uMaterial.specularColor", mSpecular );
-    set4f( "uMaterial.ambientColor", mAmbient );
-
-    // Textures. The bind still happens when the sampler uniform was stripped -
-    // binding a slot nothing samples is harmless, and skipping it would make
-    // the active texture units depend on which shader is in use.
-    if ( mDiffuseMap )
-    {
-        set1i( "uMaterial.hasDiffuseMap", true );
-        set1i( "uMaterial.diffuseMap", 0 );
-        mDiffuseMap->Bind( 0 );
-    }
-    else
-        set1i( "uMaterial.hasDiffuseMap", false );
-
-    if ( mSpecularMap )
-    {
-        set1i( "uMaterial.hasSpecularMap", true );
-        set1i( "uMaterial.specularMap", 1 );
-        mSpecularMap->Bind( 1 );
-    }
-    else
-        set1i( "uMaterial.hasSpecularMap", false );
-
-    if( mNormalMap )
-    {
-        set1i( "uMaterial.hasNormalMap", true );
-        set1i( "uMaterial.normalMap", 2 );
-        mNormalMap->Bind( 2 );
-    }
-    else
-        set1i( "uMaterial.hasNormalMap", false );
-
-    set1i( "uMaterial.shininess", mShininess );
-    set1f( "uMaterial.shininessStrength", mShininessStrength );
-    set1i( "uNormalMapping", (bool)mNormalMap );
-    set1f( "uNormalMappingStrength", mNormalMapStrength );
+    mBindGroup = {};
+    mBoundDiffuse = nullptr;
+    mBoundSpecular = nullptr;
+    mBoundNormal = nullptr;
 }
 
+void BasicMaterial::EnsureResources() const
+{
+    if ( not mUniformBuffer )
+    {
+        wgpu::BufferDescriptor desc = wgpu::Default;
+        desc.label = wgpu::StringView( "Material Uniforms" );
+        desc.size = sizeof( MaterialUniforms );
+        desc.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+        desc.mappedAtCreation = false;
+        mUniformBuffer = wgpu::raii::Buffer( Gpu().Device().createBuffer( desc ) );
+    }
 
+    // A material with no map of a given kind still has to fill that binding -
+    // a bind group must match its layout exactly. Binding a 1x1 white texture
+    // keeps one layout and one pipeline serving every material, which is much
+    // cheaper than a pipeline variant per combination of present maps.
+    const Texture2D& white = Gpu().WhiteTexture();
+    const Texture2D* diffuse  = mDiffuseMap  ? mDiffuseMap.get()  : &white;
+    const Texture2D* specular = mSpecularMap ? mSpecularMap.get() : &white;
+    const Texture2D* normal   = mNormalMap   ? mNormalMap.get()   : &white;
 
-//ExtendedMaterial::ExtendedMaterial( vector<Ref<Texture2D>>&& diffuseMaps,
-//                                    vector<Ref<Texture2D>>&& specularMaps,
-//                                    vector<Ref<Texture2D>>&& normalMaps,
-//                                    i32 shininess )
-//    : mDiffuseMaps( std::move( diffuseMaps ) ),
-//      mSpecularMaps( std::move( specularMaps ) ),
-//      mNormalMaps( std::move( normalMaps ) ),
-//      mShininess( shininess )
-//{
-//}
-//
-//void ExtendedMaterial::Set( const Ref<Shader>& shader ) const
-//{
-//    i32 slot = 0;
-//    for( i32 i = 0; i < mDiffuseMaps.size(); i++ )
-//    {
-//        shader->SetUni1i( "uMaterial.diffuse" + std::to_string( i ), slot );
-//        mDiffuseMaps[i]->Bind( slot++ );
-//    }
-//
-//    for( i32 i = 0; i < mSpecularMaps.size(); i++ )
-//    {
-//        shader->SetUni1i( "uMaterial.specular" + std::to_string( i ), slot );
-//        mSpecularMaps[i]->Bind( slot++ );
-//    }
-//
-//    for( i32 i = 0; i < mNormalMaps.size(); i++ )
-//    {
-//        shader->SetUni1i( "uMaterial.normal" + std::to_string( i ), slot );
-//        mNormalMaps[i]->Bind( slot++ );
-//    }
-//
-//    shader->SetUni1i( "uMaterial.shininess", mShininess );
-//    shader->SetUni1i( "u_NormalMapping", static_cast<i32>( mNormalMaps.size() ) );
-//}
+    if ( mBindGroup and
+         diffuse == mBoundDiffuse and
+         specular == mBoundSpecular and
+         normal == mBoundNormal )
+        return;
+
+    array<wgpu::BindGroupEntry, 5> entries = {};
+    entries[0] = {};
+    entries[0].binding = 0;
+    entries[0].buffer = *mUniformBuffer;
+    entries[0].offset = 0;
+    entries[0].size = sizeof( MaterialUniforms );
+
+    const Texture2D* maps[3] = { diffuse, specular, normal };
+    for ( u32 i = 0; i < 3; i++ )
+    {
+        entries[i + 1] = {};
+        entries[i + 1].binding = i + 1;
+        entries[i + 1].textureView = maps[i]->View();
+    }
+
+    entries[4] = {};
+    entries[4].binding = 4;
+    entries[4].sampler = diffuse->Sampler();
+
+    wgpu::BindGroupDescriptor desc = wgpu::Default;
+    desc.label = wgpu::StringView( "Material Bind Group" );
+    desc.layout = Gpu().Layouts().Material();
+    desc.entryCount = entries.size();
+    desc.entries = entries.data();
+    mBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
+
+    mBoundDiffuse = diffuse;
+    mBoundSpecular = specular;
+    mBoundNormal = normal;
+}
+
+void BasicMaterial::Apply( wgpu::RenderPassEncoder pass ) const
+{
+    EnsureResources();
+
+    // Written every time rather than tracked with a dirty flag: it is eighty
+    // bytes, and the inspector can change any of these fields between frames.
+    MaterialUniforms uniforms;
+    uniforms.mDiffuseColor = mDiffuseColor;
+    uniforms.mSpecularColor = mSpecular;
+    uniforms.mAmbientColor = mAmbient;
+    uniforms.mHasDiffuseMap = mDiffuseMap ? 1u : 0u;
+    uniforms.mHasSpecularMap = mSpecularMap ? 1u : 0u;
+    uniforms.mHasNormalMap = mNormalMap ? 1u : 0u;
+    uniforms.mShininess = mShininess;
+    uniforms.mShininessStrength = mShininessStrength;
+    uniforms.mNormalMapping = mNormalMap ? 1u : 0u;
+    uniforms.mNormalMappingStrength = mNormalMapStrength;
+
+    Gpu().Queue().writeBuffer( *mUniformBuffer, 0, &uniforms, sizeof( uniforms ) );
+    pass.setBindGroup( (u32)BindGroupIndex::Material, *mBindGroup, 0, nullptr );
+}
 
 }
