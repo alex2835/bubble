@@ -142,10 +142,21 @@ Mesh ProcessMesh( const aiMesh* mesh,
 {
     VertexBufferData vertices;
 
+    // Every attribute is sized to the vertex count, present in the source or not.
+    //
+    // A WebGPU pipeline has to provide every input its shader declares, and the
+    // lit shaders declare all five. OpenGL was happy to leave an attribute
+    // enabled but unfilled - it read whatever was there and the shader ignored
+    // it - so a mesh with no tangents still drew. Here it fails pipeline
+    // creation outright, which is what "Location[3] is not provided by the
+    // previous stage outputs" means.
     vertices.mPositions.resize( mesh->mNumVertices );
     vertices.mNormals.resize( mesh->mNumVertices );
     memmove( vertices.mPositions.data(), mesh->mVertices, sizeof( vec3 ) * vertices.mPositions.size() );
-    memmove( vertices.mNormals.data(), mesh->mNormals, sizeof( vec3 ) * vertices.mNormals.size() );
+    // aiProcess_GenSmoothNormals should have produced these, but a mesh that
+    // arrives without them would otherwise memmove from a null pointer.
+    if ( mesh->HasNormals() )
+        memmove( vertices.mNormals.data(), mesh->mNormals, sizeof( vec3 ) * vertices.mNormals.size() );
 
     // Faces
     vector<u32> indices;
@@ -168,11 +179,17 @@ Mesh ProcessMesh( const aiMesh* mesh,
         }
     }
 
-    // Tangents and Bitangents
+    // Tangents and Bitangents.
+    //
+    // Left zeroed when the source has none. Assimp only computes a tangent
+    // basis for a mesh that has texture coordinates, and a mesh without those
+    // cannot be normal mapped anyway - the material's normalMapping flag stays
+    // off, so the shader never reads them. What matters is that the attribute
+    // exists, because the pipeline declares it.
+    vertices.mTangents.resize( mesh->mNumVertices );
+    vertices.mBitangents.resize( mesh->mNumVertices );
     if ( mesh->HasTangentsAndBitangents() )
     {
-        vertices.mTangents.resize( mesh->mNumVertices );
-        vertices.mBitangents.resize( mesh->mNumVertices );
         memmove( vertices.mTangents.data(), mesh->mTangents, sizeof( vec3 ) * vertices.mTangents.size() );
         memmove( vertices.mBitangents.data(), mesh->mBitangents, sizeof( vec3 ) * vertices.mBitangents.size() );
     }
