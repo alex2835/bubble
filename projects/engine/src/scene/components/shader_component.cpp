@@ -141,13 +141,22 @@ void ShaderComponent::OnComponentDraw( const Project& project, const Entity& ent
 
 void ShaderComponent::ToJson( json& j, const Project& project, const ShaderComponent& shaderComponent )
 {
-    if ( not shaderComponent.mShader )
+    // Written from the requested path, not from the loaded shader. A shader
+    // that failed to load used to serialize as null, which threw away the
+    // assignment and every uniform value the moment the project was saved -
+    // so renaming or breaking a shader file destroyed work that had nothing
+    // wrong with it.
+    path shaderPath = shaderComponent.mShaderPath;
+    if ( shaderPath.empty() and shaderComponent.mShader )
+        shaderPath = shaderComponent.mShader->mPath;
+
+    if ( shaderPath.empty() )
     {
         j = nullptr;
         return;
     }
 
-    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderComponent.mShader->mPath );
+    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( shaderPath );
     j["Path"] = relPath;
 
     if ( shaderComponent.mUniforms )
@@ -159,6 +168,9 @@ void ShaderComponent::FromJson( const json& j, Project& project, ShaderComponent
     if ( j.is_null() )
         return;
 
+    // Remembered before the load is attempted, so a shader that is missing today
+    // can be found again once it is put back.
+    shaderComponent.mShaderPath = path( j["Path"].get<string>() );
     shaderComponent.mShader = project.mLoader.LoadShader( j["Path"] );
 
     // Load the saved values into a table of their own, then reconcile against
@@ -171,6 +183,19 @@ void ShaderComponent::FromJson( const json& j, Project& project, ShaderComponent
     {
         for ( const auto& [key, val] : j["Uniforms"].items() )
             saved[key] = LoadAnyValue( project.mScriptingEngine, val );
+    }
+
+    if ( not shaderComponent.mShader )
+    {
+        // Nothing to reconcile against, so the saved values are kept exactly as
+        // they were rather than being rebuilt into nothing. Reconciling needs
+        // the shader's uniform list, and discarding them here would lose them
+        // on the next save just as surely as writing null did.
+        LogWarning( "Shader {} did not load; its component keeps the path and its "
+                    "saved uniform values until it does",
+                    shaderComponent.mShaderPath.string() );
+        shaderComponent.mUniforms = CreateScope<Any>( saved );
+        return;
     }
 
     const auto dropped = shaderComponent.RebuildUniforms( project.mScriptingEngine, &saved );
@@ -268,9 +293,14 @@ DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua, const Table* 
 {
     if ( !mShader )
     {
-        mUniforms.reset();
+        // Only clears when there is nothing to preserve. A component whose
+        // shader is temporarily missing keeps its values - see FromJson.
+        if ( not previous )
+            mUniforms.reset();
         return {};
     }
+
+    mShaderPath = mShader->mPath;
 
     DroppedUniforms dropped;
     auto table = lua.create_table();

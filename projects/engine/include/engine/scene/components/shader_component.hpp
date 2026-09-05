@@ -60,6 +60,15 @@ public:
 
     Ref<Shader> mShader;
     Scope<Any> mUniforms;
+
+    // The shader this component asked for, kept whether or not it loaded.
+    //
+    // Only the resolved Ref used to be stored, so a shader that failed to load
+    // left the component pointing at nothing and the next save wrote null -
+    // losing the assignment and every tuned uniform value with it, permanently.
+    // A missing file has to be recoverable: fix it, reload, and the component
+    // finds its shader again.
+    path mShaderPath;
 };
 
 // One line per shader rather than one per component: a shader shared by a
