@@ -40,6 +40,10 @@ private:
     ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
 
+    // Top left of the viewport image in screen coordinates, captured when it is
+    // drawn. Picking maps mouse positions through this.
+    ImVec2 mViewportScreenMin = ImVec2( 0, 0 );
+
     // Screen selection
     bool mIsSelecting = false;
     ImVec2 mStartSelection;

@@ -75,20 +75,20 @@ void ProjectViewportWindow::ResolvePendingSelection()
     }
 }
 
+// Screen position to a pixel in the viewport's attachments.
+//
+// Measured down from the top left corner, because that is where a WebGPU render
+// target starts. Under OpenGL this subtracted the other way round to flip into a
+// bottom left origin.
 uvec2 ProjectViewportWindow::GlobalToWindowPos( ImVec2 pos )
 {
-    auto windowPos = ImGui::GetCursorScreenPos();
-    auto mouseInWindowPos = uvec2{ std::max( 0, i32(pos.x - windowPos.x) ),
-                                   std::max( 0, i32(windowPos.y - pos.y) ) };
-    return mouseInWindowPos;
+    return uvec2{ (u32)std::max( 0, i32( pos.x - mViewportScreenMin.x ) ),
+                  (u32)std::max( 0, i32( pos.y - mViewportScreenMin.y ) ) };
 }
 
 uvec2 ProjectViewportWindow::CaptureWidnowMousePos()
 {
-    auto windowPos = ImGui::GetCursorScreenPos();
-    auto mousePos = ImGui::GetMousePos();
-    auto mouseInWindowPos = uvec2{ mousePos.x - windowPos.x, windowPos.y - mousePos.y };
-    return mouseInWindowPos;
+    return GlobalToWindowPos( ImGui::GetMousePos() );
 }
 
 
@@ -150,7 +150,17 @@ void ProjectViewportWindow::DrawViewport()
     ImVec2 textureSize = ImVec2( (float)mSceneViewport.Width(),
                                  (float)mSceneViewport.Height() );
 
-    ImGui::Image( (ImTextureID)textureId, textureSize, ImVec2( 0, 1 ), ImVec2( 1, 0 ) );
+    // Drawn with default UVs. The flipped ones this used to pass were correcting
+    // for OpenGL, where a rendered texture's first row is its bottom. WebGPU's
+    // framebuffer origin is the top left, so the image already arrives the right
+    // way up and flipping it turns the camera upside down.
+    ImGui::Image( (ImTextureID)textureId, textureSize );
+
+    // The image's screen rectangle, for turning a mouse position into a pixel in
+    // the id buffer. Taken from the item rather than the ImGui cursor: the cursor
+    // has advanced past the image by the time picking runs, so reading it there
+    // gave the bottom edge and only worked because the Y math was inverted too.
+    mViewportScreenMin = ImGui::GetItemRectMin();
     mSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
     if ( ImGui::IsItemHovered() )

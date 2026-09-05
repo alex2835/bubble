@@ -149,8 +149,7 @@ void Window::FramebufferSizeCallback( GLFWwindow* window, i32 width, i32 height 
 {
     Window* win = reinterpret_cast<Window*>( glfwGetWindowUserPointer( window ) );
     win->mFramebufferSize = uvec2{ (u32)width, (u32)height };
-    // Reconfigured at the top of the next frame rather than here - see ImGuiBegin.
-    win->mSurfaceDirty = true;
+    // The surface is deliberately not resized from here. See ImGuiBegin.
 }
 
 void Window::FillKeyboardEvents()
@@ -612,14 +611,21 @@ void Window::ImGuiBegin()
     if ( mUIFontDirty )
         ReloadUIFont();
 
-    // Deferred out of FramebufferSizeCallback: reconfiguring the surface from
-    // inside a GLFW callback would do it in the middle of glfwPollEvents, which
-    // is not a point where the frame state is known to be idle.
-    if ( mSurfaceDirty )
-    {
+    // Sized from a live query, not from the resize callback.
+    //
+    // ImGui_ImplGlfw_NewFrame asks the OS for the window size directly, but a
+    // GLFW resize callback is only delivered when the message queue is pumped.
+    // On the frame a window changes size those two disagree: ImGui already sees
+    // the new size while the callback is still queued, so a surface sized from
+    // the callback is a frame behind and the UI pass sets a viewport its render
+    // target cannot contain. Reading the same source ImGui reads, immediately
+    // before it does, keeps them in step.
+    i32 framebufferWidth = 0;
+    i32 framebufferHeight = 0;
+    glfwGetFramebufferSize( mWindow, &framebufferWidth, &framebufferHeight );
+    mFramebufferSize = uvec2{ (u32)framebufferWidth, (u32)framebufferHeight };
+    if ( mFramebufferSize != Gpu().SurfaceSize() )
         Gpu().ConfigureSurface( mFramebufferSize );
-        mSurfaceDirty = false;
-    }
 
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplGlfw_NewFrame();

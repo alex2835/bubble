@@ -33,6 +33,11 @@ public:
     // in practice means only ImGui - must declare this as its color target.
     wgpu::TextureFormat SurfaceFormat() const { return mSurfaceFormat; }
 
+    // The size the surface is currently configured at. Anything rendering into
+    // it has to agree with this, or the pass sets a viewport its target cannot
+    // contain.
+    uvec2 SurfaceSize() const { return mSize; }
+
     // (Re)configure the surface, on resize. A zero width or height means the
     // window is minimized: the surface is left unconfigured until it comes back,
     // since configuring a zero-sized surface is a validation error.

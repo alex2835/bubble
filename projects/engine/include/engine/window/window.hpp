@@ -147,10 +147,6 @@ private:
     uvec2 mRestoredSize = uvec2( 0u );
     CursorMode mCursorMode = CursorMode::Normal;
     bool mShouldClose = false;
-    // Set by the framebuffer resize callback, acted on at the start of the next
-    // frame - reconfiguring the surface inside a GLFW callback would do it
-    // partway through glfwPollEvents.
-    bool mSurfaceDirty = false;
     // Whether ImGuiEnd managed to acquire a surface texture this frame. Present
     // must not be called otherwise.
     bool mFramePresentable = false;
