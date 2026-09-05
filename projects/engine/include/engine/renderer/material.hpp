@@ -27,6 +27,11 @@ struct MaterialUniforms
     f32 mPad0 = 0.0f;
 };
 static_assert( sizeof( MaterialUniforms ) == 80, "MaterialUniforms must match the WGSL struct" );
+// Size alone would not catch a reorder that kept the total but moved a field.
+static_assert( offsetof( MaterialUniforms, mSpecularColor ) == 16, "MaterialUniforms::mSpecularColor offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mAmbientColor ) == 32, "MaterialUniforms::mAmbientColor offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mHasDiffuseMap ) == 48, "MaterialUniforms::mHasDiffuseMap offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mShininessStrength ) == 64, "MaterialUniforms::mShininessStrength offset must match the WGSL struct" );
 
 
 struct BasicMaterial

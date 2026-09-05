@@ -90,15 +90,15 @@ public:
     // or nullopt to load what is already there - which is how several draws land
     // in one target without wiping each other, the job glClear-or-not used to do.
     RenderPassScope BeginRenderPass( wgpu::CommandEncoder encoder,
-                                                   opt<vec4> clearColor,
-                                                   bool clearDepth,
-                                                   string_view label = "Render Pass" );
+                                     opt<vec4> clearColor,
+                                     bool clearDepth,
+                                     string_view label = "Render Pass" );
 
     // Same, for the R32Uint entity id target, whose clear value is an integer.
     RenderPassScope BeginRenderPassUint( wgpu::CommandEncoder encoder,
-                                                       opt<uvec4> clearColor,
-                                                       bool clearDepth,
-                                                       string_view label = "Id Pass" );
+                                         opt<uvec4> clearColor,
+                                         bool clearDepth,
+                                         string_view label = "Id Pass" );
 
     void Invalidate();
 

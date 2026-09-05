@@ -23,51 +23,39 @@ Renderer::Renderer()
     // touched again. They are pipeline state now - see PipelineKey - so there
     // is nothing global left to configure.
 
-    VertexBufferLayout vertexUniformVertexBufferLayout{
-        { "uProjection", GLSLDataType::Mat4  },
-        { "uView", GLSLDataType::Mat4  }
+    // One buffer per frame block. Sizes come from the mirror structs, which
+    // static_assert against the WGSL - there is no runtime layout to compute.
+    const auto uniformBuffer = []( const char* label, u64 size )
+    {
+        wgpu::BufferDescriptor desc = wgpu::Default;
+        desc.label = wgpu::StringView( label );
+        desc.size = size;
+        desc.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
+        desc.mappedAtCreation = false;
+        return wgpu::raii::Buffer( Gpu().Device().createBuffer( desc ) );
     };
-    mVertexUniformBuffer = CreateRef<UniformBuffer>( 0,
-                                                     "VertexUniformBuffer",
-                                                     std::move( vertexUniformVertexBufferLayout ) );
 
-    VertexBufferLayout lightsInfoUniformVertexBufferLayout{
-        { "uNumLights", GLSLDataType::Int },
-        { "uViewPos", GLSLDataType::Float3 }
-    };
-    mLightsInfoUniformBuffer = CreateRef<UniformBuffer>( 1,
-                                                         "LightsInfoUniformBuffer",
-                                                         std::move( lightsInfoUniformVertexBufferLayout ) );
-
-    VertexBufferLayout lightsUniformVertexBufferLayout{
-        { "type", GLSLDataType::Int },
-        { "brightness", GLSLDataType::Float },
-        { "constant", GLSLDataType::Float },
-        { "linear", GLSLDataType::Float },
-        { "quadratic", GLSLDataType::Float },
-        { "cutOff", GLSLDataType::Float },
-        { "outerCutOff", GLSLDataType::Float },
-        { "color", GLSLDataType::Float3 },
-        { "direction", GLSLDataType::Float3 },
-        { "position", GLSLDataType::Float3 },
-    };
-    mLightsUniformBuffer = CreateRef<UniformBuffer>( 2,
-                                                     "LightsUniformBuffer",
-                                                     std::move( lightsUniformVertexBufferLayout ),
-                                                     cMaxLights );
+    constexpr u64 cLightsBufferSize = sizeof( LightUniforms ) * cMaxLights;
+    mVertexUniformBuffer = uniformBuffer( "VertexUniformBuffer", sizeof( VertexUniforms ) );
+    mLightsInfoUniformBuffer = uniformBuffer( "LightsInfoUniformBuffer", sizeof( LightsInfoUniforms ) );
+    mLightsUniformBuffer = uniformBuffer( "LightsUniformBuffer", cLightsBufferSize );
+    mLightUniforms.reserve( cMaxLights );
 
     // The three blocks never move, so the frame bind group is built once.
     array<wgpu::BindGroupEntry, 3> entries = {};
-    const UniformBuffer* buffers[3] = { mVertexUniformBuffer.get(),
-                                        mLightsInfoUniformBuffer.get(),
-                                        mLightsUniformBuffer.get() };
+    const wgpu::Buffer buffers[3] = { *mVertexUniformBuffer,
+                                      *mLightsInfoUniformBuffer,
+                                      *mLightsUniformBuffer };
+    const u64 sizes[3] = { sizeof( VertexUniforms ),
+                           sizeof( LightsInfoUniforms ),
+                           cLightsBufferSize };
     for ( u32 i = 0; i < 3; i++ )
     {
         entries[i] = {};
         entries[i].binding = i;
-        entries[i].buffer = buffers[i]->GetBuffer();
+        entries[i].buffer = buffers[i];
         entries[i].offset = 0;
-        entries[i].size = buffers[i]->BufferSize();
+        entries[i].size = sizes[i];
     }
 
     wgpu::BindGroupDescriptor desc = wgpu::Default;
@@ -105,41 +93,52 @@ void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer&
     auto projectionMat = camera.GetProjectionMat( framebufferSize.x, framebufferSize.y );
     auto lookAtMat = camera.GetLookatMat();
 
-    auto vertexBufferElement = mVertexUniformBuffer->Element( 0 );
-    vertexBufferElement.SetMat4( "uProjection", projectionMat );
-    vertexBufferElement.SetMat4( "uView", lookAtMat );
+    mVertexUniforms.mProjection = projectionMat;
+    mVertexUniforms.mView = lookAtMat;
 }
 
 void Renderer::SetLightsUniformBuffer( const Camera& camera, const vector<Light>& lights )
 {
-    auto fragmentBufferElement = mLightsInfoUniformBuffer->Element( 0 );
-    fragmentBufferElement.SetInt( "uNumLights", (i32)lights.size() );
-    fragmentBufferElement.SetFloat3( "uViewPos", camera.mPosition );
+    mLightsInfoUniforms.mNumLights = (i32)lights.size();
+    mLightsInfoUniforms.mViewPos = camera.mPosition;
 
-    for ( i32 i = 0; i < (i32)lights.size(); i++ )
+    mLightUniforms.clear();
+    for ( const auto& light : lights )
     {
-        const auto& light = lights[i];
-        auto lightBufferElement = mLightsUniformBuffer->Element( i );
-        lightBufferElement.SetInt( "type", (i32)light.mType );
-        lightBufferElement.SetFloat( "brightness", light.mBrightness );
-        lightBufferElement.SetFloat( "constant", light.mConstant );
-        lightBufferElement.SetFloat( "linear", light.mLinear );
-        lightBufferElement.SetFloat( "quadratic", light.mQuadratic );
-        lightBufferElement.SetFloat( "cutOff", glm::cos( glm::radians( light.mCutOff ) ) );
-        lightBufferElement.SetFloat( "outerCutOff", glm::cos( glm::radians( light.mOuterCutOff ) ) );
-        lightBufferElement.SetFloat3( "color", light.mColor );
-        lightBufferElement.SetFloat3( "direction", light.mDirection );
-        lightBufferElement.SetFloat3( "position", light.mPosition );
+        LightUniforms& uniforms = mLightUniforms.emplace_back();
+        uniforms.mType = (i32)light.mType;
+        uniforms.mBrightness = light.mBrightness;
+        uniforms.mConstant = light.mConstant;
+        uniforms.mLinear = light.mLinear;
+        uniforms.mQuadratic = light.mQuadratic;
+        // Degrees on the scene side, cosines on the shader side.
+        uniforms.mCutOff = glm::cos( glm::radians( light.mCutOff ) );
+        uniforms.mOuterCutOff = glm::cos( glm::radians( light.mOuterCutOff ) );
+        uniforms.mColor = light.mColor;
+        uniforms.mDirection = light.mDirection;
+        uniforms.mPosition = light.mPosition;
     }
-    mLightCount = lights.size();
 }
 
 void Renderer::FlushFrameUniforms()
 {
-    mVertexUniformBuffer->Flush();
-    mLightsInfoUniformBuffer->Flush();
-    // Only the lights actually present, not all 128 slots.
-    mLightsUniformBuffer->Flush( std::max<u64>( mLightCount, 1 ) );
+    wgpu::Queue queue = Gpu().Queue();
+    queue.writeBuffer( *mVertexUniformBuffer, 0, &mVertexUniforms, sizeof( mVertexUniforms ) );
+    queue.writeBuffer( *mLightsInfoUniformBuffer, 0, &mLightsInfoUniforms, sizeof( mLightsInfoUniforms ) );
+
+    // Only the lights actually present, not all 128 slots. A scene with no
+    // lights still writes one slot - uNumLights is zero, so the shader never
+    // reads it, but a zero sized write is not worth special casing here.
+    if ( mLightUniforms.empty() )
+    {
+        const LightUniforms empty;
+        queue.writeBuffer( *mLightsUniformBuffer, 0, &empty, sizeof( empty ) );
+    }
+    else
+    {
+        queue.writeBuffer( *mLightsUniformBuffer, 0, mLightUniforms.data(),
+                           sizeof( LightUniforms ) * mLightUniforms.size() );
+    }
 }
 
 void Renderer::BindFrame( wgpu::RenderPassEncoder pass )

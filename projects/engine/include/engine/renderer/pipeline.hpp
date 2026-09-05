@@ -30,6 +30,18 @@ constexpr u32 cBindGroupCount = 4;
 constexpr u64 cUserUniformBlockSize = 256;
 
 
+// Per pass camera uniforms, matching the WGSL VertexUniforms block at
+// @group(0) @binding(0). Two mat4x4 need no padding - a mat4 is 16 byte
+// aligned and 64 bytes wide in both languages.
+struct VertexUniforms
+{
+    mat4 mProjection = mat4( 1.0f );
+    mat4 mView = mat4( 1.0f );
+};
+static_assert( sizeof( VertexUniforms ) == 128, "VertexUniforms must match the WGSL struct" );
+static_assert( offsetof( VertexUniforms, mView ) == 64, "VertexUniforms::mView offset must match the WGSL struct" );
+
+
 // Per draw uniforms. Laid out for the WGSL uniform address space: a mat3x3 is
 // three 16 byte columns, so it occupies 48 bytes rather than 36.
 struct DrawUniforms
@@ -50,6 +62,12 @@ struct DrawUniforms
     void SetNormalMatrix( const mat3& m );
 };
 static_assert( sizeof( DrawUniforms ) == 176, "DrawUniforms must match the WGSL struct" );
+// Size alone would not catch a reorder that kept the total but moved a field.
+static_assert( offsetof( DrawUniforms, mNormalMatrix ) == 64, "DrawUniforms::mNormalMatrix offset must match the WGSL struct" );
+static_assert( offsetof( DrawUniforms, mBillboardPos ) == 112, "DrawUniforms::mBillboardPos offset must match the WGSL struct" );
+static_assert( offsetof( DrawUniforms, mBillboardSize ) == 128, "DrawUniforms::mBillboardSize offset must match the WGSL struct" );
+static_assert( offsetof( DrawUniforms, mTintColor ) == 144, "DrawUniforms::mTintColor offset must match the WGSL struct" );
+static_assert( offsetof( DrawUniforms, mObjectId ) == 160, "DrawUniforms::mObjectId offset must match the WGSL struct" );
 
 
 // What a draw needs beyond the shader itself. Everything here was mutable

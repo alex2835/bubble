@@ -7,9 +7,10 @@ const DirLight: i32 = 0;
 const PointLight: i32 = 1;
 const SpotLight: i32 = 2;
 
-// Padded to an 80 byte stride to match the layout the renderer computes in
-// Renderer's constructor. The explicit _pad fields are what keep the two in
-// step; WGSL's uniform rules put vec3 on a 16 byte boundary just as std140 did.
+// Padded to an 80 byte stride to match LightUniforms in engine/renderer/light.hpp.
+// The explicit _pad fields are what keep the two in step; WGSL's uniform rules
+// put vec3 on a 16 byte boundary just as std140 did, and glm::vec3 does not, so
+// the C++ side pads by hand and static_asserts every vec3 offset.
 struct Light
 {
     lightType: i32,
@@ -43,7 +44,8 @@ struct LightsInfo
     _pad3: f32,
 };
 
-const MAX_LIGHTS: u32 = 128u;
+// Must match Renderer::cMaxLights in engine/renderer/renderer.hpp.
+const MAX_LIGHTS: u32 = 512u;
 
 struct Lights
 {

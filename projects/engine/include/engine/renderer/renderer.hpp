@@ -29,7 +29,14 @@ struct RenderTarget
 class Renderer
 {
 public:
-    static constexpr int cMaxLights = 128;
+    // Must match MAX_LIGHTS in resources/shaders/modules/light.wgsl. Nothing
+    // checks the two agree: raise this without raising that and the extra
+    // lights are silently clamped away by WGSL's bounds handling.
+    //
+    // 512 * sizeof( LightUniforms ) is 40 KiB, inside the 64 KiB that WebGPU
+    // guarantees for maxUniformBufferBindingSize. Going much past ~819 needs
+    // the array moved to a storage buffer.
+    static constexpr int cMaxLights = 512;
 
     Renderer();
 
@@ -77,16 +84,24 @@ private:
                              DrawingPrimitive drawingPrimitive,
                              u32 dynamicOffset );
 
-    Ref<UniformBuffer> mVertexUniformBuffer;
-    Ref<UniformBuffer> mLightsInfoUniformBuffer;
-    Ref<UniformBuffer> mLightsUniformBuffer;
+    // The three frame blocks. Plain buffers with a POD struct each, the same
+    // shape as the material and draw blocks - the layout is checked against
+    // the WGSL by static_assert rather than described by name at runtime.
+    wgpu::raii::Buffer mVertexUniformBuffer;
+    wgpu::raii::Buffer mLightsInfoUniformBuffer;
+    wgpu::raii::Buffer mLightsUniformBuffer;
+
+    // Staged on the CPU, uploaded once per block by FlushFrameUniforms.
+    VertexUniforms mVertexUniforms;
+    LightsInfoUniforms mLightsInfoUniforms;
+    vector<LightUniforms> mLightUniforms;
+
     wgpu::raii::BindGroup mFrameBindGroup;
     DynamicUniformRing mDrawRing;
     DynamicUniformRing mUserRing;
     // Set by SetUserUniforms, consumed by the next draw.
     const void* mPendingUserData = nullptr;
     u64 mPendingUserSize = 0;
-    u64 mLightCount = 0;
 };
 
 }
