@@ -70,14 +70,66 @@ Obtained from `create_entity()`, from an `on_update` argument, from
 | `remove_entity( entity )` | | Errors if the entity does not exist. Also removes it from the physics world. |
 | `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `Component.*` values; `fn` is `function( entity, components )`. |
 
-`components` is a table keyed by `Component.*`:
+`components` is keyed by the component's **snake_case name**, not by the
+`Component.*` id used to select them:
 
 ```lua
 for_each_entity( { Component.transform, Component.tag }, function( entity, comps )
-    local t = comps[Component.transform]
-    local name = comps[Component.tag].name
+    local t = comps.transform
+    local name = comps.tag.name
 end )
 ```
+
+The names are the same ones the `Component` table uses: `tag`, `transform`,
+`model`, `shader`, `script`, `rigid_body`, `character_controller`, `camera`,
+`light`, `state`. Indexing with the id instead — `comps[Component.transform]` —
+returns `nil`.
+
+### spawn
+
+`spawn{ ... }` creates an entity and adds every component the table describes,
+in one call. Only `tag` and the transform keys are common to all of them; every
+other key is optional and adding nothing is a valid spawn.
+
+```lua
+spawn{
+    tag        = "crate",
+    pos        = vec3( 0, 5, 0 ),          -- or `position`; defaults to origin
+    rot        = vec3( 0, 0, 0 ),          -- or `rotation`
+    scale      = vec3( 1 ),
+    model      = "models/cube/cube.obj",   -- a path, or a handle from load_model
+    shader     = "shaders/phong/p1",       -- a path, or a handle from load_shader
+    state      = { health = 100 },
+    light      = { point = true, distance = 50 },
+    rigid_body = { box = vec3( 0.5 ), mass = 1, friction = 1.0 },
+}
+```
+
+Returns the `Entity`. A misspelled key is not silently ignored — a key present
+with the wrong type raises `spawn: field '<key>' has the wrong type`.
+
+`rigid_body` needs exactly one of `box` (a `vec3` of half extents), `sphere` (a
+radius) or `capsule` (`{ radius, height }`), plus optional `mass`, `friction`
+and `kinematic`. A `kinematic` body must have `mass = 0`.
+
+`light` takes either a `Light` built by the factories, or a table naming exactly
+one of `directional`, `point` or `spot`:
+
+```lua
+light = { directional = true, color = vec3( 1 ), brightness = 0.5 }
+light = { point = true, distance = 50, color = vec3( 1, 0.9, 0.8 ) }
+light = { spot = true, distance = 30, cut_off = 15, outer_cut_off = 25 }
+```
+
+Optional in all three: `color` (`vec3`), `brightness`. `distance` is in metres
+and must be within **7..3250** — the attenuation lookup only spans that range
+and clamps outside it, so a value beyond it is rejected rather than silently
+ignored. `cut_off` / `outer_cut_off` are spot-only, in degrees, and
+`outer_cut_off` must be `>=` `cut_off`.
+
+`position` and `direction` are **not** accepted in the light table: the engine
+rewrites both from the entity's transform every frame, so set `pos` and `rot` on
+the spawn instead. Passing either raises an error naming the replacement.
 
 ### Adding components
 
@@ -138,7 +190,8 @@ Component.light  Component.shader  Component.script  Component.rigid_body
 Component.character_controller  Component.state
 ```
 
-Used as `for_each_entity` ids and as the keys of the table it passes back.
+Used as `for_each_entity` ids. The table it passes back is keyed by the
+snake_case names above, not by these values.
 
 ## Component types
 
@@ -189,7 +242,12 @@ uniform set). `tostring` gives the shader name, or `null`.
 `RigidBodyComponent` has one field, `RigidBody`.
 
 `RigidBody` methods: `get_mass()`, `set_mass( mass )`, `set_friction( f )`,
-`get_friction()`, `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`.
+`get_friction()`, `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`,
+`set_transform( position, rotation )`, `set_kinematic( bool )`, `is_kinematic()`.
+
+A kinematic body is driven by `set_transform` instead of by forces, and pushes
+the dynamic bodies it meets. Bullet only treats a massless body as kinematic, so
+`set_kinematic( true )` on a body with mass will not behave as intended.
 
 Constructors, all taking a `Transform` for the initial pose:
 

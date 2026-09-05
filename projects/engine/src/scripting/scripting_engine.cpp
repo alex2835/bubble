@@ -7,6 +7,8 @@
 #include "engine/types/set.hpp"
 #include "engine/types/any.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
+#include "engine/scripting/bindings/spawn_lua_bindings.hpp"
+#include "engine/scripting/bindings/for_each_lua_bindings.hpp"
 #include "engine/scripting/bindings/physics_lua_bindings.hpp"
 #include "engine/window/window.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
@@ -80,7 +82,11 @@ void ScriptingEngine::BindScene( Scene& scene, PhysicsEngine& physicsEngine )
     if ( not mLoader )
         throw std::runtime_error( "BindScene: BindLoader must be called first" );
 
+    // Scene first: it builds the Component enum that for_each_entity's ids come
+    // from, and registers the component usertypes spawn hands back.
     CreateSceneBindings( scene, *mLoader, physicsEngine, *mLua );
+    CreateSpawnBindings( scene, *mLoader, physicsEngine, *mLua );
+    CreateForEachBindings( scene, *mLua );
     CreatePhysicsBindings( physicsEngine, *mLua );
 }
 

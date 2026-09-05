@@ -19,12 +19,19 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOC = os.path.join(ROOT, "docs", "scripting.md")
 SKILL = os.path.join(ROOT, ".claude", "skills", "bubble-scripting", "SKILL.md")
 
-SOURCES = [
-    "projects/engine/src/scripting/bindings/scene_lua_bindings.cpp",
-    "projects/engine/src/scripting/bindings/physics_lua_bindings.cpp",
-    "projects/engine/src/scripting/bindings/window_input_bindings.cpp",
-    "projects/engine/src/scripting/bindings/loader_lua_bindings.cpp",
-    "projects/engine/src/scripting/bindings/free_function_lua_bindings.cpp",
+# Every .cpp in the bindings directory, discovered rather than listed. Splitting
+# a binding into a new file used to drop it out of this check silently - the
+# count went down and nothing said which names had stopped being verified.
+BINDINGS_DIR = "projects/engine/src/scripting/bindings"
+
+def _binding_sources():
+    absolute = os.path.join(ROOT, BINDINGS_DIR)
+    if not os.path.isdir(absolute):
+        return []
+    return sorted("%s/%s" % (BINDINGS_DIR, f)
+                  for f in os.listdir(absolute) if f.endswith(".cpp"))
+
+SOURCES = _binding_sources() + [
     "projects/engine/src/engine.cpp",
     "deps/glm_lua_bindings/src/glm_lua_functions.cpp",
     "deps/glm_lua_bindings/src/glm_lua_vec2.cpp",

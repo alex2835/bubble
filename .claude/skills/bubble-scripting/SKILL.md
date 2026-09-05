@@ -74,9 +74,12 @@ These are the ones that cause crashes rather than wrong behaviour.
 
 ```lua
 for_each_entity( { Component.transform, Component.tag }, function( entity, comps )
-    comps[Component.transform].position.x = 0   -- fine, inside the callback
+    comps.transform.position.x = 0   -- fine, inside the callback
 end )
 ```
+
+The callback table is keyed by the component's snake_case **name**, not by the
+`Component.*` id used to select it. `comps[Component.transform]` is `nil`.
 
 The table is reused for every entity, and the components in it are pointers
 into engine memory. Both the table and its contents are valid **only for the
@@ -85,11 +88,11 @@ duration of that one callback call**. Copy out what you need:
 ```lua
 local results = {}
 for_each_entity( { Component.tag }, function( entity, comps )
-    table.insert( results, { entity = entity, name = comps[Component.tag].name } )
+    table.insert( results, { entity = entity, name = comps.tag.name } )
 end )
 ```
 
-`Component.state` is the exception — it is passed by value, so it stays valid.
+`comps.state` is the exception — it is passed by value, so it stays valid.
 
 ### R2 — Do not add or remove entities while iterating
 

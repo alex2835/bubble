@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scripting/bindings/scene_lua_bindings.hpp"
+#include "binding_utils.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/loader/loader.hpp"
@@ -10,40 +11,6 @@
 
 namespace bubble
 {
-// The Lua API is snake_case throughout, while ComponentID is PascalCase.
-static string ToSnakeCase( string_view name )
-{
-    string out;
-    for ( size_t i = 0; i < name.size(); i++ )
-    {
-        const unsigned char c = (unsigned char)name[i];
-        if ( std::isupper( c ) and i > 0 and not std::isupper( (unsigned char)name[i - 1] ) )
-            out += '_';
-        out += (char)std::tolower( c );
-    }
-    return out;
-}
-
-// The name a component is addressed by in Lua: Component.transform to select
-// it, components.transform to read it back. Both are the component's own
-// Name() lowercased, so the two cannot end up disagreeing.
-//
-// Held in a static because the for_each_entity callback runs per entity, and
-// ToSnakeCase allocates.
-template <typename Component>
-static const string& ComponentLuaName()
-{
-    static const string name = ToSnakeCase( Component::Name() );
-    return name;
-}
-
-// BuildComponentEnum has ids and not types, so it reaches Name() through the
-// registry, which ComponentManager::Add fills from that same Name().
-static string ComponentLuaName( ComponentID id )
-{
-    return ToSnakeCase( ComponentManager::GetName( static_cast<int>( id ) ) );
-}
-
 // Scripts address components as Component.tag, Component.transform, ... A
 // hand-written copy of the ids would desync from ComponentID silently, and a
 // script would then iterate the wrong pool, so build the table from the enum.
@@ -76,65 +43,6 @@ static void DetachCharacterController( Scene& scene, PhysicsEngine& physicsEngin
 {
     if ( scene.HasComponent<CharacterControllerComponent>( entity ) )
         physicsEngine.Remove( scene.GetComponent<CharacterControllerComponent>( entity ).mController );
-}
-
-
-// A resource loaded by path from a script. Failing loudly here beats handing
-// back a null Ref: the script names the file, so the script is where the
-// mistake is, and a null model surfaces three frames later as a blank screen.
-template <class ResourceRef, class Load>
-static ResourceRef LoadOrThrow( Load load, string_view what, const string& resourcePath )
-{
-    ResourceRef resource = load( resourcePath );
-    if ( not resource )
-        throw std::runtime_error( std::format( "Failed to load {}: {}", what, resourcePath ) );
-    return resource;
-}
-
-
-
-// Optional field of a spawn table. Absent and wrong-typed are both "not given",
-// because a spawn table is written by hand and a typo'd key should not be a
-// silently ignored setting.
-template <class T>
-static std::optional<T> Field( const sol::table& table, const char* key )
-{
-    const sol::object value = table[key];
-    if ( not value.valid() or value.is<sol::nil_t>() )
-        return std::nullopt;
-    if ( not value.is<T>() )
-        throw std::runtime_error( std::format( "spawn: field '{}' has the wrong type", key ) );
-    return value.as<T>();
-}
-
-// Same field under either of two names, so `pos` and `position` both work.
-template <class T>
-static std::optional<T> Field( const sol::table& table, const char* key, const char* alias )
-{
-    if ( auto value = Field<T>( table, key ) )
-        return value;
-    return Field<T>( table, alias );
-}
-
-
-// A resource field that takes either a path to load or an already-loaded
-// handle, so `model = "cube.obj"` and `model = load_model("cube.obj")` both
-// read naturally. Null when the field is absent.
-template <class Resource, class Load>
-static Ref<Resource> ResourceField( const sol::table& table,
-                                    const char* key,
-                                    Load load,
-                                    string_view what )
-{
-    const sol::object value = table[key];
-    if ( not value.valid() or value.is<sol::nil_t>() )
-        return nullptr;
-    if ( value.is<string>() )
-        return LoadOrThrow<Ref<Resource>>( load, what, value.as<string>() );
-    if ( value.is<Ref<Resource>>() )
-        return value.as<Ref<Resource>>();
-
-    throw std::runtime_error( std::format( "spawn: field '{}' must be a path or a loaded {}", key, what ) );
 }
 
 
@@ -371,118 +279,6 @@ void CreateSceneBindings( Scene& scene,
     lua["create_entity"] = [&](){ return scene.CreateEntity(); };
 
 
-    // One entity from one table. Everything is optional and everything has the
-    // obvious default, so the common case - put a cube over there - is a single
-    // call instead of the eight-line create/add/add/add/add sequence that every
-    // spawn function in every project ends up repeating.
-    //
-    //   spawn{
-    //       tag   = "cube",
-    //       pos   = vec3( 0, 5, 0 ),
-    //       model = "models/cube/cube.obj",
-    //       rigid_body = { box = vec3( 0.5 ), mass = 1, friction = 1.0 },
-    //   }
-    lua["spawn"] = [&]( const sol::table& description ) -> Entity
-    {
-        const Entity entity = scene.CreateEntity();
-
-        if ( const auto tag = Field<string>( description, "tag" ) )
-            scene.AddComponent<TagComponent>( entity, *tag );
-
-        // A transform always exists. Nothing without one is drawn, simulated or
-        // picked, and defaulting it costs nothing.
-        const Transform transform( Field<vec3>( description, "pos", "position" ).value_or( vec3( 0 ) ),
-                                   Field<vec3>( description, "rot", "rotation" ).value_or( vec3( 0 ) ),
-                                   Field<vec3>( description, "scale" ).value_or( vec3( 1 ) ) );
-        scene.AddComponent<TransformComponent>( entity, transform );
-
-        if ( const auto model = ResourceField<Model>( description, "model",
-                                                      [&]( const path& p ){ return loader.LoadModel( p ); },
-                                                      "model" ) )
-            scene.AddComponent<ModelComponent>( entity, model );
-
-        // No shader key is not an error: the renderer draws a model with no
-        // ShaderComponent using the default shader.
-        if ( const auto shader = ResourceField<Shader>( description, "shader",
-                                                        [&]( const path& p ){ return loader.LoadShader( p ); },
-                                                        "shader" ) )
-        {
-            auto& component = scene.AddComponent<ShaderComponent>( entity, shader );
-            component.RebuildUniforms( lua );
-        }
-
-        // Camera and Light are the names CameraComponent and LightComponent are
-        // registered under - the bare Camera and Light are not usertypes, so a
-        // script never holds one.
-        if ( const auto camera = Field<CameraComponent>( description, "camera" ) )
-            scene.AddComponent<CameraComponent>( entity, *camera );
-
-        if ( const auto light = Field<LightComponent>( description, "light" ) )
-            scene.AddComponent<LightComponent>( entity, *light );
-
-        if ( const auto body = Field<sol::table>( description, "rigid_body" ) )
-        {
-            const f32 mass = (f32)Field<double>( *body, "mass" ).value_or( 0.0 );
-
-            std::optional<RigidBody> rigidBody;
-            if ( const auto halfExtent = Field<vec3>( *body, "box" ) )
-                rigidBody = RigidBody::CreateBox( mass, *halfExtent );
-            else if ( const auto radius = Field<double>( *body, "sphere" ) )
-                rigidBody = RigidBody::CreateSphere( mass, (f32)*radius );
-            else if ( const auto capsule = Field<sol::table>( *body, "capsule" ) )
-                rigidBody = RigidBody::CreateCapsule( mass,
-                                                      (f32)Field<double>( *capsule, "radius" ).value_or( 0.5 ),
-                                                      (f32)Field<double>( *capsule, "height" ).value_or( 1.0 ) );
-            else
-                throw std::runtime_error( "spawn: rigid_body needs one of box, sphere or capsule" );
-
-            rigidBody->SetTransform( transform.mPosition, transform.mRotation );
-            if ( const auto friction = Field<double>( *body, "friction" ) )
-                rigidBody->SetFriction( (f32)*friction );
-
-            // A platform is scripted, not simulated. Bullet only treats a body
-            // as kinematic when it is massless, so say that here rather than
-            // silently ignoring a mass that was asked for.
-            if ( Field<bool>( *body, "kinematic" ).value_or( false ) )
-            {
-                if ( mass != 0.0f )
-                    throw std::runtime_error( "spawn: a kinematic rigid_body must have mass 0" );
-                rigidBody->SetKinematic( true );
-            }
-
-            auto& component = scene.AddComponent<RigidBodyComponent>( entity, std::move( *rigidBody ) );
-            physicsEngine.Add( component.mRigidBody, entity );
-        }
-
-        if ( const auto controller = Field<sol::table>( description, "character_controller" ) )
-        {
-            auto& component = scene.AddComponent<CharacterControllerComponent>(
-                entity,
-                (f32)Field<double>( *controller, "radius" ).value_or( 0.5 ),
-                (f32)Field<double>( *controller, "height" ).value_or( 2.0 ),
-                (f32)Field<double>( *controller, "step_height" ).value_or( 0.35 ) );
-            component.mController.Warp( transform.mPosition );
-            physicsEngine.Add( component.mController, entity );
-        }
-
-        // State before script: on_start runs below and is handed this table.
-        scene.AddComponent<StateComponent>(
-            entity, Any( Field<Table>( description, "state" ).value_or( lua.create_table() ) ) );
-
-        if ( const auto script = ResourceField<Script>( description, "script",
-                                                        [&]( const path& p ){ return loader.LoadScript( p ); },
-                                                        "script" ) )
-        {
-            auto& component = scene.AddComponent<ScriptComponent>( entity, script );
-            auto callbacks = ExtractScriptCallbacks( lua, script );
-            component.mOnStart = std::move( callbacks.mOnStart );
-            component.mOnUpdate = std::move( callbacks.mOnUpdate );
-            CallScriptOnStart( component.mOnStart, script, entity,
-                               *scene.GetComponent<StateComponent>( entity ).mState );
-        }
-
-        return entity;
-    };
     lua["remove_entity"] = [&]( Entity entity ) {
         // Registry::RemoveEntity asserts on an unknown entity, so a stale handle
         // held by a script would take a debug build down.
@@ -494,85 +290,6 @@ void CreateSceneBindings( Scene& scene,
         scene.RemoveEntity( entity );
     };
 
-    lua["for_each_entity"] = [&]( const sol::table& components, const sol::function& func )
-    {
-        constexpr size_t componentsCount = magic_enum::enum_count<ComponentID>();
-        using ComponentsIdsArray = std::array<ComponentTypeId, componentsCount>;
-        using ComponentsDataArray = std::array<void*, componentsCount>;
-
-        // Fill component ids. Every value here comes straight from a script, so
-        // the table can be any length and hold anything at all - an unchecked
-        // index would run off the end of componentsIds.
-        ComponentsIdsArray componentsIds;
-        componentsIds.fill( INVALID_COMPONENT_TYPE_ID );
-        size_t idsCount = 0;
-        for ( const auto& [k, v] : components )
-        {
-            if ( idsCount >= componentsCount )
-                throw std::runtime_error( std::format( "for_each_entity: at most {} components expected",
-                                                       componentsCount ) );
-            if ( not v.is<int>() )
-                throw std::runtime_error( "for_each_entity: expects an array of components like Component.tag" );
-
-            const int componentId = v.as<int>();
-            if ( not magic_enum::enum_contains<ComponentID>( componentId ) )
-                throw std::runtime_error( std::format( "for_each_entity: unknown component id {}", componentId ) );
-
-            componentsIds[idsCount++] = (ComponentTypeId)componentId;
-        }
-
-        // Same table during whole iterations
-        auto componentsTable = lua.create_table( 0, componentsCount );
-
-        scene.RuntimeForEach( componentsIds,
-        [&]( Entity entity, ComponentsDataArray componentsData )
-        {
-            for ( size_t componentIdx = 0; componentIdx < componentsCount; componentIdx++ )
-            {
-                auto componentId = componentsIds[componentIdx];
-                if ( componentId == INVALID_COMPONENT_TYPE_ID )
-                    continue;
-
-                auto componentDataPtr = componentsData[componentIdx];
-                switch ( (ComponentID)componentId )
-                {
-                    case ComponentID::Tag:
-                        componentsTable[ComponentLuaName<TagComponent>()] = (TagComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Transform:
-                        componentsTable[ComponentLuaName<TransformComponent>()] = (TransformComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Model:
-                        componentsTable[ComponentLuaName<ModelComponent>()] = (ModelComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Shader:
-                        componentsTable[ComponentLuaName<ShaderComponent>()] = (ShaderComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Script:
-                        componentsTable[ComponentLuaName<ScriptComponent>()] = (ScriptComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::RigidBody:
-                        componentsTable[ComponentLuaName<RigidBodyComponent>()] = (RigidBodyComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::CharacterController:
-                        componentsTable[ComponentLuaName<CharacterControllerComponent>()] = (CharacterControllerComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Camera:
-                        componentsTable[ComponentLuaName<CameraComponent>()] = (CameraComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::Light:
-                        componentsTable[ComponentLuaName<LightComponent>()] = (LightComponent*)componentDataPtr;
-                        break;
-                    case ComponentID::State:
-                        componentsTable[ComponentLuaName<StateComponent>()] = *((StateComponent*)componentDataPtr)->mState;
-                        break;
-                    default:
-                        throw std::runtime_error( "for_each_entity: invalid set of components provided" );
-                }
-            }
-            func( entity, componentsTable );
-        } );
-    };
 }
 
 } // namespace bubble
