@@ -76,16 +76,27 @@ Renderer::Renderer()
     desc.entryCount = entries.size();
     desc.entries = entries.data();
     mFrameBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
+
+    mDrawRing.Init( sizeof( DrawUniforms ), Gpu().Layouts().Draw(), "Draw Uniform Ring" );
+    mUserRing.Init( cUserUniformBlockSize, Gpu().Layouts().User(), "User Uniform Ring" );
+}
+
+void Renderer::SetUserUniforms( const void* data, u64 size )
+{
+    mPendingUserData = data;
+    mPendingUserSize = size;
 }
 
 void Renderer::BeginFrame()
 {
     mDrawRing.Reset();
+    mUserRing.Reset();
 }
 
 void Renderer::FlushDrawUniforms()
 {
     mDrawRing.Flush();
+    mUserRing.Flush();
 }
 
 void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
@@ -165,6 +176,12 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
     target.mPass.setBindGroup( (u32)BindGroupIndex::Draw, mDrawRing.GetBindGroup(),
                                1, &dynamicOffset );
 
+    // Likewise the shader's own uniforms. A shader that declares no
+    // UserUniforms block still gets a slot bound; it just never reads it.
+    u32 userOffset = mUserRing.Push( mPendingUserData, mPendingUserSize );
+    target.mPass.setBindGroup( (u32)BindGroupIndex::User, mUserRing.GetBindGroup(),
+                               1, &userOffset );
+
     // Always bound, not just when the shader includes <material>. The pipeline
     // layout declares all three groups, and a group the layout names has to
     // have something set before a draw even if the shader never samples it.
@@ -195,9 +212,10 @@ void Renderer::DrawMesh( const RenderTarget& target,
     uniforms.mModel = transform;
     uniforms.SetNormalMatrix( CalculateNormalMat( transform ) );
     uniforms.mObjectId = objectId;
-    const u32 dynamicOffset = mDrawRing.Push( uniforms );
+    const u32 dynamicOffset = mDrawRing.Push( &uniforms, sizeof( uniforms ) );
 
     DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
+    SetUserUniforms( nullptr, 0 );
 }
 
 void Renderer::DrawModel( const RenderTarget& target,
@@ -218,10 +236,11 @@ void Renderer::DrawModel( const RenderTarget& target,
     uniforms.mModel = transform;
     uniforms.SetNormalMatrix( CalculateNormalMat( transform ) );
     uniforms.mObjectId = objectId;
-    const u32 dynamicOffset = mDrawRing.Push( uniforms );
+    const u32 dynamicOffset = mDrawRing.Push( &uniforms, sizeof( uniforms ) );
 
     for ( const auto& mesh : model->mMeshes )
         DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
+    SetUserUniforms( nullptr, 0 );
 }
 
 }

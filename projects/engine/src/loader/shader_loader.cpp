@@ -3,6 +3,7 @@
 #include "engine/types/string.hpp"
 #include "engine/loader/shader_module_loader.hpp"
 #include "engine/renderer/gpu_context.hpp"
+#include "engine/renderer/pipeline.hpp"
 #include "engine/log/log.hpp"
 #include <wgsl_reflect/wgsl_reflect.hpp>
 #include <charconv>
@@ -246,6 +247,8 @@ void ReflectUserUniforms( Shader& shader, string_view expandedSource )
 {
     shader.mUniformDescriptors.clear();
     shader.mUniformDefaults.clear();
+    shader.mUniformOffsets.clear();
+    shader.mUserUniformSize = 0;
 
     const wgsl_reflect::Module module = wgsl_reflect::Parse( expandedSource );
     for ( const auto& error : module.mErrors )
@@ -255,6 +258,16 @@ void ReflectUserUniforms( Shader& shader, string_view expandedSource )
         module.FindStruct( string( USER_UNIFORM_STRUCT ) );
     if ( not uniforms )
         return;
+
+    // Every shader's block shares one bind group layout and one slot size, so a
+    // block that does not fit would silently run into the next entity's values.
+    if ( uniforms->mSize > cUserUniformBlockSize )
+    {
+        LogError( "Shader {}: {} is {} bytes, which exceeds the {} byte limit",
+                  shader.mName, USER_UNIFORM_STRUCT, uniforms->mSize, cUserUniformBlockSize );
+        return;
+    }
+    shader.mUserUniformSize = (u32)uniforms->mSize;
 
     for ( const auto& member : uniforms->mMembers )
     {
@@ -273,6 +286,7 @@ void ReflectUserUniforms( Shader& shader, string_view expandedSource )
         shader.mUniformDefaults.emplace( member.mName,
                                          ParseDefault( member.mTrailingComment, *type ) );
         shader.mUniformDescriptors.emplace( member.mName, *type );
+        shader.mUniformOffsets.emplace( member.mName, member.mOffset );
     }
 }
 

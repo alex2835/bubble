@@ -73,6 +73,10 @@ public:
     // is enough to see something.
     Ref<Shader> mDefaultShader;
 
+    // Reused between draws so packing an entity's uniforms does not allocate
+    // once per model per frame.
+    vector<u8> mUserUniformScratch;
+
     // Visualization Bounding boxes and Physics shapes
     struct MeshHelpers
     {

@@ -33,6 +33,8 @@ void Shader::Swap( Shader& other ) noexcept
     // a uniform added to the file never reached the inspector.
     std::swap( mUniformDescriptors, other.mUniformDescriptors );
     std::swap( mUniformDefaults, other.mUniformDefaults );
+    std::swap( mUniformOffsets, other.mUniformOffsets );
+    std::swap( mUserUniformSize, other.mUserUniformSize );
     // Pipelines belong to the module they were built from, so they travel with
     // it rather than being cleared.
     std::swap( mPipelines, other.mPipelines );

@@ -334,9 +334,17 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
                 return;
             }
 
-            // The per-entity uniform table is not applied yet - see
-            // ApplyShaderUniforms in types/any.cpp. It needs WGSL reflection to
-            // know where each value belongs in a uniform buffer.
+            // The entity's own uniform values, packed into the block its
+            // shader declares and staged for the draw about to be recorded.
+            if ( shaderComponent and shaderComponent->mUniforms and
+                 shaderComponent->mUniforms->is<Table>() and shader->mUserUniformSize > 0 )
+            {
+                PackShaderUniforms( *shader, shaderComponent->mUniforms->as<Table>(),
+                                    mUserUniformScratch );
+                mRenderer.SetUserUniforms( mUserUniformScratch.data(),
+                                           mUserUniformScratch.size() );
+            }
+
             mRenderer.DrawModel( target, modelComponent.mModel, shader,
                                  transformComponent.TransformMat() );
         } );

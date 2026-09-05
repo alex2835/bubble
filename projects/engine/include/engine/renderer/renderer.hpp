@@ -51,6 +51,10 @@ public:
     // Sets the frame bind group. Once per render pass, not per draw.
     void BindFrame( wgpu::RenderPassEncoder pass );
 
+    // Staged for the next draw only, then cleared. Keeps the draw entry points
+    // from growing another parameter that almost every caller passes empty.
+    void SetUserUniforms( const void* data, u64 size );
+
     void DrawMesh( const RenderTarget& target,
                    const Mesh& mesh,
                    const Ref<Shader>& shader,
@@ -77,7 +81,11 @@ private:
     Ref<UniformBuffer> mLightsInfoUniformBuffer;
     Ref<UniformBuffer> mLightsUniformBuffer;
     wgpu::raii::BindGroup mFrameBindGroup;
-    DrawUniformRing mDrawRing;
+    DynamicUniformRing mDrawRing;
+    DynamicUniformRing mUserRing;
+    // Set by SetUserUniforms, consumed by the next draw.
+    const void* mPendingUserData = nullptr;
+    u64 mPendingUserSize = 0;
     u64 mLightCount = 0;
 };
 

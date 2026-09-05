@@ -124,10 +124,28 @@ StandardLayouts::StandardLayouts()
         mDraw = wgpu::raii::BindGroupLayout( Gpu().Device().createBindGroupLayout( desc ) );
     }
 
+    // User: whatever the shader declares for itself, in a fixed size slot.
+    //
+    // minBindingSize is left at zero rather than the block size: a shader's own
+    // UserUniforms struct is usually far smaller than the slot, and requiring
+    // the full size would reject it.
+    {
+        wgpu::BindGroupLayoutEntry entry =
+            uniformEntry( 0, wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+                          true, 0 );
+
+        wgpu::BindGroupLayoutDescriptor desc = wgpu::Default;
+        desc.label = wgpu::StringView( "User Bind Group Layout" );
+        desc.entryCount = 1;
+        desc.entries = &entry;
+        mUser = wgpu::raii::BindGroupLayout( Gpu().Device().createBindGroupLayout( desc ) );
+    }
+
     array<WGPUBindGroupLayout, cBindGroupCount> layouts = {
         (WGPUBindGroupLayout)*mFrame,
         (WGPUBindGroupLayout)*mMaterial,
         (WGPUBindGroupLayout)*mDraw,
+        (WGPUBindGroupLayout)*mUser,
     };
 
     wgpu::PipelineLayoutDescriptor desc = wgpu::Default;
@@ -139,77 +157,87 @@ StandardLayouts::StandardLayouts()
 
 
 // ---------------------------------------------------------------------------
-// DrawUniformRing
+// DynamicUniformRing
 // ---------------------------------------------------------------------------
 
-DrawUniformRing::DrawUniformRing()
+void DynamicUniformRing::Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label )
 {
+    mBlockSize = blockSize;
+    mLayout = layout;
+    mLabel = string( label );
+
     wgpu::Limits limits = wgpu::Default;
     u64 alignment = 256;
     if ( Gpu().Device().getLimits( &limits ) == wgpu::Status::Success and
          limits.minUniformBufferOffsetAlignment > 0 )
         alignment = limits.minUniformBufferOffsetAlignment;
 
-    mSlotSize = AlignTo( sizeof( DrawUniforms ), alignment );
+    mSlotSize = AlignTo( mBlockSize, alignment );
     Reallocate( 256 );
 }
 
-void DrawUniformRing::Reallocate( u64 slotCount )
+void DynamicUniformRing::Reallocate( u64 slotCount )
 {
     mSlotCount = slotCount;
     mStaging.assign( mSlotSize * mSlotCount, 0 );
 
     wgpu::BufferDescriptor bufferDesc = wgpu::Default;
-    bufferDesc.label = wgpu::StringView( "Draw Uniform Ring" );
+    bufferDesc.label = wgpu::StringView( mLabel );
     bufferDesc.size = mSlotSize * mSlotCount;
     bufferDesc.usage = wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst;
     bufferDesc.mappedAtCreation = false;
     mBuffer = wgpu::raii::Buffer( Gpu().Device().createBuffer( bufferDesc ) );
     if ( not mBuffer )
-        LogError( "Draw uniform ring: buffer of {} bytes failed", bufferDesc.size );
+    {
+        LogError( "{}: buffer of {} bytes failed", mLabel, bufferDesc.size );
+        return;
+    }
 
     wgpu::BindGroupEntry entry = {};
     entry.binding = 0;
     entry.buffer = *mBuffer;
     entry.offset = 0;
     // The bound range is one slot; the dynamic offset selects which.
-    entry.size = sizeof( DrawUniforms );
+    entry.size = mBlockSize;
 
     wgpu::BindGroupDescriptor desc = wgpu::Default;
-    desc.label = wgpu::StringView( "Draw Bind Group" );
-    desc.layout = Gpu().Layouts().Draw();
+    desc.label = wgpu::StringView( mLabel );
+    desc.layout = mLayout;
     desc.entryCount = 1;
     desc.entries = &entry;
     mBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
 }
 
-void DrawUniformRing::Reset()
+void DynamicUniformRing::Reset()
 {
     mUsed = 0;
 }
 
-u32 DrawUniformRing::Push( const DrawUniforms& uniforms )
+u32 DynamicUniformRing::Push( const void* data, u64 size )
 {
     if ( mUsed >= mSlotCount )
     {
         // Growing mid frame would orphan the bind group the already-recorded
         // commands point at, so the extra room is taken on the next frame
         // instead and this draw reuses the last slot.
-        LogWarning( "Draw uniform ring exhausted at {} slots, growing next frame", mSlotCount );
-        const u64 wanted = mSlotCount * 2;
-        mPendingGrowth = std::max( mPendingGrowth, wanted );
+        LogWarning( "{} exhausted at {} slots, growing next frame", mLabel, mSlotCount );
+        mPendingGrowth = std::max( mPendingGrowth, mSlotCount * 2 );
         return (u32)( ( mSlotCount - 1 ) * mSlotSize );
     }
 
     const u64 offset = mUsed * mSlotSize;
-    std::memcpy( mStaging.data() + offset, &uniforms, sizeof( DrawUniforms ) );
+    // Slots are reused across frames, so the unwritten tail has to be cleared
+    // or a short block would read the previous occupant's bytes.
+    std::memset( mStaging.data() + offset, 0, mSlotSize );
+    if ( data and size > 0 )
+        std::memcpy( mStaging.data() + offset, data, std::min( size, mBlockSize ) );
     mUsed++;
     return (u32)offset;
 }
 
-void DrawUniformRing::Flush()
+void DynamicUniformRing::Flush()
 {
-    if ( mUsed > 0 )
+    if ( mUsed > 0 and mBuffer )
         Gpu().Queue().writeBuffer( *mBuffer, 0, mStaging.data(), mUsed * mSlotSize );
 
     if ( mPendingGrowth > mSlotCount )

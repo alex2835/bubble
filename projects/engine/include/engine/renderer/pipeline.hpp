@@ -10,16 +10,24 @@ namespace bubble
 
 // Bind group indices, matching @group(N) in the WGSL.
 //
-// Grouped by how often they change: the frame group is set once per pass, the
-// material group once per mesh, and the draw group per draw through a dynamic
-// offset into one ring buffer.
+// Grouped by how often they change: frame once per pass, material once per
+// mesh, draw and user data per draw through a dynamic offset into a ring.
 enum class BindGroupIndex : u32
 {
     Frame    = 0,
     Material = 1,
     Draw     = 2,
+    User     = 3,
 };
-constexpr u32 cBindGroupCount = 3;
+constexpr u32 cBindGroupCount = 4;
+
+// How much room a shader's own uniforms get.
+//
+// One fixed size for every shader keeps group 3's layout shared, which is what
+// lets a single bind group serve every pipeline. A shader whose UserUniforms
+// block is larger than this is rejected at load with a clear message rather
+// than corrupting the next entity's values.
+constexpr u64 cUserUniformBlockSize = 256;
 
 
 // Per draw uniforms. Laid out for the WGSL uniform address space: a mat3x3 is
@@ -87,12 +95,14 @@ public:
     wgpu::BindGroupLayout Frame() const { return *mFrame; }
     wgpu::BindGroupLayout Material() const { return *mMaterial; }
     wgpu::BindGroupLayout Draw() const { return *mDraw; }
+    wgpu::BindGroupLayout User() const { return *mUser; }
     wgpu::PipelineLayout Pipeline() const { return *mPipelineLayout; }
 
 private:
     wgpu::raii::BindGroupLayout mFrame;
     wgpu::raii::BindGroupLayout mMaterial;
     wgpu::raii::BindGroupLayout mDraw;
+    wgpu::raii::BindGroupLayout mUser;
     wgpu::raii::PipelineLayout mPipelineLayout;
 };
 
@@ -102,20 +112,30 @@ private:
 // WebGPU has no push constants (wgpu-native has an extension, but the web
 // backend does not, so it is off limits), and a bind group per draw would be
 // wasteful. Instead every draw writes its uniforms into a slot of one buffer
-// and the draw bind group is set with that slot's dynamic offset.
-class DrawUniformRing
+// and the bind group is set with that slot's dynamic offset.
+//
+// Used for both the engine's per draw block and each entity's own shader
+// uniforms, which differ only in block size and layout.
+class DynamicUniformRing
 {
 public:
-    DrawUniformRing();
+    DynamicUniformRing() = default;
+
+    // Deferred out of the constructor because the layouts it needs are
+    // themselves created lazily, on first use of the device.
+    void Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label );
+    bool Ready() const { return (bool)mBindGroup; }
 
     // Call once at the top of a frame.
     void Reset();
 
-    // Stages one draw's uniforms and returns the dynamic offset for them.
-    u32 Push( const DrawUniforms& uniforms );
+    // Stages one block and returns the dynamic offset for it. A short block is
+    // zero padded; a longer one is truncated, which Init's caller has already
+    // rejected at load time.
+    u32 Push( const void* data, u64 size );
 
-    // Uploads everything staged this frame. Must happen before the commands
-    // that reference it are submitted.
+    // Uploads everything staged so far. Must happen before the commands that
+    // reference it are submitted.
     void Flush();
 
     wgpu::BindGroup GetBindGroup() const { return *mBindGroup; }
@@ -125,8 +145,11 @@ private:
 
     wgpu::raii::Buffer mBuffer;
     wgpu::raii::BindGroup mBindGroup;
+    wgpu::BindGroupLayout mLayout;
+    string mLabel;
     vector<u8> mStaging;
-    u64 mSlotSize = 0;   // sizeof(DrawUniforms) rounded up to the offset alignment
+    u64 mBlockSize = 0;
+    u64 mSlotSize = 0;   // mBlockSize rounded up to the offset alignment
     u64 mSlotCount = 0;
     u64 mUsed = 0;
     // Growth is deferred to Flush: reallocating mid frame would orphan the bind

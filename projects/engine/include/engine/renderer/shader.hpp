@@ -29,6 +29,13 @@ struct UniformDefault
 };
 using UniformDefaults = map<string, UniformDefault>;
 
+// Where each of a shader's own uniforms sits in its UserUniforms block.
+//
+// Under OpenGL a uniform was addressed by name and the driver did the packing.
+// Writing into a buffer means knowing the byte offset, which is what the WGSL
+// reflection in the shader loader works out.
+using UniformOffsets = map<string, u32>;
+
 enum class ShaderModule
 {
     None,
@@ -78,6 +85,9 @@ public:
     wgpu::raii::ShaderModule mModule;
     UniformDescription mUniformDescriptors;
     UniformDefaults mUniformDefaults;
+    UniformOffsets mUniformOffsets;
+    // Size of the shader's UserUniforms block, zero when it declares none.
+    u32 mUserUniformSize = 0;
 
 private:
     // Linear search: a shader has a handful of variants at most, so a map would

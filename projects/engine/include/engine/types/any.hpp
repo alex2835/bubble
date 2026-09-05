@@ -26,6 +26,8 @@ Scope<Any> AnyDeepCopy( const Scope<Any>& any );
 void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen = false );
 Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen = false );
 
-void ApplyShaderUniforms( const Shader& shader, const Table& uniforms );
+// Packs a shader's own uniform values into the byte block its
+// UserUniforms struct describes, ready to be pushed to the GPU.
+void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>& block );
 
 }
