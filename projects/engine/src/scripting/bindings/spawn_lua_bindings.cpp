@@ -110,12 +110,11 @@ static std::optional<LightComponent> LightField( const sol::table& description )
 
     if ( const auto distance = Field<double>( table, "distance" ) )
     {
-        // Light::Update derives the attenuation constants from a lookup table
-        // that only spans this range, and clamps outside it - which reads as
-        // the distance simply not having taken effect.
-        if ( *distance < 7.0 or *distance > 3250.0 )
+        // The attenuation curve is 4.5/d and 75/d^2, so anything positive is
+        // meaningful; only zero and negatives have no reading.
+        if ( *distance <= 0.0 )
             throw std::runtime_error( std::format(
-                "spawn: light distance {} is outside the supported 7..3250 m range", *distance ) );
+                "spawn: light distance must be positive, got {}", *distance ) );
         light.mDistance = (f32)*distance;
     }
 

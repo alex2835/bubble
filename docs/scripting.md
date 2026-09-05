@@ -121,10 +121,9 @@ light = { point = true, distance = 50, color = vec3( 1, 0.9, 0.8 ) }
 light = { spot = true, distance = 30, cut_off = 15, outer_cut_off = 25 }
 ```
 
-Optional in all three: `color` (`vec3`), `brightness`. `distance` is in metres
-and must be within **7..3250** — the attenuation lookup only spans that range
-and clamps outside it, so a value beyond it is rejected rather than silently
-ignored. `cut_off` / `outer_cut_off` are spot-only, in degrees, and
+Optional in all three: `color` (`vec3`), `brightness`. `distance` is the radius
+at which the light fades to roughly 1% of full brightness, in world units — any
+positive value works. `cut_off` / `outer_cut_off` are spot-only, in degrees, and
 `outer_cut_off` must be `>=` `cut_off`.
 
 `position` and `direction` are **not** accepted in the light table: the engine

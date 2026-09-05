@@ -3,74 +3,35 @@
 
 namespace bubble
 {
-struct AttenuationData
-{
-    f32 distance; // Distance in meters
-    f32 linear;
-    f32 quadratic;
-};
-
-constexpr AttenuationData AttenuationLookup[] = {
-    { 7.0f,    0.7f,    1.8f      },
-    { 13.0f,   0.35f,   0.44f     },
-    { 20.0f,   0.22f,   0.20f     },
-    { 32.0f,   0.14f,   0.07f     },
-    { 50.0f,   0.09f,   0.032f    },
-    { 65.0f,   0.07f,   0.017f    },
-    { 100.0f,  0.045f,  0.0075f   },
-    { 160.0f,  0.027f,  0.0028f   },
-    { 200.0f,  0.022f,  0.0019f   },
-    { 325.0f,  0.014f,  0.0007f   },
-    { 600.0f,  0.007f,  0.0002f   },
-    { 3250.0f, 0.0014f, 0.000007f },
-};
-
-// Takes distance in meters (7m to 3250m)
-// Returns { linear, quadratic } attenuation constants
-std::pair<f32, f32> GetAttenuationConstans( f32 distanceMeters )
-{
-    constexpr size_t tableSize = sizeof(AttenuationLookup) / sizeof(AttenuationLookup[0]);
-
-    // Clamp distance to valid range
-    distanceMeters = std::clamp( distanceMeters, 7.0f, 3250.0f );
-
-    // Check if distance matches an exact entry
-    for ( size_t i = 0; i < tableSize; ++i )
-    {
-        if ( std::abs( distanceMeters - AttenuationLookup[i].distance ) < 0.001f )
-            return { AttenuationLookup[i].linear, AttenuationLookup[i].quadratic };
-    }
-
-    // Find the two entries to interpolate between
-    size_t lowerIndex = 0;
-    for ( size_t i = 0; i < tableSize - 1; ++i )
-    {
-        if ( distanceMeters >= AttenuationLookup[i].distance &&
-             distanceMeters < AttenuationLookup[i + 1].distance )
-        {
-            lowerIndex = i;
-            break;
-        }
-    }
-
-    // Linear interpolation between the two entries
-    const auto& lower = AttenuationLookup[lowerIndex];
-    const auto& upper = AttenuationLookup[lowerIndex + 1];
-
-    f32 distanceRange = upper.distance - lower.distance;
-    f32 t = ( distanceMeters - lower.distance ) / distanceRange;
-
-    f32 linear = lower.linear + t * ( upper.linear - lower.linear );
-    f32 quadratic = lower.quadratic + t * ( upper.quadratic - lower.quadratic );
-
-    return { linear, quadratic };
-}
-
+// The attenuation constants, from the range the light should reach.
+//
+// This replaces the twelve row Ogre3D lookup table that used to live here. That
+// table is a rounded sampling of exactly these two curves - it reproduces every
+// one of its rows to within its own rounding - so the table, the exact match
+// scan and the interpolation between rows were all reconstructing something
+// with a closed form.
+//
+// Interpolating was also the worse of the two: 1/d^2 is convex, so a straight
+// line between samples sits above the true curve and overestimates the
+// quadratic term. In the sparse upper half of the table that was severe - at
+// d = 2000 the interpolated quadratic came out 423% too high, leaving the light
+// five times darker at its nominal range than the same range asked for lower
+// down.
+//
+// Solving 1/( 1 + linear*d + quadratic*d^2 ) at d gives ~1.24% for any d, so
+// mDistance means "the radius at which this light has faded to about 1% of full
+// brightness". That is a falloff shape in world units, not a physical length -
+// the constants carry no unit of their own.
 void Light::Update()
 {
-    auto [linear, quadratic] = GetAttenuationConstans( mDistance );
-    mLinear = linear;
-    mQuadratic = quadratic;
+    // The table started at 7, which is why anything smaller used to be clamped
+    // up to it. Nothing in the maths needs that floor; only a division by zero
+    // has to be kept out.
+    const f32 distance = std::max( mDistance, 0.0001f );
+
+    mConstant = 1.0f;
+    mLinear = 4.5f / distance;
+    mQuadratic = 75.0f / ( distance * distance );
 }
 
 Light Light::CreateDirLight()

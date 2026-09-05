@@ -39,7 +39,7 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
     else if ( lightComponent.mType == LightType::Point )
     {
         //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic );
+        ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
 
         // Show calculated attenuation values (read-only)
         ImGui::Text( "Attenuation:" );
@@ -55,7 +55,7 @@ void LightComponent::OnComponentDraw( const Project& project, const Entity& enti
         //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
         //    lightComponent.mDirection = normalize( lightComponent.mDirection );
 
-        ImGui::SliderFloat( "Distance (meters)", &lightComponent.mDistance, 7.0f, 3250.0f, "%.1f m", ImGuiSliderFlags_Logarithmic );
+        ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
 
         ImGui::SliderFloat( "Cut Off", &lightComponent.mCutOff, 0.0f, 90.0f );
         ImGui::SliderFloat( "Outer Cut Off", &lightComponent.mOuterCutOff, 0.0f, 90.0f );

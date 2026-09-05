@@ -31,8 +31,10 @@ struct Light
     vec3 mPosition = vec3();
     vec3 mDirection = vec3( 0, -1.0f, 0 );
 
-    // Set light distance in meters (range: 7m to 3250m)
-    // Automatically calculates linear and quadratic attenuation constants
+    // Derives the linear and quadratic attenuation constants from mDistance,
+    // the radius at which this light fades to roughly 1% of full brightness.
+    // A shape in world units, not a physical length. Any positive distance
+    // works; the engine calls this every frame.
     void Update();
 
     static Light CreateDirLight();
