@@ -31,63 +31,82 @@ wgpu::raii::Buffer CreateBuffer( u64 size, wgpu::BufferUsage usage, string_view 
 }
 
 
-u32 GLSLDataTypeSize( GLSLDataType type )
+// The byte size of one vertex attribute of this type.
+//
+// Vertex attributes only. This deliberately refuses matrices and textures
+// rather than answering for them: a matrix spans several attribute locations,
+// and the old GLSLDataTypeSize returned 4*3*3 = 36 for a Mat3, which is right
+// for a tightly packed array and wrong for the uniform address space, where a
+// mat3x3 is three 16 byte columns and occupies 48. Uniform member sizes come
+// from the reflected WGSL layout, never from here.
+u32 VertexAttributeSize( ShaderDataType type )
 {
     switch ( type )
     {
-        case GLSLDataType::Float:  return 4;
-        case GLSLDataType::Float2: return 4 * 2;
-        case GLSLDataType::Float3: return 4 * 3;
-        case GLSLDataType::Float4: return 4 * 4;
-        case GLSLDataType::Mat3:   return 4 * 3 * 3;
-        case GLSLDataType::Mat4:   return 4 * 4 * 4;
-        case GLSLDataType::Int:    return 4;
-        case GLSLDataType::Int2:   return 4 * 2;
-        case GLSLDataType::Int3:   return 4 * 3;
-        case GLSLDataType::Int4:   return 4 * 4;
-        case GLSLDataType::UInt:   return 4;
-        case GLSLDataType::Bool:   return 4;
-        case GLSLDataType::Texture2D: return 0;
+        case ShaderDataType::Float:  return 4;
+        case ShaderDataType::Float2: return 4 * 2;
+        case ShaderDataType::Float3: return 4 * 3;
+        case ShaderDataType::Float4: return 4 * 4;
+        case ShaderDataType::Int:    return 4;
+        case ShaderDataType::Int2:   return 4 * 2;
+        case ShaderDataType::Int3:   return 4 * 3;
+        case ShaderDataType::Int4:   return 4 * 4;
+        case ShaderDataType::UInt:   return 4;
+        case ShaderDataType::Bool:   return 4;
+
+        case ShaderDataType::Mat3:
+        case ShaderDataType::Mat4:
+        case ShaderDataType::Texture2D:
+            break;
     }
-    BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
+    BUBBLE_ASSERT( false, "Type is not usable as a vertex attribute" );
     return 0;
 }
 
-u32 GLSLDataComponentCount( GLSLDataType type )
+// How many scalars one value of this type holds.
+//
+// Scalars and vectors only. A matrix is excluded on purpose - the old function
+// answered 3 for a Mat3 and 4 for a Mat4, meaning columns, which reads as a
+// component count and is wrong either way (a mat3 holds nine scalars). Both
+// callers in any.cpp already handle matrices in their own branches, because a
+// matrix also needs per column padding that a flat count cannot express.
+u32 ShaderDataComponentCount( ShaderDataType type )
 {
     switch ( type )
     {
-        case GLSLDataType::Float:  return 1;
-        case GLSLDataType::Float2: return 2;
-        case GLSLDataType::Float3: return 3;
-        case GLSLDataType::Float4: return 4;
-        case GLSLDataType::Mat3:   return 3;
-        case GLSLDataType::Mat4:   return 4;
-        case GLSLDataType::Int:    return 1;
-        case GLSLDataType::Int2:   return 2;
-        case GLSLDataType::Int3:   return 3;
-        case GLSLDataType::Int4:   return 4;
-        case GLSLDataType::UInt:   return 1;
-        case GLSLDataType::Bool:   return 1;
-        case GLSLDataType::Texture2D: return 0;
+        case ShaderDataType::Float:  return 1;
+        case ShaderDataType::Float2: return 2;
+        case ShaderDataType::Float3: return 3;
+        case ShaderDataType::Float4: return 4;
+        case ShaderDataType::Int:    return 1;
+        case ShaderDataType::Int2:   return 2;
+        case ShaderDataType::Int3:   return 3;
+        case ShaderDataType::Int4:   return 4;
+        case ShaderDataType::UInt:   return 1;
+        case ShaderDataType::Bool:   return 1;
+
+        case ShaderDataType::Mat3:
+        case ShaderDataType::Mat4:
+        case ShaderDataType::Texture2D:
+            break;
     }
-    BUBBLE_ASSERT( false, "Unknown GLSLDataType!" );
+    BUBBLE_ASSERT( false, "Type has no flat component count - handle it explicitly" );
     return 0;
 }
 
-wgpu::VertexFormat ToWGPUVertexFormat( GLSLDataType type )
+wgpu::VertexFormat ToWGPUVertexFormat( ShaderDataType type )
 {
     switch ( type )
     {
-        case GLSLDataType::Float:  return wgpu::VertexFormat::Float32;
-        case GLSLDataType::Float2: return wgpu::VertexFormat::Float32x2;
-        case GLSLDataType::Float3: return wgpu::VertexFormat::Float32x3;
-        case GLSLDataType::Float4: return wgpu::VertexFormat::Float32x4;
-        case GLSLDataType::Int:    return wgpu::VertexFormat::Sint32;
-        case GLSLDataType::Int2:   return wgpu::VertexFormat::Sint32x2;
-        case GLSLDataType::Int3:   return wgpu::VertexFormat::Sint32x3;
-        case GLSLDataType::Int4:   return wgpu::VertexFormat::Sint32x4;
-        case GLSLDataType::UInt:   return wgpu::VertexFormat::Uint32;
+        case ShaderDataType::Float:  return wgpu::VertexFormat::Float32;
+        case ShaderDataType::Float2: return wgpu::VertexFormat::Float32x2;
+        case ShaderDataType::Float3: return wgpu::VertexFormat::Float32x3;
+        case ShaderDataType::Float4: return wgpu::VertexFormat::Float32x4;
+        case ShaderDataType::Int:    return wgpu::VertexFormat::Sint32;
+        case ShaderDataType::Int2:   return wgpu::VertexFormat::Sint32x2;
+        case ShaderDataType::Int3:   return wgpu::VertexFormat::Sint32x3;
+        case ShaderDataType::Int4:   return wgpu::VertexFormat::Sint32x4;
+        case ShaderDataType::UInt:   return wgpu::VertexFormat::Uint32;
         default: break;
     }
     BUBBLE_ASSERT( false, "Type is not usable as a vertex attribute" );
@@ -105,23 +124,23 @@ VertexLayout VertexLayout::FromData( const VertexBufferData& vbd )
     layout.mVertexCount = vbd.VertexCount();
 
     u64 offset = 0;
-    const auto add = [&]( VertexAttributeSemantic semantic, GLSLDataType type, u64 count )
+    const auto add = [&]( VertexAttributeSemantic semantic, ShaderDataType type, u64 count )
     {
         // The whole point: an attribute with no data produces no slot, so no
         // pipeline ever declares one pointing outside the buffer.
         if ( count == 0 )
             return;
 
-        const u64 size = (u64)GLSLDataTypeSize( type ) * count;
+        const u64 size = (u64)VertexAttributeSize( type ) * count;
         layout.mSlots.push_back( VertexAttributeSlot{ semantic, type, offset, size } );
         offset += size;
     };
 
-    add( VertexAttributeSemantic::Position,  GLSLDataType::Float3, vbd.mPositions.size() );
-    add( VertexAttributeSemantic::Normal,    GLSLDataType::Float3, vbd.mNormals.size() );
-    add( VertexAttributeSemantic::TexCoords, GLSLDataType::Float2, vbd.mTexCoords.size() );
-    add( VertexAttributeSemantic::Tangent,   GLSLDataType::Float3, vbd.mTangents.size() );
-    add( VertexAttributeSemantic::Bitangent, GLSLDataType::Float3, vbd.mBitangents.size() );
+    add( VertexAttributeSemantic::Position,  ShaderDataType::Float3, vbd.mPositions.size() );
+    add( VertexAttributeSemantic::Normal,    ShaderDataType::Float3, vbd.mNormals.size() );
+    add( VertexAttributeSemantic::TexCoords, ShaderDataType::Float2, vbd.mTexCoords.size() );
+    add( VertexAttributeSemantic::Tangent,   ShaderDataType::Float3, vbd.mTangents.size() );
+    add( VertexAttributeSemantic::Bitangent, ShaderDataType::Float3, vbd.mBitangents.size() );
 
     layout.mTotalSize = offset;
     return layout;
@@ -163,7 +182,7 @@ VertexLayoutDescriptors BuildVertexLayoutDescriptors( const VertexLayout& layout
         out.mAttributes.push_back( attribute );
 
         wgpu::VertexBufferLayout bufferLayout = wgpu::Default;
-        bufferLayout.arrayStride = GLSLDataTypeSize( slot.mType );
+        bufferLayout.arrayStride = VertexAttributeSize( slot.mType );
         bufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
         bufferLayout.attributeCount = 1;
         bufferLayout.attributes = &out.mAttributes[i];

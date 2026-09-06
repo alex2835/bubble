@@ -14,7 +14,7 @@
 
 namespace bubble
 {
-using UniformDescription = map<string, GLSLDataType>;
+using UniformDescription = map<string, ShaderDataType>;
 
 // The value a uniform holds when the shader declares no explicit one.
 //

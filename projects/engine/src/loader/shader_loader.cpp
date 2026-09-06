@@ -108,47 +108,47 @@ std::optional<wgpu::raii::ShaderModule> CompileWGSL( string_view name, string_vi
 // in the same source.
 constexpr string_view USER_UNIFORM_STRUCT = "UserUniforms"sv;
 
-std::optional<GLSLDataType> ToGLSLDataType( const wgsl_reflect::Type& type )
+std::optional<ShaderDataType> ToShaderDataType( const wgsl_reflect::Type& type )
 {
     using namespace wgsl_reflect;
     switch ( type.mKind )
     {
         case TypeKind::Texture:
-            return GLSLDataType::Texture2D;
+            return ShaderDataType::Texture2D;
 
         case TypeKind::Scalar:
             switch ( type.mScalar )
             {
-                case ScalarType::F32: return GLSLDataType::Float;
-                case ScalarType::I32: return GLSLDataType::Int;
-                case ScalarType::U32: return GLSLDataType::UInt;
+                case ScalarType::F32: return ShaderDataType::Float;
+                case ScalarType::I32: return ShaderDataType::Int;
+                case ScalarType::U32: return ShaderDataType::UInt;
                 // A WGSL uniform cannot hold a bool - it is not host shareable -
                 // so a shader spells one u32. The inspector still edits it as a
-                // checkbox, which is what GLSLDataType::Bool means here.
-                case ScalarType::Bool: return GLSLDataType::Bool;
+                // checkbox, which is what ShaderDataType::Bool means here.
+                case ScalarType::Bool: return ShaderDataType::Bool;
                 default: return std::nullopt;
             }
 
         case TypeKind::Vector:
             if ( type.mScalar == ScalarType::F32 )
             {
-                if ( type.mRows == 2 ) return GLSLDataType::Float2;
-                if ( type.mRows == 3 ) return GLSLDataType::Float3;
-                if ( type.mRows == 4 ) return GLSLDataType::Float4;
+                if ( type.mRows == 2 ) return ShaderDataType::Float2;
+                if ( type.mRows == 3 ) return ShaderDataType::Float3;
+                if ( type.mRows == 4 ) return ShaderDataType::Float4;
             }
             if ( type.mScalar == ScalarType::I32 )
             {
-                if ( type.mRows == 2 ) return GLSLDataType::Int2;
-                if ( type.mRows == 3 ) return GLSLDataType::Int3;
-                if ( type.mRows == 4 ) return GLSLDataType::Int4;
+                if ( type.mRows == 2 ) return ShaderDataType::Int2;
+                if ( type.mRows == 3 ) return ShaderDataType::Int3;
+                if ( type.mRows == 4 ) return ShaderDataType::Int4;
             }
             return std::nullopt;
 
         case TypeKind::Matrix:
             if ( type.mScalar != ScalarType::F32 or type.mColumns != type.mRows )
                 return std::nullopt;
-            if ( type.mColumns == 3 ) return GLSLDataType::Mat3;
-            if ( type.mColumns == 4 ) return GLSLDataType::Mat4;
+            if ( type.mColumns == 3 ) return ShaderDataType::Mat3;
+            if ( type.mColumns == 4 ) return ShaderDataType::Mat4;
             return std::nullopt;
 
         default:
@@ -162,22 +162,22 @@ std::optional<GLSLDataType> ToGLSLDataType( const wgsl_reflect::Type& type )
 // has nowhere to live in the declaration itself. Under OpenGL this came from
 // glGetUniformfv on the linked program, which recovered whatever the GLSL
 // initializer said; a comment is the only place left to put it.
-UniformDefault ParseDefault( string_view comment, GLSLDataType type )
+UniformDefault ParseDefault( string_view comment, ShaderDataType type )
 {
     UniformDefault result;
 
-    const bool wantsInt = type == GLSLDataType::Int  or type == GLSLDataType::Int2 or
-                          type == GLSLDataType::Int3 or type == GLSLDataType::Int4 or
-                          type == GLSLDataType::UInt or type == GLSLDataType::Bool;
+    const bool wantsInt = type == ShaderDataType::Int  or type == ShaderDataType::Int2 or
+                          type == ShaderDataType::Int3 or type == ShaderDataType::Int4 or
+                          type == ShaderDataType::UInt or type == ShaderDataType::Bool;
 
     const auto open = comment.find( "@default(" );
     if ( open == string_view::npos )
     {
         // No annotation. Identity for a matrix, zero for everything else, which
         // is what DefaultUniformValue already assumed for an unset uniform.
-        if ( type == GLSLDataType::Mat3 or type == GLSLDataType::Mat4 )
+        if ( type == ShaderDataType::Mat3 or type == ShaderDataType::Mat4 )
         {
-            const u32 side = type == GLSLDataType::Mat3 ? 3u : 4u;
+            const u32 side = type == ShaderDataType::Mat3 ? 3u : 4u;
             for ( u32 i = 0; i < side; i++ )
                 result.mFloats[i * side + i] = 1.0f;
         }
@@ -272,7 +272,7 @@ void ReflectUserUniforms( Shader& shader, string_view expandedSource )
         if ( member.mName.starts_with( "_" ) )
             continue;
 
-        const auto type = ToGLSLDataType( member.mType );
+        const auto type = ToShaderDataType( member.mType );
         if ( not type )
         {
             LogWarning( "Shader {}: uniform {} has an unsupported type {}",

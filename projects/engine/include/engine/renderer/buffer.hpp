@@ -8,7 +8,21 @@
 
 namespace bubble
 {
-enum class GLSLDataType
+// The type vocabulary shared by the two places the engine has to describe
+// shader data: vertex attribute formats, and the members of a shader's own
+// UserUniforms block as reflected out of its WGSL.
+//
+// It was called GLSLDataType until the WebGPU port finished. Nothing about it
+// is GLSL specific - ToShaderDataType() in shader_loader.cpp builds these from
+// wgsl_reflect types, and ToWGPUVertexFormat() turns them into wgpu formats.
+//
+// Two members do not mean quite what they look like:
+//   Texture2D  is a binding, not a value. It is here because uniform
+//              reflection has to name texture bindings alongside scalars.
+//   Bool       is a u32 in the shader - WGSL uniforms cannot hold a bool,
+//              since bool is not host shareable - that the inspector draws as
+//              a checkbox.
+enum class ShaderDataType
 {
     Texture2D,
     Float,
@@ -25,10 +39,10 @@ enum class GLSLDataType
     // WGSL distinguishes i32 from u32, and the entity id shader needs one.
     UInt,
 };
-u32 GLSLDataTypeSize( GLSLDataType type );
-u32 GLSLDataComponentCount( GLSLDataType type );
+u32 VertexAttributeSize( ShaderDataType type );
+u32 ShaderDataComponentCount( ShaderDataType type );
 
-wgpu::VertexFormat ToWGPUVertexFormat( GLSLDataType type );
+wgpu::VertexFormat ToWGPUVertexFormat( ShaderDataType type );
 
 
 // Advisory only. WebGPU has no equivalent of GL_STATIC_DRAW / GL_DYNAMIC_DRAW -
@@ -84,7 +98,7 @@ struct VertexBufferData
 struct VertexAttributeSlot
 {
     VertexAttributeSemantic mSemantic;
-    GLSLDataType mType;
+    ShaderDataType mType;
     u64 mByteOffset = 0;
     u64 mByteSize = 0;
 

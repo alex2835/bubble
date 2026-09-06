@@ -672,7 +672,7 @@ void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>
     // there is no such fallback, and a defaulted uColor would come out black.
     for ( const auto& [name, type] : shader.mUniformDescriptors )
     {
-        if ( type == GLSLDataType::Texture2D )
+        if ( type == ShaderDataType::Texture2D )
             continue;
 
         const auto offsetIt = shader.mUniformOffsets.find( name );
@@ -686,31 +686,31 @@ void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>
 
         switch ( type )
         {
-            case GLSLDataType::Float:
-            case GLSLDataType::Float2:
-            case GLSLDataType::Float3:
-            case GLSLDataType::Float4:
+            case ShaderDataType::Float:
+            case ShaderDataType::Float2:
+            case ShaderDataType::Float3:
+            case ShaderDataType::Float4:
                 write( offset, value.mFloats.data(),
-                       sizeof( f32 ) * GLSLDataComponentCount( type ) );
+                       sizeof( f32 ) * ShaderDataComponentCount( type ) );
                 break;
-            case GLSLDataType::Mat3:
+            case ShaderDataType::Mat3:
                 // Stored row after row in the default, but laid out as three
                 // padded columns in the block.
                 for ( u32 column = 0; column < 3; column++ )
                     write( offset + column * 16, value.mFloats.data() + column * 3,
                            sizeof( f32 ) * 3 );
                 break;
-            case GLSLDataType::Mat4:
+            case ShaderDataType::Mat4:
                 write( offset, value.mFloats.data(), sizeof( f32 ) * 16 );
                 break;
-            case GLSLDataType::Int:
-            case GLSLDataType::Int2:
-            case GLSLDataType::Int3:
-            case GLSLDataType::Int4:
-            case GLSLDataType::UInt:
-            case GLSLDataType::Bool:
+            case ShaderDataType::Int:
+            case ShaderDataType::Int2:
+            case ShaderDataType::Int3:
+            case ShaderDataType::Int4:
+            case ShaderDataType::UInt:
+            case ShaderDataType::Bool:
                 write( offset, value.mInts.data(),
-                       sizeof( i32 ) * GLSLDataComponentCount( type ) );
+                       sizeof( i32 ) * ShaderDataComponentCount( type ) );
                 break;
             default:
                 break;
@@ -721,7 +721,7 @@ void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>
     {
         // A sampler is not part of the block. User textures still need their own
         // bindings, which group 3 does not carry yet.
-        if ( type == GLSLDataType::Texture2D )
+        if ( type == ShaderDataType::Texture2D )
             continue;
 
         const auto offsetIt = shader.mUniformOffsets.find( name );
@@ -735,60 +735,60 @@ void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>
 
         switch ( type )
         {
-            case GLSLDataType::Float:
+            case ShaderDataType::Float:
                 if ( val.is<float>() )
                 {
                     const f32 value = val.as<float>();
                     write( offset, &value, sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Float2:
+            case ShaderDataType::Float2:
                 if ( val.is<vec2>() )
                 {
                     const vec2 value = val.as<vec2>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Float3:
+            case ShaderDataType::Float3:
                 if ( val.is<vec3>() )
                 {
                     const vec3 value = val.as<vec3>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Float4:
+            case ShaderDataType::Float4:
                 if ( val.is<vec4>() )
                 {
                     const vec4 value = val.as<vec4>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Mat3:
+            case ShaderDataType::Mat3:
                 if ( val.is<mat3>() )
                     writeMat3( offset, val.as<mat3>() );
                 break;
-            case GLSLDataType::Mat4:
+            case ShaderDataType::Mat4:
                 if ( val.is<mat4>() )
                 {
                     const mat4 value = val.as<mat4>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Int:
+            case ShaderDataType::Int:
                 if ( val.is<int>() )
                 {
                     const i32 value = val.as<int>();
                     write( offset, &value, sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::UInt:
+            case ShaderDataType::UInt:
                 if ( val.is<int>() )
                 {
                     const u32 value = (u32)val.as<int>();
                     write( offset, &value, sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Bool:
+            case ShaderDataType::Bool:
                 // RebuildUniforms defaults a bool uniform to Lua `false`, and
                 // the inspector edits it as a checkbox - neither of which is a
                 // Lua number, so an is<int>() test would never match and bool
@@ -796,21 +796,21 @@ void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>
                 if ( val.is<bool>() )
                     writeBool( offset, val.as<bool>() );
                 break;
-            case GLSLDataType::Int2:
+            case ShaderDataType::Int2:
                 if ( val.is<ivec2>() )
                 {
                     const ivec2 value = val.as<ivec2>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Int3:
+            case ShaderDataType::Int3:
                 if ( val.is<ivec3>() )
                 {
                     const ivec3 value = val.as<ivec3>();
                     write( offset, value_ptr( value ), sizeof( value ) );
                 }
                 break;
-            case GLSLDataType::Int4:
+            case ShaderDataType::Int4:
                 if ( val.is<ivec4>() )
                 {
                     const ivec4 value = val.as<ivec4>();

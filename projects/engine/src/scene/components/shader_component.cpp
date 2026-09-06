@@ -17,22 +17,22 @@ namespace
 // A value only reaches the shader if its Lua type matches the declared GLSL
 // type - ApplyShaderUniforms checks before setting - so a value whose type no
 // longer matches is as dead as one whose name is gone.
-bool ValueMatchesType( const Object& value, GLSLDataType type )
+bool ValueMatchesType( const Object& value, ShaderDataType type )
 {
     switch ( type )
     {
-        case GLSLDataType::Texture2D: return value.is<Ref<Texture2D>>();
-        case GLSLDataType::Float:     return value.is<float>();
-        case GLSLDataType::Float2:    return value.is<vec2>();
-        case GLSLDataType::Float3:    return value.is<vec3>();
-        case GLSLDataType::Float4:    return value.is<vec4>();
-        case GLSLDataType::Mat3:      return value.is<mat3>();
-        case GLSLDataType::Mat4:      return value.is<mat4>();
-        case GLSLDataType::Int:       return value.is<int>();
-        case GLSLDataType::Bool:      return value.is<bool>();
-        case GLSLDataType::Int2:      return value.is<ivec2>();
-        case GLSLDataType::Int3:      return value.is<ivec3>();
-        case GLSLDataType::Int4:      return value.is<ivec4>();
+        case ShaderDataType::Texture2D: return value.is<Ref<Texture2D>>();
+        case ShaderDataType::Float:     return value.is<float>();
+        case ShaderDataType::Float2:    return value.is<vec2>();
+        case ShaderDataType::Float3:    return value.is<vec3>();
+        case ShaderDataType::Float4:    return value.is<vec4>();
+        case ShaderDataType::Mat3:      return value.is<mat3>();
+        case ShaderDataType::Mat4:      return value.is<mat4>();
+        case ShaderDataType::Int:       return value.is<int>();
+        case ShaderDataType::Bool:      return value.is<bool>();
+        case ShaderDataType::Int2:      return value.is<ivec2>();
+        case ShaderDataType::Int3:      return value.is<ivec3>();
+        case ShaderDataType::Int4:      return value.is<ivec4>();
     }
     return false;
 }
@@ -44,7 +44,7 @@ bool ValueMatchesType( const Object& value, GLSLDataType type )
 sol::object DefaultUniformValue( lua_State* lua,
                                  const Shader& shader,
                                  const string& name,
-                                 GLSLDataType type )
+                                 ShaderDataType type )
 {
     static const UniformDefault cZero;
     const auto iter = shader.mUniformDefaults.find( name );
@@ -61,18 +61,18 @@ sol::object DefaultUniformValue( lua_State* lua,
     {
         // A sampler's default is the texture unit it reads, which says nothing
         // about which texture belongs there. Left empty for the user to fill.
-        case GLSLDataType::Texture2D: return sol::make_object( lua, Ref<Texture2D>() );
-        case GLSLDataType::Float:  return sol::make_object( lua, f[0] );
-        case GLSLDataType::Float2: return sol::make_object( lua, glm::make_vec2( f ) );
-        case GLSLDataType::Float3: return sol::make_object( lua, glm::make_vec3( f ) );
-        case GLSLDataType::Float4: return sol::make_object( lua, glm::make_vec4( f ) );
-        case GLSLDataType::Mat3:   return sol::make_object( lua, allZero ? mat3( 1 ) : glm::make_mat3( f ) );
-        case GLSLDataType::Mat4:   return sol::make_object( lua, allZero ? mat4( 1 ) : glm::make_mat4( f ) );
-        case GLSLDataType::Int:    return sol::make_object( lua, i[0] );
-        case GLSLDataType::Bool:   return sol::make_object( lua, i[0] != 0 );
-        case GLSLDataType::Int2:   return sol::make_object( lua, glm::make_vec2( i ) );
-        case GLSLDataType::Int3:   return sol::make_object( lua, glm::make_vec3( i ) );
-        case GLSLDataType::Int4:   return sol::make_object( lua, glm::make_vec4( i ) );
+        case ShaderDataType::Texture2D: return sol::make_object( lua, Ref<Texture2D>() );
+        case ShaderDataType::Float:  return sol::make_object( lua, f[0] );
+        case ShaderDataType::Float2: return sol::make_object( lua, glm::make_vec2( f ) );
+        case ShaderDataType::Float3: return sol::make_object( lua, glm::make_vec3( f ) );
+        case ShaderDataType::Float4: return sol::make_object( lua, glm::make_vec4( f ) );
+        case ShaderDataType::Mat3:   return sol::make_object( lua, allZero ? mat3( 1 ) : glm::make_mat3( f ) );
+        case ShaderDataType::Mat4:   return sol::make_object( lua, allZero ? mat4( 1 ) : glm::make_mat4( f ) );
+        case ShaderDataType::Int:    return sol::make_object( lua, i[0] );
+        case ShaderDataType::Bool:   return sol::make_object( lua, i[0] != 0 );
+        case ShaderDataType::Int2:   return sol::make_object( lua, glm::make_vec2( i ) );
+        case ShaderDataType::Int3:   return sol::make_object( lua, glm::make_vec3( i ) );
+        case ShaderDataType::Int4:   return sol::make_object( lua, glm::make_vec4( i ) );
     }
     return sol::make_object( lua, sol::lua_nil );
 }
