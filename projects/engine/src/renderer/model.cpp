@@ -36,13 +36,6 @@ void Mesh::UpdateDynamicVertexBufferData( VertexBufferData vertices, vector<u32>
     mVertexArray.SetBufferData( mVertices, mIndices, BufferType::Dynamic );
 }
 
-void Mesh::UpdateDynamicVertexBufferData( VertexBufferData /*vertices*/ )
-{
-    //BUBBLE_ASSERT( mVertexArray.GetVertexBuffer().mType == BufferType::Dynamic, "Dynamic update of static buffer" );
-    //mVertices = std::move( vertices );
-    //mVertexArray.GetVertexBuffer().SetData( mVertices );
-}
-
 void Mesh::ApplyMaterial( wgpu::RenderPassEncoder pass ) const
 {
     mMaterial.Apply( pass );

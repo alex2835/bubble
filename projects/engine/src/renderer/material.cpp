@@ -9,9 +9,10 @@ namespace bubble
 void BasicMaterial::InvalidateBindGroup()
 {
     mBindGroup = {};
-    mBoundDiffuse = nullptr;
-    mBoundSpecular = nullptr;
-    mBoundNormal = nullptr;
+    mBoundDiffuseView = nullptr;
+    mBoundSpecularView = nullptr;
+    mBoundNormalView = nullptr;
+    mBoundSampler = nullptr;
 }
 
 void BasicMaterial::EnsureResources() const
@@ -35,10 +36,18 @@ void BasicMaterial::EnsureResources() const
     const Texture2D* specular = mSpecularMap ? mSpecularMap.get() : &white;
     const Texture2D* normal   = mNormalMap   ? mNormalMap.get()   : &white;
 
+    // The handles, not their owners: a texture that was resized in place keeps
+    // its Texture2D address but hands out a new view.
+    const WGPUTextureView diffuseView = diffuse->View();
+    const WGPUTextureView specularView = specular->View();
+    const WGPUTextureView normalView = normal->View();
+    const WGPUSampler sampler = diffuse->Sampler();
+
     if ( mBindGroup and
-         diffuse == mBoundDiffuse and
-         specular == mBoundSpecular and
-         normal == mBoundNormal )
+         diffuseView == mBoundDiffuseView and
+         specularView == mBoundSpecularView and
+         normalView == mBoundNormalView and
+         sampler == mBoundSampler )
         return;
 
     array<wgpu::BindGroupEntry, 5> entries = {};
@@ -48,17 +57,21 @@ void BasicMaterial::EnsureResources() const
     entries[0].offset = 0;
     entries[0].size = sizeof( MaterialUniforms );
 
-    const Texture2D* maps[3] = { diffuse, specular, normal };
-    for ( u32 i = 0; i < 3; i++ )
-    {
-        entries[i + 1] = {};
-        entries[i + 1].binding = i + 1;
-        entries[i + 1].textureView = maps[i]->View();
-    }
+    entries[1] = {};
+    entries[1].binding = 1;
+    entries[1].textureView = diffuseView;
+
+    entries[2] = {};
+    entries[2].binding = 2;
+    entries[2].textureView = specularView;
+
+    entries[3] = {};
+    entries[3].binding = 3;
+    entries[3].textureView = normalView;
 
     entries[4] = {};
     entries[4].binding = 4;
-    entries[4].sampler = diffuse->Sampler();
+    entries[4].sampler = sampler;
 
     wgpu::BindGroupDescriptor desc = wgpu::Default;
     desc.label = wgpu::StringView( "Material Bind Group" );
@@ -67,21 +80,23 @@ void BasicMaterial::EnsureResources() const
     desc.entries = entries.data();
     mBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
 
-    mBoundDiffuse = diffuse;
-    mBoundSpecular = specular;
-    mBoundNormal = normal;
+    mBoundDiffuseView = diffuseView;
+    mBoundSpecularView = specularView;
+    mBoundNormalView = normalView;
+    mBoundSampler = sampler;
 }
 
 void BasicMaterial::Apply( wgpu::RenderPassEncoder pass ) const
 {
     EnsureResources();
 
-    // Written every time rather than tracked with a dirty flag: it is eighty
+    // Written every time rather than tracked with a dirty flag: it is ninety six
     // bytes, and the inspector can change any of these fields between frames.
     MaterialUniforms uniforms;
     uniforms.mDiffuseColor = mDiffuseColor;
     uniforms.mSpecularColor = mSpecular;
     uniforms.mAmbientColor = mAmbient;
+    uniforms.mEmissionColor = mEmission;
     uniforms.mHasDiffuseMap = mDiffuseMap ? 1u : 0u;
     uniforms.mHasSpecularMap = mSpecularMap ? 1u : 0u;
     uniforms.mHasNormalMap = mNormalMap ? 1u : 0u;

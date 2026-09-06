@@ -29,7 +29,6 @@ public:
     void BindVertexArray( wgpu::RenderPassEncoder pass ) const;
     u64 IndiciesSize() const;
 
-    void UpdateDynamicVertexBufferData( VertexBufferData vertices );
     void UpdateDynamicVertexBufferData( VertexBufferData vertices, vector<u32> indices );
 
     void ApplyMaterial( wgpu::RenderPassEncoder pass ) const;

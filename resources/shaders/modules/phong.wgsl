@@ -65,7 +65,11 @@ fn PhongNormal( in: VertexOutput ) -> vec3<f32>
 fn PhongShade( in: VertexOutput, albedo: vec4<f32> ) -> vec4<f32>
 {
     let diffuseAndSpecular = CalcLighting( PhongNormal( in ), in.vFragPos );
-    return vec4<f32>( diffuseAndSpecular.rgb * albedo.rgb, albedo.a );
+    // Emission is added after the lighting term rather than multiplied into
+    // the albedo: a self illuminated surface stays lit when no light reaches
+    // it, which is the whole point of the channel. Alpha is left alone.
+    let lit = diffuseAndSpecular.rgb * albedo.rgb + uMaterial.emissionColor.rgb;
+    return vec4<f32>( lit, albedo.a );
 }
 
 

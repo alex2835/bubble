@@ -17,6 +17,10 @@ struct MaterialUniforms
     vec4 mDiffuseColor = vec4( 1.0f );
     vec4 mSpecularColor = vec4( vec3( 0.1f ), 1.0f );
     vec4 mAmbientColor = vec4( vec3( 0.1f ), 1.0f );
+    // Self illumination, added after lighting. Kept with the other vec4s so
+    // the scalars stay in one 16 byte run rather than needing padding around
+    // it - a vec4 dropped among them would push each of them to a new slot.
+    vec4 mEmissionColor = vec4( 0.0f );
     u32 mHasDiffuseMap = 0;
     u32 mHasSpecularMap = 0;
     u32 mHasNormalMap = 0;
@@ -26,12 +30,13 @@ struct MaterialUniforms
     f32 mNormalMappingStrength = 0.1f;
     f32 mPad0 = 0.0f;
 };
-static_assert( sizeof( MaterialUniforms ) == 80, "MaterialUniforms must match the WGSL struct" );
+static_assert( sizeof( MaterialUniforms ) == 96, "MaterialUniforms must match the WGSL struct" );
 // Size alone would not catch a reorder that kept the total but moved a field.
 static_assert( offsetof( MaterialUniforms, mSpecularColor ) == 16, "MaterialUniforms::mSpecularColor offset must match the WGSL struct" );
 static_assert( offsetof( MaterialUniforms, mAmbientColor ) == 32, "MaterialUniforms::mAmbientColor offset must match the WGSL struct" );
-static_assert( offsetof( MaterialUniforms, mHasDiffuseMap ) == 48, "MaterialUniforms::mHasDiffuseMap offset must match the WGSL struct" );
-static_assert( offsetof( MaterialUniforms, mShininessStrength ) == 64, "MaterialUniforms::mShininessStrength offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mEmissionColor ) == 48, "MaterialUniforms::mEmissionColor offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mHasDiffuseMap ) == 64, "MaterialUniforms::mHasDiffuseMap offset must match the WGSL struct" );
+static_assert( offsetof( MaterialUniforms, mShininessStrength ) == 80, "MaterialUniforms::mShininessStrength offset must match the WGSL struct" );
 
 
 struct BasicMaterial
@@ -67,9 +72,16 @@ private:
     // cache of what the material already describes, not extra state.
     mutable wgpu::raii::Buffer mUniformBuffer;
     mutable wgpu::raii::BindGroup mBindGroup;
-    mutable const Texture2D* mBoundDiffuse = nullptr;
-    mutable const Texture2D* mBoundSpecular = nullptr;
-    mutable const Texture2D* mBoundNormal = nullptr;
+
+    // What the cached bind group actually holds, rather than the Texture2D
+    // that owns it. Texture2D::Invalidate - which Resize goes through -
+    // recreates the view and the sampler in place, so the owning object keeps
+    // its address while everything the bind group points at is replaced.
+    // Comparing the owners missed that and left the group on a released view.
+    mutable WGPUTextureView mBoundDiffuseView = nullptr;
+    mutable WGPUTextureView mBoundSpecularView = nullptr;
+    mutable WGPUTextureView mBoundNormalView = nullptr;
+    mutable WGPUSampler mBoundSampler = nullptr;
 };
 
 // PBR material

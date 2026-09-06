@@ -14,6 +14,7 @@ struct Material
     diffuseColor: vec4<f32>,
     specularColor: vec4<f32>,
     ambientColor: vec4<f32>,
+    emissionColor: vec4<f32>,
     hasDiffuseMap: u32,
     hasSpecularMap: u32,
     hasNormalMap: u32,
