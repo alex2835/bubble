@@ -1,6 +1,6 @@
 
-// uMaterial comes from <material>, which the including shader pulls in first -
-// the include expander has no guards, so this must not include it again.
+// uMaterial comes from `use material;`, which the importing shader pulls in
+// first - the expander has no import guards, so this must not import it again.
 
 // Light type enum
 const DirLight: i32 = 0;

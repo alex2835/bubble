@@ -1,5 +1,5 @@
-#include <common>
-#include <material>
+use common;
+use material;
 
 struct VertexInput
 {

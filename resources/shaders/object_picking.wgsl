@@ -1,4 +1,4 @@
-#include <common>
+use common;
 
 struct VertexInput
 {

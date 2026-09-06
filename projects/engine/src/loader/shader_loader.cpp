@@ -45,10 +45,8 @@ void LogShaderSource( string_view name, string_view source )
 // non-null handle - the error arrives through the device error scope. Wrapping
 // creation in a scope and draining it keeps the synchronous shape the loader
 // and the hot reloader are written around.
-wgpu::raii::ShaderModule CompileWGSL( string_view name, string_view source, bool& outOk )
+std::optional<wgpu::raii::ShaderModule> CompileWGSL( string_view name, string_view source )
 {
-    outOk = true;
-
     wgpu::ShaderSourceWGSL wgslDesc = wgpu::Default;
     wgslDesc.code = wgpu::StringView( source );
 
@@ -96,8 +94,7 @@ wgpu::raii::ShaderModule CompileWGSL( string_view name, string_view source, bool
     {
         LogError( "Shader {} failed to compile: {}", name, result.second );
         LogShaderSource( name, source );
-        outOk = false;
-        return {};
+        return std::nullopt;
     }
     return module;
 }
@@ -308,7 +305,7 @@ std::optional<ProcessedSource> ParseShader( const path& shaderPath )
         return std::nullopt;
 
     const ShaderModuleTable modules = GetShaderModules();
-    return ExpandShaderIncludes( filePath, modules );
+    return ExpandShaderImports( filePath, modules );
 }
 
 
@@ -326,10 +323,10 @@ Ref<Shader> LoadShader( const path& path )
     shader->mPath = path;
     shader->mModules = processed->mModules;
 
-    bool ok = false;
-    shader->mModule = CompileWGSL( shader->mName, processed->mText, ok );
-    if ( not ok )
+    auto moduleMaybe = CompileWGSL( shader->mName, processed->mText );
+    if ( not moduleMaybe )
         return nullptr;
+    shader->mModule = std::move( *moduleMaybe );
 
     ReflectUserUniforms( *shader, processed->mText );
 

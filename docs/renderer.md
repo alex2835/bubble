@@ -26,7 +26,7 @@ a bind group points at.
 | `renderer/material.{hpp,cpp}` | the material bind group |
 | `renderer/entity_id_picker.{hpp,cpp}` | asynchronous readback for click selection |
 | `loader/shader_loader.cpp` | WGSL compilation, error reporting, uniform reflection |
-| `loader/shader_module_loader.cpp` | the `#include` expander. Unchanged from the GLSL days. |
+| `loader/shader_module_loader.cpp` | the `use` / `mod` import expander |
 | `deps/wgsl_reflect/` | standalone WGSL declaration parser and layout calculator |
 | `resources/shaders/*.wgsl` | one file per shader, both entry points in it |
 | `resources/shaders/modules/*.wgsl` | includable snippets: `common`, `material`, `light`, `phong` |
@@ -183,11 +183,23 @@ One `.wgsl` per shader, holding **both** entry points — `vs_main` and
 with no `.vert` inherits `phong.vert`" fallback is gone. `PhongVertex()` in
 `<phong>` is that default vertex stage; call it explicitly.
 
-The `#include <module>` expander is unchanged. It still has **no include
-guards**: `<phong>` pulls in `<material>` then `<light>`, and including
-`<material>` yourself as well is a duplicate-declaration error. The module name
-also sets a feature bit (`ShaderModule::Material`, `ShaderModule::Light`) that
-the engine reads.
+Imports are Rust shaped, matching the language they sit in:
+
+```wgsl
+use common;            // a module registered in a module directory
+mod helpers;           // helpers.wgsl, beside this file
+mod lighting::util;    // lighting/util.wgsl, beside this file
+```
+
+These lines are consumed by the expander and never reach the WGSL compiler, and
+no top-level WGSL declaration starts with `use` or `mod` anyway, so neither can
+collide with a shader's own code. The old `#include` spelling is gone; a shader
+still using it fails the load with a message naming the replacement.
+
+There are still **no import guards**: `use phong;` pulls in `material` then
+`light`, so writing `use material;` yourself as well is a duplicate-declaration
+error. The module name also sets a feature bit (`ShaderModule::Material`,
+`ShaderModule::Light`) that the engine reads.
 
 Errors come back through `pushErrorScope` and print the **expanded** source with
 line numbers. The expander emits no `#line` directives, so a reported line number
@@ -252,8 +264,8 @@ flight is reading an attachment that no longer exists.
 ## How to do things
 
 **Add a shader.** One `.wgsl` in `resources/shaders/` (or the project's shader
-directory). `#include <common>` for the frame and draw bindings, `#include
-<phong>` if you want lighting. Give it `vs_main` and `fs_main`.
+directory). `use common;` for the frame and draw bindings, `use phong;` if you
+want lighting. Give it `vs_main` and `fs_main`.
 
 **Add a per-entity uniform.** Add a field to that shader's `UserUniforms` struct
 with a `// @default(...)` comment. Nothing else — the reflection picks it up, the

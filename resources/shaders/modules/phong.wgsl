@@ -4,7 +4,7 @@
 // A shader that only wants to tint, mask or fade the lit result would otherwise
 // have to copy the whole fragment stage to get at it. With this it is:
 //
-//     #include <phong>
+//     use phong;
 //     @fragment
 //     fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 //         return PhongFragment(in);
@@ -15,10 +15,10 @@
 //
 // Unlike the GLSL version this cannot declare the varyings itself - WGSL has no
 // free-floating `in` declarations - so they arrive as a VertexOutput, which
-// <common> defines.
+// `use common;` defines.
 
-#include <material>
-#include <light>
+use material;
+use light;
 
 
 // Base colour before lighting. Falls back to the material's diffuse colour when

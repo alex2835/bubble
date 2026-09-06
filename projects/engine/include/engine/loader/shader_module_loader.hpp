@@ -18,7 +18,7 @@ constexpr string_view SHADER_MODULES_SEARCH_PATH = "./resources/shaders/modules"
 constexpr string_view PROJECT_SHADER_MODULES_SUBDIR = "shaders/modules"sv;
 
 
-// Where `#include <module>` looks, in addition to SHADER_MODULES_SEARCH_PATH.
+// Where `use module;` looks, in addition to SHADER_MODULES_SEARCH_PATH.
 // Process-wide rather than a Loader member because shaders are also loaded
 // through the free LoadShader - by the engine at startup and by the editor's
 // hot reloader - and all of them have to resolve the same modules.
@@ -30,9 +30,9 @@ const path& GetProjectShaderModulesDir();
 vector<path> ShaderModuleSearchDirs();
 
 
-// A module's text plus the directory it was found in, so a relative #include
+// A module's text plus the directory it was found in, so a `mod` import
 // inside a module resolves against the module and not against whoever
-// included it.
+// imported it.
 struct ShaderModuleSource
 {
 	string mText;
@@ -55,8 +55,8 @@ struct ProcessedSource
 // effect only after restarting the editor.
 ShaderModuleTable GetShaderModules();
 
-// The file's text with every #include spliced in: `<module>` by name from the
-// table, `"path"` relative to whichever file the directive is written in.
-// Throws on an unknown module, a missing file, or an include cycle.
-ProcessedSource ExpandShaderIncludes( const path& shaderPath, const ShaderModuleTable& modules );
+// The file's text with every import spliced in: `use name;` by name from the
+// table, `mod path;` relative to whichever file the directive is written in.
+// Throws on an unknown module, a missing file, or an import cycle.
+ProcessedSource ExpandShaderImports( const path& shaderPath, const ShaderModuleTable& modules );
 }
