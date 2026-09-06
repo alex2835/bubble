@@ -87,9 +87,9 @@ Texture2D& Framebuffer::DepthAttachment()
 }
 
 RenderPassScope Framebuffer::BeginRenderPass( wgpu::CommandEncoder encoder,
-                                                            opt<vec4> clearColor,
-                                                            bool clearDepth,
-                                                            string_view label )
+                                              opt<vec4> clearColor,
+                                              bool clearDepth,
+                                              string_view label )
 {
     wgpu::RenderPassColorAttachment colorAttachment = wgpu::Default;
     colorAttachment.view = mColorAttachment.View();

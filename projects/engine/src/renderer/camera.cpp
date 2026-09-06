@@ -225,12 +225,12 @@ void Camera::OnUpdateThirdPerson( float dt )
     if ( !mIsRotatingRight )
         mSpeedRight = std::abs( mSpeedRight ) < 0.01f ? 0.0f : mSpeedRight - Sign( mSpeedRight ) * mDeltaSpeed * dt;
 
-    mIsRotatingUp    = false;
+    mIsRotatingUp = false;
     mIsRotatingRight = false;
 
-    mYaw   += mSpeedForwardOrUp * dt;
+    mYaw += mSpeedForwardOrUp * dt;
     mPitch += mSpeedRight * dt;
-    mPitch  = std::clamp( mPitch, -camera::PI / 2.0f + 0.05f, camera::PI / 2.0f - 0.05f );
+    mPitch = std::clamp( mPitch, -camera::PI / 2.0f + 0.05f, camera::PI / 2.0f - 0.05f );
 
     UpdateOrbit();
 }

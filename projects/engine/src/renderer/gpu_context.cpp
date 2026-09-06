@@ -25,6 +25,40 @@ string_view ToView( WGPUStringView sv )
                                     : string_view( sv.data, sv.length );
 }
 
+// wgpu reports these as plain C enums, so a raw value in the log means opening
+// webgpu.h to find out which backend actually got picked.
+string_view BackendName( WGPUBackendType backend )
+{
+    switch ( backend )
+    {
+        case WGPUBackendType_Undefined: return "undefined";
+        case WGPUBackendType_Null:      return "null";
+        case WGPUBackendType_WebGPU:    return "WebGPU";
+        case WGPUBackendType_D3D11:     return "D3D11";
+        case WGPUBackendType_D3D12:     return "D3D12";
+        case WGPUBackendType_Metal:     return "Metal";
+        case WGPUBackendType_Vulkan:    return "Vulkan";
+        case WGPUBackendType_OpenGL:    return "OpenGL";
+        case WGPUBackendType_OpenGLES:  return "OpenGL ES";
+        // Force32 is a sizing sentinel, not a backend.
+        default: break;
+    }
+    return "unknown backend";
+}
+
+string_view AdapterTypeName( WGPUAdapterType type )
+{
+    switch ( type )
+    {
+        case WGPUAdapterType_DiscreteGPU:   return "discrete";
+        case WGPUAdapterType_IntegratedGPU: return "integrated";
+        case WGPUAdapterType_CPU:           return "CPU";
+        case WGPUAdapterType_Unknown:       return "unknown type";
+        default: break;
+    }
+    return "unknown type";
+}
+
 void OnUncapturedError( WGPUDevice const*,
                         WGPUErrorType type,
                         WGPUStringView message,
@@ -119,8 +153,9 @@ void GpuContext::LogAdapterInfo() const
     wgpu::AdapterInfo info = wgpu::Default;
     if ( mAdapter->getInfo( &info ) == wgpu::Status::Success )
     {
-        LogInfo( "GPU: {} ({}), backend {}",
-                 ToView( info.device ), ToView( info.description ), (i32)info.backendType );
+        LogInfo( "GPU: {} ({}), {} backend, {}",
+                 ToView( info.device ), ToView( info.description ),
+                 BackendName( info.backendType ), AdapterTypeName( info.adapterType ) );
         info.freeMembers();
     }
 

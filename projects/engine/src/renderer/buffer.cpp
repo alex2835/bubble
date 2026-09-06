@@ -288,8 +288,7 @@ void VertexArray::Bind( wgpu::RenderPassEncoder pass ) const
     for ( u32 i = 0; i < (u32)slots.size(); i++ )
         pass.setVertexBuffer( i, *mVertexBuffer, slots[i].mByteOffset, slots[i].mByteSize );
 
-    pass.setIndexBuffer( *mIndexBuffer, wgpu::IndexFormat::Uint32,
-                         0, mIndexCount * sizeof( u32 ) );
+    pass.setIndexBuffer( *mIndexBuffer, wgpu::IndexFormat::Uint32, 0, mIndexCount * sizeof( u32 ) );
 }
 
 }
