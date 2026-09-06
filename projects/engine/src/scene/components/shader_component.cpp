@@ -29,6 +29,7 @@ bool ValueMatchesType( const Object& value, ShaderDataType type )
         case ShaderDataType::Mat3:      return value.is<mat3>();
         case ShaderDataType::Mat4:      return value.is<mat4>();
         case ShaderDataType::Int:       return value.is<int>();
+        case ShaderDataType::UInt:      return value.is<int>();
         case ShaderDataType::Bool:      return value.is<bool>();
         case ShaderDataType::Int2:      return value.is<ivec2>();
         case ShaderDataType::Int3:      return value.is<ivec3>();
@@ -69,6 +70,7 @@ sol::object DefaultUniformValue( lua_State* lua,
         case ShaderDataType::Mat3:   return sol::make_object( lua, allZero ? mat3( 1 ) : glm::make_mat3( f ) );
         case ShaderDataType::Mat4:   return sol::make_object( lua, allZero ? mat4( 1 ) : glm::make_mat4( f ) );
         case ShaderDataType::Int:    return sol::make_object( lua, i[0] );
+        case ShaderDataType::UInt:   return sol::make_object( lua, i[0] );
         case ShaderDataType::Bool:   return sol::make_object( lua, i[0] != 0 );
         case ShaderDataType::Int2:   return sol::make_object( lua, glm::make_vec2( i ) );
         case ShaderDataType::Int3:   return sol::make_object( lua, glm::make_vec3( i ) );

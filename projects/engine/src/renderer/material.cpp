@@ -51,25 +51,25 @@ void BasicMaterial::EnsureResources() const
         return;
 
     array<wgpu::BindGroupEntry, 5> entries = {};
-    entries[0] = {};
+    entries[0] = wgpu::BindGroupEntry{};
     entries[0].binding = 0;
     entries[0].buffer = *mUniformBuffer;
     entries[0].offset = 0;
     entries[0].size = sizeof( MaterialUniforms );
 
-    entries[1] = {};
+    entries[1] = wgpu::BindGroupEntry{};
     entries[1].binding = 1;
     entries[1].textureView = diffuseView;
 
-    entries[2] = {};
+    entries[2] = wgpu::BindGroupEntry{};
     entries[2].binding = 2;
     entries[2].textureView = specularView;
 
-    entries[3] = {};
+    entries[3] = wgpu::BindGroupEntry{};
     entries[3].binding = 3;
     entries[3].textureView = normalView;
 
-    entries[4] = {};
+    entries[4] = wgpu::BindGroupEntry{};
     entries[4].binding = 4;
     entries[4].sampler = sampler;
 

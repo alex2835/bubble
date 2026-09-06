@@ -51,7 +51,7 @@ Renderer::Renderer()
                            cLightsBufferSize };
     for ( u32 i = 0; i < 3; i++ )
     {
-        entries[i] = {};
+        entries[i] = wgpu::BindGroupEntry{};
         entries[i].binding = i;
         entries[i].buffer = buffers[i];
         entries[i].offset = 0;

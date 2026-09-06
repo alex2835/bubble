@@ -92,14 +92,14 @@ StandardLayouts::StandardLayouts()
         entries[0] = uniformEntry( 0, wgpu::ShaderStage::Fragment, false, 0 );
         for ( u32 i = 1; i <= 3; i++ )
         {
-            entries[i] = {};
+            entries[i] = wgpu::BindGroupLayoutEntry{};
             entries[i].binding = i;
             entries[i].visibility = wgpu::ShaderStage::Fragment;
             entries[i].texture.sampleType = wgpu::TextureSampleType::Float;
             entries[i].texture.viewDimension = wgpu::TextureViewDimension::_2D;
             entries[i].texture.multisampled = false;
         }
-        entries[4] = {};
+        entries[4] = wgpu::BindGroupLayoutEntry{};
         entries[4].binding = 4;
         entries[4].visibility = wgpu::ShaderStage::Fragment;
         entries[4].sampler.type = wgpu::SamplerBindingType::Filtering;

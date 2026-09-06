@@ -1,6 +1,7 @@
 **/.vs/**
 **/.vscode/**
-**/cmake*/**
+**/cmake-build*/**
+**/CMakeFiles/**
 **/out/**
 **/build/**
 **/.claude/**

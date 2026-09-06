@@ -1,6 +1,9 @@
 #pragma once
 #include <sol/forward.hpp>
 #include <sol/function.hpp>
+// SetVar subscripts the state; a forward declaration is not enough for a
+// template body clang checks before instantiation.
+#include <sol/state.hpp>
 #include <recs/entity.hpp>
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
