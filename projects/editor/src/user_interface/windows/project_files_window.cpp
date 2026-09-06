@@ -36,8 +36,7 @@ bool isTextureFile( const filesystem::directory_entry& item )
 bool isShaderFile( const filesystem::directory_entry& item )
 {
     const auto& extension = item.path().extension();
-    if ( extension == ".frag" or
-         extension == ".vert" )
+    if ( extension == ".wgsl" )
         return true;
     return false;
 }
