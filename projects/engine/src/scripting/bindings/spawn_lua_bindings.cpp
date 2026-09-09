@@ -133,6 +133,10 @@ static std::optional<LightComponent> LightField( const sol::table& description )
                 light.mOuterCutOff, light.mCutOff ) );
     }
 
+    // The factory ran before mDistance was known, so the constants it derived
+    // are for the default distance. Redo them here rather than leaving the
+    // component to pick them up on some later frame.
+    light.Update();
     return light;
 }
 
@@ -188,8 +192,13 @@ void CreateSpawnBindings( Scene& scene,
         if ( const auto camera = Field<CameraComponent>( description, "camera" ) )
             scene.AddComponent<CameraComponent>( entity, *camera );
 
+        // The transform above is already on the entity, so the light is correct
+        // on the frame it is created rather than on the one after.
         if ( const auto light = LightField( description ) )
+        {
             scene.AddComponent<LightComponent>( entity, *light );
+            SyncToEntityTransform<LightComponent>( scene, entity );
+        }
 
         if ( const auto body = Field<sol::table>( description, "rigid_body" ) )
         {

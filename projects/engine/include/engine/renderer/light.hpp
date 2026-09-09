@@ -17,9 +17,14 @@ struct Light
 {
     LightType mType = LightType::Directional;
 
+    // The defaults Update() derives from the default mDistance of 50. Literal
+    // 1/1/1 here described no distance at all, so a light that had not been
+    // through a frame of PropagateLightTransforms yet - one just added in the
+    // inspector, or serialized straight after being created - reported an
+    // attenuation it would never actually render with.
     f32 mConstant = 1.0f;
-    f32 mLinear = 1.0f;
-    f32 mQuadratic = 1.0f;
+    f32 mLinear = 0.09f;
+    f32 mQuadratic = 0.03f;
 
     f32 mCutOff = 12.5f;
     f32 mOuterCutOff = 17.5f;

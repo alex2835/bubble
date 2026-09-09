@@ -69,7 +69,8 @@ void BubbleEditor::Run()
                 mEngine.mCamera = (Camera)mSceneCamera;
 
                 // Draw project scene
-                mEngine.PropagateTransforms( mProject.mScene );
+                mEngine.PropagateCameraTransforms( mProject.mScene );
+                mEngine.PropagateLightTransforms( mProject.mScene );
                 mEngine.DrawScene( mSceneViewport, mProject.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mScene );
 

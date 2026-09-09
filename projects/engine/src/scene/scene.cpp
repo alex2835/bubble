@@ -17,6 +17,8 @@ Scene::Scene()
     AddComponent<RigidBodyComponent>();
     AddComponent<CharacterControllerComponent>();
     AddComponent<StateComponent>();
+    AddComponent<AudioSourceComponent>();
+    AddComponent<AudioListenerComponent>();
 
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
@@ -28,6 +30,8 @@ Scene::Scene()
     ComponentManager::Add<RigidBodyComponent>();
     ComponentManager::Add<CharacterControllerComponent>();
     ComponentManager::Add<StateComponent>();
+    ComponentManager::Add<AudioSourceComponent>();
+    ComponentManager::Add<AudioListenerComponent>();
 }
 
 }

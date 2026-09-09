@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/component_manager.hpp"
+#include "engine/scene/scene.hpp"
 #include "engine/types/string.hpp"
 #include <cctype>
 #include <format>
@@ -45,6 +46,25 @@ const string& ComponentLuaName()
 inline string ComponentLuaName( ComponentID id )
 {
     return ToSnakeCase( ComponentManager::GetName( static_cast<int>( id ) ) );
+}
+
+
+// Hands a freshly added component the entity's transform.
+//
+// LightComponent and AudioSourceComponent both cache state derived from the
+// transform, and both are wrong until that has happened - a light sits at the
+// origin with the wrong attenuation, and a sound played in the same script that
+// created the entity starts at the origin. The per-frame propagation would fix
+// either one, but only on the frame after the one the script is in.
+//
+// A transform added after the component is the one case this cannot cover; the
+// propagation still picks that up on the next frame.
+template <class Component>
+void SyncToEntityTransform( Scene& scene, const Entity& entity )
+{
+    if ( scene.HasComponent<TransformComponent>( entity ) )
+        scene.GetComponent<Component>( entity )
+             .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );
 }
 
 

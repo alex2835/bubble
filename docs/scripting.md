@@ -144,6 +144,8 @@ Each takes an inner value or a whole component.
 | `entity:add_light( light )` | `Light` |
 | `entity:add_rigid_body( body )` | `RigidBody`, or a `RigidBodyComponent`. Registers with the physics world. |
 | `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `CharacterControllerComponent`. Registers with the physics world. |
+| `entity:add_audio_source( sound )` | sound path, a handle from `load_sound`, or nothing |
+| `entity:add_audio_listener()` | nothing, or an `AudioListener` |
 | `entity:add_state( table )` | any Lua value |
 
 There is no `add_script`.
@@ -163,6 +165,8 @@ One name per component. There is no `_component` suffix anywhere in the API —
 | `entity:get_light()` | `Light` |
 | `entity:get_rigid_body()` | `RigidBody` — `set_friction`, `apply_central_impulse`, … |
 | `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
+| `entity:get_audio_source()` | `AudioSource` — `play`, `stop`, `volume`, … |
+| `entity:get_audio_listener()` | `AudioListener` — `active` |
 | `entity:get_state()` | table |
 
 Each returns the type that actually carries the fields you want. For most
@@ -176,7 +180,8 @@ Getting a component the entity does not have raises an error — check first.
 ### Testing for components
 
 `entity:has_tag()`, `has_transform`, `has_model`, `has_shader`, `has_camera`,
-`has_light`, `has_rigid_body`, `has_character_controller`, `has_state`.
+`has_light`, `has_rigid_body`, `has_character_controller`, `has_audio_source`,
+`has_audio_listener`, `has_state`.
 All return a boolean. There is no `has_script`.
 
 ## The `Component` enum
@@ -187,6 +192,7 @@ Generated from the engine's `ComponentID`, so it cannot drift:
 Component.tag  Component.transform  Component.camera  Component.model
 Component.light  Component.shader  Component.script  Component.rigid_body
 Component.character_controller  Component.state
+Component.audio_source  Component.audio_listener
 ```
 
 Used as `for_each_entity` ids. The table it passes back is keyed by the
@@ -283,6 +289,46 @@ it as a sample rather than a reliable edge, and keep your own grace timer.
 vertical velocity. The horizontal part is an echo of your own input, not a
 measured post-collision speed, so it cannot tell you that you hit a wall.
 
+### AudioSource
+
+One entity, one voice. `play()` on a source that is already playing restarts it
+from the beginning — for overlapping shots of the same sound, use `play_sound`
+below, where every call is its own voice.
+
+Methods: `play()`, `stop()`, `is_playing()`.
+
+Fields: `volume` (1.0), `pitch` (1.0), `looping`, `spatialized`, `min_distance`,
+`max_distance`, `rolloff`, `play_on_start`. Has `tostring`.
+
+Writing a field takes effect on the playing voice immediately, so a fade is just
+an assignment per frame.
+
+Position comes from the entity's `Transform` and is pushed every frame — a
+source on a moving entity follows it without the script doing anything. A source
+with `spatialized = false` plays at full volume wherever the listener is, which
+is what UI sounds and music want.
+
+```lua
+function on_update( entity, state, dt )
+    local source = entity:get_audio_source()
+    if not source:is_playing() then
+        source:play()
+    end
+    source.volume = math.max( 0, source.volume - dt )
+end
+```
+
+### AudioListener
+
+Where the player hears from. Fields: `active`.
+
+Position and orientation come from the entity's `Transform`, using the same
+euler convention as `Camera`. With no active listener in the scene the render
+camera is used instead, so sound works before anyone has authored audio.
+
+Only the first active listener is used; a second one is a scene authoring
+mistake and is reported once per run.
+
 ### StateComponent
 
 A plain Lua table. No usertype — it is the native type.
@@ -353,9 +399,32 @@ never unlocks it cannot leave the editor unusable.
 
 ```lua
 load_texture( path )   load_model( path )   load_shader( path )   load_script( path )
+load_sound( path )
 ```
 
 Paths are relative to the project root.
+
+`load_sound` returns a `Sound` — fields `name` and `streaming`, plus `tostring`.
+WAV, MP3 and FLAC are decoded; anything longer than 15 seconds is streamed from
+disk rather than held decoded in memory.
+
+### Sound
+
+```lua
+play_sound( path )                        -- 2D, full volume
+play_sound( path, position )              -- spatialized at a vec3
+play_sound( path, position, volume )
+
+set_master_volume( v )   get_master_volume()
+```
+
+`play_sound` is fire and forget: each call is its own voice, freed by the engine
+when it finishes. It is the right tool for footsteps and impacts. An
+`AudioSource` component is the right tool for anything a script needs to stop,
+loop, or follow an entity.
+
+Sound is silent rather than fatal when there is no audio device, so a machine
+with none still runs the game.
 
 ## Math
 

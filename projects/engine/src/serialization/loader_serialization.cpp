@@ -20,6 +20,10 @@ void to_json( json& j, const Loader& loader )
     for ( const auto& [path, _] : loader.mModels )
         jsonModels.push_back( path );
 
+    auto& jsonSounds = j["sounds"];
+    for ( const auto& [path, _] : loader.mSounds )
+        jsonSounds.push_back( path );
+
 }
 
 void from_json( const json& j, Loader& loader )
@@ -33,6 +37,10 @@ void from_json( const json& j, Loader& loader )
     if ( j.contains( "shaders" ) && !j["shaders"].is_null() )
         for ( const auto& shaderPath : j["shaders"] )
             loader.LoadShader( shaderPath );
+
+    if ( j.contains( "sounds" ) && !j["sounds"].is_null() )
+        for ( const auto& soundPath : j["sounds"] )
+            loader.LoadSound( soundPath );
 
 }
 

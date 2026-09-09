@@ -5,6 +5,7 @@
 #include "engine/renderer/renderer.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/physics/physics_engine.hpp"
+#include "engine/audio/audio_engine.hpp"
 #include "engine/types/any.hpp"
 
 namespace bubble
@@ -20,10 +21,28 @@ struct Engine
     void OnEnd();
     void OnUpdate();
     
-    // physics -> transform component
+    // The direction of the arrow is what decides where a pass runs in the frame.
+    // Anything ending at a transform is an input to gameplay and runs before the
+    // scripts; anything starting at one is a consumer and runs after them, since
+    // a script is free to move a transform or create an entity outright.
+
+    // physics -> transform component. Before the scripts.
     void PropagatePhysicsTransforms( Scene& scene );
-    // transform component -> lights or cameras
-    void PropagateTransforms( Scene& scene );
+    // transform component -> the position AudioSourceComponent::Play() starts a
+    // voice at. Before the scripts, because a script calling play() has to get
+    // the position the entity is at now.
+    void PropagateAudioSourcePositions( Scene& scene );
+    // transform component -> camera. After the scripts, and before the active
+    // camera sync that reads the CameraComponent this writes.
+    void PropagateCameraTransforms( Scene& scene );
+    // transform component -> light. After the scripts. DrawScene derives what
+    // it renders from the transform directly, so this is what keeps the
+    // component consistent for the inspector, serialization and billboards.
+    void PropagateLightTransforms( Scene& scene );
+    // transform component -> audio listener and playing voices. After the
+    // scripts, and after the active camera sync - the fallback listener is the
+    // camera, and it should be this frame's.
+    void PropagateAudioTransforms( Scene& scene );
 
     void DrawScene( Framebuffer& framebuffer );
     void DrawScene( Framebuffer& framebuffer, const Scene& scene );
@@ -56,6 +75,9 @@ public:
     Timer mTimer;
     Renderer mRenderer;
     PhysicsEngine mPhysicsEngine;
+    // Declared before mProject, and so destroyed after it: every voice is owned
+    // here, and the AudioSourceComponents that stop them live in the scene.
+    AudioEngine mAudioEngine;
     Project mProject;
 
     // Engine

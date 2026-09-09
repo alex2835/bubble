@@ -12,3 +12,5 @@
 #include "engine/scene/components/rigid_body_component.hpp"
 #include "engine/scene/components/character_controller_component.hpp"
 #include "engine/scene/components/state_component.hpp"
+#include "engine/scene/components/audio_source_component.hpp"
+#include "engine/scene/components/audio_listener_component.hpp"

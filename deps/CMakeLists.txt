@@ -55,6 +55,12 @@ add_subdirectory(recs)
 #add_subdirectory(hot_reloader)
 add_subdirectory(argagg)
 add_subdirectory(stb_image)
+
+#GIT_TAG 0.11.25  GIT_REPOSITORY "https://github.com/mackron/miniaudio.git"
+# Single header, vendored. Device I/O, decoding, mixing and 3D spatialization
+# in one target with no dependencies of its own - including under Emscripten,
+# where it talks to Web Audio directly.
+add_subdirectory(miniaudio)
 add_subdirectory(magic_enum)
 add_subdirectory(thread_pool)
 

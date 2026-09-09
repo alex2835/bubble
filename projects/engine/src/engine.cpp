@@ -69,6 +69,16 @@ void Engine::OnStart( const path& projectRootFile )
         mPhysicsEngine.Add( controller.mController, entity );
     } );
 
+    // Sources set to play on start. Before on_start runs, so a script that
+    // wants to stop one immediately can, and after the scene is fully loaded so
+    // every sound asset is resolved.
+    mProject.mScene.ForEach<AudioSourceComponent>(
+    []( Entity entity, AudioSourceComponent& audioSource )
+    {
+        if ( audioSource.mPlayOnStart )
+            audioSource.Play();
+    } );
+
     /// Scripts
     // A script's callbacks are handed the entity's state table, so every loop
     // below pairs ScriptComponent with StateComponent - and an entity that had
@@ -134,6 +144,9 @@ void Engine::OnEnd()
 
     mPhysicsEngine.ClearWorld();
     mPhysicsEngine = PhysicsEngine();
+    // Before the scene goes: a voice outliving the entity that started it would
+    // keep playing into the next project that gets opened.
+    mAudioEngine.StopAll();
     mProject.mScene = Scene();
     mProject.mLoader = Loader();
     mProject.mGlobalState.reset();
@@ -148,9 +161,16 @@ void Engine::OnUpdate()
     /// Update physics world
     mPhysicsEngine.Update( dt );
 
-    // Propagate transforms
+    // Propagations that end at a transform: gameplay inputs, so they run first
+    // and a script reads this frame's values.
     PropagatePhysicsTransforms( mProject.mScene );
-    PropagateTransforms( mProject.mScene );
+    PropagateAudioSourcePositions( mProject.mScene );
+
+    // Reaping finished voices before the scripts run means is_playing() answers
+    // for the frame the script is in, not the one before it. This also drives
+    // the web AudioContext resume, which needs a frame that follows a user
+    // gesture rather than a specific call site.
+    mAudioEngine.OnUpdate();
 
     /// Update Scripts
     const f32 deltaSeconds = dt.Seconds();
@@ -178,12 +198,26 @@ void Engine::OnUpdate()
         }
     });
 
-    /// Sync active camera entity to rendering camera
+    // Propagations that start at a transform: consumers, so they run after the
+    // scripts. Anything here that ran before them was reading transforms one
+    // frame stale, and saw nothing at all of an entity a script had just
+    // created - which is how a light spawned from on_update got a frame at the
+    // origin with default attenuation.
+    PropagateCameraTransforms( mProject.mScene );
+    PropagateLightTransforms( mProject.mScene );
+
+    /// Sync active camera entity to rendering camera. After
+    /// PropagateCameraTransforms, which is what wrote this frame's position
+    /// into the CameraComponent.
     if ( mActiveCameraEntity != INVALID_ENTITY and
          mProject.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
     {
         mCamera = mProject.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
     }
+
+    // Last: it reads mCamera for the fallback listener, so it wants the sync
+    // above to have happened.
+    PropagateAudioTransforms( mProject.mScene );
 }
 
 void Engine::PropagatePhysicsTransforms( Scene& scene )
@@ -207,9 +241,79 @@ void Engine::PropagatePhysicsTransforms( Scene& scene )
     } );
 }
 
-void Engine::PropagateTransforms( Scene& scene )
+// Split out of PropagateAudioTransforms because it is the one audio propagation
+// that points the other way. AudioSourceComponent::Play() starts a voice at
+// mParams.mPosition, so that field is an input to any script calling play() and
+// has to be current before the scripts run - otherwise a sound played on a
+// just-spawned entity starts at the origin.
+void Engine::PropagateAudioSourcePositions( Scene& scene )
 {
-    // Update camera position and orientation from TransformComponent (free cameras only)
+    scene.ForEach<AudioSourceComponent, TransformComponent>(
+    []( Entity entity,
+        AudioSourceComponent& audioSource,
+        const TransformComponent& transform )
+    {
+        audioSource.SyncToTransform( transform );
+    } );
+}
+
+void Engine::PropagateAudioTransforms( Scene& scene )
+{
+    // The first active listener wins. A scene with two of them is an authoring
+    // mistake with no sensible resolution - averaging them would be worse than
+    // picking one - so it is reported and the rest are ignored.
+    bool listenerFound = false;
+    scene.ForEach<AudioListenerComponent, TransformComponent>(
+    [&]( Entity entity,
+         const AudioListenerComponent& listener,
+         const TransformComponent& transform )
+    {
+        if ( not listener.mActive )
+            return;
+
+        if ( listenerFound )
+        {
+            static bool reported = false;
+            if ( not reported )
+            {
+                LogWarning( "More than one active AudioListenerComponent in the scene, "
+                            "using the first one found." );
+                reported = true;
+            }
+            return;
+        }
+        listenerFound = true;
+
+        // Same euler convention the camera uses, so a listener parented to the
+        // player hears what the camera looks at.
+        const f32 yaw = transform.mRotation.y;
+        const f32 pitch = transform.mRotation.x;
+        const vec3 forward = normalize( vec3( cos( yaw ) * cos( pitch ),
+                                              sin( pitch ),
+                                              sin( yaw ) * cos( pitch ) ) );
+        mAudioEngine.SetListener( transform.mPosition, forward, vec3( 0.0f, 1.0f, 0.0f ) );
+    } );
+
+    // Without a listener entity the camera is the ear. This is what makes sound
+    // work in a scene nobody has authored audio for yet.
+    if ( not listenerFound )
+        mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mWorldUp );
+
+    // Again after the scripts, so a source an entity carried across the frame
+    // does not have its voice trail a frame behind the entity.
+    scene.ForEach<AudioSourceComponent, TransformComponent>(
+    []( Entity entity,
+        AudioSourceComponent& audioSource,
+        const TransformComponent& transform )
+    {
+        audioSource.SyncToTransform( transform );
+    } );
+}
+
+// Only cameras that asked for it. A camera driven by the editor's own controls,
+// or by a script writing mPosition directly, keeps what it has.
+void Engine::PropagateCameraTransforms( Scene& scene )
+{
     scene.ForEach<CameraComponent, TransformComponent>(
     []( Entity entity,
         CameraComponent& camera,
@@ -223,19 +327,19 @@ void Engine::PropagateTransforms( Scene& scene )
         camera.mPitch    = transform.mRotation.x;
         camera.EulerAnglesToVectors();
     } );
+}
 
-    // Update light position and direction from TransformComponent
+// The rendered light is derived from the transform in DrawScene, which does not
+// read any of these fields. This keeps the component itself consistent for the
+// inspector, for serialization, and for the editor billboards.
+void Engine::PropagateLightTransforms( Scene& scene )
+{
     scene.ForEach<LightComponent, TransformComponent>(
     []( Entity entity,
         LightComponent& light,
         const TransformComponent& transform )
     {
-        // Update position
-        light.mPosition = transform.mPosition;
-        // Update direction from rotation (forward is down in local space)
-        light.mDirection = transform.RotationMat() * vec4( 0, -1, 0, 0 );
-        // Update attenuation constants
-        light.Update();
+        light.SyncToTransform( transform );
     } );
 }
 
@@ -280,14 +384,26 @@ void Engine::DrawScene( Framebuffer& framebuffer )
 
 void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
 {
-    // Set up lights
+    // Set up lights.
+    //
+    // Position, direction and the attenuation constants are derived here rather
+    // than read off the component. PropagateLightTransforms keeps the same fields up
+    // to date for the inspector and for serialization, but it runs before the
+    // scripts do, so an entity spawned from on_update reached this loop once
+    // with all three still at their defaults - every light of that first frame
+    // stacked at the origin with an attenuation of 1/1/1, which is a flash.
+    // Deriving them from the transform we are already iterating makes a light
+    // correct on the frame it is created.
     std::vector<Light> lights;
     scene.ForEach<TransformComponent, LightComponent>(
         [&]( const Entity _,
              const TransformComponent& transformComponent,
              const LightComponent& lightComponent )
     {
-        lights.push_back( (Light)lightComponent );
+        Light& light = lights.emplace_back( (Light)lightComponent );
+        light.mPosition = transformComponent.mPosition;
+        light.mDirection = transformComponent.RotationMat() * vec4( 0, -1, 0, 0 );
+        light.Update();
     } );
 
     if ( lights.size() > Renderer::cMaxLights )

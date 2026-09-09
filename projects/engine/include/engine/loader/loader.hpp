@@ -10,6 +10,7 @@
 #include "engine/renderer/shader.hpp"
 #include "engine/renderer/model.hpp"
 #include "engine/scripting/script.hpp"
+#include "engine/audio/sound.hpp"
 #include "engine/loader/shader_module_loader.hpp"
 
 namespace Assimp { class Importer; }
@@ -61,12 +62,15 @@ Ref<Shader> LoadShader( const path& path );
 
 Ref<Script> LoadScript( const path& path );
 
+Ref<Sound> LoadSound( const path& path );
+
 
 
 struct Loader
 {
     Loader() = default;
     Ref<Script> LoadScript( const path& path );
+    Ref<Sound> LoadSound( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
     Ref<Shader> LoadShader( path path );
@@ -94,6 +98,7 @@ public:
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Script>> mScripts;
+    hash_map<path, Ref<Sound>> mSounds;
 
     // Stamped whenever mShaders or mScripts gains an entry, so an observer can
     // tell in one comparison whether its view of them is out of date. Erasing

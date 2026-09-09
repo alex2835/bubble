@@ -34,10 +34,13 @@ void Light::Update()
     mQuadratic = 75.0f / ( distance * distance );
 }
 
+// The factories call Update() so the light they hand back is already consistent
+// with its own mDistance, whether or not it ever reaches a frame.
 Light Light::CreateDirLight()
 {
     Light light;
     light.mType = LightType::Directional;
+    light.Update();
     return light;
 }
 
@@ -45,6 +48,7 @@ Light Light::CreatePointLight()
 {
     Light light;
     light.mType = LightType::Point;
+    light.Update();
     return light;
 }
 
@@ -52,6 +56,7 @@ Light Light::CreateSpotLight()
 {
     Light light;
     light.mType = LightType::Spot;
+    light.Update();
     return light;
 }
 

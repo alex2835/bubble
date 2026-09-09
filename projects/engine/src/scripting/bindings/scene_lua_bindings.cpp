@@ -128,10 +128,21 @@ void CreateSceneBindings( Scene& scene,
             [&]( const Entity& entity, const Camera& camera ) { scene.AddComponent<CameraComponent>( entity, camera ); },
             [&]( const Entity& entity, const CameraComponent& c ) { scene.AddComponent<CameraComponent>( entity, c ); }
         ),
+        // Both forms take the entity's transform straight away - see
+        // SyncToEntityTransform. Without it the light spends its first frame at
+        // the origin with the attenuation of the default distance.
         "add_light",
         sol::overload(
-            [&]( const Entity& entity, const Light& light ) { scene.AddComponent<LightComponent>( entity, light ); },
-            [&]( const Entity& entity, const LightComponent& c ) { scene.AddComponent<LightComponent>( entity, c ); }
+            [&]( const Entity& entity, const Light& light )
+            {
+                scene.AddComponent<LightComponent>( entity, light );
+                SyncToEntityTransform<LightComponent>( scene, entity );
+            },
+            [&]( const Entity& entity, const LightComponent& c )
+            {
+                scene.AddComponent<LightComponent>( entity, c );
+                SyncToEntityTransform<LightComponent>( scene, entity );
+            }
         ),
         "add_rigid_body",
         sol::overload(
@@ -162,6 +173,34 @@ void CreateSceneBindings( Scene& scene,
                 auto& c = scene.AddComponent<CharacterControllerComponent>( entity, std::move( comp ) );
                 physicsEngine.Add( c.mController, entity );
             }
+        ),
+        // Likewise: play() reads the position cached on the component, so a
+        // script that creates a source and plays it in the same call would
+        // otherwise start the sound at the origin.
+        "add_audio_source",
+        sol::overload(
+            [&]( const Entity& entity, const string& soundPath )
+            {
+                scene.AddComponent<AudioSourceComponent>(
+                    entity, LoadOrThrow<Ref<Sound>>( [&]( const path& p ){ return loader.LoadSound( p ); },
+                                                     "sound", soundPath ) );
+                SyncToEntityTransform<AudioSourceComponent>( scene, entity );
+            },
+            [&]( const Entity& entity, const Ref<Sound>& sound )
+            {
+                scene.AddComponent<AudioSourceComponent>( entity, sound );
+                SyncToEntityTransform<AudioSourceComponent>( scene, entity );
+            },
+            [&]( const Entity& entity )
+            {
+                scene.AddComponent<AudioSourceComponent>( entity );
+                SyncToEntityTransform<AudioSourceComponent>( scene, entity );
+            }
+        ),
+        "add_audio_listener",
+        sol::overload(
+            [&]( const Entity& entity ) { scene.AddComponent<AudioListenerComponent>( entity ); },
+            [&]( const Entity& entity, const AudioListenerComponent& c ) { scene.AddComponent<AudioListenerComponent>( entity, c ); }
         ),
         "add_state",
         sol::overload(
@@ -217,6 +256,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) -> RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
         "get_character_controller",
         [&]( const Entity& entity ) -> CharacterController& { return scene.GetComponent<CharacterControllerComponent>( entity ).mController; },
+        "get_audio_source",
+        [&]( const Entity& entity ) -> AudioSourceComponent& { return scene.GetComponent<AudioSourceComponent>( entity ); },
+        "get_audio_listener",
+        [&]( const Entity& entity ) -> AudioListenerComponent& { return scene.GetComponent<AudioListenerComponent>( entity ); },
         "get_state",
         [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
@@ -237,6 +280,10 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<RigidBodyComponent>( entity ); },
         "has_character_controller",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<CharacterControllerComponent>( entity ); },
+        "has_audio_source",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<AudioSourceComponent>( entity ); },
+        "has_audio_listener",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<AudioListenerComponent>( entity ); },
         "has_state",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); },
 

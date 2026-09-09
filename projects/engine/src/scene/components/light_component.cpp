@@ -12,6 +12,14 @@
 
 namespace bubble
 {
+void LightComponent::SyncToTransform( const TransformComponent& transform )
+{
+    mPosition = transform.mPosition;
+    // Forward is down in local space.
+    mDirection = transform.RotationMat() * vec4( 0, -1, 0, 0 );
+    Update();
+}
+
 void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );

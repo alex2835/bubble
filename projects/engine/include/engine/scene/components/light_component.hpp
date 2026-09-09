@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include "engine/scene/components/transform_component.hpp"
 #include "engine/renderer/light.hpp"
 
 namespace bubble
@@ -16,6 +17,13 @@ struct LightComponent : public Light
     static LightComponent CreateDirLight()   { return LightComponent( Light::CreateDirLight() ); }
     static LightComponent CreatePointLight() { return LightComponent( Light::CreatePointLight() ); }
     static LightComponent CreateSpotLight()  { return LightComponent( Light::CreateSpotLight() ); }
+
+    // Derives mPosition, mDirection and the attenuation constants from the
+    // entity's transform. A light is not correct until this has run, so it is
+    // called where the component is created as well as every frame the entity
+    // may have moved - a creation path that skips it leaves the component
+    // sitting at the origin with the attenuation of the default distance.
+    void SyncToTransform( const TransformComponent& transform );
 
     static int ID() { return static_cast<int>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }

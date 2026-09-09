@@ -220,7 +220,8 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             auto entity = mProject.mScene.CreateEntity();
             mProject.mScene.AddComponent<TagComponent>( entity, "Light" );
             mProject.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mScene.AddComponent<LightComponent>( entity );
+            mProject.mScene.AddComponent<LightComponent>( entity )
+                           .SyncToTransform( mProject.mScene.GetComponent<TransformComponent>( entity ) );
 
             auto command = std::make_unique<CreateNodeCommand>(
                 node,

@@ -29,7 +29,9 @@ enum class ComponentID
 	Script,
 	RigidBody,
 	CharacterController,
-	State
+	State,
+	AudioSource,
+	AudioListener
 };
 
 }
