@@ -4,6 +4,8 @@
 #include "engine/project/project.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/serialization/types_serialization.hpp"
+#include "engine/serialization/any_serialization.hpp"
+#include "engine/types/any_draw.hpp"
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/geometry.hpp"

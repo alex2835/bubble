@@ -27,6 +27,10 @@ public:
     BubbleEditor();
     ~BubbleEditor();
     void OpenProject( const path& projectPath );
+    // Replace the level being edited. Relative to the project root.
+    void OpenLevel( const path& relFile );
+    // Save the level being edited and replace it with a new, empty one.
+    void NewLevel( const string& name );
     void Run();
 
 private:

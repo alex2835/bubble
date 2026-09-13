@@ -8,9 +8,11 @@
 
 namespace bubble
 {
+class Level;
+
 enum class ProjectTreeNodeType
 {
-    Level,
+    Root, // the one node a level's tree hangs from; serialized as "Level" in old files
     Folder,
     ModelObject,
     PhysicsObject,
@@ -41,14 +43,14 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
 
 private:
     u64 mID = 0;
-    u64* mIDCounter = nullptr; // non-owning ref back to Project::mNodeIDCounter
+    u64* mIDCounter = nullptr; // non-owning ref back to Level::mNodeIDCounter
 public:
-    ProjectTreeNodeType mType = ProjectTreeNodeType::Level;
+    ProjectTreeNodeType mType = ProjectTreeNodeType::Root;
     StateType mState = "Level"s;
     WeakRef<ProjectTreeNode> mParent;
     vector<Ref<ProjectTreeNode>> mChildren;
     bool mIsEditingInUI = false;
-    friend Project;
+    friend Level;
 };
 
 

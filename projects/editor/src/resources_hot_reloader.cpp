@@ -78,7 +78,7 @@ void DropResource( Project& project,
     const Ref<ResourceType> removed = resources[loaderPath];
     resources.erase( loaderPath );
 
-    project.mScene.ForEach<ComponentType>( [&]( Entity, ComponentType& component )
+    project.mLevel.mScene.ForEach<ComponentType>( [&]( Entity, ComponentType& component )
     {
         if ( component.*member and ( component.*member )->mName == removed->mName )
             component.*member = nullptr;
@@ -337,7 +337,7 @@ void ProjectResourcesHotReloader::ReloadShader( const path& loaderPath )
         // until the project is reopened, and a removed one never leaves.
         set<string> missing;
         set<string> retyped;
-        mProject.mScene.ForEach<ShaderComponent>(
+        mProject.mLevel.mScene.ForEach<ShaderComponent>(
         [&]( Entity, ShaderComponent& shaderComponent )
         {
             if ( shaderComponent.mShader != existing->second )

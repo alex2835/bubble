@@ -145,8 +145,15 @@ Two consequences:
 
 `state` is the only place for per-entity script data, and an `Entity` is the
 only piece of the scene that may go in it. Handles are safe to keep because ids
-are never reused — a stale handle stays stale and can never come to mean a
-different entity.
+are never reused **within a level** — a stale handle stays stale and can never
+come to mean a different entity.
+
+The exception is `load_level`: every entity goes with the level, and the next
+level numbers its own from scratch. `state` goes too, so this only bites a
+handle stored in `global_state` — there it is not stale, it is *wrong*: it may
+name an unrelated entity of the new level and `is_valid()` will say yes. Keep a
+tag or a position in `global_state`, never an `Entity`. See **Levels** in
+`docs/scripting.md`.
 
 Test before use. `remove_entity` on something already gone still raises:
 
@@ -208,6 +215,10 @@ field read off a component · `Ref`s from `load_model` / `load_shader` /
   `remove_*` bindings at all — scripts cannot detach a component.
 - Input keys are one flat namespace: `is_key_pressed` takes either a
   `KeyboardKey.*` or a `MouseKey.*` value and dispatches on the numeric range.
+- `load_level( "levels/x.level" )` is deferred to the end of the frame; the
+  calling script and every script after it still run against the old level
+  this frame. `global_state`, loaded assets and `time()` survive the switch;
+  nothing from the scene does.
 
 ## Source of truth
 

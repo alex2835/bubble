@@ -17,9 +17,17 @@ struct Engine
     Engine( Window& window );
     ~Engine();
 
-    void OnStart( const path& project );
+    // A run: open the project, bind the Lua VM once, then load the startup
+    // level - or levelRel (relative to the project root) if given.
+    void OnStart( const path& project, const path& levelRel = {} );
     void OnEnd();
     void OnUpdate();
+
+    // A level: what a run holds between two switches. The VM, the loader and
+    // global_state are the run's; bodies, voices, the active camera and the
+    // scene are the level's and go with it.
+    void LoadLevel( const path& relFile );
+    void UnloadLevel();
     
     // The direction of the arrow is what decides where a pass runs in the frame.
     // Anything ending at a transform is an input to gameplay and runs before the
@@ -83,6 +91,10 @@ public:
     // Engine
     Camera mCamera;
     Entity mActiveCameraEntity = INVALID_ENTITY;
+
+    // Set by load_level from a script, applied at the end of OnUpdate: a switch
+    // in the middle of the script loop would destroy the pools it walks.
+    opt<path> mPendingLevel;
 
     // Shaders for entity ID rendering
     Ref<Shader> mEntityIdShader;

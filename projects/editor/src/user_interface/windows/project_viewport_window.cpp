@@ -65,13 +65,13 @@ void ProjectViewportWindow::ResolvePendingSelection()
         for ( u64 i = 0; i < pixels.size(); i++ )
         {
             if ( pixels[i] > 0 )
-                entities.insert( mProject.mScene.GetEntityById( pixels[i] ) );
+                entities.insert( mProject.mLevel.mScene.GetEntityById( pixels[i] ) );
         }
-        mSelection.AddEntities( entities, mProject.mScene );
+        mSelection.AddEntities( entities, mProject.mLevel.mScene );
     }
     else if ( pixels[0] > 0 )
     {
-        mSelection.AddEntity( mProject.mScene.GetEntityById( pixels[0] ), mProject.mScene );
+        mSelection.AddEntity( mProject.mLevel.mScene.GetEntityById( pixels[0] ), mProject.mLevel.mScene );
     }
 }
 
@@ -170,10 +170,10 @@ void ProjectViewportWindow::DrawViewport()
 
 void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 {
-    if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
+    if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
         return;
 
-    auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
+    auto& entityTransform = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
 
     // Check if gizmo just started being used
     bool isUsing = ImGuizmo::IsUsing();
@@ -215,7 +215,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
         Transform endTransform = entityTransform;
         auto command = std::make_unique<TransformChangeCommand>(
             entity,
-            mProject.mScene,
+            mProject.mLevel.mScene,
             mGizmoStartTransform,
             endTransform
         );
@@ -236,9 +236,9 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
         mGizmoStartTransforms.clear();
         for ( auto entity : entities )
         {
-            if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+            if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             {
-                mGizmoStartTransforms[entity] = mProject.mScene.GetComponent<TransformComponent>( entity );
+                mGizmoStartTransforms[entity] = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
             }
         }
     }
@@ -265,9 +265,9 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
 
     for ( auto entity : entities )
     {
-        if ( not mProject.mScene.HasComponent<TransformComponent>( entity ) )
+        if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             continue;
-        auto& trans = mProject.mScene.GetComponent<TransformComponent>( entity );
+        auto& trans = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
         trans.mPosition += posNew - mSelection.GetGroupTransform().mPosition;
         trans.mRotation += glm::radians( rotNew ) - mSelection.GetGroupTransform().mRotation;
         trans.mScale += scaleNew - mSelection.GetGroupTransform().mScale;
@@ -284,16 +284,16 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
         map<Entity, Transform> endTransforms;
         for ( auto entity : entities )
         {
-            if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+            if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             {
-                endTransforms[entity] = mProject.mScene.GetComponent<TransformComponent>( entity );
+                endTransforms[entity] = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
             }
         }
 
         // Create undo command for multi-entity transform change
         auto command = std::make_unique<MultiTransformChangeCommand>(
             entities,
-            mProject.mScene,
+            mProject.mLevel.mScene,
             mGizmoStartTransforms,
             endTransforms
         );
@@ -312,9 +312,9 @@ bool ProjectViewportWindow::DrawViewManipulator()
     if ( mSelection.IsSingleSelection() )
     {
         auto entity = mSelection.GetSingleEntity();
-        if ( mProject.mScene.HasComponent<TransformComponent>( entity ) )
+        if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
         {
-            const auto& entityTransform = mProject.mScene.GetComponent<TransformComponent>( entity );
+            const auto& entityTransform = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
             distance = std::round( glm::distance( entityTransform.mPosition, mSceneCamera.mPosition ) );
         }
     }

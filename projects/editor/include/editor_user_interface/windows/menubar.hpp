@@ -17,6 +17,8 @@ public:
     void OnUpdate( DeltaTime dt );
     void ModalCreateProject();
     void ModalOpenProject();
+    void ModalNewLevel();
+    void DrawLevelsMenu();
     void DrawInterfaceMenu();
     void DrawSettingsMenu();
     void DrawMenubar();
@@ -27,8 +29,11 @@ private:
     path mCreateProjectSelectedPath;
     string mCreateProjectName = "project name";
 
+    string mNewLevelName = "level";
+
     bool mCreateProjectModal = false;
     bool mOpenProjectModal = false;
+    bool mNewLevelModal = false;
 };
 
 }

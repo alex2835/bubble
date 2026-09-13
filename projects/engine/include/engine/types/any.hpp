@@ -1,13 +1,15 @@
 #pragma once
 #include <sol/forward.hpp>
-#include "engine/types/json.hpp"
+#include "engine/types/string.hpp"
+#include "engine/types/pointer.hpp"
 
 namespace bubble
 {
-class Project;
-class ScriptingEngine;
-class Shader;
-
+// A Lua value held from C++: what a script's `state` table, a shader's uniform
+// table and global_state are. Everything that turns one into something else
+// lives next to that something - serialization/any_serialization.hpp for JSON,
+// types/any_draw.hpp for the inspector, renderer/shader_uniforms.hpp for the
+// GPU block.
 using Any = sol::lua_value;
 using Table = sol::table;
 using Object = sol::object;
@@ -17,17 +19,7 @@ bool IsArray( const Table& tbl );
 string AnyValueToString( const Any& value );
 void PrintAnyValue( const Any& value );
 
-json SaveAnyValue( const Any& v );
-Any LoadAnyValue( ScriptingEngine& se, const json& j );
-
 Any AnyDeepCopy( const Any& any );
 Scope<Any> AnyDeepCopy( const Scope<Any>& any );
-
-void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen = false );
-Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen = false );
-
-// Packs a shader's own uniform values into the byte block its
-// UserUniforms struct describes, ready to be pushed to the GPU.
-void PackShaderUniforms( const Shader& shader, const Table& uniforms, vector<u8>& block );
 
 }

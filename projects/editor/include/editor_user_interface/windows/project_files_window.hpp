@@ -12,7 +12,8 @@ enum class FilesystemNodeType
     Model,
     Script,
     Texture,
-    Shader
+    Shader,
+    Level
 };
 
 struct FilesystemNode

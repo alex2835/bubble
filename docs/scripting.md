@@ -69,10 +69,37 @@ environment isolation, so a global would be writable by any script and would
 corrupt the value for every script running later in the same frame.
 
 ## Globals
-| `global_state` | table | Shared by every script; persisted with the project. |
+| `global_state` | table | Shared by every script; persisted with the project. Survives `load_level` — but an `Entity` stored in it does not, see **Levels**. |
 | `set_active_camera( entity )` | | Renders from that entity's `CameraComponent`. |
 | `get_active_camera()` | `Entity` | |
+| `load_level( path )` | | Switch to another level at the end of this frame. `path` is relative to the project root: `"levels/arena.level"`. Raises if there is no such file. |
+| `current_level()` | string | The open level, as the path `load_level` takes. |
 | `print_any( value )` | | Debug-prints any bound value, tables included. |
+
+## Levels
+
+A project is a set of level files under `levels/`; one is open at a time and
+the project records which one a run starts in. `load_level` is **deferred**:
+it records the request and returns, the rest of this frame's scripts run
+against the level they were written for, and the switch happens after the
+last of them. The next `on_update` any script sees is in the new level, after
+its `on_start`s have run.
+
+What a switch keeps: the Lua VM, every global, `global_state`, loaded assets,
+`time()`. What it drops: every entity and component, every rigid body and
+character controller, every playing voice, the active camera. An `Entity`
+kept in `global_state` across a switch is a handle into a scene that no
+longer exists — store what you need about it (a tag, a position) instead, or
+look it up again by tag in the new level's `on_start`.
+
+```lua
+function on_update( entity, state, dt )
+    if is_key_clicked( KeyboardKey.n ) then
+        global_state.score = state.score          -- carried over
+        load_level( "levels/arena.level" )        -- happens after this frame
+    end
+end
+```
 
 ## Entity
 
@@ -686,4 +713,4 @@ m = scale( m, size )
 | `Sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
 | `print_any` | `projects/engine/src/scripting/bindings/free_function_lua_bindings.cpp` |
 | Math | `deps/glm_lua_bindings/src/` |
-| `global_state`, `dt`, camera | `projects/engine/src/engine.cpp` |
+| `global_state`, `dt`, camera, `load_level`, `current_level` | `projects/engine/src/engine.cpp` |

@@ -94,20 +94,72 @@ void Menubar::ModalOpenProject()
 
     if ( mFileDialog.HasSelected() )
     {
-        try
-        {
-            auto projectPath = mFileDialog.GetSelected();
-            mFileDialog.ClearSelected();
-            mOpenProjectModal = false;
-            mProject.Open( projectPath );
-
-            mUIGlobals.mNeedUpdateProjectFilesWindow = true;
-        }
-        catch ( const std::exception& e )
-        {
-            LogError( e.what() );
-        }
+        // Through the editor, which drops the selection and history that
+        // point into the project being left, and reports a failed open.
+        mUIGlobals.mRequestOpenProject = mFileDialog.GetSelected();
+        mFileDialog.ClearSelected();
+        mOpenProjectModal = false;
     }
+}
+
+void Menubar::ModalNewLevel()
+{
+    if ( !ImGui::IsPopupOpen( "New level" ) )
+        ImGui::OpenPopup( "New level" );
+
+    if ( ImGui::BeginPopupModal( "New level", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
+    {
+        ImGui::InputText( "##level_name", mNewLevelName );
+        ImGui::TextDisabled( "%s", ( mProject.LevelsDir() / mNewLevelName ).replace_extension( LEVEL_FILE_EXT ).string().c_str() );
+
+        if ( ImGui::Button( "Create", ImVec2( 100, 30 ) ) )
+        {
+            mUIGlobals.mRequestNewLevel = mNewLevelName;
+            ImGui::CloseCurrentPopup();
+            mNewLevelModal = false;
+        }
+        ImGui::SameLine( std::max( 200.f, ImGui::GetWindowWidth() - 110 ) );
+
+        if ( ImGui::Button( "Close", ImVec2( 100, 30 ) ) )
+        {
+            ImGui::CloseCurrentPopup();
+            mNewLevelModal = false;
+        }
+        ImGui::EndPopup();
+    }
+}
+
+void Menubar::DrawLevelsMenu()
+{
+    const path current = mProject.CurrentLevel();
+
+    if ( ImGui::MenuItem( "New level..." ) )
+        mNewLevelModal = true;
+
+    if ( ImGui::BeginMenu( "Open level" ) )
+    {
+        const auto levels = mProject.Levels();
+        if ( levels.empty() )
+            ImGui::TextDisabled( "no levels in %s", mProject.LevelsDir().string().c_str() );
+
+        for ( const auto& level : levels )
+        {
+            const bool isCurrent = level == current;
+            if ( ImGui::MenuItem( level.generic_string().c_str(), nullptr, isCurrent ) and not isCurrent )
+            {
+                mProject.Save();
+                mUIGlobals.mRequestOpenLevel = level;
+            }
+        }
+        ImGui::EndMenu();
+    }
+
+    const bool isStartup = current == mProject.mStartupLevel;
+    if ( ImGui::MenuItem( "Set as startup level", nullptr, isStartup, not current.empty() ) )
+        mProject.mStartupLevel = current;
+
+    ImGui::Separator();
+    ImGui::TextDisabled( "startup: %s", mProject.mStartupLevel.generic_string().c_str() );
 }
 
 void Menubar::DrawInterfaceMenu()
@@ -166,9 +218,15 @@ void Menubar::DrawMenubar()
             if ( ImGui::MenuItem( "Open" ) )
                 mOpenProjectModal = true;
 
-            if ( ImGui::MenuItem( "Save" ) and mProject.IsValid() )
+            if ( ImGui::MenuItem( "Save", "Ctrl+S" ) and mProject.IsValid() )
                 mProject.Save();
 
+            ImGui::EndMenu();
+        }
+
+        if ( mProject.IsValid() and ImGui::BeginMenu( "Level" ) )
+        {
+            DrawLevelsMenu();
             ImGui::EndMenu();
         }
 
@@ -208,6 +266,9 @@ void Menubar::OnDraw( DeltaTime dt )
 
     if ( mOpenProjectModal )
         ModalOpenProject();
+
+    if ( mNewLevelModal )
+        ModalNewLevel();
 }
 
 }

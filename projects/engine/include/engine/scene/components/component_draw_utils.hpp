@@ -14,9 +14,9 @@ constexpr auto TEXT_COLOR = ImVec4( 1, 1, 0, 1 );
 template <typename T>
 const T* TryGetComponent( const Project& project, Entity entity )
 {
-    if ( not project.mScene.HasComponent<T>( entity ) )
+    if ( not project.mLevel.mScene.HasComponent<T>( entity ) )
         return nullptr;
-    return &project.mScene.GetComponent<T>( entity );
+    return &project.mLevel.mScene.GetComponent<T>( entity );
 }
 
 opt<AABB> TryGetEntityBBox( const Project& project, Entity entity );

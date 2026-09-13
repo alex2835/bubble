@@ -69,10 +69,10 @@ void BubbleEditor::Run()
                 mEngine.mCamera = (Camera)mSceneCamera;
 
                 // Draw project scene
-                mEngine.PropagateCameraTransforms( mProject.mScene );
-                mEngine.PropagateLightTransforms( mProject.mScene );
-                mEngine.DrawScene( mSceneViewport, mProject.mScene );
-                mEngine.DrawEditorBillboards( mSceneViewport, mProject.mScene );
+                mEngine.PropagateCameraTransforms( mProject.mLevel.mScene );
+                mEngine.PropagateLightTransforms( mProject.mLevel.mScene );
+                mEngine.DrawScene( mSceneViewport, mProject.mLevel.mScene );
+                mEngine.DrawEditorBillboards( mSceneViewport, mProject.mLevel.mScene );
 
                 // Only on frames where something asked to pick. This used to run
                 // unconditionally - a second full traversal of the scene plus a
@@ -81,7 +81,7 @@ void BubbleEditor::Run()
                 // what fills the camera block it reads.
                 if ( mUIGlobals.mEntityIdPicker.WantsIdPass() )
                 {
-                    mEngine.DrawEntityIds( mEntityIdViewport, mProject.mScene );
+                    mEngine.DrawEntityIds( mEntityIdViewport, mProject.mLevel.mScene );
                     mUIGlobals.mEntityIdPicker.CaptureFrom( mEntityIdViewport );
                 }
 
@@ -91,11 +91,11 @@ void BubbleEditor::Run()
                 Validation();
 
                 // Bounding helper lines
-                mEngine.DrawCameraFrustums( mSceneViewport, mProject.mScene );
+                mEngine.DrawCameraFrustums( mSceneViewport, mProject.mLevel.mScene );
                 if ( mUIGlobals.mDrawBoundingBoxes )
-                    mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mScene );
+                    mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mLevel.mScene );
                 if ( mUIGlobals.mDrawPhysicsShapes )
-                    mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mScene );
+                    mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mLevel.mScene );
                 break;
             }
             case EditorMode::Running:
@@ -135,12 +135,83 @@ void BubbleEditor::OpenProject( const path& projectPath )
 {
     mUIGlobals.mNeedUpdateProjectFilesWindow = true;
     mProject.Open( projectPath );
+    // Project::Open opened the startup level; what pointed into the previous
+    // project's level is stale the same way.
+    mSelection.Clear();
+    mHistory.Clear();
+    mClipboard.Clear();
+}
+
+void BubbleEditor::OpenLevel( const path& relFile )
+{
+    // Cleared before the load, not after: the history commands hold tree nodes
+    // whose id counter belongs to the level going away.
+    mSelection.Clear();
+    mHistory.Clear();
+    mClipboard.Clear();
+    mProject.OpenLevel( relFile );
+}
+
+void BubbleEditor::NewLevel( const string& name )
+{
+    mProject.Save();
+    mSelection.Clear();
+    mHistory.Clear();
+    mClipboard.Clear();
+    mProject.NewLevel( name );
+    mUIGlobals.mNeedUpdateProjectFilesWindow = true;
 }
 
 
 void BubbleEditor::OnUpdate()
 {
     OnUpdateHotKeys();
+
+    // Only while editing: a running engine holds its own copy of the level.
+    if ( mEditorMode != EditorMode::Editing )
+        return;
+
+    if ( mUIGlobals.mRequestOpenProject )
+    {
+        const path file = std::move( *mUIGlobals.mRequestOpenProject );
+        mUIGlobals.mRequestOpenProject.reset();
+        try
+        {
+            OpenProject( file );
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( e.what() );
+        }
+    }
+
+    if ( mUIGlobals.mRequestOpenLevel )
+    {
+        const path relFile = std::move( *mUIGlobals.mRequestOpenLevel );
+        mUIGlobals.mRequestOpenLevel.reset();
+        try
+        {
+            OpenLevel( relFile );
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( e.what() );
+        }
+    }
+
+    if ( mUIGlobals.mRequestNewLevel )
+    {
+        const string name = std::move( *mUIGlobals.mRequestNewLevel );
+        mUIGlobals.mRequestNewLevel.reset();
+        try
+        {
+            NewLevel( name );
+        }
+        catch ( const std::exception& e )
+        {
+            LogError( e.what() );
+        }
+    }
 }
 
 
@@ -211,7 +282,7 @@ void BubbleEditor::OnUpdateHotKeys()
 
                     auto command = std::make_unique<DeleteNodeCommand>(
                         nodeToRemove,
-                        mProject.mScene
+                        mProject.mLevel.mScene
                     );
                     mHistory.ExecuteCommand( std::move( command ) );
                 }
@@ -222,7 +293,7 @@ void BubbleEditor::OnUpdateHotKeys()
                     vector<Ref<ProjectTreeNode>> nodesToDelete;
                     for ( auto entity : mSelection.GetEntities() )
                     {
-                        auto node = FindNodeByEntity( entity, mProject.mProjectTreeRoot );
+                        auto node = FindNodeByEntity( entity, mProject.mLevel.mTreeRoot );
                         if ( node )
                             nodesToDelete.push_back( node );
                     }
@@ -233,8 +304,8 @@ void BubbleEditor::OnUpdateHotKeys()
 
                         auto command = std::make_unique<DeleteMultipleNodesCommand>(
                             nodesToDelete,
-                            mProject.mScene,
-                            mProject.mProjectTreeRoot
+                            mProject.mLevel.mScene,
+                            mProject.mLevel.mTreeRoot
                         );
                         mHistory.ExecuteCommand( std::move( command ) );
                     }
@@ -280,7 +351,7 @@ void BubbleEditor::OnUpdateHotKeys()
                 }
                 else
                 {
-                    targetParent = mProject.mProjectTreeRoot;
+                    targetParent = mProject.mLevel.mTreeRoot;
                 }
 
                 if ( targetParent )
@@ -295,7 +366,7 @@ void BubbleEditor::OnUpdateHotKeys()
                     else
                     {
                         // Copy: execute copy command through history
-                        auto command = std::make_unique<CopyNodeCommand>( mClipboard.GetNode(), targetParent, mProject.mScene );
+                        auto command = std::make_unique<CopyNodeCommand>( mClipboard.GetNode(), targetParent, mProject.mLevel.mScene );
                         mHistory.ExecuteCommand( std::move( command ) );
                     }
                 }
@@ -308,7 +379,9 @@ void BubbleEditor::StartEngine()
 {
     mProject.Save();
     mEngine.mProject.mLoader = mProject.mLoader;
-    mEngine.OnStart( mProject.mRootFile );
+    // The level being edited, not the startup one: that is the one being
+    // iterated on.
+    mEngine.OnStart( mProject.mRootFile, mProject.CurrentLevel() );
 }
 
 void BubbleEditor::StopEngine()
@@ -326,7 +399,7 @@ void BubbleEditor::Validation()
     /// Validate editor state
 
     // Check scene's state components binded to right LuaVM
-    mProject.mScene.ForEach<StateComponent>( [&]( Entity, StateComponent& c ) {
+    mProject.mLevel.mScene.ForEach<StateComponent>( [&]( Entity, StateComponent& c ) {
         BUBBLE_ASSERT( mProject.mScriptingEngine.mLua->lua_state() == c.mState->as<Table>().lua_state(), "Wrong lua binded" );
     } );
 }

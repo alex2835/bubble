@@ -5,11 +5,13 @@
 namespace bubble
 {
 using namespace recs;
+class Level;
+
 class Scene : public Registry
 {
 public:
     Scene();
-    friend Project;
+    friend Level; // serialization reaches into the registry
 };
 
 }

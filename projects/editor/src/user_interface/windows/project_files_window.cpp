@@ -57,6 +57,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
             return FilesystemNodeType::Script;
         else if ( isShaderFile( item ) )
             return FilesystemNodeType::Shader;
+        else if ( item.path().extension() == LEVEL_FILE_EXT )
+            return FilesystemNodeType::Level;
     }
     return FilesystemNodeType::Unknown;
 }
@@ -171,10 +173,20 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
         ImGui::BeginChild( child.mPath.string().c_str(), elemSize + ImVec2( 0, 50 ) );
         {
             // Handle actions
-            if ( child.mType == FilesystemNodeType::Folder and
-                 ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) and
-                 ImGui::IsWindowHovered() )
+            const bool doubleClicked = ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) and
+                                       ImGui::IsWindowHovered();
+            if ( child.mType == FilesystemNodeType::Folder and doubleClicked )
                 mSelectedNode = &child;
+
+            if ( child.mType == FilesystemNodeType::Level and doubleClicked )
+            {
+                const path rel = filesystem::relative( child.mPath, mProject.RootDir() );
+                if ( rel != mProject.CurrentLevel() )
+                {
+                    mProject.Save();
+                    mUIGlobals.mRequestOpenLevel = rel;
+                }
+            }
 
             // Draw
             Ref<Texture2D> texture = mFileIcon;

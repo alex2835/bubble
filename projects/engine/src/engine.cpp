@@ -4,6 +4,7 @@
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/renderer/helpers/create_billboard.hpp"
 #include "engine/types/any.hpp"
+#include "engine/renderer/shader_uniforms.hpp"
 #include "engine/renderer/gpu_context.hpp"
 #include <sol/sol.hpp>
 
@@ -39,21 +40,57 @@ Engine::~Engine()
     mPhysicsEngine.ClearWorld();
 }
 
-void Engine::OnStart( const path& projectRootFile )
+void Engine::OnStart( const path& projectRootFile, const path& levelRel )
 {
     mProject.mScriptingEngine.SetCurrentState();
-    mProject.Open( projectRootFile );
+    mProject.Open( projectRootFile, /*openStartupLevel*/ false );
 
-    // Bind members to scripting engine
+    // Bind members to scripting engine. Once per run: the VM, and everything
+    // it closes over, outlives every level. BindScene takes mLevel.mScene by
+    // reference, and a level switch loads into that same object.
     mProject.mScriptingEngine.BindWindow( mWindow );
     mProject.mScriptingEngine.BindInput( mWindow.GetWindowInput() );
     mProject.mScriptingEngine.BindLoader( mProject.mLoader );
-    mProject.mScriptingEngine.BindScene( mProject.mScene, mPhysicsEngine );
+    mProject.mScriptingEngine.BindScene( mProject.mLevel.mScene, mPhysicsEngine );
     mProject.mScriptingEngine.BindTimer( mTimer );
+    mProject.mScriptingEngine.SetVar( "global_state"sv, *mProject.mGlobalState );
 
+    // Active camera control
+    mProject.mScriptingEngine.SetVar( "set_active_camera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
+    mProject.mScriptingEngine.SetVar( "get_active_camera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
+
+    // Levels. load_level only records the request: it is called from inside a
+    // script, which is inside the walk over the pools that switching would
+    // destroy. The switch happens at the end of OnUpdate. The file is checked
+    // here so a typo fails in the script that made it, with its name attached.
+    mProject.mScriptingEngine.SetVar( "load_level"sv, [&]( const string& relFile )
+    {
+        if ( not filesystem::is_regular_file( mProject.RootDir() / relFile ) )
+            throw std::runtime_error( std::format( "load_level: no such level '{}'", relFile ) );
+        mPendingLevel = relFile;
+    } );
+    mProject.mScriptingEngine.SetVar( "current_level"sv, [&]() -> string
+    {
+        return mProject.CurrentLevel().generic_string();
+    } );
+
+    // The startup level, unless the caller picked one - the editor runs
+    // whatever level it has open.
+    LoadLevel( levelRel.empty() ? mProject.mStartupLevel : levelRel );
+
+    // Last, so neither loading the project nor running on_start counts against
+    // the clock scripts read, and so the first frame's delta is measured from
+    // here rather than from whenever the Engine was constructed.
+    mTimer.Reset();
+}
+
+void Engine::LoadLevel( const path& relFile )
+{
+    UnloadLevel();
+    mProject.OpenLevel( relFile );
 
     // Add RigidBody components to physics world
-    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
+    mProject.mLevel.mScene.ForEach<TransformComponent, RigidBodyComponent>(
     [&]( Entity entity, TransformComponent& transform, RigidBodyComponent& rigidBody )
     {
         rigidBody.mRigidBody.SetTransform( transform.mPosition, transform.mRotation );
@@ -62,7 +99,7 @@ void Engine::OnStart( const path& projectRootFile )
     } );
 
     // Add CharacterController components to physics world
-    mProject.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
+    mProject.mLevel.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
     [&]( Entity entity, TransformComponent& transform, CharacterControllerComponent& controller )
     {
         controller.mController.Warp( transform.mPosition );
@@ -72,7 +109,7 @@ void Engine::OnStart( const path& projectRootFile )
     // Sources set to play on start. Before on_start runs, so a script that
     // wants to stop one immediately can, and after the scene is fully loaded so
     // every sound asset is resolved.
-    mProject.mScene.ForEach<AudioSourceComponent>(
+    mProject.mLevel.mScene.ForEach<AudioSourceComponent>(
     []( Entity entity, AudioSourceComponent& audioSource )
     {
         if ( audioSource.mPlayOnStart )
@@ -87,19 +124,19 @@ void Engine::OnStart( const path& projectRootFile )
     // in on_start should be all it takes to start using it.
     {
         vector<Entity> needState;
-        mProject.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& )
+        mProject.mLevel.mScene.ForEach<ScriptComponent>( [&]( Entity entity, ScriptComponent& )
         {
-            if ( not mProject.mScene.HasComponent<StateComponent>( entity ) )
+            if ( not mProject.mLevel.mScene.HasComponent<StateComponent>( entity ) )
                 needState.push_back( entity );
         } );
         // Added outside the iteration: AddComponent grows the state pool, and
         // growing one pool while ForEach walks another is not worth relying on.
         for ( Entity entity : needState )
-            mProject.mScene.AddComponent<StateComponent>( entity );
+            mProject.mLevel.mScene.AddComponent<StateComponent>( entity );
     }
 
     // Extract scripts functions
-    mProject.mScene.ForEach<ScriptComponent, StateComponent>( [&]( Entity entity, 
+    mProject.mLevel.mScene.ForEach<ScriptComponent, StateComponent>( [&]( Entity entity,
                                                                    ScriptComponent& scriptComponent,
                                                                    StateComponent& stateComponent )
     {
@@ -112,11 +149,6 @@ void Engine::OnStart( const path& projectRootFile )
         scriptComponent.mOnUpdate = std::move( callbacks.mOnUpdate );
         BUBBLE_ASSERT( stateComponent.mState->as<Table>().lua_state() == scriptComponent.mOnUpdate.lua_state(), "Lua state missmatch" );
     } );
-    mProject.mScriptingEngine.SetVar( "global_state"sv, *mProject.mGlobalState );
-
-    // Active camera control
-    mProject.mScriptingEngine.SetVar( "set_active_camera"sv, [&]( Entity entity ) { mActiveCameraEntity = entity; } );
-    mProject.mScriptingEngine.SetVar( "get_active_camera"sv, [&]() -> Entity { return mActiveCameraEntity; } );
 
     // on_start runs only once every script has been extracted and every global
     // is in place, so the first script to start already sees the whole API and
@@ -127,7 +159,7 @@ void Engine::OnStart( const path& projectRootFile )
     // live ForEach would be walking. An entity created here has already had its
     // own on_start run by spawn, so leaving it out of this pass is correct.
     mScriptEntities.clear();
-    mProject.mScene.ForEach<StateComponent, ScriptComponent>(
+    mProject.mLevel.mScene.ForEach<StateComponent, ScriptComponent>(
     [this]( Entity entity, const StateComponent&, const ScriptComponent& )
     {
         mScriptEntities.push_back( entity );
@@ -135,22 +167,38 @@ void Engine::OnStart( const path& projectRootFile )
 
     for ( const Entity entity : mScriptEntities )
     {
-        if ( not mProject.mScene.HasEntity( entity ) or
-             not mProject.mScene.HasComponent<StateComponent>( entity ) or
-             not mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+        if ( not mProject.mLevel.mScene.HasEntity( entity ) or
+             not mProject.mLevel.mScene.HasComponent<StateComponent>( entity ) or
+             not mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
             continue;
 
-        const StateComponent& stateComponent = mProject.mScene.GetComponent<StateComponent>( entity );
-        const ScriptComponent& scriptComponent = mProject.mScene.GetComponent<ScriptComponent>( entity );
+        const StateComponent& stateComponent = mProject.mLevel.mScene.GetComponent<StateComponent>( entity );
+        const ScriptComponent& scriptComponent = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity );
 
         CallScriptOnStart( scriptComponent.mOnStart, scriptComponent.mScript,
                            entity, *stateComponent.mState );
     }
+}
 
-    // Last, so neither loading the project nor running on_start counts against
-    // the clock scripts read, and so the first frame's delta is measured from
-    // here rather than from whenever the Engine was constructed.
-    mTimer.Reset();
+void Engine::UnloadLevel()
+{
+    mPendingLevel.reset();
+    // Bodies and voices are owned by the components about to go; the engines
+    // would otherwise keep stepping and playing them into the next level.
+    //
+    // Controllers one by one: a character controller is an *action* in the
+    // Bullet world, and ClearWorld only takes out the collision objects. The
+    // action would stay registered, pointing at a freed controller, and the
+    // next stepSimulation would walk into it.
+    mProject.mLevel.mScene.ForEach<CharacterControllerComponent>(
+    [&]( Entity, CharacterControllerComponent& controller )
+    {
+        mPhysicsEngine.Remove( controller.mController );
+    } );
+    mPhysicsEngine.ClearWorld();
+    mAudioEngine.StopAll();
+    mActiveCameraEntity = INVALID_ENTITY;
+    mProject.mLevel.Clear();
 }
 
 void Engine::OnEnd()
@@ -159,12 +207,8 @@ void Engine::OnEnd()
     // the engine hands it back on the way out.
     mWindow.LockCursor( false );
 
-    mPhysicsEngine.ClearWorld();
+    UnloadLevel();
     mPhysicsEngine = PhysicsEngine();
-    // Before the scene goes: a voice outliving the entity that started it would
-    // keep playing into the next project that gets opened.
-    mAudioEngine.StopAll();
-    mProject.mScene = Scene();
     mProject.mLoader = Loader();
     mProject.mGlobalState.reset();
     mProject.mScriptingEngine = ScriptingEngine();
@@ -180,8 +224,8 @@ void Engine::OnUpdate()
 
     // Propagations that end at a transform: gameplay inputs, so they run first
     // and a script reads this frame's values.
-    PropagatePhysicsTransforms( mProject.mScene );
-    PropagateAudioSourcePositions( mProject.mScene );
+    PropagatePhysicsTransforms( mProject.mLevel.mScene );
+    PropagateAudioSourcePositions( mProject.mLevel.mScene );
 
     // Reaping finished voices before the scripts run means is_playing() answers
     // for the frame the script is in, not the one before it. This also drives
@@ -206,7 +250,7 @@ void Engine::OnUpdate()
     // entity created by a script gets its on_start now and its first on_update
     // on the next tick, rather than a partial one in the middle of this one.
     mScriptEntities.clear();
-    mProject.mScene.ForEach<StateComponent, ScriptComponent>(
+    mProject.mLevel.mScene.ForEach<StateComponent, ScriptComponent>(
     [this]( Entity entity, const StateComponent&, const ScriptComponent& )
     {
         mScriptEntities.push_back( entity );
@@ -216,15 +260,15 @@ void Engine::OnUpdate()
     {
         // An earlier script this frame may have removed the entity, or taken a
         // component off it. Neither is an error - it just has nothing to run.
-        if ( not mProject.mScene.HasEntity( entity ) or
-             not mProject.mScene.HasComponent<StateComponent>( entity ) or
-             not mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+        if ( not mProject.mLevel.mScene.HasEntity( entity ) or
+             not mProject.mLevel.mScene.HasComponent<StateComponent>( entity ) or
+             not mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
             continue;
 
         // Looked up per entity and never held across a call: any script may
         // have moved both pools since the snapshot was taken.
-        const StateComponent& stateComponent = mProject.mScene.GetComponent<StateComponent>( entity );
-        const ScriptComponent& scriptComponent = mProject.mScene.GetComponent<ScriptComponent>( entity );
+        const StateComponent& stateComponent = mProject.mLevel.mScene.GetComponent<StateComponent>( entity );
+        const ScriptComponent& scriptComponent = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity );
         if ( not scriptComponent.mOnUpdate )
             continue;
 
@@ -245,9 +289,9 @@ void Engine::OnUpdate()
             // the callable was copied. On the error path the cost is irrelevant.
             string name = "<unknown>";
             string path = "<no path>";
-            if ( mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+            if ( mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
             {
-                const Ref<Script>& script = mProject.mScene.GetComponent<ScriptComponent>( entity ).mScript;
+                const Ref<Script>& script = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity ).mScript;
                 if ( script )
                 {
                     name = script->mName;
@@ -264,27 +308,37 @@ void Engine::OnUpdate()
     // frame stale, and saw nothing at all of an entity a script had just
     // created - which is how a light spawned from on_update got a frame at the
     // origin with default attenuation.
-    PropagateCameraTransforms( mProject.mScene );
-    PropagateLightTransforms( mProject.mScene );
+    PropagateCameraTransforms( mProject.mLevel.mScene );
+    PropagateLightTransforms( mProject.mLevel.mScene );
 
     /// Sync active camera entity to rendering camera. After
     /// PropagateCameraTransforms, which is what wrote this frame's position
     /// into the CameraComponent.
     if ( mActiveCameraEntity != INVALID_ENTITY and
-         mProject.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
+         mProject.mLevel.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
     {
-        mCamera = mProject.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
+        mCamera = mProject.mLevel.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
     }
 
     // Last: it reads mCamera for the fallback listener, so it wants the sync
     // above to have happened.
-    PropagateAudioTransforms( mProject.mScene );
+    PropagateAudioTransforms( mProject.mLevel.mScene );
+
+    // A level switch a script asked for this frame. Last of all: nothing above
+    // may run against a scene that is half unloaded, and the scripts that ran
+    // after the one that asked still saw the level they were written for.
+    if ( mPendingLevel )
+    {
+        const path relFile = std::move( *mPendingLevel );
+        mPendingLevel.reset();
+        LoadLevel( relFile );
+    }
 }
 
 void Engine::PropagatePhysicsTransforms( Scene& scene )
 {
     // Update transforms from RigidBody components
-    mProject.mScene.ForEach<TransformComponent, RigidBodyComponent>(
+    mProject.mLevel.mScene.ForEach<TransformComponent, RigidBodyComponent>(
         []( Entity entity,
             TransformComponent& transform,
             const RigidBodyComponent& rigidBody )
@@ -439,7 +493,7 @@ void SubmitPass( Renderer& renderer, string_view label, RecordFn&& record )
 
 void Engine::DrawScene( Framebuffer& framebuffer )
 {
-    DrawScene( framebuffer, mProject.mScene );
+    DrawScene( framebuffer, mProject.mLevel.mScene );
 }
 
 

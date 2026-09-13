@@ -80,7 +80,7 @@ Ref<ProjectTreeNode> ProjectTreeNode::CopyNode( const Ref<ProjectTreeNode>& node
 
 bool ProjectTreeNode::IsEntity() const
 {
-    return mType != ProjectTreeNodeType::Level and
+    return mType != ProjectTreeNodeType::Root and
            mType != ProjectTreeNodeType::Folder;
 }
 

@@ -1,7 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/project/project.hpp"
 #include "engine/serialization/loader_serialization.hpp"
-#include "engine/scene/component_manager.hpp"
+#include "engine/serialization/any_serialization.hpp"
 #include "engine/types/set.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
@@ -10,6 +10,7 @@
 namespace bubble
 {
 constexpr string_view ROOT_FILE_EXT = ".bubble"sv;
+constexpr string_view DEFAULT_LEVEL_NAME = "main"sv;
 
 void Project::LoadDefaultResources()
 {
@@ -19,8 +20,7 @@ void Project::LoadDefaultResources()
 }
 
 Project::Project()
-    : mProjectTreeRoot( CreateRef<ProjectTreeNode>( mNodeIDCounter ) ),
-      mGlobalState( CreateScope<Any>( mScriptingEngine.CreateTable() ) )
+    : mGlobalState( CreateScope<Any>( mScriptingEngine.CreateTable() ) )
 {
 }
 
@@ -37,169 +37,44 @@ void Project::Create( const path& rootDir, const string& projectName )
     if ( filesystem::exists( mRootFile ) )
         throw std::runtime_error( "Project with such name already exists: " + mRootFile.string() );
 
+    mName = projectName;
+    mLoader.mProjectRootDir = projectDir;
     LoadDefaultResources();
+    NewLevel( string( DEFAULT_LEVEL_NAME ) );
+    mStartupLevel = CurrentLevel();
     Save();
 }
 
-json Project::SaveScene() const
-{
-    json j;
-    j["Entity counter"] = mScene.mEntityCounter;
-    // Entity components
-    auto& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entity, componentTypeIds] : mScene.mEntitiesComponentTypeIds )
-        entityComponentsJson[std::to_string( entity )] = componentTypeIds;
-
-    json& poolsJson = j["Component pools"];
-    for ( const auto& componentID : mScene.mComponents )
-    {
-        const auto iter = mScene.mPools.find( componentID );
-        if ( iter == mScene.mPools.end() )
-            throw std::runtime_error( std::format( "No pool for component: {}", componentID ) );
-
-        const auto& pool = iter->second;
-        json& poolJson = poolsJson[ComponentManager::GetName( componentID )];
-
-        const auto& componentToJson = ComponentManager::GetToJson( componentID );
-        const auto& poolEntities = pool.Entities();
-        for ( size_t i = 0; i < poolEntities.size(); i++ )
-        {
-            const auto entityStr = std::to_string( poolEntities[i] );
-            componentToJson( poolJson[entityStr], *this, pool.GetRaw( i ) );
-        }
-    }
-    return j;
-}
-
-
-
-void Project::LoadScene( const json& j )
-{
-    mScene.mEntityCounter = j["Entity counter"];
-    // Entity components
-    const json& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )
-    {
-        set<ComponentTypeId> components;
-        for ( ComponentTypeId component : componentsJson )
-            components.insert( component );
-
-        u64 entityId = std::atoi( entityStr.c_str() );
-        Entity entity = *(Entity*)&entityId;
-        mScene.mEntitiesComponentTypeIds[entity] = components;
-    }
-
-    for ( const auto& [componentNameString, poolJson] : j["Component pools"].items() )
-    {
-        int componentID = ComponentManager::GetID( componentNameString );
-        auto componentsIter = mScene.mComponents.find( componentID );
-        if ( componentsIter == mScene.mComponents.end() )
-            throw std::runtime_error( std::format( "Scene from_json failed. No such component: {}", componentID ) );
-
-        auto poolsIter = mScene.mPools.find( componentID );
-        if ( poolsIter == mScene.mPools.end() )
-            throw std::runtime_error( std::format( "scene from_json failed. No such pool {}", componentID ) );
-
-        Pool& pool = poolsIter->second;
-        const auto& componentFromJson = ComponentManager::GetFromJson( componentID );
-
-        // json object keys are strings, so items() yields "1", "10", "100", "2"...
-        // Feeding a sorted pool in that order makes every insert memmove the tail
-        // (O(n^2) load). Sort numerically first so each push appends instead.
-        std::vector<std::pair<u64, const json*>> ordered;
-        ordered.reserve( poolJson.size() );
-        for ( const auto& [entityIdStr, componentJson] : poolJson.items() )
-            ordered.emplace_back( std::strtoull( entityIdStr.c_str(), nullptr, 10 ), &componentJson );
-
-        std::sort( ordered.begin(), ordered.end(),
-                   []( const auto& a, const auto& b ) { return a.first < b.first; } );
-
-        for ( const auto& [entityId, componentJson] : ordered )
-            componentFromJson( *componentJson, *this, pool.PushEmpty( mScene.GetEntityById( entityId ) ) );
-    }
-}
-
-
-json Project::SaveProjectTreeNode( const Ref<ProjectTreeNode>& node ) const
-{
-    json j;
-    j["ID"] = node->mID;
-    j["Type"] = magic_enum::enum_name( node->mType );
-
-    if ( node->mType == ProjectTreeNodeType::Level or
-         node->mType == ProjectTreeNodeType::Folder )
-        j["State"] = std::get<string>( node->mState );
-    else 
-        j["State"] = (u64)std::get<Entity>( node->mState );
-
-    json& children = j["Children"];
-    for ( const auto& child : node->mChildren )
-        children.push_back( SaveProjectTreeNode( child ) );
-    
-    return j;
-}
-
-json Project::SaveProjectTree() const
-{
-    json j;
-    j["Counter"] = mNodeIDCounter;
-    j["Tree"] = SaveProjectTreeNode( mProjectTreeRoot );
-    return j;
-}
-
-
-Ref<ProjectTreeNode> Project::LoadProjectTreeNode( const json& j, const Ref<ProjectTreeNode>& parent )
-{
-    auto node = CreateRef<ProjectTreeNode>( mNodeIDCounter );
-
-    node->mID = j["ID"];
-    auto optType = magic_enum::enum_cast<ProjectTreeNodeType>( string( j["Type"] ) );
-    if ( not optType )
-        throw std::runtime_error( std::format( "Failed to read project tree node type: {}", string(j["Type"]) ) );
-    node->mType = *optType;
-
-    if ( node->mType == ProjectTreeNodeType::Level or
-         node->mType == ProjectTreeNodeType::Folder )
-        node->mState = string( j["State"] );
-    else
-        node->mState = mScene.GetEntityById( j["State"] );
-
-    const json& children = j["Children"];
-    for ( const auto& child : children )
-        node->mChildren.emplace_back( LoadProjectTreeNode( child, node ) );
-
-    node->mParent = parent;
-    return node;
-}
-
-void Project::LoadProjectTree( const json& j )
-{
-    mNodeIDCounter = j["Counter"];
-    mProjectTreeRoot = LoadProjectTreeNode( j["Tree"], nullptr );
-}
 
 void Project::Save() const
 {
     BUBBLE_ASSERT( IsValid(), "Try to save invalid project" );
+    SaveTo( mRootFile, mLevel.mFile );
+}
 
+void Project::SaveTo( const path& projectFile, const path& levelFile ) const
+{
     json projectJson;
     projectJson["Loader"] = mLoader;
-    projectJson["Scene"] = SaveScene();
-    projectJson["ProjectTree"] = SaveProjectTree();
     projectJson["GlobalState"] = SaveAnyValue( *mGlobalState );
+    projectJson["StartupLevel"] = mStartupLevel.generic_string();
 
-    std::ofstream projectFile( mRootFile );
-    projectFile << projectJson.dump( 1 );
-    LogInfo( "Project saved: {}", mRootFile.string() );
+    std::ofstream stream( projectFile );
+    stream << projectJson.dump( 1 );
+    LogInfo( "Project saved: {}", projectFile.string() );
+
+    if ( mLevel.IsValid() )
+        mLevel.Save( levelFile, *this );
 }
 
 
-void Project::Open( const path& rootFile )
+void Project::Open( const path& rootFile, bool openStartupLevel )
 {
     if ( !is_regular_file( rootFile ) || rootFile.extension() != ROOT_FILE_EXT )
         throw std::runtime_error( "Invalid project path: " + rootFile.string() );
 
     mRootFile = rootFile;
+    mName = rootFile.stem().string();
     mLoader.mProjectRootDir = rootFile.parent_path();
 
     // Before anything loads: the shaders listed in the project file are
@@ -210,10 +85,41 @@ void Project::Open( const path& rootFile )
     std::ifstream stream( mRootFile );
     json projectJson = json::parse( stream );
     from_json( projectJson["Loader"], mLoader );
-    LoadScene( projectJson["Scene"] );
-    LoadProjectTree( projectJson["ProjectTree"] );
     mGlobalState = CreateScope<Any>( LoadAnyValue( mScriptingEngine, projectJson["GlobalState"] ) );
     LogInfo( "Project opened: {}", mRootFile.string() );
+
+    if ( projectJson.contains( "Scene" ) )
+    {
+        // Pre-levels layout: the scene lives in the project file. Split it out.
+        mLevel.Clear();
+        mLevel.FromJson( projectJson, *this );
+        mLevel.mName = DEFAULT_LEVEL_NAME;
+        mLevel.mFile = LevelsDir() / mLevel.mName;
+        mLevel.mFile.replace_extension( LEVEL_FILE_EXT );
+        mLevel.mTreeRoot->mState = mLevel.mName;
+        mStartupLevel = CurrentLevel();
+
+        filesystem::create_directories( LevelsDir() );
+        Save();
+        LogInfo( "Project migrated: scene moved to {}", mLevel.mFile.string() );
+        return;
+    }
+
+    mStartupLevel = path( string( projectJson.value( "StartupLevel", "" ) ) );
+    if ( mStartupLevel.empty() )
+    {
+        // No startup level recorded (or the file is hand made) - take the
+        // first one there is, or make one so the project is usable.
+        const auto levels = Levels();
+        if ( levels.empty() )
+            NewLevel( string( DEFAULT_LEVEL_NAME ) );
+        else
+            OpenLevel( levels.front() );
+        mStartupLevel = CurrentLevel();
+        return;
+    }
+    if ( openStartupLevel )
+        OpenLevel( mStartupLevel );
 }
 
 
@@ -222,5 +128,51 @@ bool Project::IsValid() const
     return not mRootFile.empty();
 }
 
+
+vector<path> Project::Levels() const
+{
+    vector<path> levels;
+    const path levelsDir = LevelsDir();
+    if ( not filesystem::is_directory( levelsDir ) )
+        return levels;
+
+    for ( const auto& entry : filesystem::recursive_directory_iterator( levelsDir ) )
+    {
+        if ( entry.is_regular_file() and entry.path().extension() == LEVEL_FILE_EXT )
+            levels.push_back( filesystem::relative( entry.path(), RootDir() ) );
+    }
+    std::ranges::sort( levels );
+    return levels;
+}
+
+void Project::NewLevel( const string& name )
+{
+    if ( name.empty() )
+        throw std::runtime_error( "A level needs a name" );
+
+    path file = LevelsDir() / name;
+    file.replace_extension( LEVEL_FILE_EXT );
+    if ( filesystem::exists( file ) )
+        throw std::runtime_error( "Level already exists: " + file.string() );
+
+    filesystem::create_directories( file.parent_path() );
+    mLevel.Clear();
+    mLevel.mName = name;
+    mLevel.mFile = file;
+    mLevel.mTreeRoot->mState = name;
+    mLevel.Save( file, *this );
+}
+
+void Project::OpenLevel( const path& relFile )
+{
+    mLevel.Load( RootDir() / relFile, *this );
+}
+
+path Project::CurrentLevel() const
+{
+    if ( not mLevel.IsValid() )
+        return {};
+    return filesystem::relative( mLevel.mFile, RootDir() );
+}
 
 }

@@ -61,18 +61,14 @@ private:
             auto now = std::chrono::system_clock::now();
             string timestamp = std::format( "{:%Y%m%d_%H%M%S}", now );
 
-            // Create backup filename: project_name_timestamp.bubble
-            string backupFilename = std::format( "{}_{}.bubble", mProject.mName, timestamp );
-            path backupPath = backupDir / backupFilename;
+            // project_name_timestamp.bubble and level_name_timestamp.level
+            const path projectBackup = backupDir / std::format( "{}_{}.bubble", mProject.mName, timestamp );
+            const path levelBackup = backupDir / std::format( "{}_{}.level", mProject.mLevel.mName, timestamp );
+            mProject.SaveTo( projectBackup, levelBackup );
 
-            // Save current project file to backup
-            path originalFile = mProject.mRootFile;
-            mProject.mRootFile = backupPath;
-            mProject.Save();
-            mProject.mRootFile = originalFile;
-
-            // Clean up old backups (keep only the last 10)
-            CleanOldBackups( backupDir, 10 );
+            // Clean up old backups (keep only the last 10 of each kind)
+            CleanOldBackups( backupDir, ".bubble", 10 );
+            CleanOldBackups( backupDir, ".level", 10 );
         }
         catch ( const std::exception& e )
         {
@@ -80,7 +76,7 @@ private:
         }
     }
 
-    void CleanOldBackups( const path& backupDir, size_t maxBackups )
+    void CleanOldBackups( const path& backupDir, string_view extension, size_t maxBackups )
     {
         try
         {
@@ -88,7 +84,7 @@ private:
             vector<std::filesystem::directory_entry> backupFiles;
             for ( const auto& entry : std::filesystem::directory_iterator( backupDir ) )
             {
-                if ( entry.is_regular_file() && entry.path().extension() == ".bubble" )
+                if ( entry.is_regular_file() && entry.path().extension() == extension )
                 {
                     backupFiles.push_back( entry );
                 }

@@ -4,6 +4,9 @@
 
 namespace bubble
 {
+class ScriptingEngine;
+class Shader;
+
 // What reconciling a uniform table against its shader threw away. Split by
 // reason, because the explanation a user needs is different for each and this
 // report is the only record that the value existed.
