@@ -53,7 +53,9 @@ PATTERNS = [
     re.compile(r'lua\.set(?:_function)?\s*\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'),
     re.compile(r'lua\.(?:new_usertype|new_enum)\s*<[^>]*>\s*\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'),
     re.compile(r'SetVar\s*\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'),
-    re.compile(r'^\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*(?:&|\[|sol::property)', re.M),
+    # `ValueProperty(` is the engine's by-value wrapper for vec/mat members
+    # (engine/scripting/lua_value_property.hpp); a bare `&` is the raw form.
+    re.compile(r'^\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*(?:&|\[|sol::property|ValueProperty)', re.M),
     re.compile(r'^\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*$', re.M),
     re.compile(r'\w+Type\s*\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\]\s*='),
 ]

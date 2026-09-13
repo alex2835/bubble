@@ -9,6 +9,7 @@
 #include "engine/utils/geometry.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+#include "engine/scripting/lua_value_property.hpp"
 
 namespace bubble
 {
@@ -49,9 +50,44 @@ void TransformComponent::CreateLuaBinding( sol::state& lua )
         "Transform",
         sol::call_constructor,
         sol::constructors<TransformComponent(), TransformComponent( vec3 ), TransformComponent( vec3, vec3, vec3 )>(),
-        "position",  &TransformComponent::mPosition,
-        "rotation",  &TransformComponent::mRotation,
-        "scale",     &TransformComponent::mScale,
+        // By value - see ValueProperty. A reference here is a pointer into the
+        // transform pool, which no script may keep.
+        "position",  ValueProperty( &TransformComponent::mPosition ),
+        "rotation",  ValueProperty( &TransformComponent::mRotation ),
+        "scale",     ValueProperty( &TransformComponent::mScale ),
+
+        // Mutators for the hot path. With `position` a copy, the only way to
+        // move an entity through the field is `t.position = t.position + d`,
+        // which builds two vec3 userdatas per call. The scalar forms cross the
+        // boundary as plain numbers and allocate nothing - cheaper than even
+        // the old by-reference field was. The vec3 forms are for when the
+        // caller already holds one (`t:translate( dir * speed * dt )`), where
+        // the allocation has already happened.
+        "translate",
+        sol::overload(
+            []( TransformComponent& t, f32 x, f32 y, f32 z ) { t.mPosition += vec3( x, y, z ); },
+            []( TransformComponent& t, const vec3& d )       { t.mPosition += d; }
+        ),
+        "set_position",
+        sol::overload(
+            []( TransformComponent& t, f32 x, f32 y, f32 z ) { t.mPosition = vec3( x, y, z ); },
+            []( TransformComponent& t, const vec3& p )       { t.mPosition = p; }
+        ),
+        "rotate",
+        sol::overload(
+            []( TransformComponent& t, f32 x, f32 y, f32 z ) { t.mRotation += vec3( x, y, z ); },
+            []( TransformComponent& t, const vec3& d )       { t.mRotation += d; }
+        ),
+        "set_rotation",
+        sol::overload(
+            []( TransformComponent& t, f32 x, f32 y, f32 z ) { t.mRotation = vec3( x, y, z ); },
+            []( TransformComponent& t, const vec3& r )       { t.mRotation = r; }
+        ),
+        "set_scale",
+        sol::overload(
+            []( TransformComponent& t, f32 x, f32 y, f32 z ) { t.mScale = vec3( x, y, z ); },
+            []( TransformComponent& t, const vec3& s )       { t.mScale = s; }
+        ),
         sol::meta_function::to_string, to_string
     );
 }

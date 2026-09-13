@@ -102,10 +102,10 @@ The names are the same ones the `Component` table uses: `tag`, `transform`,
 `light`, `state`. Indexing with the id instead — `comps[Component.transform]` —
 returns `nil`.
 
-**The `components` table and everything in it are valid only for the duration of
-one callback call.** The table is reused for every entity and holds raw pointers
-into the pools, so a value read out of it is stale by the next iteration. Copy
-what you need:
+**The `components` table and the component objects in it are valid only for
+the duration of one callback call.** The table is reused for every entity and
+holds raw pointers into the pools, so a component held past the callback is
+stale by the next iteration. Fields read off them are copies and may be kept:
 
 ```lua
 local names = {}
@@ -272,41 +272,54 @@ state.t      = entity:get_transform()       -- NO: pointer into a pool
 
 Re-fetch through `entity:get_*()` each time you need it.
 
-### The trap: it depends on the field's type
+### Fields are copies — assign the whole value
 
-A field whose type is a **primitive** comes back as a Lua number/string/boolean
-— a copy, safe to keep. A field whose type is a **usertype** (`vec3`, `mat4`)
-comes back as a reference into the component, so that `t.position.x = 5` writes
-through. The two read identically:
-
-```lua
-state.b = entity:get_light().brightness     -- f32  -> number, a copy.       safe
-state.c = entity:get_light().color          -- vec3 -> reference into pool.  UNSAFE
-state.c = vec3( entity:get_light().color )  -- explicit copy.                safe
-```
-
-### The `Entity` shorthands are copies
-
-`entity.position`, `.rotation` and `.scale` are properties that return **by
-value**, unlike the same-named fields reached through `get_transform()`:
+Every field you read off a component is a **copy**: primitives come back as
+Lua numbers/strings/booleans, and `vec3`/`mat4` fields come back as fresh
+values. All of them are safe to keep:
 
 ```lua
-state.p = entity.position                   -- vec3 copy.                    safe
-state.p = entity:get_transform().position   -- reference into pool.          UNSAFE
+state.b = entity:get_light().brightness     -- number, a copy.   safe
+state.c = entity:get_light().color          -- vec3, a copy.     safe
+state.p = entity:get_transform().position   -- vec3, a copy.     safe
 ```
+
+The flip side is that **mutating a sub-field of a copy does nothing**:
+
+```lua
+local t = entity:get_transform()
+t.position.x = 5                            -- mutates the copy. SILENT NO-OP
+t.position = vec3( 5, t.position.y, t.position.z )   -- assigns through.  correct
+t.position = t.position + vec3( 0, dt, 0 )           -- also fine
+```
+
+This is deliberate. A `vec3` field that was a live reference into the pool was
+the single easiest way to corrupt memory from a script — it looked exactly like
+a value and was safe right up until the next `spawn`. A copy that ignores
+`.x = 5` fails the first time you run it; the reference failed in production.
+
+The `Entity` shorthands (`entity.position` / `.rotation` / `.scale`) behave the
+same way — they always did — so there is now one behaviour for a field
+regardless of which path you reach it through.
 
 ### Safe to keep in `state`
 
-Entity handles · numbers, strings, tables · `entity.position` / `.rotation` /
-`.scale` · explicit `vec3(...)` / `mat4(...)` copies · primitive component
-fields · `Ref`s from `load_model` / `load_shader` / `load_sound` (these are
-counted handles, and keeping one keeps the asset alive).
+Entity handles · numbers, strings, tables · **any field read off a component**
+· `Ref`s from `load_model` / `load_shader` / `load_sound` (counted handles;
+keeping one keeps the asset alive).
 
 ### Never keep
 
-Anything returned by `entity:get_*()` · any usertype field reached through one ·
-anything from a `for_each_entity` `components` table — that one is worse, see
-below.
+**The component object itself** — anything returned by `entity:get_*()`. That
+is still a pointer into a pool. Read fields off it and let it go:
+
+```lua
+state.t = entity:get_transform()            -- NO: pointer into a pool
+state.p = entity:get_transform().position   -- yes: the field is a copy
+```
+
+Nor anything from a `for_each_entity` `components` table — that one is worse,
+see below.
 
 ## The `Component` enum
 
@@ -333,7 +346,30 @@ Fields: `name`, `class`. Has `tostring`.
 
 Constructible: `Transform()`, `Transform( position )`,
 `Transform( position, rotation, scale )`.
-Fields: `position`, `rotation`, `scale` — all `vec3`. Has `tostring`.
+Fields: `position`, `rotation`, `scale` — all `vec3`, read as copies. Has
+`tostring`.
+
+| Method | Notes |
+|---|---|
+| `t:translate( x, y, z )` | Adds to `position`. Scalar args allocate nothing — use this in hot loops. |
+| `t:translate( vec3 )` | Same, for when you already hold a `vec3`. |
+| `t:set_position( x, y, z )` | Replaces `position`. Allocates nothing. |
+| `t:set_position( vec3 )` | Same. |
+| `t:rotate( x, y, z )` | Adds to `rotation` (euler, radians). Allocates nothing. |
+| `t:rotate( vec3 )` | Same. |
+| `t:set_rotation( x, y, z )` | Replaces `rotation` (euler, radians). Allocates nothing. |
+| `t:set_rotation( vec3 )` | Same. |
+| `t:set_scale( x, y, z )` | Replaces `scale`. Allocates nothing. |
+| `t:set_scale( vec3 )` | Same. |
+
+These exist because `position` is a copy: `t.position.x = 5` is a no-op, and
+`t.position = t.position + d` builds two `vec3` userdatas per call. The scalar
+forms are the cheapest way to move an entity from a script:
+
+```lua
+t:translate( 0, speed * dt, 0 )              -- zero allocations
+t.position = t.position + vec3( 0, speed * dt, 0 )   -- correct, two allocations
+```
 
 ### Camera
 

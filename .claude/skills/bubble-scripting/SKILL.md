@@ -93,16 +93,17 @@ them — so a reference taken on one line can be dangling on the next.
 
 ```lua
 for_each_entity( { Component.transform, Component.tag }, function( entity, comps )
-    comps.transform.position.x = 0   -- fine, inside the callback
+    comps.transform.position = vec3( 0, 0, 0 )   -- fine, inside the callback
 end )
 ```
 
 The callback table is keyed by the component's snake_case **name**, not by the
 `Component.*` id used to select it. `comps[Component.transform]` is `nil`.
 
-The table is reused for every entity and its values are raw pointers into the
-pools. Both the table and its contents are valid **only for the duration of that
-one callback call**. Copy out what you need:
+The table is reused for every entity and the component objects in it are raw
+pointers into the pools. Both the table and those objects are valid **only for
+the duration of that one callback call**. Fields read off them are copies and
+may be kept:
 
 ```lua
 local results = {}
@@ -157,43 +158,42 @@ for i = #state.spawned, 1, -1 do
 end
 ```
 
-### R4 — Component references do not survive a structural change
+### R4 — Keep fields, not components
 
 ```lua
-state.target = entity                    -- yes
-state.t      = entity:get_transform()    -- NO: pointer into a pool
+state.t = entity:get_transform()             -- NO: pointer into a pool
+state.p = entity:get_transform().position    -- yes: the field is a copy
 ```
 
 Every `get_*` returns `T&`, which sol pushes as a pointer into the pool's
-buffer. Re-fetch each time rather than holding one across anything that can add
-or remove a component — on any entity, not just this one.
+buffer. Re-fetch it each time rather than holding one across anything that can
+add or remove a component — on any entity, not just this one.
 
-**The trap is that it depends on the field's type.** A primitive field comes
-back as a Lua number/string/boolean, which is a copy. A usertype field (`vec3`,
-`mat4`) comes back as a reference into the component, so `t.position.x = 5`
-writes through. The two lines look identical:
-
-```lua
-state.b = entity:get_light().brightness    -- f32  -> number, a copy.       safe
-state.c = entity:get_light().color         -- vec3 -> reference into pool.  UNSAFE
-state.c = vec3( entity:get_light().color ) -- explicit copy.                safe
-```
-
-And the `Entity` shorthands are properties returning **by value**, unlike the
-same-named fields reached through `get_transform()`:
+**Every field read off a component is a copy** — primitives as Lua values,
+`vec3`/`mat4` as fresh values — so all of them are safe to keep. The flip side
+is that **mutating a sub-field of one does nothing**:
 
 ```lua
-state.p = entity.position                  -- vec3 copy.                     safe
-state.p = entity:get_transform().position  -- reference into pool.           UNSAFE
+local t = entity:get_transform()
+t.position.x = 5                                     -- SILENT NO-OP
+t.position = vec3( 5, t.position.y, t.position.z )   -- assigns through
+t.position = t.position + vec3( 0, dt, 0 )           -- fine
 ```
 
-**Safe to keep in `state`:** entity handles · numbers, strings, tables ·
-`entity.position` / `.rotation` / `.scale` · explicit `vec3(...)` / `mat4(...)`
-copies · primitive component fields · `Ref`s from `load_model` / `load_shader` /
+This is by design (`ValueProperty` in
+`engine/scripting/lua_value_property.hpp`). The reference form was the single
+easiest way to corrupt memory from a script — it read exactly like a value and
+was safe until the next `spawn`. The copy that ignores `.x = 5` fails the first
+time it runs. The `Entity` shorthands (`entity.position`, `.rotation`, `.scale`)
+always worked this way, so a field now behaves the same regardless of the path
+to it.
+
+**Safe to keep in `state`:** entity handles · numbers, strings, tables · any
+field read off a component · `Ref`s from `load_model` / `load_shader` /
 `load_sound`.
 
-**Never:** anything returned by `entity:get_*()` · any usertype field reached
-through one · anything from a `for_each_entity` `comps` table.
+**Never:** the component object itself from `entity:get_*()` · anything from a
+`for_each_entity` `comps` table other than the fields you copied out.
 
 ## API rules
 
@@ -244,8 +244,10 @@ entities rather than component pointers, so the script re-fetches through the
 normal accessors — which costs a lookup per component and would change every
 script that uses it.
 
-R4 is not fixable by the engine without changing what the accessors return. The
-bindings expose usertype members with raw member pointers
-(`"position", &TransformComponent::mPosition`), and sol returns those by
-reference on purpose — it is what makes `t.position.x = 5` write through. Making
-them copies would break every script that mutates a component in place.
+R4 was narrowed by binding every `vec3`/`mat4` member through `ValueProperty`
+(`engine/scripting/lua_value_property.hpp`) instead of a raw member pointer, so
+fields come back as copies. Any new component field of usertype type must use
+it — a bare `&T::mMember` for a `vec3` reintroduces the pool-pointer trap. What
+remains is the component object itself: `get_*` returns `T&`, which is
+unavoidable while scripts mutate components in place. Returning a handle that
+re-resolves per access would close that too, at a lookup per access.

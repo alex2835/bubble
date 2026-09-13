@@ -9,6 +9,7 @@
 #include "engine/utils/geometry.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+#include "engine/scripting/lua_value_property.hpp"
 
 namespace bubble
 {
@@ -126,11 +127,12 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         sol::call_constructor,
         sol::constructors<CameraComponent(), CameraComponent( vec3, f32, f32, f32, vec3 )>(),
 
-        "position",              &CameraComponent::mPosition,
-        "forward",               &CameraComponent::mForward,
-        "up",                    &CameraComponent::mUp,
-        "right",                 &CameraComponent::mRight,
-        "world_up",               &CameraComponent::mWorldUp,
+        // vec3 fields by value - see ValueProperty.
+        "position",              ValueProperty( &CameraComponent::mPosition ),
+        "forward",               ValueProperty( &CameraComponent::mForward ),
+        "up",                    ValueProperty( &CameraComponent::mUp ),
+        "right",                 ValueProperty( &CameraComponent::mRight ),
+        "world_up",              ValueProperty( &CameraComponent::mWorldUp ),
         "near",                  &CameraComponent::mNear,
         "far",                   &CameraComponent::mFar,
         "fov",                   &CameraComponent::mFov,
@@ -138,7 +140,7 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "pitch",                 &CameraComponent::mPitch,
         "max_speed",              &CameraComponent::mMaxSpeed,
         "mouse_sensitivity",      &CameraComponent::mMouseSensitivity,
-        "center",                &CameraComponent::mCenter,
+        "center",                ValueProperty( &CameraComponent::mCenter ),
         "radius",                &CameraComponent::mRadius,
         "use_transform_propagation", &CameraComponent::mUseTransformPropagation,
 

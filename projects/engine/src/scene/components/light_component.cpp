@@ -9,6 +9,7 @@
 #include "engine/utils/geometry.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+#include "engine/scripting/lua_value_property.hpp"
 
 namespace bubble
 {
@@ -156,10 +157,11 @@ void LightComponent::CreateLuaBinding( sol::state& lua )
         sol::constructors<LightComponent()>(),
 
         "type",        &LightComponent::mType,
-        "color",       &LightComponent::mColor,
+        // vec3 fields by value - see ValueProperty.
+        "color",       ValueProperty( &LightComponent::mColor ),
         "brightness",  &LightComponent::mBrightness,
-        "position",    &LightComponent::mPosition,
-        "direction",   &LightComponent::mDirection,
+        "position",    ValueProperty( &LightComponent::mPosition ),
+        "direction",   ValueProperty( &LightComponent::mDirection ),
         "distance",    &LightComponent::mDistance,
         "cut_off",      &LightComponent::mCutOff,
         "outer_cut_off", &LightComponent::mOuterCutOff,
