@@ -99,6 +99,11 @@ public:
     // once per model per frame.
     vector<u8> mUserUniformScratch;
 
+    // The entities whose scripts run this frame, taken before the first one is
+    // called - see the comment in OnUpdate. A member rather than a local so the
+    // frame does not allocate a vector per tick.
+    vector<Entity> mScriptEntities;
+
     // Visualization Bounding boxes and Physics shapes
     struct MeshHelpers
     {

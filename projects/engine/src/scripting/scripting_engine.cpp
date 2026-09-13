@@ -135,8 +135,8 @@ ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& scri
     return callbacks;
 }
 
-void CallScriptOnStart( const sol::protected_function& onStart,
-                        const Ref<Script>& script,
+void CallScriptOnStart( sol::protected_function onStart,
+                        Ref<Script> script,
                         recs::Entity entity,
                         const Any& state )
 {

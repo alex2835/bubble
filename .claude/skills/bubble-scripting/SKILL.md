@@ -39,11 +39,20 @@ function on_update( entity, state, dt )
 end
 ```
 
-`on_start` runs after every script has been extracted and every engine global is
-bound, before the first `on_update` and before the first physics step. It is the
-place for one time setup — capturing the cursor, seeding `state`, choosing the
-active camera. It is called from inside the same scene iteration as `on_update`,
-so R2 below applies to it too.
+`on_start` is the place for one time setup — capturing the cursor, seeding
+`state`, choosing the active camera. When it runs depends on how the script got
+there:
+
+- **Attached in the editor**: once at startup, after every script has been
+  extracted and every engine global is bound, before the first `on_update` and
+  before the first physics step.
+- **Attached at runtime** by `entity:add_script( path )` or
+  `spawn{ script = ... }`: synchronously inside that call, before it returns.
+
+Either way it may spawn and remove entities freely — both paths run it outside a
+live scene walk, and the callable is copied before the call so that a nested
+`add_script` cannot free it mid-execution. The entity's first `on_update` is the
+next frame in both cases.
 
 Three things are required for a script to ever run, and none of them produce a
 useful error if missing:
@@ -70,6 +79,16 @@ survive the call, and globals are shared by every script in the process.
 
 These are the ones that cause crashes rather than wrong behaviour.
 
+The one thing that separates these from the rest of the API: breaking them
+corrupts memory rather than producing a wrong answer, and the damage usually
+surfaces frames later somewhere unrelated.
+
+The whole of it follows from one fact. **Components live in pooled arrays.**
+`Pool::Push` reallocates and frees the old buffer; `Pool::Remove` compacts every
+pool the entity touched and shifts everything after the hole. `spawn`, `add_*`
+and `remove_entity` all do one or the other, and scripts are now free to call
+them — so a reference taken on one line can be dangling on the next.
+
 ### R1 — Do not keep anything `for_each_entity` hands you
 
 ```lua
@@ -81,9 +100,9 @@ end )
 The callback table is keyed by the component's snake_case **name**, not by the
 `Component.*` id used to select it. `comps[Component.transform]` is `nil`.
 
-The table is reused for every entity, and the components in it are pointers
-into engine memory. Both the table and its contents are valid **only for the
-duration of that one callback call**. Copy out what you need:
+The table is reused for every entity and its values are raw pointers into the
+pools. Both the table and its contents are valid **only for the duration of that
+one callback call**. Copy out what you need:
 
 ```lua
 local results = {}
@@ -92,41 +111,89 @@ for_each_entity( { Component.tag }, function( entity, comps )
 end )
 ```
 
-`comps.state` is the exception — it is passed by value, so it stays valid.
+`comps.state` is the exception — it is the entity's own state table, passed by
+value, so it stays valid.
 
-### R2 — Do not add or remove entities while iterating
+### R2 — Do not add or remove entities inside `for_each_entity`
 
-Mutating the scene inside a `for_each_entity` callback invalidates the iteration
-and every component reference the engine is holding, including the ones passed
-to the callback. This applies to `on_update` too: the engine calls scripts from
-inside its own iteration, so **`create_entity` / `add_*` / `remove_entity`
-called directly from `on_update` are not safe today.**
-
-Queue the work and apply it outside the iteration:
+`for_each_entity` walks the pools live, so mutating the scene inside the
+callback invalidates the iteration and every pointer in `comps`. Queue and
+apply after the loop:
 
 ```lua
-function on_update( entity, state, dt )
-    state.pendingSpawns = state.pendingSpawns or {}
-    if shouldSpawn then
-        table.insert( state.pendingSpawns, position )   -- do not spawn here
+local dead = {}
+for_each_entity( { Component.tag }, function( entity, comps )
+    if comps.tag.name == "dead" then table.insert( dead, entity ) end
+end )
+for _, e in ipairs( dead ) do remove_entity( e ) end
+```
+
+**`on_update` and `on_start` are not subject to this.** The engine snapshots the
+scripted entities before calling any of them and looks each one up again as it
+goes, so `spawn`, `create_entity`, `add_*` and `remove_entity` are safe to call
+directly from either callback.
+
+Two consequences:
+
+- An entity created by a script runs its `on_start` immediately and its first
+  `on_update` on the **next** frame — it is not in this frame's snapshot.
+- An entity removed by an earlier script this frame is skipped when its turn
+  comes. That is not an error.
+
+### R3 — Entity handles go stale, and that is the only thing you may keep
+
+`state` is the only place for per-entity script data, and an `Entity` is the
+only piece of the scene that may go in it. Handles are safe to keep because ids
+are never reused — a stale handle stays stale and can never come to mean a
+different entity.
+
+Test before use. `remove_entity` on something already gone still raises:
+
+```lua
+for i = #state.spawned, 1, -1 do
+    if not state.spawned[i]:is_valid() then
+        table.remove( state.spawned, i )
     end
 end
 ```
 
-This is a known engine limitation, not a style preference. If you are working on
-the engine rather than a script, see the note at the end of this file.
-
-### R3 — `remove_entity` is one-shot
-
-Removing an entity that is already gone raises an error. Entity handles held in
-`state` across frames go stale. There is no `is_valid` binding yet, so track
-removal in your own state rather than retrying.
-
 ### R4 — Component references do not survive a structural change
 
-`local t = entity:get_transform()` is a reference into a component pool. Adding
-or removing *any* component of that type, on any entity, can move it. Fetch it
-again after any such change rather than holding it across one.
+```lua
+state.target = entity                    -- yes
+state.t      = entity:get_transform()    -- NO: pointer into a pool
+```
+
+Every `get_*` returns `T&`, which sol pushes as a pointer into the pool's
+buffer. Re-fetch each time rather than holding one across anything that can add
+or remove a component — on any entity, not just this one.
+
+**The trap is that it depends on the field's type.** A primitive field comes
+back as a Lua number/string/boolean, which is a copy. A usertype field (`vec3`,
+`mat4`) comes back as a reference into the component, so `t.position.x = 5`
+writes through. The two lines look identical:
+
+```lua
+state.b = entity:get_light().brightness    -- f32  -> number, a copy.       safe
+state.c = entity:get_light().color         -- vec3 -> reference into pool.  UNSAFE
+state.c = vec3( entity:get_light().color ) -- explicit copy.                safe
+```
+
+And the `Entity` shorthands are properties returning **by value**, unlike the
+same-named fields reached through `get_transform()`:
+
+```lua
+state.p = entity.position                  -- vec3 copy.                     safe
+state.p = entity:get_transform().position  -- reference into pool.           UNSAFE
+```
+
+**Safe to keep in `state`:** entity handles · numbers, strings, tables ·
+`entity.position` / `.rotation` / `.scale` · explicit `vec3(...)` / `mat4(...)`
+copies · primitive component fields · `Ref`s from `load_model` / `load_shader` /
+`load_sound`.
+
+**Never:** anything returned by `entity:get_*()` · any usertype field reached
+through one · anything from a `for_each_entity` `comps` table.
 
 ## API rules
 
@@ -136,9 +203,9 @@ again after any such change rather than holding it across one.
 - Adding a `RigidBody` or `CharacterController` component to an entity that
   already has one replaces it and re-registers it with the physics world. This
   is handled, but it is not free — do not do it per frame.
-- There are no `add_script` / `get_script` / `has_script`
-  bindings, and no `remove_*` bindings at all. Scripts cannot attach
-  scripts or detach components.
+- `entity:add_script( path )` exists and attaches a `StateComponent` too, then
+  runs `on_start` immediately. There is no `get_script` / `has_script`, and no
+  `remove_*` bindings at all — scripts cannot detach a component.
 - Input keys are one flat namespace: `is_key_pressed` takes either a
   `KeyboardKey.*` or a `MouseKey.*` value and dispatches on the numeric range.
 
@@ -161,9 +228,24 @@ Run `python tools/check_lua_api_docs.py` to check the doc against the bindings.
 
 ## If you are changing the engine, not writing a script
 
-R2 is the open one. The engine invokes `on_update` from inside
-`ForEach<StateComponent, ScriptComponent>` in `Engine::OnUpdate`, which is what
-makes script-driven mutation unsafe. The candidate fixes are: snapshot the
-entity list and run scripts after the iteration ends; add a deferred mutation
-queue flushed at a frame boundary; or have `for_each_entity` pass entities rather
-than component pointers. None is implemented.
+`Engine::OnUpdate` no longer walks the scene live to call scripts. It fills
+`mScriptEntities` from `ForEach<StateComponent, ScriptComponent>` first, then
+iterates that snapshot, re-checking `HasEntity`/`HasComponent` and re-fetching
+both components per entity. The `sol::protected_function` is copied out before
+the call, because the callable itself lives in the ScriptComponent pool and a
+script that spawns something carrying a script would otherwise free it mid-call.
+
+Any new per-entity callback that runs user code has to follow the same pattern.
+A live `ForEach` is only safe when nothing it calls can touch the scene.
+
+`for_each_entity` is the remaining gap. It hands raw component pointers into a
+reused table (R1) and walks the pools live (R2). Fixing it means passing
+entities rather than component pointers, so the script re-fetches through the
+normal accessors — which costs a lookup per component and would change every
+script that uses it.
+
+R4 is not fixable by the engine without changing what the accessors return. The
+bindings expose usertype members with raw member pointers
+(`"position", &TransformComponent::mPosition`), and sol returns those by
+reference on purpose — it is what makes `t.position.x = 5` write through. Making
+them copies would break every script that mutates a component in place.

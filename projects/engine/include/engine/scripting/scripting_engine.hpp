@@ -32,8 +32,14 @@ ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& scri
 
 // Run one script's on_start, reporting which script and entity failed. Shared
 // by engine startup and by a script attached at runtime.
-void CallScriptOnStart( const sol::protected_function& onStart,
-                        const Ref<Script>& script,
+// onStart and script are taken BY VALUE on purpose. Every caller reaches them
+// through a ScriptComponent, which lives in a component pool, and on_start is
+// free to spawn or to call add_script - either of which pushes into that same
+// pool, reallocating it and freeing the callable while it is executing. The
+// copies are a second reference to the same Lua function and a second count on
+// the script, and they own their lifetime for the duration of the call.
+void CallScriptOnStart( sol::protected_function onStart,
+                        Ref<Script> script,
                         recs::Entity entity,
                         const Any& state );
 

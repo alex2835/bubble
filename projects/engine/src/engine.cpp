@@ -121,14 +121,31 @@ void Engine::OnStart( const path& projectRootFile )
     // on_start runs only once every script has been extracted and every global
     // is in place, so the first script to start already sees the whole API and
     // whatever the others put in global_state.
+    //
+    // Over a snapshot, for the same reason OnUpdate uses one: on_start is a
+    // natural place to build a level, and spawning pushes into the very pools a
+    // live ForEach would be walking. An entity created here has already had its
+    // own on_start run by spawn, so leaving it out of this pass is correct.
+    mScriptEntities.clear();
     mProject.mScene.ForEach<StateComponent, ScriptComponent>(
-    []( Entity entity,
-        const StateComponent& stateComponent,
-        const ScriptComponent& scriptComponent )
+    [this]( Entity entity, const StateComponent&, const ScriptComponent& )
     {
+        mScriptEntities.push_back( entity );
+    } );
+
+    for ( const Entity entity : mScriptEntities )
+    {
+        if ( not mProject.mScene.HasEntity( entity ) or
+             not mProject.mScene.HasComponent<StateComponent>( entity ) or
+             not mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+            continue;
+
+        const StateComponent& stateComponent = mProject.mScene.GetComponent<StateComponent>( entity );
+        const ScriptComponent& scriptComponent = mProject.mScene.GetComponent<ScriptComponent>( entity );
+
         CallScriptOnStart( scriptComponent.mOnStart, scriptComponent.mScript,
                            entity, *stateComponent.mState );
-    } );
+    }
 
     // Last, so neither loading the project nor running on_start counts against
     // the clock scripts read, and so the first frame's delta is measured from
@@ -175,28 +192,72 @@ void Engine::OnUpdate()
     /// Update Scripts
     const f32 deltaSeconds = dt.Seconds();
 
-    // Call scripts
+    // Call scripts, over a snapshot of the entities rather than a live walk.
+    //
+    // ForEach hands its callback references straight into the component pools
+    // and walks them by index, so a script that mutates the scene pulls the
+    // ground out from under the iteration it is running inside: Pool::Push
+    // reallocates and frees the old buffer, and Pool::Remove compacts every
+    // pool and shifts every index after the hole. Taking the entity list first
+    // and looking each entity up again is what makes spawn() and
+    // remove_entity() safe to call from on_update.
+    //
+    // The snapshot is also the definition of which scripts run this frame: an
+    // entity created by a script gets its on_start now and its first on_update
+    // on the next tick, rather than a partial one in the middle of this one.
+    mScriptEntities.clear();
     mProject.mScene.ForEach<StateComponent, ScriptComponent>(
-    [deltaSeconds]( Entity entity,
-        const StateComponent& stateComponent,
-        const ScriptComponent& scriptComponent )
+    [this]( Entity entity, const StateComponent&, const ScriptComponent& )
     {
-        if ( scriptComponent.mOnUpdate )
-        {
-            sol::protected_function_result result =
-                scriptComponent.mOnUpdate( entity, *stateComponent.mState, deltaSeconds );
-            if ( !result.valid() )
-            {
-                const sol::error err = result;
-                const string name = scriptComponent.mScript ? scriptComponent.mScript->mName
-                                                            : string( "<unknown>" );
-                const string path = scriptComponent.mScript ? scriptComponent.mScript->mPath.string()
-                                                            : string( "<no path>" );
-                throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
-                                                       name, (u64)entity, err.what(), path ) );
-            }
-        }
+        mScriptEntities.push_back( entity );
     });
+
+    for ( const Entity entity : mScriptEntities )
+    {
+        // An earlier script this frame may have removed the entity, or taken a
+        // component off it. Neither is an error - it just has nothing to run.
+        if ( not mProject.mScene.HasEntity( entity ) or
+             not mProject.mScene.HasComponent<StateComponent>( entity ) or
+             not mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+            continue;
+
+        // Looked up per entity and never held across a call: any script may
+        // have moved both pools since the snapshot was taken.
+        const StateComponent& stateComponent = mProject.mScene.GetComponent<StateComponent>( entity );
+        const ScriptComponent& scriptComponent = mProject.mScene.GetComponent<ScriptComponent>( entity );
+        if ( not scriptComponent.mOnUpdate )
+            continue;
+
+        // By value. The callable lives in the ScriptComponent pool, so a script
+        // that spawns something carrying a script - or calls add_script - would
+        // otherwise free the function object while it is executing. The copy is
+        // a second reference to the same Lua function and owns its own lifetime
+        // for the duration of the call.
+        const sol::protected_function onUpdate = scriptComponent.mOnUpdate;
+
+        sol::protected_function_result result =
+            onUpdate( entity, *stateComponent.mState, deltaSeconds );
+        if ( !result.valid() )
+        {
+            const sol::error err = result;
+
+            // Re-fetched rather than held across the call, for the same reason
+            // the callable was copied. On the error path the cost is irrelevant.
+            string name = "<unknown>";
+            string path = "<no path>";
+            if ( mProject.mScene.HasComponent<ScriptComponent>( entity ) )
+            {
+                const Ref<Script>& script = mProject.mScene.GetComponent<ScriptComponent>( entity ).mScript;
+                if ( script )
+                {
+                    name = script->mName;
+                    path = script->mPath.string();
+                }
+            }
+            throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
+                                                   name, (u64)entity, err.what(), path ) );
+        }
+    }
 
     // Propagations that start at a transform: consumers, so they run after the
     // scripts. Anything here that ran before them was reading transforms one

@@ -263,6 +263,16 @@ void CreateSceneBindings( Scene& scene,
         "get_state",
         [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
+        // Whether this handle still names a live entity.
+        //
+        // Entity ids come from a counter and are never reused, so a handle that
+        // has gone stale stays stale - it can never quietly start referring to
+        // a different entity. That is what makes it safe for a script to keep
+        // handles in `state` across frames and test them here, which is the
+        // only supported way to hold on to anything from the scene.
+        "is_valid",
+        [&]( const Entity& entity ) -> bool { return scene.HasEntity( entity ); },
+
         // Has
         "has_tag",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<TagComponent>( entity ); },
