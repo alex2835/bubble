@@ -572,6 +572,7 @@ disk rather than held decoded in memory.
 
 ```lua
 play_sound( path )                        -- 2D, full volume
+play_sound( path, volume )                -- 2D, at a volume
 play_sound( path, position )              -- spatialized at a vec3
 play_sound( path, position, volume )
 
@@ -682,6 +683,7 @@ m = scale( m, size )
 | Raycasts, `set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
 | Input and key enums | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
+| `Sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
 | `print_any` | `projects/engine/src/scripting/bindings/free_function_lua_bindings.cpp` |
 | Math | `deps/glm_lua_bindings/src/` |
 | `global_state`, `dt`, camera | `projects/engine/src/engine.cpp` |

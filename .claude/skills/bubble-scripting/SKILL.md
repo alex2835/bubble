@@ -221,6 +221,7 @@ disagree, the source wins and the doc is stale:
 | Raycasts, `RigidBody:set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
 | Keyboard/mouse, key enums, cursor control | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
+| `Sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
 | `vec2/3/4`, `mat2/3/4`, math helpers | `deps/glm_lua_bindings/src/` |
 | `dt`, `global_state`, active camera, `on_start` / `on_update` dispatch | `projects/engine/src/engine.cpp` (`OnStart` / `OnUpdate`) |
 

@@ -13,6 +13,7 @@
 #include "engine/window/window.hpp"
 #include "engine/scripting/bindings/window_input_bindings.hpp"
 #include "engine/scripting/bindings/loader_lua_bindings.hpp"
+#include "engine/scripting/bindings/audio_lua_bindings.hpp"
 #include "engine/scripting/bindings/free_function_lua_bindings.hpp"
 #include "glm_lua_bindings.hpp"
 #include <sol/sol.hpp>
@@ -66,6 +67,10 @@ void ScriptingEngine::BindLoader( Loader& loader )
 {
     mLoader = &loader;
     CreateLoaderBindings( loader, *mLua );
+    // Here and not in its own Bind step: play_sound is addressed by path and
+    // resolves it through this loader, so the audio bindings have exactly the
+    // dependency this function is about.
+    CreateAudioBindings( loader, *mLua );
 }
 
 // Held by reference: Engine declares mTimer before mProject, so the timer
