@@ -12,8 +12,7 @@ public:
     void Execute( Command command );
 
     // Remember without applying: for an edit an immediate-mode widget has
-    // already written into the document while it was being dragged. The
-    // command's Execute is what redo will call.
+    // already written into the document while it was being dragged.
     void Record( Command command );
 
     void Undo();

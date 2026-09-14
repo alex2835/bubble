@@ -2,6 +2,7 @@
 // move, components - applied, undone and redone.
 #include "test.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/editing/property_command.hpp"
 #include <sol/sol.hpp>
 
 TEST( CreateUndoRedo )
@@ -129,4 +130,29 @@ TEST( NewEditForksRedo )
     f.Create( ProjectTreeNodeType::Camera );
     CHECK( not f.history.CanRedo() );
     CHECK( f.root->mChildren.size() == 1 );
+}
+
+TEST( CopyRedoKeepsIds )
+{
+    Fixture f;
+    auto light = f.Create( ProjectTreeNodeType::Light );
+
+    f.history.Execute( CreateScope<CopyNodeCommand>( light, f.root, f.scene ) );
+    CHECK( f.root->mChildren.size() == 2 );
+    const auto pasted = f.root->mChildren[1];
+    const Entity pastedEntity = pasted->AsEntity();
+    CHECK( pastedEntity != light->AsEntity() );
+
+    // An edit on the copy, then undo past the paste and redo back over it
+    using SetPos = SetPropertyCommand<TransformComponent, vec3>;
+    f.history.Execute( CreateScope<SetPos>( f.scene, pastedEntity, "Transform.Position", vec3( 1, 2, 3 ), vec3( 7 ),
+                                            []( TransformComponent& c, const vec3& v ) { c.mPosition = v; } ) );
+    f.history.Undo(); // position
+    f.history.Undo(); // paste
+    CHECK( not f.scene.HasEntity( pastedEntity ) and f.root->mChildren.size() == 1 );
+    f.history.Redo(); // paste: same node, same entity id
+    CHECK( f.root->mChildren.size() == 2 and f.root->mChildren[1] == pasted );
+    CHECK( pasted->AsEntity() == pastedEntity and f.scene.HasEntity( pastedEntity ) );
+    f.history.Redo(); // position lands on the copy again
+    CHECK( f.scene.GetComponent<TransformComponent>( pastedEntity ).mPosition == vec3( 7 ) );
 }

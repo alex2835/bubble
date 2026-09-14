@@ -61,6 +61,8 @@ private:
     map<Entity, Entity> mEntityMapping;
 };
 
+// The copy is made once; undo parks its entities and redo brings them
+// back under their ids, like a delete in reverse.
 class CopyNodeCommand : public ICommand
 {
 public:
@@ -69,12 +71,15 @@ public:
     string_view Name() const override { return "Copy node"sv; }
     void Execute() override;
     void Undo() override;
+    void Redo() override;
 
 private:
     Ref<ProjectTreeNode> mSourceNode;
     Ref<ProjectTreeNode> mTargetParent;
     Ref<ProjectTreeNode> mCopiedNode;
     Scene& mScene;
+    Scene mBackupScene;
+    map<Entity, Entity> mEntityMapping;
 };
 
 // A new node under `parent`, of one of the kinds the tree knows. For the
@@ -91,8 +96,9 @@ public:
                        const Transform& spawnAt );
 
     string_view Name() const override { return mName; }
-    void Execute() override;
-    void Undo() override;
+    void Execute() override; // makes the node and its entity
+    void Undo() override;    // parks the entity
+    void Redo() override;    // brings it back under the same id
     ~CreateNodeCommand() override;
 
     Ref<ProjectTreeNode> GetCreatedNode() const { return mCreatedNode; }

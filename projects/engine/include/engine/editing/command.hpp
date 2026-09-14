@@ -23,9 +23,16 @@ public:
     // What the undo history shows for this step.
     virtual string_view Name() const = 0;
 
-    // Apply. Also what redo calls, so it must work again after Undo.
+    // Apply, the first time.
     virtual void Execute() = 0;
     virtual void Undo() = 0;
+
+    // Apply again after an Undo. For most commands that is Execute over
+    // again - setting a value, reparenting a node. A command that *makes*
+    // something overrides it: the first Execute hands out a new entity id,
+    // and a redo must bring the same id back, because every later step in
+    // the history names the entity by it.
+    virtual void Redo() { Execute(); }
 };
 
 using Command = Scope<ICommand>;

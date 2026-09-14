@@ -157,13 +157,17 @@ void CopyNodeCommand::Undo()
 {
     if ( not mCopiedNode or not mTargetParent )
         return;
+    ParkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
     EraseFrom( mTargetParent, mCopiedNode );
+}
 
-    set<Entity> entities;
-    FillEntitiesInSubTree( entities, mCopiedNode );
-    const vector<Entity> removeList( entities.begin(), entities.end() );
-    mScene.RemoveEntities( removeList );
-    mCopiedNode = nullptr;
+void CopyNodeCommand::Redo()
+{
+    if ( not mCopiedNode or not mTargetParent )
+        return;
+    UnparkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
+    mCopiedNode->mParent = mTargetParent;
+    mTargetParent->mChildren.push_back( mCopiedNode );
 }
 
 /// CreateNodeCommand
@@ -253,20 +257,26 @@ void CreateNodeCommand::Execute()
     if ( not mParent )
         return;
 
-    Scene& scene = mProject.mLevel.mScene;
-    if ( not mCreatedNode )
+    mCreatedNode = CreateRef<ProjectTreeNode>( mProject.mLevel.mNodeIDCounter );
+    mCreatedNode->mType = mType;
+    if ( mType == ProjectTreeNodeType::Folder )
+        mCreatedNode->mState = "folder"s;
+    else
+        mCreatedNode->mState = CreateEntityFor( mType, mProject, mSpawnAt );
+
+    mCreatedNode->mParent = mParent;
+    mParent->mChildren.push_back( mCreatedNode );
+}
+
+void CreateNodeCommand::Redo()
+{
+    if ( not mCreatedNode or not mParent )
+        return;
+
+    if ( mBackupEntity != INVALID_ENTITY )
     {
-        // First time: make the node, and the entity behind it.
-        mCreatedNode = CreateRef<ProjectTreeNode>( mProject.mLevel.mNodeIDCounter );
-        mCreatedNode->mType = mType;
-        if ( mType == ProjectTreeNodeType::Folder )
-            mCreatedNode->mState = "folder"s;
-        else
-            mCreatedNode->mState = CreateEntityFor( mType, mProject, mSpawnAt );
-    }
-    else if ( mBackupEntity != INVALID_ENTITY )
-    {
-        // Redo: the entity waited in the backup under its original id.
+        // The entity waited in the backup under its original id.
+        Scene& scene = mProject.mLevel.mScene;
         mCreatedNode->mState = mBackupScene.CopyEntityIntoWithId( scene, mBackupEntity, (size_t)mBackupEntity );
         mBackupScene.RemoveEntity( mBackupEntity );
         mBackupEntity = INVALID_ENTITY;

@@ -39,7 +39,7 @@ void History::Redo()
         return;
     auto command = std::move( mRedoStack.back() );
     mRedoStack.pop_back();
-    command->Execute();
+    command->Redo();
     mUndoStack.push_back( std::move( command ) );
 }
 
