@@ -25,6 +25,7 @@ constexpr string_view SCENE_CAMERA_TEXTURE = "./resources/images/scene/camera.pn
 constexpr string_view SCENE_POINT_LIGHT_TEXTURE = "./resources/images/scene/pointlight.png"sv;
 constexpr string_view SCENE_SPOT_LIGHT_TEXTURE = "./resources/images/scene/spotlight.png"sv;
 constexpr string_view SCENE_DIR_LIGHT_TEXTURE = "./resources/images/scene/dirlight.png"sv;
+constexpr string_view SCENE_AUDIO_TEXTURE = "./resources/images/scene/audio.png"sv;
 // shader paths
 constexpr string_view ENTITY_PICKING_SHADER = "./resources/shaders/object_picking"sv; // Object id shader to select entity from screen
 constexpr string_view ENTITY_PICKING_BILLBOARD_SHADER = "./resources/shaders/object_picking_billboard"sv;

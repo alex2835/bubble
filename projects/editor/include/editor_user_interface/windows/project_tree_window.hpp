@@ -37,6 +37,7 @@ private:
     Ref<Texture2D> mCameraIcon;
     Ref<Texture2D> mPlayerIcon;
     Ref<Texture2D> mScriptIcon;
+    Ref<Texture2D> mAudioIcon;
 };
 
 }

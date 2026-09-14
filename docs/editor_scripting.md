@@ -38,7 +38,7 @@ Where an argument is optional, the default comes from the selection.
 
 | Operator | Arguments | |
 |---|---|---|
-| `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`), `parent?` node id, `spawn_at?` vec3 | Creates and selects. |
+| `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`, `Audio`), `parent?` node id, `spawn_at?` vec3 | Creates and selects. |
 | `scene.delete` | | The selection. |
 | `scene.cut`, `scene.copy` | | The selected tree node. |
 | `scene.paste` | `parent?` node id | Cut moves, copy duplicates. |

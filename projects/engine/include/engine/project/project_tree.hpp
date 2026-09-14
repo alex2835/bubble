@@ -20,6 +20,7 @@ enum class ProjectTreeNodeType
     Camera,
     Script,
     Light,
+    Audio,
 };
 
 struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>

@@ -68,6 +68,7 @@ ProjectTreeWindow::ProjectTreeWindow( BubbleEditor& editor )
     mCameraIcon = LoadTexture2D( "./resources/images/icons/camera.png" );
     mPlayerIcon = LoadTexture2D( "./resources/images/icons/player.png" );
     mScriptIcon = LoadTexture2D( "./resources/images/icons/script.png" );
+    mAudioIcon = LoadTexture2D( "./resources/images/icons/audio.png" );
 }
 
 ProjectTreeWindow::~ProjectTreeWindow()
@@ -104,6 +105,8 @@ const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<Proje
             return mLightIcon;
         case ProjectTreeNodeType::Script:
             return mScriptIcon;
+        case ProjectTreeNodeType::Audio:
+            return mAudioIcon;
     }
     throw std::runtime_error( std::format( "Invalid enum type {}", (u32)node->Type() ) );
 }
@@ -146,6 +149,7 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
             { "Create Script",         ProjectTreeNodeType::Script },
             { "Create Light",          ProjectTreeNodeType::Light },
             { "Create Camera",         ProjectTreeNodeType::Camera },
+            { "Create Audio",          ProjectTreeNodeType::Audio },
         };
         for ( const auto& [label, type] : kinds )
         {
@@ -204,6 +208,7 @@ void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSe
         case ProjectTreeNodeType::Camera:
         case ProjectTreeNodeType::Script:
         case ProjectTreeNodeType::Light:
+        case ProjectTreeNodeType::Audio:
         {
             ImGui::Image( (ImTextureID)icon->ImTextureId(), ImVec2{ 18, 18 } );
             ImGui::SameLine();

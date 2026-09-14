@@ -132,6 +132,7 @@ public:
     Ref<Texture2D> mScenePointLightTexture;
     Ref<Texture2D> mSceneSpotLightTexture;
     Ref<Texture2D> mSceneDirLightTexture;
+    Ref<Texture2D> mSceneAudioTexture;
 
     // Error values
     Ref<Texture2D> mErrorTexture;

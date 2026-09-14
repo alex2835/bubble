@@ -44,6 +44,17 @@ bool isShaderFile( const filesystem::directory_entry& item )
     return false;
 }
 
+// The decoders miniaudio builds in by default. Vorbis is not among them.
+bool isSoundFile( const filesystem::directory_entry& item )
+{
+    const auto& extension = item.path().extension();
+    if ( extension == ".wav" or
+         extension == ".mp3" or
+         extension == ".flac" )
+        return true;
+    return false;
+}
+
 FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 {
     if ( item.is_directory() )
@@ -60,6 +71,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
             return FilesystemNodeType::Script;
         else if ( isShaderFile( item ) )
             return FilesystemNodeType::Shader;
+        else if ( isSoundFile( item ) )
+            return FilesystemNodeType::Sound;
         else if ( item.path().extension() == LEVEL_FILE_EXT )
             return FilesystemNodeType::Level;
     }
@@ -116,6 +129,10 @@ void ProjectFilesWindow::LoadResources( const FilesystemNode& node )
     else if ( node.mType == FilesystemNodeType::Shader )
     {
         mProject.mLoader.LoadShader( node.mPath );
+    }
+    else if ( node.mType == FilesystemNodeType::Sound )
+    {
+        mProject.mLoader.LoadSound( node.mPath );
     }
 
     for ( const auto& child : node.mChildren )

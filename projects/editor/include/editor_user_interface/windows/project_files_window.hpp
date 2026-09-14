@@ -13,7 +13,8 @@ enum class FilesystemNodeType
     Script,
     Texture,
     Shader,
-    Level
+    Level,
+    Sound
 };
 
 struct FilesystemNode

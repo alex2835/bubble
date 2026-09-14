@@ -244,6 +244,15 @@ Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& pr
             scene.AddComponent<CameraComponent>( entity );
             return entity;
         }
+        case ProjectTreeNodeType::Audio:
+        {
+            const auto entity = scene.CreateEntity();
+            scene.AddComponent<TagComponent>( entity, "Audio" );
+            scene.AddComponent<TransformComponent>( entity, spawnAt );
+            scene.AddComponent<AudioSourceComponent>( entity )
+                 .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );
+            return entity;
+        }
         case ProjectTreeNodeType::Root:
         case ProjectTreeNodeType::Folder:
             return INVALID_ENTITY;

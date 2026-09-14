@@ -28,6 +28,7 @@ Engine::Engine( Window& window )
       mScenePointLightTexture( LoadTexture2D( SCENE_POINT_LIGHT_TEXTURE ) ),
       mSceneSpotLightTexture( LoadTexture2D( SCENE_SPOT_LIGHT_TEXTURE ) ),
       mSceneDirLightTexture( LoadTexture2D( SCENE_DIR_LIGHT_TEXTURE ) ),
+      mSceneAudioTexture( LoadTexture2D( SCENE_AUDIO_TEXTURE ) ),
 
       // Error values
       mErrorModel( LoadModel( ERROR_MODEL ) ),
@@ -803,6 +804,16 @@ void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene 
             DrawBillboard( target, lightTexture, mBillboardShader,
                            transformComponent.mPosition, cBillboardSize, cBillboardTint );
         } );
+
+        // Audio source icons (billboards)
+        scene.ForEach<AudioSourceComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const AudioSourceComponent& audioComponent,
+                 const TransformComponent& transformComponent )
+        {
+            DrawBillboard( target, mSceneAudioTexture, mBillboardShader,
+                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+        } );
     } );
 }
 
@@ -849,6 +860,17 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
         scene.ForEach<LightComponent, TransformComponent>(
             [&]( const Entity entity,
                  const LightComponent& lightComponent,
+                 const TransformComponent& transformComponent )
+        {
+            DrawBillboard( target, nullptr, mEntityIdBillboardShader,
+                           transformComponent.mPosition, cBillboardSize,
+                           vec4( 1.0f ), (u32)entity );
+        } );
+
+        // Draw audio source billboards
+        scene.ForEach<AudioSourceComponent, TransformComponent>(
+            [&]( const Entity entity,
+                 const AudioSourceComponent& audioComponent,
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, nullptr, mEntityIdBillboardShader,
