@@ -13,6 +13,11 @@ public:
     // Clear all selection
     void Clear();
 
+    // Drop whatever no longer exists: an entity gone from the scene, a node
+    // gone from the tree. Undo and redo move things in and out of the level
+    // under the selection, so this runs after each of them.
+    void Prune( const Scene& scene, const Ref<ProjectTreeNode>& root );
+
     // Select a tree node (clears previous selection and fills entities from node)
     void SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& scene );
 

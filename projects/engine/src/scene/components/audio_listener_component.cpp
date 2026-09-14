@@ -8,10 +8,10 @@
 
 namespace bubble
 {
-void AudioListenerComponent::OnComponentDraw( const Project& project, const Entity& entity, AudioListenerComponent& component )
+void AudioListenerComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, AudioListenerComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "AudioListenerComponent" );
-    ImGui::Checkbox( "Active", &component.mActive );
+    CheckboxField<AudioListenerComponent>( ctx, entity, "Active", &AudioListenerComponent::mActive );
     ImGui::TextWrapped( "Position and orientation come from this entity's TransformComponent." );
 }
 

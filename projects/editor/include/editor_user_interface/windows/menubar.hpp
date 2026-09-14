@@ -18,6 +18,7 @@ public:
     void ModalCreateProject();
     void ModalOpenProject();
     void ModalNewLevel();
+    void DrawEditMenu();
     void DrawLevelsMenu();
     void DrawInterfaceMenu();
     void DrawSettingsMenu();

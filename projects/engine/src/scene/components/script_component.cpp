@@ -12,23 +12,16 @@
 
 namespace bubble
 {
-void ScriptComponent::OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& scriptComponent )
+void ScriptComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, ScriptComponent& scriptComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
 
-    auto scriptComponentName = scriptComponent.mScript ?
-        scriptComponent.mScript->mName.c_str() :
-        "Not selected";
-    if ( ImGui::BeginCombo( "scripts", scriptComponentName ) )
-    {
-        for ( const auto& [scriptPath, shader] : project.mLoader.mScripts )
-        {
-            auto scriptName = scriptPath.stem().string();
-            if ( ImGui::Selectable( scriptName.c_str(), scriptName == scriptComponentName ) )
-                scriptComponent = shader;
-        }
-        ImGui::EndCombo();
-    }
+    const auto& script = scriptComponent.mScript;
+    ComboProperty<ScriptComponent>( ctx, entity, "scripts", script, script ? script->mName.c_str() : "Not selected",
+                                    ctx.mProject.mLoader.mScripts,
+                                    []( const auto& entry ) { return entry.first.stem().string(); },
+                                    []( const auto& entry ) { return entry.second; },
+                                    []( ScriptComponent& c, const Ref<Script>& v ) { c = v; } );
 }
 
 void ScriptComponent::ToJson( json& json, const Project& project, const ScriptComponent& scriptComponent )

@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/types/set.hpp"
 #include "engine/project/project_tree.hpp"
+#include "engine/types/json.hpp"
 #include "editor_user_interface/windows/window_base.hpp"
 
 namespace bubble
@@ -18,9 +19,9 @@ public:
 private:
     const Ref<Texture2D>& GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node );
     void SetSelectionByNode( const Ref<ProjectTreeNode>& node );
-    void RemoveSelected();
 
     void DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected = false );
+    void Invoke( const char* op, const json& args );
     void DrawCreateEntityPopup( Ref<ProjectTreeNode>& node );
 
     void DrawSelectedEntityComponents();

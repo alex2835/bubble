@@ -13,43 +13,22 @@
 
 namespace bubble
 {
-void CameraComponent::OnComponentDraw( const Project& project, const Entity& entity, CameraComponent& cameraComponent )
+void CameraComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
 
-    // Position
-    //ImGui::DragFloat3( "Position", &cameraComponent.mPosition.x, 0.1f );
+    CheckboxField<CameraComponent>( ctx, entity, "Use Transform Propagation", &CameraComponent::mUseTransformPropagation );
 
-    // Direction vectors (read-only)
-    //ImGui::Text( "Forward: (%.2f, %.2f, %.2f)",
-    //             cameraComponent.mForward.x,
-    //             cameraComponent.mForward.y,
-    //             cameraComponent.mForward.z );
-    //ImGui::Text( "Up: (%.2f, %.2f, %.2f)",
-    //             cameraComponent.mUp.x,
-    //             cameraComponent.mUp.y,
-    //             cameraComponent.mUp.z );
-    //ImGui::Text( "Right: (%.2f, %.2f, %.2f)",
-    //             cameraComponent.mRight.x,
-    //             cameraComponent.mRight.y,
-    //             cameraComponent.mRight.z );
+    // Clipping planes. Each is clamped by the other, so the bounds are read
+    // fresh rather than baked into the step.
+    DragFloatField<CameraComponent>( ctx, entity, "Near", &CameraComponent::mNear, 0.01f, 0.01f, cameraComponent.mFar );
+    DragFloatField<CameraComponent>( ctx, entity, "Far", &CameraComponent::mFar, 1.0f, cameraComponent.mNear, 10000.0f );
 
-    // Euler angles
-    //ImGui::DragFloat( "Yaw", &cameraComponent.mYaw, 0.01f );
-    //ImGui::DragFloat( "Pitch", &cameraComponent.mPitch, 0.01f );
+    SliderFloatField<CameraComponent>( ctx, entity, "FOV", &CameraComponent::mFov, 0.1f, 3.14f );
 
-    // Clipping planes
-    ImGui::Checkbox( "Use Transform Propagation", &cameraComponent.mUseTransformPropagation );
-    ImGui::DragFloat( "Near", &cameraComponent.mNear, 0.01f, 0.01f, cameraComponent.mFar );
-    ImGui::DragFloat( "Far", &cameraComponent.mFar, 1.0f, cameraComponent.mNear, 10000.0f );
-
-    // Field of view
-    ImGui::SliderFloat( "FOV", &cameraComponent.mFov, 0.1f, 3.14f );
-
-    // Speed settings
-    ImGui::DragFloat( "Max Speed", &cameraComponent.mMaxSpeed, 0.1f, 0.0f, 100.0f );
-    ImGui::DragFloat( "Mouse Sensitivity", &cameraComponent.mMouseSensitivity, 0.1f, 0.1f, 10.0f );
-    ImGui::DragFloat( "Radius", &cameraComponent.mRadius, 0.1f, 0.1f, 100.0f );
+    DragFloatField<CameraComponent>( ctx, entity, "Max Speed", &CameraComponent::mMaxSpeed, 0.1f, 0.0f, 100.0f );
+    DragFloatField<CameraComponent>( ctx, entity, "Mouse Sensitivity", &CameraComponent::mMouseSensitivity, 0.1f, 0.1f, 10.0f );
+    DragFloatField<CameraComponent>( ctx, entity, "Radius", &CameraComponent::mRadius, 0.1f, 0.1f, 100.0f );
 
     // Update camera vectors when angles change
     cameraComponent.EulerAnglesToVectors();

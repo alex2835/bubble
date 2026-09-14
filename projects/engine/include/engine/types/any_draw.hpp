@@ -1,13 +1,13 @@
 #pragma once
-#include "engine/types/any.hpp"
+#include "engine/editing/edit_context.hpp"
+#include "engine/editing/lua_value_command.hpp"
 
 namespace bubble
 {
-class Project;
-
-// ImGui editor for a value: scalars inline, tables as trees with add/remove.
-// `frozen` shows without editing.
-void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen = false );
-Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen = false );
+// ImGui inspector for a component's Lua table: scalars inline, tables as
+// trees with add/remove. Every edit is a SetLuaValueCommand on `ctx`'s
+// history. `fixedKeys` keeps the set of keys as it is (a shader's uniforms
+// are the shader's to decide) and only lets the values change.
+void DrawLuaTable( EditContext& ctx, const LuaTableRoot& root, bool fixedKeys = false );
 
 }

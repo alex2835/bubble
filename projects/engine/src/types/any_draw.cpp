@@ -2,6 +2,8 @@
 #include "engine/types/any_draw.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/imgui_utils.hpp"
+#include "engine/editing/edit_tracking.hpp"
+#include "engine/editing/history.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/loader/loader.hpp"
@@ -11,9 +13,65 @@
 
 namespace bubble
 {
-void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bool frozen )
+namespace
 {
-    if ( frozen )
+constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
+                             ImGuiTreeNodeFlags_SpanAllColumns |
+                             ImGuiTreeNodeFlags_Framed;
+
+struct DrawCtx
+{
+    EditContext& mCtx;
+    const LuaTableRoot& mRoot;
+    bool mFixedKeys;
+
+    Project& Project() const { return mCtx.mProject; }
+    sol::state& Lua() const { return *mCtx.mProject.mScriptingEngine.mLua; }
+};
+
+Any Nil() { return Any( sol::lua_nil ); }
+
+LuaPath Append( LuaPath path, LuaKey key )
+{
+    path.push_back( std::move( key ) );
+    return path;
+}
+
+LuaKey KeyOf( const sol::object& k )
+{
+    if ( k.is<int>() )
+        return k.as<int>();
+    return k.as<string>();
+}
+
+// One value with a widget over a copy: the live table follows the widget at
+// once, the undo step is recorded once per interaction.
+template <typename T, typename Widget>
+void Leaf( const DrawCtx& c, const LuaPath& path, const T& current, Widget&& widget )
+{
+    T value = current;
+    const T before = value;
+    const bool changed = widget( value );
+    if ( changed )
+        SetLuaValue( c.mRoot, path, Any( value ) );
+
+    edit_detail::TrackEdit( changed, before, value, [&]( const T& from, const T& to )
+    {
+        c.mCtx.mHistory.Record( CreateScope<SetLuaValueCommand>( c.mRoot, path, Any( from ), Any( to ) ) );
+    } );
+}
+
+// A one-shot structural change: a key added or removed.
+void Set( const DrawCtx& c, const LuaPath& path, const Any& from, const Any& to )
+{
+    c.mCtx.mHistory.Execute( CreateScope<SetLuaValueCommand>( c.mRoot, path, from, to ) );
+}
+
+void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const Any& any );
+
+void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, string_view scopeName )
+{
+    if ( c.mFixedKeys )
         return;
 
     const auto isEmpty = table.empty();
@@ -49,47 +107,69 @@ void DrawFieldsAdding( Project& project, Table& table, string_view scopeName, bo
     auto typeLabel = std::format( "##type_{}", scopeName );
     ImGui::Combo( typeLabel.c_str(), &selectedType, types.data() );
 
-    if ( addValue )
+    if ( not addValue or fieldName.empty() )
+        return;
+
+    const LuaKey entryKey = isArray ? LuaKey( newId ) : LuaKey( fieldName );
+
+    enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, TableT, Texture2D, EntityT };
+    Any value = Nil();
+    switch ( selectedType )
     {
-        if ( fieldName.empty() )
-            return;
-
-        sol::state_view lua = table.lua_state();
-        auto entryKey = isArray ? sol::object( lua, sol::in_place, newId )
-            : sol::object( lua, sol::in_place, fieldName );
-
-        enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, Table, Texture2D, Entity };
-        switch ( selectedType )
-        {
-            case Int:       table[entryKey] = 0; break;
-            case Float:     table[entryKey] = 0.0f; break;
-            case String:    table[entryKey] = ""s; break;
-            case Bool:      table[entryKey] = false; break;
-            case Vec2:      table[entryKey] = vec2( 0 ); break;
-            case Vec3:      table[entryKey] = vec3( 0 ); break;
-            case Vec4:      table[entryKey] = vec4( 0 ); break;
-            case Mat3:      table[entryKey] = mat3( 1 ); break;
-            case Mat4:      table[entryKey] = mat4( 1 ); break;
-            case Table:     table[entryKey] = lua.create_table(); break;
-            case Texture2D: table[entryKey] = Ref<bubble::Texture2D>{}; break;
-            case Entity:
-            {
-                auto entity = project.mLevel.mScene.CreateEntity();
-                table[entryKey] = entity;
-                break;
-            }
-        }
+        case Int:       value = 0; break;
+        case Float:     value = 0.0f; break;
+        case String:    value = ""s; break;
+        case Bool:      value = false; break;
+        case Vec2:      value = vec2( 0 ); break;
+        case Vec3:      value = vec3( 0 ); break;
+        case Vec4:      value = vec4( 0 ); break;
+        case Mat3:      value = mat3( 1 ); break;
+        case Mat4:      value = mat4( 1 ); break;
+        case TableT:    value = c.Lua().create_table(); break;
+        case Texture2D: value = Ref<bubble::Texture2D>{}; break;
+        // Nothing until picked from the combo. This used to create a bare
+        // entity in the scene as a side effect of adding a field.
+        case EntityT:   value = INVALID_ENTITY; break;
     }
+    Set( c, Append( path, entryKey ), Nil(), value );
 }
 
-Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
+void DrawTable( const DrawCtx& c, const LuaPath& path, string_view name, Table table, bool isArray )
 {
-    constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                                 ImGuiTreeNodeFlags_SpanAllColumns |
-                                 ImGuiTreeNodeFlags_Framed;
+    const char* fmt = isArray ? "%s (array)" : "%s (table)";
+    if ( not ImGui::TreeNodeEx( isArray ? "##array" : "##table", TABLE_FLAGS, fmt, name.data() ) )
+        return;
 
-    auto& lua = *project.mScriptingEngine.mLua;
+    int i = 0;
+    for ( auto& [k, v] : table )
+    {
+        ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
+        const LuaKey key = KeyOf( k );
+        const LuaPath entryPath = Append( path, key );
 
+        if ( not c.mFixedKeys and ImGui::Button( "-" ) )
+        {
+            // Setting an existing key to nil is allowed mid-traversal.
+            Set( c, entryPath, v.as<Any>(), Nil() );
+            ImGui::PopID();
+            continue;
+        }
+        if ( not c.mFixedKeys )
+            ImGui::SameLine();
+
+        const string entryName = std::visit( []( const auto& kk ) { return std::format( "{}", kk ); }, key );
+        DrawValue( c, entryPath, entryName, v.as<Any>() );
+
+        ImGui::Separator();
+        ImGui::PopID();
+        i++;
+    }
+    DrawFieldsAdding( c, path, table, name );
+    ImGui::TreePop();
+}
+
+void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const Any& any )
+{
     // Scope all widget IDs under `name` so identical field names in different
     // components (State vs ShaderUniforms) don't collide.
     struct IDGuard
@@ -103,245 +183,204 @@ Any DrawAnyValue( Project& project, string_view name, Any any, bool frozen )
     {
         ImGui::SameLine();
         ImGui::Text( "(nill)" );
-        return any;
     }
     else if ( any.is<int>() )
     {
-        auto value = any.as<int>();
-        ImGui::DragInt( name.data(), &value );
+        Leaf( c, path, any.as<int>(), [&]( int& v ) { return ImGui::DragInt( name.data(), &v ); } );
         ImGui::SameLine();
         ImGui::Text( "(int)" );
-        return value;
     }
     else if ( any.is<float>() )
     {
-        auto value = any.as<float>();
-        ImGui::DragFloat( name.data(), &value );
+        Leaf( c, path, any.as<float>(), [&]( float& v ) { return ImGui::DragFloat( name.data(), &v ); } );
         ImGui::SameLine();
         ImGui::Text( "(float)" );
-        return value;
     }
     else if ( any.is<std::string>() )
     {
-        auto value = any.as<string>();
-        ImGui::InputText( name.data(), value );
+        Leaf( c, path, any.as<string>(), [&]( string& v ) { return ImGui::InputText( name.data(), v ); } );
         ImGui::SameLine();
         ImGui::Text( "(string)" );
-        return value;
     }
     else if ( any.is<bool>() )
     {
-        auto value = any.as<bool>();
-        ImGui::Checkbox( name.data(), &value );
+        Leaf( c, path, any.as<bool>(), [&]( bool& v ) { return ImGui::Checkbox( name.data(), &v ); } );
         ImGui::SameLine();
         ImGui::Text( "(bool)" );
-        return value;
     }
     else if ( any.is<vec2>() )
     {
-        auto value = any.as<vec2>();
-        ImGui::DragFloat2( name.data(), &value.x );
+        Leaf( c, path, any.as<vec2>(), [&]( vec2& v ) { return ImGui::DragFloat2( name.data(), &v.x ); } );
         ImGui::SameLine();
         ImGui::Text( "(vec2)" );
-        return value;
     }
     else if ( any.is<vec3>() )
     {
-        auto value = any.as<vec3>();
-        ImGui::DragFloat3( name.data(), &value.x );
+        Leaf( c, path, any.as<vec3>(), [&]( vec3& v ) { return ImGui::DragFloat3( name.data(), &v.x ); } );
         ImGui::SameLine();
         ImGui::Text( "(vec3)" );
-        return value;
     }
     else if ( any.is<vec4>() )
     {
-        auto value = any.as<vec4>();
-        ImGui::DragFloat4( name.data(), &value.x );
+        Leaf( c, path, any.as<vec4>(), [&]( vec4& v ) { return ImGui::DragFloat4( name.data(), &v.x ); } );
         ImGui::SameLine();
         ImGui::Text( "(vec4)" );
-        return value;
     }
     else if ( any.is<mat3>() )
     {
-        auto value = any.as<mat3>();
         ImGui::Text( "%s (mat3)", name.data() );
-        for ( int i = 0; i < 3; i++ )
+        // One group, so the rows count as one item for the interaction
+        // tracking: a drag on any row is one step.
+        Leaf( c, path, any.as<mat3>(), [&]( mat3& v )
         {
-            auto label = std::format( "{}[{}]", name, i );
-            ImGui::DragFloat3( label.c_str(), &value[i].x );
-        }
-        return value;
+            bool changed = false;
+            ImGui::BeginGroup();
+            for ( int i = 0; i < 3; i++ )
+            {
+                auto label = std::format( "{}[{}]", name, i );
+                changed |= ImGui::DragFloat3( label.c_str(), &v[i].x );
+            }
+            ImGui::EndGroup();
+            return changed;
+        } );
     }
     else if ( any.is<mat4>() )
     {
-        auto value = any.as<mat4>();
         ImGui::Text( "%s (mat4)", name.data() );
-        for ( int i = 0; i < 4; i++ )
+        Leaf( c, path, any.as<mat4>(), [&]( mat4& v )
         {
-            auto label = std::format( "{}[{}]", name, i );
-            ImGui::DragFloat4( label.c_str(), &value[i].x );
-        }
-        return value;
+            bool changed = false;
+            ImGui::BeginGroup();
+            for ( int i = 0; i < 4; i++ )
+            {
+                auto label = std::format( "{}[{}]", name, i );
+                changed |= ImGui::DragFloat4( label.c_str(), &v[i].x );
+            }
+            ImGui::EndGroup();
+            return changed;
+        } );
     }
     else if ( any.is<Entity>() )
     {
-        auto currentEntity = any.as<Entity>();
-
         // Build list of all entities that have a tag
         vector<Entity> entities;
         vector<string> entityNames;
-        project.mLevel.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
+        c.Project().mLevel.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
         {
             entities.push_back( entity );
             entityNames.push_back( std::format( "[{}] {}", (size_t)entity, tag.mName ) );
         } );
 
-        // Find current selection index
-        int selectedIdx = -1;
-        for ( int i = 0; i < (int)entities.size(); i++ )
-            if ( entities[i] == currentEntity )
-            {
-                selectedIdx = i;
-                break;
-            }
-
-        // Build c-string array for combo
-        vector<const char*> items;
-        items.reserve( entityNames.size() );
-        for ( const auto& n : entityNames )
-            items.push_back( n.c_str() );
-
-        ImGui::SetNextItemWidth( 150.0f );
-        string preview = selectedIdx >= 0 ? entityNames[selectedIdx] : "None";
-        if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
+        Leaf( c, path, any.as<Entity>(), [&]( Entity& current )
         {
+            int selectedIdx = -1;
             for ( int i = 0; i < (int)entities.size(); i++ )
+                if ( entities[i] == current )
+                {
+                    selectedIdx = i;
+                    break;
+                }
+
+            bool changed = false;
+            ImGui::SetNextItemWidth( 150.0f );
+            const string preview = selectedIdx >= 0 ? entityNames[selectedIdx] : "None";
+            if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
             {
-                bool isSelected = ( i == selectedIdx );
-                if ( ImGui::Selectable( items[i], isSelected ) )
-                    currentEntity = entities[i];
-                if ( isSelected )
-                    ImGui::SetItemDefaultFocus();
+                for ( int i = 0; i < (int)entities.size(); i++ )
+                {
+                    const bool isSelected = ( i == selectedIdx );
+                    if ( ImGui::Selectable( entityNames[i].c_str(), isSelected ) and not isSelected )
+                    {
+                        current = entities[i];
+                        changed = true;
+                    }
+                    if ( isSelected )
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
             }
-            ImGui::EndCombo();
-        }
+            return changed;
+        } );
         ImGui::SameLine();
         ImGui::Text( "(Entity)" );
-        return currentEntity;
     }
     else if ( any.is<Ref<Texture2D>>() )
     {
-        auto currentTexture = any.as<Ref<Texture2D>>();
-
         // Build list from loader
         vector<Ref<Texture2D>> textures;
         vector<string> textureNames;
-        for ( const auto& [texPath, tex] : project.mLoader.mTextures )
+        for ( const auto& [texPath, tex] : c.Project().mLoader.mTextures )
         {
             textures.push_back( tex );
             textureNames.push_back( texPath.filename().string() );
         }
 
-        // Find current selection index
-        int selectedIdx = -1;
-        for ( int i = 0; i < (int)textures.size(); i++ )
+        const auto current = any.as<Ref<Texture2D>>();
+        Leaf( c, path, current, [&]( Ref<Texture2D>& picked )
         {
-            if ( textures[i] == currentTexture )
-            {
-                selectedIdx = i;
-                break;
-            }
-        }
-
-        string preview = selectedIdx >= 0 ? textureNames[selectedIdx] : "None";
-        ImGui::SetNextItemWidth( 150.0f );
-        if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
-        {
-            if ( ImGui::Selectable( "None", selectedIdx == -1 ) )
-                currentTexture = nullptr;
-
+            int selectedIdx = -1;
             for ( int i = 0; i < (int)textures.size(); i++ )
+                if ( textures[i] == picked )
+                {
+                    selectedIdx = i;
+                    break;
+                }
+
+            bool changed = false;
+            const string preview = selectedIdx >= 0 ? textureNames[selectedIdx] : "None";
+            ImGui::SetNextItemWidth( 150.0f );
+            if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
             {
-                bool isSelected = ( i == selectedIdx );
-                ImGui::Image( (ImTextureID)textures[i]->ImTextureId(), ImVec2( 24, 24 ) );
-                ImGui::SameLine();
-                if ( ImGui::Selectable( textureNames[i].c_str(), isSelected ) )
-                    currentTexture = textures[i];
-                if ( isSelected )
-                    ImGui::SetItemDefaultFocus();
+                if ( ImGui::Selectable( "None", selectedIdx == -1 ) and picked )
+                {
+                    picked = nullptr;
+                    changed = true;
+                }
+                for ( int i = 0; i < (int)textures.size(); i++ )
+                {
+                    const bool isSelected = ( i == selectedIdx );
+                    ImGui::Image( (ImTextureID)textures[i]->ImTextureId(), ImVec2( 24, 24 ) );
+                    ImGui::SameLine();
+                    if ( ImGui::Selectable( textureNames[i].c_str(), isSelected ) and not isSelected )
+                    {
+                        picked = textures[i];
+                        changed = true;
+                    }
+                    if ( isSelected )
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
             }
-            ImGui::EndCombo();
-        }
+            return changed;
+        } );
         ImGui::SameLine();
         ImGui::Text( "(Texture2D)" );
-        if ( currentTexture )
-            ImGui::Image( (ImTextureID)currentTexture->ImTextureId(), ImVec2( 64, 64 ) );
-        return currentTexture;
-    }
-    else if ( any.is<Table>() and IsArray( any.as<Table>() ) )
-    {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##array", TABLE_FLAGS, "%s (array)", name.data() ) )
-        {
-            for ( auto& [k, v] : table )
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( !frozen && ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                if ( !frozen ) ImGui::SameLine();
-
-                auto entryName = std::to_string( k.as<int>() );
-                table[k] = DrawAnyValue( project, entryName, v.as<Any>(), frozen );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( project, table, name, frozen );
-            ImGui::TreePop();
-        }
+        if ( current )
+            ImGui::Image( (ImTextureID)current->ImTextureId(), ImVec2( 64, 64 ) );
     }
     else if ( any.is<Table>() )
     {
-        int i = 0;
-        auto table = any.as<Table>();
-        if ( ImGui::TreeNodeEx( "##table", TABLE_FLAGS, "%s (table)", name.data() ) )
-        {
-            for ( auto& [k, v] : table )
-            {
-                ImGui::PushID( ( i32 )reinterpret_cast<i64>( table.pointer() ) + i );
-
-                if ( !frozen && ImGui::Button( "-" ) )
-                {
-                    table[k] = sol::nil;
-                    ImGui::PopID();
-                    continue;
-                }
-                if ( !frozen ) ImGui::SameLine();
-
-                auto entryName = k.as<string>();
-                table[k] = DrawAnyValue( project, entryName, v.as<Any>(), frozen );
-
-                ImGui::Separator();
-                ImGui::PopID();
-                i++;
-            }
-            DrawFieldsAdding( project, table, name, frozen );
-            ImGui::TreePop();
-        }
+        const auto table = any.as<Table>();
+        DrawTable( c, path, name, table, IsArray( table ) );
     }
     else
     {
         BUBBLE_ASSERT( false, "Invalid any value" );
-        throw std::runtime_error( "DrawAny(): Invalid Any value type" );
+        throw std::runtime_error( "DrawLuaTable: invalid value type" );
     }
-    return any;
+}
+}
+
+void DrawLuaTable( EditContext& ctx, const LuaTableRoot& root, bool fixedKeys )
+{
+    const auto table = root.Get();
+    if ( not table )
+        return;
+
+    const DrawCtx c{ ctx, root, fixedKeys };
+    ImGui::PushID( root.mName.c_str() );
+    DrawTable( c, {}, root.mName, *table, IsArray( *table ) );
+    ImGui::PopID();
 }
 
 } // namespace bubble

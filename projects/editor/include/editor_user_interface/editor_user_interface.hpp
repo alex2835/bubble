@@ -3,6 +3,7 @@
 #include "editor_user_interface/windows/project_viewport_window.hpp"
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
+#include "editor_user_interface/windows/console_window.hpp"
 
 namespace bubble
 {
@@ -20,6 +21,7 @@ private:
     ProjectTreeWindow mEntitiesWindow;
     ProjectViewportWindow mSceneViewportWindow;
     ProjectFilesWindow mProjectWindow;
+    ConsoleWindow mConsoleWindow;
 };
 
 }

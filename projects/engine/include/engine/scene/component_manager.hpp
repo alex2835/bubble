@@ -5,6 +5,7 @@
 #include "engine/types/map.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/editing/edit_context.hpp"
 
 namespace bubble
 {
@@ -15,17 +16,18 @@ concept ComponentConcept = requires( Component component,
                                      const Entity& entity,
                                      sol::state& lua,
                                      Project& project,
+                                     EditContext& ctx,
                                      json& json )
 {
     { Component::ID() } -> std::same_as<int>;
     { Component::Name() } -> std::same_as<string_view>;
-    { Component::OnComponentDraw( project, entity, componentRef ) } -> std::same_as<void>;
+    { Component::OnComponentDraw( ctx, entity, componentRef ) } -> std::same_as<void>;
     { Component::ToJson( json, project, componentCRef ) } -> std::same_as<void>;
     { Component::FromJson( json, project, componentRef ) } -> std::same_as<void>;
     { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
 };
 
-typedef void ( *OnComponentDrawFunc )( Project& project, const Entity& entity, void* rawData );
+typedef void ( *OnComponentDrawFunc )( EditContext& ctx, const Entity& entity, void* rawData );
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
 typedef void ( *ComponentFromJson )( const json& json, Project& project, void* rawData );
 typedef void ( *ComponentCreateLuaBinding )( sol::state& lua );
@@ -52,8 +54,8 @@ public:
         {
             AddName( Component::ID(), Component::Name() );
 
-            AddOnDraw( Component::ID(), []( Project& project, const Entity& entity, void* rawData )
-            { Component::OnComponentDraw( project, entity, *reinterpret_cast<Component*>( rawData ) ); } );
+            AddOnDraw( Component::ID(), []( EditContext& ctx, const Entity& entity, void* rawData )
+            { Component::OnComponentDraw( ctx, entity, *reinterpret_cast<Component*>( rawData ) ); } );
 
             AddToJson( Component::ID(), []( json& json, const Project& project, const void* rawData )
             { Component::ToJson( json, project, *reinterpret_cast<const Component*>( rawData ) ); } );

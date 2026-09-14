@@ -11,7 +11,7 @@ struct ScriptComponent
     static int ID() { return static_cast<int>( ComponentID::Script ); }
 	static string_view Name() { return "Script"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, ScriptComponent& component );
+    static void OnComponentDraw( EditContext& ctx, const Entity& entity, ScriptComponent& component );
 	static void ToJson( json& json, const Project& project, const ScriptComponent& component );
 	static void FromJson( const json& json, Project& project, ScriptComponent& component );
     static void CreateLuaBinding( sol::state& lua );

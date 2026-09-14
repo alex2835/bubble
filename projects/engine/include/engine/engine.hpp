@@ -83,8 +83,6 @@ public:
     Timer mTimer;
     Renderer mRenderer;
     PhysicsEngine mPhysicsEngine;
-    // Declared before mProject, and so destroyed after it: every voice is owned
-    // here, and the AudioSourceComponents that stop them live in the scene.
     AudioEngine mAudioEngine;
     Project mProject;
 

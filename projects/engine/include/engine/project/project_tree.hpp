@@ -32,6 +32,9 @@ struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>
     static Ref<ProjectTreeNode> CopyNode( const Ref<ProjectTreeNode>& node, Scene& scene );
 
     ProjectTreeNodeType Type() const { return mType; }
+    // Unique within the level and stable across a session: how an operator
+    // argument names a node.
+    u64 ID() const { return mID; }
     bool IsEntity() const;
     Entity AsEntity() const { return std::get<Entity>( mState ); }
     opt<Entity> TryGetEntity() const;
@@ -55,6 +58,7 @@ public:
 
 
 Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>& node );
+Ref<ProjectTreeNode> FindNodeById( u64 id, const Ref<ProjectTreeNode>& node );
 
 void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& node );
 

@@ -53,8 +53,10 @@ public:
     string mName;  // file stem
     path mFile;    // absolute
     Scene mScene;
-    Ref<ProjectTreeNode> mTreeRoot;
+    // The counter before the root: the root's constructor draws its id from
+    // it, and members initialize in declaration order.
     u64 mNodeIDCounter = 0;
+    Ref<ProjectTreeNode> mTreeRoot;
 };
 
 }

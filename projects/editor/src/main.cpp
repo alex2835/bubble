@@ -16,6 +16,10 @@ int main( int argc, char** argv )
           {
             "project", {"-p", "--project"},
             "Path to project file", 1
+          },
+          {
+            "script", {"-s", "--script"},
+            "Editor Lua script to run after the project is opened", 1
           }
         }
     };
@@ -32,6 +36,8 @@ int main( int argc, char** argv )
         bubble::BubbleEditor editorApplication;
         if ( args["project"] )
             editorApplication.OpenProject( args["project"].as<std::string>() );
+        if ( args["script"] )
+            editorApplication.RunScript( args["script"].as<std::string>() );
         editorApplication.Run();
     }
     catch ( const std::exception& e )

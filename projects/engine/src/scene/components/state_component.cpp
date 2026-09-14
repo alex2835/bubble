@@ -42,10 +42,23 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
     return *this;
 }
 
-void StateComponent::OnComponentDraw( const Project& project, const Entity& entity, StateComponent& component )
+void StateComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    *component.mState = DrawAnyValue( const_cast<Project&>( project ), "State##state"sv, *component.mState );
+    DrawLuaTable( ctx, StateTableRoot( ctx.mProject.mLevel.mScene, entity ) );
+}
+
+LuaTableRoot StateComponent::StateTableRoot( Scene& scene, Entity entity )
+{
+    return LuaTableRoot{ &scene, entity, "State", []( Scene& s, Entity e ) -> opt<Table>
+    {
+        if ( not s.HasComponent<StateComponent>( e ) )
+            return std::nullopt;
+        const auto& state = s.GetComponent<StateComponent>( e ).mState;
+        if ( not state or not state->is<Table>() )
+            return std::nullopt;
+        return state->as<Table>();
+    } };
 }
 
 void StateComponent::ToJson( json& json, const Project& project, const StateComponent& component )

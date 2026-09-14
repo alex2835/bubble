@@ -21,54 +21,36 @@ void LightComponent::SyncToTransform( const TransformComponent& transform )
     Update();
 }
 
-void LightComponent::OnComponentDraw( const Project& project, const Entity& entity, LightComponent& lightComponent )
+void LightComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );
 
     // Light Type Selection
-    const char* lightTypes[] = { "Directional", "Point", "Spot" };
-    int currentType = static_cast<int>( lightComponent.mType );
-    if ( ImGui::Combo( "Type", &currentType, lightTypes, IM_ARRAYSIZE( lightTypes ) ) )
+    static const char* lightTypes[] = { "Directional", "Point", "Spot" };
+    EditField<LightComponent>( ctx, entity, "Type", &LightComponent::mType, []( LightType& type )
     {
-        lightComponent.mType = static_cast<LightType>( currentType );
-    }
+        int current = static_cast<int>( type );
+        if ( not ImGui::Combo( "Type", &current, lightTypes, IM_ARRAYSIZE( lightTypes ) ) )
+            return false;
+        type = static_cast<LightType>( current );
+        return true;
+    } );
 
-    // Color
-    ImGui::ColorEdit3( "Color", &lightComponent.mColor.x );
-
-    // Brightness
-    ImGui::DragFloat( "Brightness", &lightComponent.mBrightness, 0.01f, 0.0f, 10.0f );
+    ColorEdit3Field<LightComponent>( ctx, entity, "Color", &LightComponent::mColor );
+    DragFloatField<LightComponent>( ctx, entity, "Brightness", &LightComponent::mBrightness, 0.01f, 0.0f, 10.0f );
 
     // Type-specific properties
-    if ( lightComponent.mType == LightType::Directional )
+    if ( lightComponent.mType == LightType::Point or lightComponent.mType == LightType::Spot )
     {
-        //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
-        //    lightComponent.mDirection = normalize( lightComponent.mDirection );
+        SliderFloatField<LightComponent>( ctx, entity, "Distance", &LightComponent::mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
     }
-    else if ( lightComponent.mType == LightType::Point )
+    if ( lightComponent.mType == LightType::Spot )
     {
-        //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
-
-        // Show calculated attenuation values (read-only)
-        ImGui::Text( "Attenuation:" );
-        ImGui::Indent();
-        ImGui::Text( "Constant: %.3f", lightComponent.mConstant );
-        ImGui::Text( "Linear: %.4f", lightComponent.mLinear );
-        ImGui::Text( "Quadratic: %.6f", lightComponent.mQuadratic );
-        ImGui::Unindent();
+        SliderFloatField<LightComponent>( ctx, entity, "Cut Off", &LightComponent::mCutOff, 0.0f, 90.0f );
+        SliderFloatField<LightComponent>( ctx, entity, "Outer Cut Off", &LightComponent::mOuterCutOff, 0.0f, 90.0f );
     }
-    else if ( lightComponent.mType == LightType::Spot )
+    if ( lightComponent.mType != LightType::Directional )
     {
-        //ImGui::DragFloat3( "Position", &lightComponent.mPosition.x, 0.1f );
-        //if ( ImGui::DragFloat3( "Direction", &lightComponent.mDirection.x, 0.01f ) )
-        //    lightComponent.mDirection = normalize( lightComponent.mDirection );
-
-        ImGui::SliderFloat( "Distance", &lightComponent.mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
-
-        ImGui::SliderFloat( "Cut Off", &lightComponent.mCutOff, 0.0f, 90.0f );
-        ImGui::SliderFloat( "Outer Cut Off", &lightComponent.mOuterCutOff, 0.0f, 90.0f );
-
         // Show calculated attenuation values (read-only)
         ImGui::Text( "Attenuation:" );
         ImGui::Indent();

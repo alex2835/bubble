@@ -28,129 +28,182 @@ RigidBodyComponent::~RigidBodyComponent()
 
 namespace
 {
-// Every RigidBody::Create* builds a fresh body, so anything not passed to it is
-// gone. Friction and the kinematic flag have to be put back: changing a shape's
-// radius used to silently reset friction to Bullet's default.
-void ReplaceBody( RigidBodyComponent& component, RigidBody body, f32 friction, bool kinematic )
+// The body as the inspector sees it: shape and its dimensions, mass,
+// friction, kinematic. A step is a change of this; applying one rebuilds the
+// Bullet body only when the shape changed.
+struct BodySpec
 {
-    component.mRigidBody = std::move( body );
-    component.mRigidBody.SetFriction( friction );
-    component.mRigidBody.SetKinematic( kinematic );
+    int mShapeType = SPHERE_SHAPE_PROXYTYPE;
+    f32 mRadius = 1.0f;       // sphere, capsule
+    f32 mHeight = 1.0f;       // capsule
+    vec3 mHalfExtents = vec3( 1 ); // box
+    f32 mMass = 0.0f;
+    f32 mFriction = 0.5f;
+    bool mKinematic = false;
+    bool operator==( const BodySpec& ) const = default;
+
+    static BodySpec Of( RigidBody& body )
+    {
+        BodySpec spec;
+        spec.mMass = body.GetMass();
+        spec.mFriction = body.GetFriction();
+        spec.mKinematic = body.IsKinematic();
+        auto* shape = body.getShape();
+        spec.mShapeType = shape->getShapeType();
+        switch ( spec.mShapeType )
+        {
+            case SPHERE_SHAPE_PROXYTYPE:
+                spec.mRadius = static_cast<btSphereShape*>( shape )->getRadius();
+                break;
+            case BOX_SHAPE_PROXYTYPE:
+            {
+                const btVector3 he = static_cast<btBoxShape*>( shape )->getHalfExtentsWithMargin();
+                spec.mHalfExtents = vec3( he.x(), he.y(), he.z() );
+                break;
+            }
+            case CAPSULE_SHAPE_PROXYTYPE:
+            {
+                auto* capsule = static_cast<btCapsuleShape*>( shape );
+                spec.mRadius = capsule->getRadius();
+                spec.mHeight = capsule->getHalfHeight() * 2.0f;
+                break;
+            }
+        }
+        return spec;
+    }
+
+    bool SameShape( const BodySpec& o ) const
+    {
+        return mShapeType == o.mShapeType and mRadius == o.mRadius and mHeight == o.mHeight and mHalfExtents == o.mHalfExtents;
+    }
+
+    RigidBody Build() const
+    {
+        switch ( mShapeType )
+        {
+            case BOX_SHAPE_PROXYTYPE:     return RigidBody::CreateBox( mMass, mHalfExtents );
+            case CAPSULE_SHAPE_PROXYTYPE: return RigidBody::CreateCapsule( mMass, mRadius, mHeight );
+            default:                      return RigidBody::CreateSphere( mMass, mRadius );
+        }
+    }
+
+    void ApplyTo( RigidBodyComponent& component ) const
+    {
+        auto& body = component.mRigidBody;
+        if ( not SameShape( Of( body ) ) )
+        {
+            // Every RigidBody::Create* builds a fresh body, so anything not
+            // passed to it is gone. Friction and the kinematic flag have to be
+            // put back: changing a shape's radius used to silently reset
+            // friction to Bullet's default.
+            body = Build();
+        }
+        else
+            body.SetMass( mMass );
+        body.SetFriction( mFriction );
+        body.SetKinematic( mKinematic );
+    }
+};
+
+// Dimensions to start a new shape from: the model's bounds if there are any.
+BodySpec DefaultShape( int shapeType, const BodySpec& current, const opt<AABB>& box )
+{
+    BodySpec spec = current;
+    spec.mShapeType = shapeType;
+    switch ( shapeType )
+    {
+        case SPHERE_SHAPE_PROXYTYPE:
+            spec.mRadius = box ? box->getShortestEdge() / 2 : 1.0f;
+            break;
+        case BOX_SHAPE_PROXYTYPE:
+            spec.mHalfExtents = box ? ( box->getMax() - box->getMin() ) * 0.5f : vec3( 1 );
+            break;
+        case CAPSULE_SHAPE_PROXYTYPE:
+            spec.mRadius = 0.5f;
+            spec.mHeight = 1.0f;
+            if ( box )
+            {
+                const vec3 size = box->getMax() - box->getMin();
+                spec.mRadius = glm::min( size.x, size.z ) / 2.0f;
+                spec.mHeight = glm::max( 0.0f, size.y - 2.0f * spec.mRadius );
+            }
+            break;
+    }
+    return spec;
 }
 }
 
-void RigidBodyComponent::OnComponentDraw( const Project& project, const Entity& entity, RigidBodyComponent& component )
+void RigidBodyComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, RigidBodyComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "RigidBody component" );
 
-    static map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv },
-                                         { BOX_SHAPE_PROXYTYPE, "box"sv },
-                                         { CAPSULE_SHAPE_PROXYTYPE, "capsule"sv } };
+    static const map<int, string_view> shapes{ { SPHERE_SHAPE_PROXYTYPE, "sphere"sv },
+                                               { BOX_SHAPE_PROXYTYPE, "box"sv },
+                                               { CAPSULE_SHAPE_PROXYTYPE, "capsule"sv } };
 
-    auto& rigidBody = component.mRigidBody;
-    auto shape = rigidBody.getShape();
-    auto box = TryGetEntityBBox( project, entity );
+    const auto apply = []( RigidBodyComponent& c, const BodySpec& spec ) { spec.ApplyTo( c ); };
+    auto edit = [&]( const char* label, auto&& widget )
+    {
+        return EditProperty<RigidBodyComponent>( ctx, entity, label, BodySpec::Of( component.mRigidBody ), widget, apply );
+    };
 
-    f32 mass = rigidBody.GetMass();
-    f32 friction = rigidBody.GetFriction();
-    bool kinematic = rigidBody.IsKinematic();
+    const auto box = TryGetModelBBox( ctx.mProject, entity );
+    const BodySpec current = BodySpec::Of( component.mRigidBody );
 
     /// Physics shape selection combo
-    string_view curShapeName = shapes[shape->getShapeType()];
-    if ( ImGui::BeginCombo( "Collision shape", curShapeName.data() ) )
+    edit( "Collision shape", [&]( BodySpec& spec )
     {
-        for ( const auto& [id, name] : shapes )
+        bool changed = false;
+        if ( ImGui::BeginCombo( "Collision shape", shapes.at( spec.mShapeType ).data() ) )
         {
-            bool isSelected = curShapeName == name;
-            if ( ImGui::Selectable( name.data(), isSelected ) )
+            for ( const auto& [id, name] : shapes )
             {
-                if ( id == SPHERE_SHAPE_PROXYTYPE )
+                const bool selected = id == spec.mShapeType;
+                if ( ImGui::Selectable( name.data(), selected ) and not selected )
                 {
-                    f32 radius = 1.0f;
-                    if ( box )
-                        radius = box->getShortestEdge() / 2;
-                    ReplaceBody( component, RigidBody::CreateSphere( mass, radius ), friction, kinematic );
-                }
-                if ( id == BOX_SHAPE_PROXYTYPE )
-                {
-                    vec3 halfExtend( 1 );
-                    if ( box )
-                        halfExtend = ( box->getMax() - box->getMin() ) * 0.5f;
-                    ReplaceBody( component, RigidBody::CreateBox( mass, halfExtend ), friction, kinematic );
-                }
-                if ( id == CAPSULE_SHAPE_PROXYTYPE )
-                {
-                    f32 radius = 0.5f;
-                    f32 height = 1.0f;
-                    if ( box )
-                    {
-                        vec3 size = box->getMax() - box->getMin();
-                        radius = glm::min( size.x, size.z ) / 2.0f;
-                        height = glm::max( 0.0f, size.y - 2.0f * radius );
-                    }
-                    ReplaceBody( component, RigidBody::CreateCapsule( mass, radius, height ), friction, kinematic );
+                    spec = DefaultShape( id, spec, box );
+                    changed = true;
                 }
             }
+            ImGui::EndCombo();
         }
-        ImGui::EndCombo();
-        return;
-    }
+        return changed;
+    } );
 
     /// Rigid body controls
-    if ( ImGui::Checkbox( "Kinematic", &kinematic ) )
+    edit( "Kinematic", []( BodySpec& spec )
     {
+        if ( not ImGui::Checkbox( "Kinematic", &spec.mKinematic ) )
+            return false;
         // Bullet only treats a massless body as kinematic, and a kinematic body
         // is driven by set_transform from a script rather than by forces - so
         // mass stops meaning anything the moment this is ticked.
-        if ( kinematic )
-        {
-            mass = 0.0f;
-            rigidBody.SetMass( 0.0f );
-        }
-        rigidBody.SetKinematic( kinematic );
-    }
+        if ( spec.mKinematic )
+            spec.mMass = 0.0f;
+        return true;
+    } );
     if ( ImGui::IsItemHovered() )
         ImGui::SetTooltip( "Driven by set_transform from a script instead of by forces, and pushes dynamic bodies it meets. Mass must be 0." );
 
-    ImGui::BeginDisabled( kinematic );
-    if ( ImGui::DragFloat( "Mass", &mass ) )
-        rigidBody.SetMass( mass );
+    ImGui::BeginDisabled( current.mKinematic );
+    edit( "Mass", []( BodySpec& spec ) { return ImGui::DragFloat( "Mass", &spec.mMass ); } );
     ImGui::EndDisabled();
 
-    if ( ImGui::DragFloat( "Friction", &friction ) )
-        rigidBody.SetFriction( friction );
+    edit( "Friction", []( BodySpec& spec ) { return ImGui::DragFloat( "Friction", &spec.mFriction ); } );
 
     /// Shape controls
-    switch ( shape->getShapeType() )
+    switch ( current.mShapeType )
     {
         case SPHERE_SHAPE_PROXYTYPE:
-        {
-            auto sphereShape = static_cast<btSphereShape*>( shape );
-            f32 radius = sphereShape->getRadius();
-            if ( ImGui::DragFloat( "Radius", &radius ) )
-                ReplaceBody( component, RigidBody::CreateSphere( mass, radius ), friction, kinematic );
-        } break;
-
+            edit( "Radius", []( BodySpec& spec ) { return ImGui::DragFloat( "Radius", &spec.mRadius ); } );
+            break;
         case BOX_SHAPE_PROXYTYPE:
-        {
-            auto boxShape = static_cast<btBoxShape*>( shape );
-            btVector3 he = boxShape->getHalfExtentsWithMargin();
-            auto halfExtends = vec3( he.x(), he.y(), he.z() );
-            if ( ImGui::DragFloat3( "Half Extends", &halfExtends.x ) )
-                ReplaceBody( component, RigidBody::CreateBox( mass, halfExtends ), friction, kinematic );
-        } break;
-
+            edit( "Half Extends", []( BodySpec& spec ) { return ImGui::DragFloat3( "Half Extends", &spec.mHalfExtents.x ); } );
+            break;
         case CAPSULE_SHAPE_PROXYTYPE:
-        {
-            auto capsuleShape = static_cast<btCapsuleShape*>( shape );
-            f32 radius = capsuleShape->getRadius();
-            f32 height = capsuleShape->getHalfHeight() * 2.0f;
-            bool changed = false;
-            changed |= ImGui::DragFloat( "Radius", &radius, 0.01f, 0.01f, 100.0f );
-            changed |= ImGui::DragFloat( "Height", &height, 0.01f, 0.0f, 100.0f );
-            if ( changed )
-                ReplaceBody( component, RigidBody::CreateCapsule( mass, radius, height ), friction, kinematic );
-        } break;
+            edit( "Radius", []( BodySpec& spec ) { return ImGui::DragFloat( "Radius", &spec.mRadius, 0.01f, 0.01f, 100.0f ); } );
+            edit( "Height", []( BodySpec& spec ) { return ImGui::DragFloat( "Height", &spec.mHeight, 0.01f, 0.0f, 100.0f ); } );
+            break;
     }
 }
 

@@ -6,7 +6,7 @@
 
 namespace bubble
 {
-opt<AABB> TryGetEntityBBox( const Project& project, Entity entity )
+opt<AABB> TryGetModelBBox( const Project& project, Entity entity )
 {
     const auto* modelComponetPtr = TryGetComponent<ModelComponent>( project, entity );
     const auto* transComponetPtr = TryGetComponent<TransformComponent>( project, entity );

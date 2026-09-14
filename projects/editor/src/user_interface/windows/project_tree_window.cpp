@@ -2,6 +2,9 @@
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/editing/operator.hpp"
+#include "engine/serialization/types_serialization.hpp"
+#include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include <imgui.h>
 #include <cstring>
@@ -112,17 +115,17 @@ void ProjectTreeWindow::SetSelectionByNode( const Ref<ProjectTreeNode>& node )
 }
 
 
-void ProjectTreeWindow::RemoveSelected()
+void ProjectTreeWindow::Invoke( const char* op, const json& args )
 {
-    RemoveNodeByEntities( mProject.mLevel.mTreeRoot, mSelection.GetEntities() );
-
-    if ( mSelection.GetTreeNode() )
-        RemoveNode( mProject.mLevel.mTreeRoot, mSelection.GetTreeNode() );
-
-    for ( auto entity : mSelection.GetEntities() )
-        mProject.mLevel.mScene.RemoveEntity( entity );
-
-    mSelection = {};
+    try
+    {
+        OperatorContext ctx = Operators();
+        InvokeOperator( op, ctx, args );
+    }
+    catch ( const std::exception& e )
+    {
+        LogError( "{}: {}", op, e.what() );
+    }
 }
 
 void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
@@ -131,122 +134,25 @@ void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
     if ( ImGui::BeginPopup( "Create entity popup" ) )
     {
         // Temp: creation position. TODO: test raycast
-        Transform trans( mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f );
+        const vec3 spawnAt = mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
 
-        if ( ImGui::MenuItem( "Create folder" ) )
+        // What each kind starts with is the operator's business; the menu only
+        // names the kinds.
+        static constexpr std::pair<const char*, ProjectTreeNodeType> kinds[] = {
+            { "Create folder",         ProjectTreeNodeType::Folder },
+            { "Create Model Object",   ProjectTreeNodeType::ModelObject },
+            { "Create Physics Object", ProjectTreeNodeType::PhysicsObject },
+            { "Create Game Object",    ProjectTreeNodeType::GameObject },
+            { "Create Script",         ProjectTreeNodeType::Script },
+            { "Create Light",          ProjectTreeNodeType::Light },
+            { "Create Camera",         ProjectTreeNodeType::Camera },
+        };
+        for ( const auto& [label, type] : kinds )
         {
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::Folder,
-                "folder"s,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Model Object" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Model object" );
-            mProject.mLevel.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mLevel.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<ShaderComponent>( entity );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::ModelObject,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Physics Object" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Physics object" );
-            mProject.mLevel.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mLevel.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<RigidBodyComponent>( entity );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::PhysicsObject,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Game Object" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Game object" );
-            mProject.mLevel.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mLevel.mScene.AddComponent<ModelComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<ShaderComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<CharacterControllerComponent>( entity );
-            mProject.mLevel.mScene.AddComponent<StateComponent>( entity, mProject.mScriptingEngine.CreateTable() );
-            mProject.mLevel.mScene.AddComponent<ScriptComponent>( entity );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::GameObject,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Script" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Script" );
-            mProject.mLevel.mScene.AddComponent<StateComponent>( entity, mProject.mScriptingEngine.CreateTable() );
-            mProject.mLevel.mScene.AddComponent<ScriptComponent>( entity );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::Script,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Light" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Light" );
-            mProject.mLevel.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mLevel.mScene.AddComponent<LightComponent>( entity )
-                           .SyncToTransform( mProject.mLevel.mScene.GetComponent<TransformComponent>( entity ) );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::Light,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
-        }
-        if ( ImGui::MenuItem( "Create Camera" ) )
-        {
-            auto entity = mProject.mLevel.mScene.CreateEntity();
-            mProject.mLevel.mScene.AddComponent<TagComponent>( entity, "Camera" );
-            mProject.mLevel.mScene.AddComponent<TransformComponent>( entity, trans );
-            mProject.mLevel.mScene.AddComponent<CameraComponent>( entity );
-
-            auto command = std::make_unique<CreateNodeCommand>(
-                node,
-                ProjectTreeNodeType::Camera,
-                entity,
-                mProject.mLevel.mScene,
-                mProject.mLevel.mNodeIDCounter
-            );
-            mHistory.ExecuteCommand( std::move( command ) );
+            if ( ImGui::MenuItem( label ) )
+                Invoke( "scene.create_node", { { "type", magic_enum::enum_name( type ) },
+                                               { "parent", node->ID() },
+                                               { "spawn_at", spawnAt } } );
         }
         ImGui::EndPopup();
     }
@@ -354,13 +260,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 
                     const auto name = ComponentManager::GetName( componentId );
                     if ( ImGui::MenuItem( name.data() ) )
-                    {
-                        // custom creation if needed
-                        if ( componentId == (int)ComponentID::State )
-                            mProject.mLevel.mScene.AddComponent<StateComponent>( selectedEntity, mProject.mScriptingEngine.CreateTable() );
-                        else
-                            mProject.mLevel.mScene.EntityAddComponentId( selectedEntity, componentId );
-                    }
+                        Invoke( "entity.add_component", { { "entity", (u64)selectedEntity }, { "component", name } } );
                 }
                 ImGui::EndMenu();
             }
@@ -377,7 +277,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 
                     auto name = ComponentManager::GetName( componentID );
                     if ( ImGui::MenuItem( name.data() ) )
-                        mProject.mLevel.mScene.EntityRemoveComponentId( selectedEntity, componentID );
+                        Invoke( "entity.remove_component", { { "entity", (u64)selectedEntity }, { "component", name } } );
                 }
                 ImGui::EndMenu();
             }
@@ -385,12 +285,13 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
         }
 
         // Entity components
+        EditContext ctx{ mProject, mHistory };
         mProject.mLevel.mScene.ForEachEntityComponentRaw( selectedEntity, 
                                                    [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
-                onDrawFunc( mProject, selectedEntity, componentRaw );
+                onDrawFunc( ctx, selectedEntity, componentRaw );
             else
                 ImGui::Text( "%s", std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();

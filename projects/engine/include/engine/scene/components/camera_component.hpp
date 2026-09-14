@@ -13,7 +13,7 @@ struct CameraComponent : public Camera
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, CameraComponent& component );
+    static void OnComponentDraw( EditContext& ctx, const Entity& entity, CameraComponent& component );
 	static void ToJson( json& json, const Project& project, const CameraComponent& component );
 	static void FromJson( const json& json, Project& project, CameraComponent& component );
     static void CreateLuaBinding( sol::state& lua );

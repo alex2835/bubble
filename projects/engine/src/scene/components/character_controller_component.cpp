@@ -31,62 +31,76 @@ CharacterControllerComponent::~CharacterControllerComponent()
 {
 }
 
-void CharacterControllerComponent::OnComponentDraw( const Project& project, const Entity& entity, CharacterControllerComponent& component )
+namespace
+{
+// Everything the inspector can set on a controller, as plain values: the
+// step for a change is this, not the controller, so undo does not have to
+// copy a Bullet object per frame.
+struct ControllerSpec
+{
+    f32 mRadius, mHeight, mStepHeight, mJumpSpeed, mFallSpeed, mMaxSlopeRadians;
+    vec3 mGravity;
+    bool operator==( const ControllerSpec& ) const = default;
+
+    static ControllerSpec Of( const CharacterController& c )
+    {
+        return { c.GetRadius(), c.GetHeight(), c.GetStepHeight(), c.GetJumpSpeed(),
+                 c.GetFallSpeed(), c.GetMaxSlopeRadians(), c.GetGravity() };
+    }
+
+    void ApplyTo( CharacterControllerComponent& component ) const
+    {
+        auto& controller = component.mController;
+        // The capsule is baked into the Bullet objects; a new size is a new
+        // controller, standing where the old one stood.
+        if ( controller.GetRadius() != mRadius or controller.GetHeight() != mHeight or controller.GetStepHeight() != mStepHeight )
+        {
+            const vec3 pos = controller.GetPosition();
+            controller = CharacterController( mRadius, mHeight, mStepHeight );
+            controller.Warp( pos );
+        }
+        controller.SetJumpSpeed( mJumpSpeed );
+        controller.SetFallSpeed( mFallSpeed );
+        controller.SetMaxSlope( mMaxSlopeRadians );
+        controller.SetGravity( mGravity );
+    }
+};
+}
+
+void CharacterControllerComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, CharacterControllerComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "CharacterController component" );
 
-    auto& controller = component.mController;
+    const auto apply = []( CharacterControllerComponent& c, const ControllerSpec& spec ) { spec.ApplyTo( c ); };
+    auto edit = [&]( const char* label, auto&& widget )
+    {
+        EditProperty<CharacterControllerComponent>( ctx, entity, label, ControllerSpec::Of( component.mController ), widget, apply );
+    };
 
     // Capsule shape controls
-    f32 radius = controller.GetRadius();
-    f32 height = controller.GetHeight();
-    bool shapeChanged = false;
-    shapeChanged |= ImGui::DragFloat( "Radius", &radius, 0.01f, 0.1f, 10.0f );
-    shapeChanged |= ImGui::DragFloat( "Height", &height, 0.01f, 0.0f, 10.0f );
-    if ( shapeChanged )
-    {
-        // Recreate with new dimensions, preserving other settings
-        f32 stepHeight = controller.GetStepHeight();
-        f32 jumpSpeed = controller.GetJumpSpeed();
-        f32 fallSpeed = controller.GetFallSpeed();
-        f32 maxSlope = controller.GetMaxSlopeRadians();
-        vec3 gravity = controller.GetGravity();
-        vec3 pos = controller.GetPosition();
-
-        component.mController = CharacterController( radius, height, stepHeight );
-        component.mController.SetJumpSpeed( jumpSpeed );
-        component.mController.SetFallSpeed( fallSpeed );
-        component.mController.SetMaxSlope( maxSlope );
-        component.mController.SetGravity( gravity );
-        component.mController.Warp( pos );
-    }
-    ImGui::Text( "Total Height: %.2f", height + 2.0f * radius );
+    edit( "Radius", []( ControllerSpec& s ) { return ImGui::DragFloat( "Radius", &s.mRadius, 0.01f, 0.1f, 10.0f ); } );
+    edit( "Height", []( ControllerSpec& s ) { return ImGui::DragFloat( "Height", &s.mHeight, 0.01f, 0.0f, 10.0f ); } );
+    ImGui::Text( "Total Height: %.2f", component.mController.GetHeight() + 2.0f * component.mController.GetRadius() );
 
     ImGui::Separator();
 
     // Movement configuration
-    f32 stepHeight = controller.GetStepHeight();
-    if ( ImGui::DragFloat( "Step Height", &stepHeight, 0.01f, 0.0f, 2.0f ) )
-        controller.SetStepHeight( stepHeight );
-
-    f32 maxSlopeDegrees = glm::degrees( controller.GetMaxSlopeRadians() );
-    if ( ImGui::SliderFloat( "Max Slope (deg)", &maxSlopeDegrees, 0.0f, 90.0f ) )
-        controller.SetMaxSlope( glm::radians( maxSlopeDegrees ) );
+    edit( "Step Height", []( ControllerSpec& s ) { return ImGui::DragFloat( "Step Height", &s.mStepHeight, 0.01f, 0.0f, 2.0f ); } );
+    edit( "Max Slope", []( ControllerSpec& s )
+    {
+        f32 degrees = glm::degrees( s.mMaxSlopeRadians );
+        if ( not ImGui::SliderFloat( "Max Slope (deg)", &degrees, 0.0f, 90.0f ) )
+            return false;
+        s.mMaxSlopeRadians = glm::radians( degrees );
+        return true;
+    } );
 
     ImGui::Separator();
 
     // Jump/Fall configuration
-    f32 jumpSpeed = controller.GetJumpSpeed();
-    if ( ImGui::DragFloat( "Jump Speed", &jumpSpeed, 0.1f, 0.0f, 50.0f ) )
-        controller.SetJumpSpeed( jumpSpeed );
-
-    f32 fallSpeed = controller.GetFallSpeed();
-    if ( ImGui::DragFloat( "Fall Speed", &fallSpeed, 0.1f, 0.0f, 100.0f ) )
-        controller.SetFallSpeed( fallSpeed );
-
-    vec3 gravity = controller.GetGravity();
-    if ( ImGui::DragFloat3( "Gravity", &gravity.x, 0.1f ) )
-        controller.SetGravity( gravity );
+    edit( "Jump Speed", []( ControllerSpec& s ) { return ImGui::DragFloat( "Jump Speed", &s.mJumpSpeed, 0.1f, 0.0f, 50.0f ); } );
+    edit( "Fall Speed", []( ControllerSpec& s ) { return ImGui::DragFloat( "Fall Speed", &s.mFallSpeed, 0.1f, 0.0f, 100.0f ); } );
+    edit( "Gravity", []( ControllerSpec& s ) { return ImGui::DragFloat3( "Gravity", &s.mGravity.x, 0.1f ); } );
 
     ImGui::Separator();
 }

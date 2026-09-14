@@ -10,6 +10,9 @@ class BubbleEditor;
 class Window;
 class Selection;
 class History;
+class Clipboard;
+class OperatorQueue;
+struct OperatorContext;
 struct UIGlobals;
 struct EditorSettings;
 enum class EditorMode;
@@ -33,6 +36,12 @@ protected:
     Project& mProject;
     Selection& mSelection;
     History& mHistory;
+    Clipboard& mClipboard;
+
+    // For invoking operators from a menu item: now, or - for anything that
+    // replaces the level or project being drawn - after this frame.
+    OperatorContext Operators() const;
+    OperatorQueue& mOperatorQueue;
 
     // UI global state
     UIGlobals& mUIGlobals;

@@ -1,6 +1,7 @@
 
 #include "editor_application/editor_application.hpp"
 #include <sol/sol.hpp>
+#include <nlohmann/json.hpp>
 
 namespace bubble
 {
@@ -19,12 +20,15 @@ BubbleEditor::BubbleEditor()
       mEntityIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       
+      mEditorLua( OperatorContext{ mProject, mHistory, mSelection, mClipboard }, mOperatorQueue ),
       mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
       mProjectResourcesHotReloader( mProject, mUIGlobals ),
       mEditorUserInterface( *this )
 {
     mWindow.SetVSync( false );
     mProject.mScriptingEngine.SetCurrentState();
+    OperatorRegistry::RegisterBuiltins();
+    RegisterEditorOperators();
 
     mEditorSettings.Load();
     mEditorSettings.Apply( mWindow, mSceneCamera, mUIGlobals );
@@ -167,211 +171,135 @@ void BubbleEditor::OnUpdate()
 {
     OnUpdateHotKeys();
 
-    // Only while editing: a running engine holds its own copy of the level.
-    if ( mEditorMode != EditorMode::Editing )
-        return;
+    // Before any window draws this frame: what was queued last frame may
+    // replace the level or the project the windows are showing.
+    OperatorContext ctx = Operators();
+    mOperatorQueue.Flush( ctx );
 
-    if ( mUIGlobals.mRequestOpenProject )
-    {
-        const path file = std::move( *mUIGlobals.mRequestOpenProject );
-        mUIGlobals.mRequestOpenProject.reset();
-        try
-        {
-            OpenProject( file );
-        }
-        catch ( const std::exception& e )
-        {
-            LogError( e.what() );
-        }
-    }
-
-    if ( mUIGlobals.mRequestOpenLevel )
-    {
-        const path relFile = std::move( *mUIGlobals.mRequestOpenLevel );
-        mUIGlobals.mRequestOpenLevel.reset();
-        try
-        {
-            OpenLevel( relFile );
-        }
-        catch ( const std::exception& e )
-        {
-            LogError( e.what() );
-        }
-    }
-
-    if ( mUIGlobals.mRequestNewLevel )
-    {
-        const string name = std::move( *mUIGlobals.mRequestNewLevel );
-        mUIGlobals.mRequestNewLevel.reset();
-        try
-        {
-            NewLevel( name );
-        }
-        catch ( const std::exception& e )
-        {
-            LogError( e.what() );
-        }
-    }
+    // Whatever ran this frame - a hotkey, a queued operator, a script -
+    // must not leave the windows a selection that points at nothing.
+    if ( mProject.IsValid() )
+        mSelection.Prune( mProject.mLevel.mScene, mProject.mLevel.mTreeRoot );
 }
 
+void BubbleEditor::RegisterEditorOperators()
+{
+    auto& registry = OperatorRegistry::Instance();
+    if ( registry.Find( "project.open" ) )
+        return;
+
+    // The editor's own verbs, on top of the engine's: they touch the
+    // editor's state (mode, windows), so they are registered here rather
+    // than in the engine. Blender keeps these under wm.* for the same reason.
+    const auto editing = [this]( const OperatorContext&, const json& ) { return mEditorMode == EditorMode::Editing; };
+    const auto running = [this]( const OperatorContext&, const json& ) { return mEditorMode == EditorMode::Running; };
+    const auto projectOpen = [this]( const OperatorContext&, const json& )
+    {
+        return mEditorMode == EditorMode::Editing and mProject.IsValid();
+    };
+
+    // args: path (the .bubble file)
+    registry.Register( { "project.open", "Open project", editing,
+        [this]( OperatorContext&, const json& args ) { OpenProject( path( args.at( "path" ).get<string>() ) ); } } );
+    registry.Register( { "project.save", "Save project", projectOpen,
+        [this]( OperatorContext&, const json& ) { mProject.Save(); } } );
+
+    // args: file (relative to the project root, as Project::Levels() lists)
+    registry.Register( { "level.open", "Open level", projectOpen,
+        [this]( OperatorContext&, const json& args )
+        {
+            const path file = path( args.at( "file" ).get<string>() );
+            if ( file == mProject.CurrentLevel() )
+                return;
+            // The level being left is saved: the switch replaces it in place.
+            mProject.Save();
+            OpenLevel( file );
+        } } );
+    // args: name
+    registry.Register( { "level.new", "New level", projectOpen,
+        [this]( OperatorContext&, const json& args ) { NewLevel( args.at( "name" ).get<string>() ); } } );
+    // args: file (default: the open level)
+    registry.Register( { "level.set_startup", "Set as startup level", projectOpen,
+        [this]( OperatorContext&, const json& args )
+        {
+            mProject.mStartupLevel = args.contains( "file" ) ? path( args.at( "file" ).get<string>() )
+                                                             : mProject.CurrentLevel();
+        } } );
+
+    registry.Register( { "game.run", "Run", projectOpen,
+        [this]( OperatorContext&, const json& )
+        {
+            try
+            {
+                mEditorMode = EditorMode::Running;
+                StartEngine();
+            }
+            catch ( ... )
+            {
+                mEditorMode = EditorMode::Editing;
+                StopEngine();
+                throw;
+            }
+        } } );
+    registry.Register( { "game.stop", "Stop", running,
+        [this]( OperatorContext&, const json& )
+        {
+            mEditorMode = EditorMode::Editing;
+            StopEngine();
+        } } );
+}
 
 void BubbleEditor::OnUpdateHotKeys()
 {
     const auto& input = mWindow.GetWindowInput();
     const bool ctrlPressed = input.KeyMods().CONTROL;
 
-    // Start game
-    if ( mEditorMode == EditorMode::Editing and
-         input.IsKeyClicked( KeyboardKey::F5 ) and 
-         mProject.IsValid() )
-    {
-        try
-        {
-            mEditorMode = EditorMode::Running;
-            StartEngine();
-        }
-        catch ( const std::exception& e )
-        {
-            mEditorMode = EditorMode::Editing;
-            LogError( e.what() );
-            StopEngine();
-        };
-    }
+    // Run / stop the game
+    if ( input.IsKeyClicked( KeyboardKey::F5 ) )
+        Invoke( "game.run" );
+    if ( input.IsKeyClicked( KeyboardKey::F6 ) )
+        Invoke( "game.stop" );
 
-    // Stop game
-     if ( mEditorMode == EditorMode::Running and
-         input.IsKeyClicked( KeyboardKey::F6 ) )
-    {
-        mEditorMode = EditorMode::Editing;
-        StopEngine();
-    }
-
-
-    // Manage selection
+    // Editing hotkeys. Each one is an operator; the key only names it.
     if ( mEditorMode == EditorMode::Editing )
     {
-        // Ctrl+S - Save project
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::S ) )
-        {
-            if ( mProject.IsValid() )
-                mProject.Save();
-        }
+        static constexpr std::pair<KeyboardKey, const char*> ctrlKeys[] = {
+            { KeyboardKey::S, "project.save" },
+            { KeyboardKey::Z, "history.undo" },
+            { KeyboardKey::Y, "history.redo" },
+            { KeyboardKey::X, "scene.cut" },
+            { KeyboardKey::C, "scene.copy" },
+            { KeyboardKey::V, "scene.paste" },
+        };
+        static constexpr std::pair<KeyboardKey, const char*> plainKeys[] = {
+            { KeyboardKey::DEL, "scene.delete" },
+        };
 
-        // Ctrl+Z - Undo
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::Z ) )
-        {
-            mHistory.Undo();
-        }
+        for ( const auto& [key, op] : ctrlKeys )
+            if ( ctrlPressed and input.IsKeyClicked( key ) )
+                Invoke( op );
+        for ( const auto& [key, op] : plainKeys )
+            if ( not ctrlPressed and input.IsKeyClicked( key ) )
+                Invoke( op );
+    }
+}
 
-        // Ctrl+Y - Redo
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::Y ) )
-        {
-            mHistory.Redo();
-        }
+void BubbleEditor::RunScript( const path& file )
+{
+    mEditorLua.RunFile( file );
+}
 
-        // Del - Delete selection
-        if ( input.IsKeyClicked( KeyboardKey::DEL ) )
-        {
-            if ( not mSelection.IsEmpty() )
-            {
-                if ( mSelection.GetTreeNode() )
-                {
-                    // Single node deletion (from tree hierarchy)
-                    auto nodeToRemove = mSelection.GetTreeNode();
-                    mSelection.Clear();
-
-                    auto command = std::make_unique<DeleteNodeCommand>(
-                        nodeToRemove,
-                        mProject.mLevel.mScene
-                    );
-                    mHistory.ExecuteCommand( std::move( command ) );
-                }
-                else
-                {
-                    // Multiple entities selected (viewport selection)
-                    // Find all nodes corresponding to selected entities
-                    vector<Ref<ProjectTreeNode>> nodesToDelete;
-                    for ( auto entity : mSelection.GetEntities() )
-                    {
-                        auto node = FindNodeByEntity( entity, mProject.mLevel.mTreeRoot );
-                        if ( node )
-                            nodesToDelete.push_back( node );
-                    }
-
-                    if ( not nodesToDelete.empty() )
-                    {
-                        mSelection.Clear();
-
-                        auto command = std::make_unique<DeleteMultipleNodesCommand>(
-                            nodesToDelete,
-                            mProject.mLevel.mScene,
-                            mProject.mLevel.mTreeRoot
-                        );
-                        mHistory.ExecuteCommand( std::move( command ) );
-                    }
-                }
-            }
-        }
-
-        // Ctrl+X - Cut
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::X ) )
-        {
-            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
-            {
-                mClipboard.Cut( mSelection.GetTreeNode() );
-                mSelection.Clear();
-            }
-        }
-
-        // Ctrl+C - Copy
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::C ) )
-        {
-            if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
-            {
-                mClipboard.Copy( mSelection.GetTreeNode() );
-            }
-        }
-
-        // Ctrl+V - Paste (move if cut, copy if copied)
-        if ( ctrlPressed and input.IsKeyClicked( KeyboardKey::V ) )
-        {
-            if ( not mClipboard.IsEmpty() )
-            {
-                Ref<ProjectTreeNode> targetParent;
-
-                // Determine target parent: selected node or root
-                if ( not mSelection.IsEmpty() and mSelection.GetTreeNode() )
-                {
-                    auto selectedNode = mSelection.GetTreeNode();
-                    // If selected node is a folder/level, paste into it; otherwise paste into its parent
-                    if ( not selectedNode->IsEntity() )
-                        targetParent = selectedNode;
-                    else
-                        targetParent = selectedNode->mParent.lock();
-                }
-                else
-                {
-                    targetParent = mProject.mLevel.mTreeRoot;
-                }
-
-                if ( targetParent )
-                {
-                    if ( mClipboard.IsCut() )
-                    {
-                        // Move: execute move command through history
-                        auto command = std::make_unique<MoveNodeCommand>( mClipboard.GetNode(), targetParent );
-                        mHistory.ExecuteCommand( std::move( command ) );
-                        mClipboard.Clear();
-                    }
-                    else
-                    {
-                        // Copy: execute copy command through history
-                        auto command = std::make_unique<CopyNodeCommand>( mClipboard.GetNode(), targetParent, mProject.mLevel.mScene );
-                        mHistory.ExecuteCommand( std::move( command ) );
-                    }
-                }
-            }
-        }
+bool BubbleEditor::Invoke( const char* op, const json& args )
+{
+    try
+    {
+        OperatorContext ctx = Operators();
+        return InvokeOperator( op, ctx, args );
+    }
+    catch ( const std::exception& e )
+    {
+        LogError( "{}: {}", op, e.what() );
+        return false;
     }
 }
 

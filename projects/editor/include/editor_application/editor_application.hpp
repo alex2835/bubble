@@ -5,11 +5,14 @@
 #include "engine/physics/physics_engine.hpp"
 #include "editor_user_interface/editor_user_interface.hpp"
 #include "utils/resources_hot_reloader.hpp"
-#include "utils/selection.hpp"
+#include "engine/editing/selection.hpp"
 #include "utils/ui_globals.hpp"
 #include "utils/editor_settings.hpp"
-#include "utils/history.hpp"
-#include "utils/clipboard.hpp"
+#include "engine/editing/history.hpp"
+#include "engine/editing/operator.hpp"
+#include "engine/editing/editor_lua.hpp"
+#include <nlohmann/json.hpp>
+#include "engine/editing/clipboard.hpp"
 #include "utils/auto_backup.hpp"
 
 namespace bubble
@@ -26,6 +29,14 @@ class BubbleEditor
 public:
     BubbleEditor();
     ~BubbleEditor();
+    // What an operator runs against: the editor's document and its state.
+    OperatorContext Operators() { return OperatorContext{ mProject, mHistory, mSelection, mClipboard }; }
+    // Run one now, logging a failure instead of throwing. For hotkeys.
+    bool Invoke( const char* op, const json& args );
+    bool Invoke( const char* op ) { return Invoke( op, json::object() ); }
+    // An editor script (see editor_lua.hpp); the --script option.
+    void RunScript( const path& file );
+
     void OpenProject( const path& projectPath );
     // Replace the level being edited. Relative to the project root.
     void OpenLevel( const path& relFile );
@@ -36,6 +47,7 @@ public:
 private:
     void OnUpdate();
     void OnUpdateHotKeys();
+    void RegisterEditorOperators();
 
     void StartEngine();
     void StopEngine();
@@ -59,6 +71,8 @@ public:
     Selection mSelection;
     History mHistory;
     Clipboard mClipboard;
+    OperatorQueue mOperatorQueue;
+    EditorLua mEditorLua; // after everything its context refers to
     AutoBackup mAutoBackup;
     ProjectResourcesHotReloader mProjectResourcesHotReloader;
 

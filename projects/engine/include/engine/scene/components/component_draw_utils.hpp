@@ -3,6 +3,7 @@
 #include "engine/types/utility.hpp"
 #include "engine/scene/components/component_base.hpp"
 #include "engine/project/project.hpp"
+#include "engine/editing/undoable_widgets.hpp"
 
 // Helpers shared by the per-component OnComponentDraw implementations.
 // Included by the component .cpp files only - never by a component header,
@@ -19,6 +20,6 @@ const T* TryGetComponent( const Project& project, Entity entity )
     return &project.mLevel.mScene.GetComponent<T>( entity );
 }
 
-opt<AABB> TryGetEntityBBox( const Project& project, Entity entity );
+opt<AABB> TryGetModelBBox( const Project& project, Entity entity );
 
 }

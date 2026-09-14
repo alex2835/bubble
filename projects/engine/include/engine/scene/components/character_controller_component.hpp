@@ -9,7 +9,7 @@ struct CharacterControllerComponent
     static int ID() { return static_cast<int>( ComponentID::CharacterController ); }
     static string_view Name() { return "CharacterController"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, CharacterControllerComponent& component );
+    static void OnComponentDraw( EditContext& ctx, const Entity& entity, CharacterControllerComponent& component );
     static void ToJson( json& json, const Project& project, const CharacterControllerComponent& component );
     static void FromJson( const json& json, Project& project, CharacterControllerComponent& component );
     static void CreateLuaBinding( sol::state& lua );

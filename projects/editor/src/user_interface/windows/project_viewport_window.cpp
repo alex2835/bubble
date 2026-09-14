@@ -2,6 +2,7 @@
 #include "editor_user_interface/windows/project_viewport_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/project/project_tree.hpp"
+#include "engine/editing/scene_commands.hpp"
 #include <glm/gtc/epsilon.hpp>
 #include <imgui.h>
 #include <cmath>
@@ -211,15 +212,9 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
     // Check if gizmo just stopped being used
     if ( not isUsing and mGizmoWasUsing )
     {
-        // Create undo command for the transform change
-        Transform endTransform = entityTransform;
-        auto command = std::make_unique<TransformChangeCommand>(
-            entity,
-            mProject.mLevel.mScene,
-            mGizmoStartTransform,
-            endTransform
-        );
-        mHistory.ExecuteCommand( std::move( command ) );
+        // The gizmo already moved it; the step is recorded, not re-applied.
+        mHistory.Record( CreateScope<TransformChangeCommand>( entity, mProject.mLevel.mScene,
+                                                              mGizmoStartTransform, Transform( entityTransform ) ) );
     }
 
     mGizmoWasUsing = isUsing;
@@ -290,14 +285,8 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
             }
         }
 
-        // Create undo command for multi-entity transform change
-        auto command = std::make_unique<MultiTransformChangeCommand>(
-            entities,
-            mProject.mLevel.mScene,
-            mGizmoStartTransforms,
-            endTransforms
-        );
-        mHistory.ExecuteCommand( std::move( command ) );
+        mHistory.Record( CreateScope<MultiTransformChangeCommand>( entities, mProject.mLevel.mScene,
+                                                                   mGizmoStartTransforms, endTransforms ) );
     }
 
     mGizmoWasUsing = isUsing;

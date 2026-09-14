@@ -15,7 +15,7 @@ struct AudioListenerComponent
     static int ID() { return static_cast<int>( ComponentID::AudioListener ); }
     static string_view Name() { return "AudioListener"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, AudioListenerComponent& component );
+    static void OnComponentDraw( EditContext& ctx, const Entity& entity, AudioListenerComponent& component );
     static void ToJson( json& json, const Project& project, const AudioListenerComponent& component );
     static void FromJson( const json& json, Project& project, AudioListenerComponent& component );
     static void CreateLuaBinding( sol::state& lua );

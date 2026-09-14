@@ -13,12 +13,12 @@
 
 namespace bubble
 {
-void TransformComponent::OnComponentDraw( const Project& project, const Entity& entity, TransformComponent& transformComponent )
+void TransformComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, TransformComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
-    ImGui::DragFloat3( "Scale", (float*)&transformComponent.mScale, 0.01f, 0.01f );
-    ImGui::DragFloat3( "Rotation", (float*)&transformComponent.mRotation, 0.01f );
-    ImGui::DragFloat3( "Position", (float*)&transformComponent.mPosition, 0.1f );
+    DragFloat3Field<TransformComponent>( ctx, entity, "Scale", &TransformComponent::mScale, 0.01f, 0.01f );
+    DragFloat3Field<TransformComponent>( ctx, entity, "Rotation", &TransformComponent::mRotation, 0.01f );
+    DragFloat3Field<TransformComponent>( ctx, entity, "Position", &TransformComponent::mPosition, 0.1f );
 }
 
 void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )

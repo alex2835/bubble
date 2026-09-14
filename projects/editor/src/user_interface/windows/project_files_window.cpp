@@ -1,6 +1,8 @@
 #include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
 #include "editor_application/editor_application.hpp"
+#include "engine/editing/operator.hpp"
+#include <nlohmann/json.hpp>
 #include <imgui.h>
 
 namespace bubble
@@ -181,11 +183,7 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
             if ( child.mType == FilesystemNodeType::Level and doubleClicked )
             {
                 const path rel = filesystem::relative( child.mPath, mProject.RootDir() );
-                if ( rel != mProject.CurrentLevel() )
-                {
-                    mProject.Save();
-                    mUIGlobals.mRequestOpenLevel = rel;
-                }
+                mOperatorQueue.Enqueue( "level.open", { { "file", rel.generic_string() } } );
             }
 
             // Draw

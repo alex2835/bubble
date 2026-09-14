@@ -86,47 +86,51 @@ void AudioSourceComponent::ApplyParams()
 }
 
 
-void AudioSourceComponent::OnComponentDraw( const Project& project, const Entity& entity, AudioSourceComponent& component )
+void AudioSourceComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, AudioSourceComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "AudioSourceComponent" );
 
     const auto& sound = component.mSound;
-    auto soundName = sound ? sound->mName.c_str() : "Not selected";
-    if ( ImGui::BeginCombo( "sounds", soundName ) )
+    ComboProperty<AudioSourceComponent>( ctx, entity, "sounds", sound, sound ? sound->mName.c_str() : "Not selected",
+                                         ctx.mProject.mLoader.mSounds,
+                                         []( const auto& entry ) { return entry.first.stem().string(); },
+                                         []( const auto& entry ) { return entry.second; },
+                                         []( AudioSourceComponent& c, const Ref<Sound>& v )
     {
-        for ( const auto& [soundPath, loadedSound] : project.mLoader.mSounds )
-        {
-            auto soundComboName = soundPath.stem().string();
-            if ( ImGui::Selectable( soundComboName.c_str(), soundComboName == soundName ) )
-            {
-                component.Stop();
-                component.mSound = loadedSound;
-            }
-        }
-        ImGui::EndCombo();
-    }
+        c.Stop();
+        c.mSound = v;
+    } );
 
-    bool changed = false;
-    changed |= ImGui::SliderFloat( "Volume", &component.mParams.mVolume, 0.0f, 2.0f );
-    changed |= ImGui::SliderFloat( "Pitch", &component.mParams.mPitch, 0.1f, 4.0f );
-    changed |= ImGui::Checkbox( "Looping", &component.mParams.mLooping );
-    changed |= ImGui::Checkbox( "Spatialized", &component.mParams.mSpatialized );
-    ImGui::Checkbox( "Play on start", &component.mPlayOnStart );
+    // Every voice parameter goes through the same apply: set the field, then
+    // push the params into the live voice - only then, since pushing every
+    // field into miniaudio on every inspector frame would contend with the
+    // audio thread for no reason.
+    auto param = [&]<typename T>( const char* label, T VoiceParams::* member, auto&& widget )
+    {
+        EditProperty<AudioSourceComponent>( ctx, entity, label, T( component.mParams.*member ), widget,
+                                            [member]( AudioSourceComponent& c, const T& v )
+        {
+            c.mParams.*member = v;
+            c.ApplyParams();
+        } );
+    };
+
+    param( "Volume", &VoiceParams::mVolume, []( f32& v ) { return ImGui::SliderFloat( "Volume", &v, 0.0f, 2.0f ); } );
+    param( "Pitch", &VoiceParams::mPitch, []( f32& v ) { return ImGui::SliderFloat( "Pitch", &v, 0.1f, 4.0f ); } );
+    param( "Looping", &VoiceParams::mLooping, []( bool& v ) { return ImGui::Checkbox( "Looping", &v ); } );
+    param( "Spatialized", &VoiceParams::mSpatialized, []( bool& v ) { return ImGui::Checkbox( "Spatialized", &v ); } );
+    CheckboxField<AudioSourceComponent>( ctx, entity, "Play on start", &AudioSourceComponent::mPlayOnStart );
 
     if ( component.mParams.mSpatialized )
     {
         ImGui::Indent();
-        changed |= ImGui::DragFloat( "Min distance", &component.mParams.mMinDistance, 0.1f, 0.0f, 10000.0f );
-        changed |= ImGui::DragFloat( "Max distance", &component.mParams.mMaxDistance, 0.1f, 0.0f, 10000.0f );
-        changed |= ImGui::SliderFloat( "Rolloff", &component.mParams.mRolloff, 0.0f, 4.0f );
+        param( "Min distance", &VoiceParams::mMinDistance, []( f32& v ) { return ImGui::DragFloat( "Min distance", &v, 0.1f, 0.0f, 10000.0f ); } );
+        param( "Max distance", &VoiceParams::mMaxDistance, []( f32& v ) { return ImGui::DragFloat( "Max distance", &v, 0.1f, 0.0f, 10000.0f ); } );
+        param( "Rolloff", &VoiceParams::mRolloff, []( f32& v ) { return ImGui::SliderFloat( "Rolloff", &v, 0.0f, 4.0f ); } );
         ImGui::Unindent();
     }
 
-    // Only when something moved: pushing every field into miniaudio on every
-    // inspector frame would contend with the audio thread for no reason.
-    if ( changed )
-        component.ApplyParams();
-
+    // Auditioning is not an edit.
     if ( component.IsPlaying() )
     {
         if ( ImGui::Button( "Stop" ) )

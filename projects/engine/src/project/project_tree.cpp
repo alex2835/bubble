@@ -107,6 +107,16 @@ Ref<ProjectTreeNode> FindNodeByEntity( Entity entity, const Ref<ProjectTreeNode>
     return nullptr;
 }
 
+Ref<ProjectTreeNode> FindNodeById( u64 id, const Ref<ProjectTreeNode>& node )
+{
+    if ( node->ID() == id )
+        return node;
+    for ( const auto& child : node->mChildren )
+        if ( auto res = FindNodeById( id, child ) )
+            return res;
+    return nullptr;
+}
+
 void FillEntitiesInSubTree( set<Entity>& entities, const Ref<ProjectTreeNode>& node )
 {
     if ( node->IsEntity() )

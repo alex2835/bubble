@@ -10,7 +10,7 @@ struct AudioSourceComponent
     static int ID() { return static_cast<int>( ComponentID::AudioSource ); }
     static string_view Name() { return "AudioSource"sv; }
 
-    static void OnComponentDraw( const Project& project, const Entity& entity, AudioSourceComponent& component );
+    static void OnComponentDraw( EditContext& ctx, const Entity& entity, AudioSourceComponent& component );
     static void ToJson( json& json, const Project& project, const AudioSourceComponent& component );
     static void FromJson( const json& json, Project& project, AudioSourceComponent& component );
     static void CreateLuaBinding( sol::state& lua );

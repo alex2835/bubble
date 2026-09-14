@@ -12,22 +12,16 @@
 
 namespace bubble
 {
-void ModelComponent::OnComponentDraw( const Project& project, const Entity& entity, ModelComponent& modelComponent )
+void ModelComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, ModelComponent& modelComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
 
     const auto& model = modelComponent.mModel;
-    auto modelName = model ? model->mName.c_str() : "Not selected";
-    if ( ImGui::BeginCombo( "models", modelName ) )
-    {
-        for ( const auto& [modelPath, model] : project.mLoader.mModels )
-        {
-            auto modelComboName = modelPath.stem().string();
-            if ( ImGui::Selectable( modelComboName.c_str(), modelComboName == modelName ) )
-                modelComponent = model;
-        }
-        ImGui::EndCombo();
-    }
+    ComboProperty<ModelComponent>( ctx, entity, "models", model, model ? model->mName.c_str() : "Not selected",
+                                   ctx.mProject.mLoader.mModels,
+                                   []( const auto& entry ) { return entry.first.stem().string(); },
+                                   []( const auto& entry ) { return entry.second; },
+                                   []( ModelComponent& c, const Ref<Model>& v ) { c = v; } );
 }
 
 void ModelComponent::ToJson( json& json, const Project& project, const ModelComponent& modelComponent )

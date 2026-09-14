@@ -51,6 +51,10 @@ public:
     Entity CopyEntity( Entity entity );
     Entity CopyEntityInto( Registry& targetRegistry, Entity entity );
     Entity CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, size_t targetId );
+    // One component of `entity` onto `targetEntity` in `targetRegistry`, which
+    // must not have that component yet. The pair of this and
+    // EntityRemoveComponentId is what an undoable "remove component" needs.
+    void CopyComponentInto( Registry& targetRegistry, Entity entity, ComponentTypeId componentId, Entity targetEntity );
 
     // Component types API
     template <ComponentType Component>

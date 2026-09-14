@@ -1,9 +1,29 @@
-
-#include "utils/selection.hpp"
+#include "engine/pch/pch.hpp"
+#include "engine/editing/selection.hpp"
 
 namespace bubble
 {
 // Selection implementation
+void Selection::Prune( const Scene& scene, const Ref<ProjectTreeNode>& root )
+{
+    if ( mProjectTreeNode and mProjectTreeNode != root and not FindNodeById( mProjectTreeNode->ID(), root ) )
+        mProjectTreeNode = nullptr;
+
+    bool dropped = false;
+    for ( auto it = mEntities.begin(); it != mEntities.end(); )
+    {
+        if ( scene.HasEntity( *it ) )
+            ++it;
+        else
+        {
+            it = mEntities.erase( it );
+            dropped = true;
+        }
+    }
+    if ( dropped )
+        UpdateGroupTransform( scene );
+}
+
 void Selection::Clear()
 {
     mProjectTreeNode.reset();

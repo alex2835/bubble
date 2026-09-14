@@ -113,34 +113,41 @@ void LogDroppedShaderUniforms( const Ref<Shader>& shader, const DroppedUniforms&
 }
 
 
-void ShaderComponent::OnComponentDraw( const Project& project, const Entity& entity, ShaderComponent& shaderComponent )
+void ShaderComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, ShaderComponent& shaderComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ShaderComponent" );
 
     const auto& shader = shaderComponent.mShader;
-    auto shaderName = shader ? shader->mName.c_str() : "Not selected";
-    if ( ImGui::BeginCombo( "shaders", shaderName ) )
+    ComboProperty<ShaderComponent>( ctx, entity, "shaders", shader, shader ? shader->mName.c_str() : "Not selected",
+                                    ctx.mProject.mLoader.mShaders,
+                                    []( const auto& entry ) { return entry.first.stem().string(); },
+                                    []( const auto& entry ) { return entry.second; },
+                                    [&lua = ctx.mProject.mScriptingEngine]( ShaderComponent& c, const Ref<Shader>& v )
     {
-        for ( const auto& [shaderPath, shaderRef] : project.mLoader.mShaders )
-        {
-            auto shaderComboName = shaderPath.stem().string();
-            if ( ImGui::Selectable( shaderComboName.c_str(), shaderComboName == shaderName ) )
-            {
-                shaderComponent.mShader = shaderRef;
+        c.mShader = v;
+        // The table is keyed by the *old* shader's uniforms. Without this the
+        // inspector kept showing them, and the new shader's own uniforms never
+        // appeared until the project was reopened. Values whose name and type
+        // the other shader shares carry over; the rest are reported and lost -
+        // on undo too, until the uniform table itself is under undo.
+        LogDroppedShaderUniforms( c.mShader, c.RebuildUniforms( lua ) );
+    } );
 
-                // The table is keyed by the *old* shader's uniforms. Without
-                // this the inspector kept showing them, and the new shader's
-                // own uniforms never appeared until the project was reopened.
-                auto& scriptingEngine = const_cast<Project&>( project ).mScriptingEngine;
-                const auto dropped = shaderComponent.RebuildUniforms( scriptingEngine );
-                LogDroppedShaderUniforms( shaderComponent.mShader, dropped );
-            }
-        }
-        ImGui::EndCombo();
-    }
+    // The keys are the shader's; only the values are the user's to edit.
+    DrawLuaTable( ctx, UniformsTableRoot( ctx.mProject.mLevel.mScene, entity ), /*fixedKeys*/ true );
+}
 
-    if ( shaderComponent.mUniforms and shaderComponent.mUniforms->is<Table>() )
-        DrawAnyValue( const_cast<Project&>( project ), "Uniforms##shader", *shaderComponent.mUniforms, true );
+LuaTableRoot ShaderComponent::UniformsTableRoot( Scene& scene, Entity entity )
+{
+    return LuaTableRoot{ &scene, entity, "Shader.Uniforms", []( Scene& s, Entity e ) -> opt<Table>
+    {
+        if ( not s.HasComponent<ShaderComponent>( e ) )
+            return std::nullopt;
+        const auto& uniforms = s.GetComponent<ShaderComponent>( e ).mUniforms;
+        if ( not uniforms or not uniforms->is<Table>() )
+            return std::nullopt;
+        return uniforms->as<Table>();
+    } };
 }
 
 void ShaderComponent::ToJson( json& j, const Project& project, const ShaderComponent& shaderComponent )
@@ -257,7 +264,8 @@ ShaderComponent& ShaderComponent::operator=( const ShaderComponent& shaderCompon
     if ( this != &shaderComponent )
     {
         mShader = shaderComponent.mShader;
-        mUniforms = AnyDeepCopy( shaderComponent.mUniforms );
+        // A component that never got a shader has no table; its copy has none.
+        mUniforms = shaderComponent.mUniforms ? AnyDeepCopy( shaderComponent.mUniforms ) : nullptr;
     }
     return *this;
 }

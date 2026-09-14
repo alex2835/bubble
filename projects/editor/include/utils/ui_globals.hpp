@@ -1,8 +1,5 @@
 #pragma once
 #include "engine/renderer/entity_id_picker.hpp"
-#include "engine/utils/filesystem.hpp"
-#include "engine/types/utility.hpp"
-#include "engine/types/string.hpp"
 
 
 namespace bubble
@@ -11,13 +8,6 @@ namespace bubble
 struct UIGlobals
 {
     bool mNeedUpdateProjectFilesWindow = false;
-    // A level (relative to the project root) a window asked to open. The
-    // editor services it from its own update, where it can also drop the
-    // selection, history and clipboard that point into the level being left.
-    opt<path> mRequestOpenLevel;
-    // Same for a project file, and for a level to create, for the same reason.
-    opt<path> mRequestOpenProject;
-    opt<string> mRequestNewLevel;
     bool mIsViewportHovered = false;
     bool mIsViewManipulatorUsing = false;
 

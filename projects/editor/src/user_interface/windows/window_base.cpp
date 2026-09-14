@@ -13,9 +13,16 @@ UserInterfaceWindowBase::UserInterfaceWindowBase( BubbleEditor& editor )
       mProject( editor.mProject ),
       mSelection( editor.mSelection ),
       mHistory( editor.mHistory ),
+      mClipboard( editor.mClipboard ),
+      mOperatorQueue( editor.mOperatorQueue ),
       mUIGlobals( editor.mUIGlobals ),
       mEditorSettings( editor.mEditorSettings )
 {}
+
+OperatorContext UserInterfaceWindowBase::Operators() const
+{
+    return OperatorContext{ mProject, mHistory, mSelection, mClipboard };
+}
 
 }
 

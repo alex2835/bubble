@@ -12,11 +12,11 @@
 
 namespace bubble
 {
-void TagComponent::OnComponentDraw( const Project& project, const Entity& entity, TagComponent& tagComponent )
+void TagComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, TagComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
-    ImGui::InputText( "Name", tagComponent.mName );
-    ImGui::InputText( "Class", tagComponent.mClass );
+    InputTextField<TagComponent>( ctx, entity, "Name", &TagComponent::mName );
+    InputTextField<TagComponent>( ctx, entity, "Class", &TagComponent::mClass );
 }
 
 void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )

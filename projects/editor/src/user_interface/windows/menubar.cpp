@@ -1,6 +1,9 @@
 #include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/menubar.hpp"
 #include "editor_application/editor_application.hpp"
+#include "engine/editing/operator.hpp"
+#include "engine/editing/history.hpp"
+#include <nlohmann/json.hpp>
 #include <imgui.h>
 
 namespace bubble
@@ -94,9 +97,8 @@ void Menubar::ModalOpenProject()
 
     if ( mFileDialog.HasSelected() )
     {
-        // Through the editor, which drops the selection and history that
-        // point into the project being left, and reports a failed open.
-        mUIGlobals.mRequestOpenProject = mFileDialog.GetSelected();
+        // After this frame: the windows are still drawing the old project.
+        mOperatorQueue.Enqueue( "project.open", { { "path", mFileDialog.GetSelected().string() } } );
         mFileDialog.ClearSelected();
         mOpenProjectModal = false;
     }
@@ -114,7 +116,7 @@ void Menubar::ModalNewLevel()
 
         if ( ImGui::Button( "Create", ImVec2( 100, 30 ) ) )
         {
-            mUIGlobals.mRequestNewLevel = mNewLevelName;
+            mOperatorQueue.Enqueue( "level.new", { { "name", mNewLevelName } } );
             ImGui::CloseCurrentPopup();
             mNewLevelModal = false;
         }
@@ -127,6 +129,40 @@ void Menubar::ModalNewLevel()
         }
         ImGui::EndPopup();
     }
+}
+
+void Menubar::DrawEditMenu()
+{
+    // Every item is an operator: the registry says whether it can run now,
+    // the history says what the next undo step is called.
+    OperatorContext ctx = Operators();
+    auto item = [&]( const char* op, const char* shortcut, string_view suffix = {} )
+    {
+        const Operator* def = OperatorRegistry::Instance().Find( op );
+        if ( not def )
+            return;
+        const string label = suffix.empty() ? def->mLabel : std::format( "{} {}", def->mLabel, suffix );
+        if ( ImGui::MenuItem( label.c_str(), shortcut, false, PollOperator( op, ctx ) ) )
+        {
+            try
+            {
+                InvokeOperator( op, ctx );
+            }
+            catch ( const std::exception& e )
+            {
+                LogError( "{}: {}", op, e.what() );
+            }
+        }
+    };
+
+    item( "history.undo", "Ctrl+Z", mHistory.NextUndoName() );
+    item( "history.redo", "Ctrl+Y", mHistory.NextRedoName() );
+    ImGui::Separator();
+    item( "scene.cut", "Ctrl+X" );
+    item( "scene.copy", "Ctrl+C" );
+    item( "scene.paste", "Ctrl+V" );
+    ImGui::Separator();
+    item( "scene.delete", "Del" );
 }
 
 void Menubar::DrawLevelsMenu()
@@ -146,17 +182,14 @@ void Menubar::DrawLevelsMenu()
         {
             const bool isCurrent = level == current;
             if ( ImGui::MenuItem( level.generic_string().c_str(), nullptr, isCurrent ) and not isCurrent )
-            {
-                mProject.Save();
-                mUIGlobals.mRequestOpenLevel = level;
-            }
+                mOperatorQueue.Enqueue( "level.open", { { "file", level.generic_string() } } );
         }
         ImGui::EndMenu();
     }
 
     const bool isStartup = current == mProject.mStartupLevel;
     if ( ImGui::MenuItem( "Set as startup level", nullptr, isStartup, not current.empty() ) )
-        mProject.mStartupLevel = current;
+        mOperatorQueue.Enqueue( "level.set_startup" );
 
     ImGui::Separator();
     ImGui::TextDisabled( "startup: %s", mProject.mStartupLevel.generic_string().c_str() );
@@ -218,9 +251,15 @@ void Menubar::DrawMenubar()
             if ( ImGui::MenuItem( "Open" ) )
                 mOpenProjectModal = true;
 
-            if ( ImGui::MenuItem( "Save", "Ctrl+S" ) and mProject.IsValid() )
-                mProject.Save();
+            if ( ImGui::MenuItem( "Save", "Ctrl+S", false, mProject.IsValid() ) )
+                mOperatorQueue.Enqueue( "project.save" );
 
+            ImGui::EndMenu();
+        }
+
+        if ( mProject.IsValid() and ImGui::BeginMenu( "Edit" ) )
+        {
+            DrawEditMenu();
             ImGui::EndMenu();
         }
 

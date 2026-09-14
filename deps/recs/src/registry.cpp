@@ -153,6 +153,25 @@ Entity Registry::CopyEntityIntoWithId( Registry& targetRegistry, Entity entity, 
     return newEntity;
 }
 
+void Registry::CopyComponentInto( Registry& targetRegistry, Entity entity, ComponentTypeId componentId, Entity targetEntity )
+{
+    if ( not GetEntityComponentsIds( entity ).contains( componentId ) )
+        throw std::runtime_error( "CopyComponentInto: source entity has no such component" );
+    auto& targetIds = targetRegistry.mEntitiesComponentTypeIds.at( targetEntity );
+    if ( targetIds.contains( componentId ) )
+        throw std::runtime_error( "CopyComponentInto: target entity already has that component" );
+    targetIds.insert( componentId );
+
+    auto& sourcePool = GetPool( componentId );
+    auto& targetPool = targetRegistry.GetPool( componentId );
+
+    // Same ordering concern as CopyEntityInto: push first, read the source after.
+    void* newCompMem = targetPool.PushEmpty( targetEntity );
+    const void* compMem = sourcePool.GetRaw( entity );
+    targetPool.mDoDelete( newCompMem );
+    targetPool.mDoCopy( compMem, newCompMem );
+}
+
 std::set<ComponentTypeId>& Registry::GetEntityComponentsIds( Entity entity )
 {
     return mEntitiesComponentTypeIds[entity];
