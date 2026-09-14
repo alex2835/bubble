@@ -12,7 +12,7 @@
 
 namespace bubble
 {
-void TagComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, TagComponent& )
+void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, TagComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
     InputTextField<TagComponent>( ctx, entity, "Name", &TagComponent::mName );

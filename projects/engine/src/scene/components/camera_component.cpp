@@ -13,7 +13,7 @@
 
 namespace bubble
 {
-void CameraComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
+void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
 

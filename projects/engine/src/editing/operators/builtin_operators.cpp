@@ -2,11 +2,12 @@
 // used to do inline in the editor, with the selection read from the context
 // and everything else from `args`.
 #include "engine/pch/pch.hpp"
-#include "engine/editing/operator.hpp"
+#include "engine/editing/operators/operator.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/editing/clipboard.hpp"
-#include "engine/editing/scene_commands.hpp"
+#include "engine/editing/commands/tree_commands.hpp"
+#include "engine/editing/commands/component_commands.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/serialization/types_serialization.hpp"

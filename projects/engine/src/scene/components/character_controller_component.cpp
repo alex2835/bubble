@@ -67,7 +67,7 @@ struct ControllerSpec
 };
 }
 
-void CharacterControllerComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, CharacterControllerComponent& component )
+void CharacterControllerComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, CharacterControllerComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "CharacterController component" );
 

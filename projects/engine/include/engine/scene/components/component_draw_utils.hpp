@@ -3,7 +3,7 @@
 #include "engine/types/utility.hpp"
 #include "engine/scene/components/component_base.hpp"
 #include "engine/project/project.hpp"
-#include "engine/editing/undoable_widgets.hpp"
+#include "engine/editing/ui/undoable_widgets.hpp"
 
 // Helpers shared by the per-component OnComponentDraw implementations.
 // Included by the component .cpp files only - never by a component header,

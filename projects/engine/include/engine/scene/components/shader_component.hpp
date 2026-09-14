@@ -24,7 +24,7 @@ struct ShaderComponent
     static int ID() { return static_cast<int>( ComponentID::Shader ); }
 	static string_view Name() { return "Shader"sv; }
 
-    static void OnComponentDraw( EditContext& ctx, const Entity& entity, ShaderComponent& component );
+    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ShaderComponent& component );
     // How an edit addresses this entity's uniform table - see lua_value_command.hpp.
     static LuaTableRoot UniformsTableRoot( Scene& scene, Entity entity );
 	static void ToJson( json& json, const Project& project, const ShaderComponent& component );

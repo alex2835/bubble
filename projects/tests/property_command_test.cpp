@@ -1,6 +1,6 @@
 // One property of one component, set and recorded.
 #include "test.hpp"
-#include "engine/editing/property_command.hpp"
+#include "engine/editing/commands/property_command.hpp"
 #include <sol/sol.hpp>
 
 TEST( SetProperty )

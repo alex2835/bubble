@@ -1,6 +1,6 @@
 // A value inside a component's Lua table, addressed by key path.
 #include "test.hpp"
-#include "engine/editing/lua_value_command.hpp"
+#include "engine/editing/commands/lua_value_command.hpp"
 #include <sol/sol.hpp>
 
 TEST( LuaValue )

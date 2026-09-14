@@ -1,9 +1,9 @@
 #pragma once
 #include <imgui.h>
-#include "engine/editing/edit_context.hpp"
-#include "engine/editing/edit_tracking.hpp"
+#include "engine/editing/ui/inspector_context.hpp"
+#include "engine/editing/ui/interaction.hpp"
 #include "engine/editing/history.hpp"
-#include "engine/editing/property_command.hpp"
+#include "engine/editing/commands/property_command.hpp"
 #include "engine/project/project.hpp"
 #include "engine/utils/imgui_utils.hpp"
 
@@ -22,7 +22,7 @@ namespace bubble
 // writes a value onto the component - the same function the command uses on
 // undo and redo. Returns what the widget returned.
 template <typename Component, typename T, typename Widget, typename Apply>
-bool EditProperty( EditContext& ctx, Entity entity, string_view name, T value, Widget&& widget, Apply&& apply )
+bool EditProperty( InspectorContext& ctx, Entity entity, string_view name, T value, Widget&& widget, Apply&& apply )
 {
     Scene& scene = ctx.mProject.mLevel.mScene;
     const T before = value;
@@ -45,7 +45,7 @@ bool EditProperty( EditContext& ctx, Entity entity, string_view name, T value, W
 // component.
 template <typename Component, typename Base, typename T, typename Widget>
     requires std::derived_from<Component, Base>
-bool EditField( EditContext& ctx, Entity entity, string_view name, T Base::* member, Widget&& widget )
+bool EditField( InspectorContext& ctx, Entity entity, string_view name, T Base::* member, Widget&& widget )
 {
     const T& current = ctx.mProject.mLevel.mScene.GetComponent<Component>( entity ).*member;
     return EditProperty<Component>( ctx, entity, name, current, std::forward<Widget>( widget ),
@@ -55,40 +55,40 @@ bool EditField( EditContext& ctx, Entity entity, string_view name, T Base::* mem
 /// The usual widgets over a data member. The label is also the step's name.
 
 template <typename Component, typename Base>
-bool DragFloatField( EditContext& ctx, Entity entity, const char* label, f32 Base::* member,
+bool DragFloatField( InspectorContext& ctx, Entity entity, const char* label, f32 Base::* member,
                      f32 speed = 1.0f, f32 min = 0.0f, f32 max = 0.0f, const char* format = "%.3f", ImGuiSliderFlags flags = 0 )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( f32& v ) { return ImGui::DragFloat( label, &v, speed, min, max, format, flags ); } );
 }
 
 template <typename Component, typename Base>
-bool DragFloat3Field( EditContext& ctx, Entity entity, const char* label, vec3 Base::* member,
+bool DragFloat3Field( InspectorContext& ctx, Entity entity, const char* label, vec3 Base::* member,
                       f32 speed = 1.0f, f32 min = 0.0f, f32 max = 0.0f )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( vec3& v ) { return ImGui::DragFloat3( label, &v.x, speed, min, max ); } );
 }
 
 template <typename Component, typename Base>
-bool SliderFloatField( EditContext& ctx, Entity entity, const char* label, f32 Base::* member,
+bool SliderFloatField( InspectorContext& ctx, Entity entity, const char* label, f32 Base::* member,
                        f32 min, f32 max, const char* format = "%.3f", ImGuiSliderFlags flags = 0 )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( f32& v ) { return ImGui::SliderFloat( label, &v, min, max, format, flags ); } );
 }
 
 template <typename Component, typename Base>
-bool CheckboxField( EditContext& ctx, Entity entity, const char* label, bool Base::* member )
+bool CheckboxField( InspectorContext& ctx, Entity entity, const char* label, bool Base::* member )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( bool& v ) { return ImGui::Checkbox( label, &v ); } );
 }
 
 template <typename Component, typename Base>
-bool ColorEdit3Field( EditContext& ctx, Entity entity, const char* label, vec3 Base::* member )
+bool ColorEdit3Field( InspectorContext& ctx, Entity entity, const char* label, vec3 Base::* member )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( vec3& v ) { return ImGui::ColorEdit3( label, &v.x ); } );
 }
 
 template <typename Component, typename Base>
-bool InputTextField( EditContext& ctx, Entity entity, const char* label, string Base::* member )
+bool InputTextField( InspectorContext& ctx, Entity entity, const char* label, string Base::* member )
 {
     return EditField<Component>( ctx, entity, label, member, [&]( string& v ) { return ImGui::InputText( label, v ); } );
 }
@@ -97,7 +97,7 @@ bool InputTextField( EditContext& ctx, Entity entity, const char* label, string 
 // `itemName( item )` and standing for the value `itemValue( item )`; picking
 // one becomes the step. `current` is what the property holds now.
 template <typename Component, typename T, typename Items, typename ItemName, typename ItemValue, typename Apply>
-bool ComboProperty( EditContext& ctx,
+bool ComboProperty( InspectorContext& ctx,
                     Entity entity,
                     const char* label,
                     const T& current,

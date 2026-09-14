@@ -5,7 +5,7 @@
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include "engine/serialization/any_serialization.hpp"
-#include "engine/types/any_draw.hpp"
+#include "engine/editing/ui/lua_table_widget.hpp"
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/geometry.hpp"
@@ -42,7 +42,7 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
     return *this;
 }
 
-void StateComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, StateComponent& component )
+void StateComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
     DrawLuaTable( ctx, StateTableRoot( ctx.mProject.mLevel.mScene, entity ) );

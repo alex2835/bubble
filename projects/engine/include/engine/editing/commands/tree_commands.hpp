@@ -6,9 +6,8 @@
 #include "engine/types/map.hpp"
 #include "engine/types/set.hpp"
 
-// The structural edits of a level: nodes of the tree and the entities they
-// stand for, and the component set of an entity. Property edits are
-// property_command.hpp.
+// The structure of a level: nodes of the tree and the entities they stand
+// for - made, deleted, copied, moved.
 namespace bubble
 {
 class Project;
@@ -132,80 +131,6 @@ private:
     Ref<ProjectTreeNode> mOldParent;
     Ref<ProjectTreeNode> mNewParent;
     size_t mOldIndexInParent = 0;
-};
-
-// The gizmo's step: one or many transforms, from where the drag began to
-// where it ended.
-class TransformChangeCommand : public ICommand
-{
-public:
-    TransformChangeCommand( Entity entity, Scene& scene, const Transform& oldTransform, const Transform& newTransform );
-
-    string_view Name() const override { return "Transform"sv; }
-    void Execute() override;
-    void Undo() override;
-
-private:
-    Entity mEntity;
-    Scene& mScene;
-    Transform mOldTransform;
-    Transform mNewTransform;
-};
-
-class MultiTransformChangeCommand : public ICommand
-{
-public:
-    MultiTransformChangeCommand( const set<Entity>& entities,
-                                 Scene& scene,
-                                 const map<Entity, Transform>& oldTransforms,
-                                 const map<Entity, Transform>& newTransforms );
-
-    string_view Name() const override { return "Transform"sv; }
-    void Execute() override;
-    void Undo() override;
-
-private:
-    set<Entity> mEntities;
-    Scene& mScene;
-    map<Entity, Transform> mOldTransforms;
-    map<Entity, Transform> mNewTransforms;
-};
-
-// Add a component by id, with the defaults that component starts with in the
-// inspector (a State component gets a table from the project's VM).
-class AddComponentCommand : public ICommand
-{
-public:
-    AddComponentCommand( Entity entity, ComponentTypeId componentId, Project& project );
-
-    string_view Name() const override { return mName; }
-    void Execute() override;
-    void Undo() override;
-
-private:
-    Entity mEntity;
-    ComponentTypeId mComponentId;
-    Project& mProject;
-    string mName;
-};
-
-// Remove a component; the removed one waits in a private scene for undo.
-class RemoveComponentCommand : public ICommand
-{
-public:
-    RemoveComponentCommand( Entity entity, ComponentTypeId componentId, Scene& scene );
-
-    string_view Name() const override { return mName; }
-    void Execute() override;
-    void Undo() override;
-
-private:
-    Entity mEntity;
-    ComponentTypeId mComponentId;
-    Scene& mScene;
-    Scene mBackupScene;
-    Entity mBackupEntity = INVALID_ENTITY;
-    string mName;
 };
 
 }

@@ -1,6 +1,6 @@
 // The editor's Lua: the `editor` table over the operator registry.
 #include "test.hpp"
-#include "engine/editing/editor_lua.hpp"
+#include "engine/editing/scripting/editor_lua.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/editing/clipboard.hpp"
 #include "engine/serialization/types_serialization.hpp"

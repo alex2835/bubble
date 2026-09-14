@@ -1,7 +1,8 @@
 #include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
 #include "editor_application/editor_application.hpp"
-#include "engine/editing/operator.hpp"
+#include "engine/editing/operators/operator.hpp"
+#include "engine/editing/operators/operator_queue.hpp"
 #include <nlohmann/json.hpp>
 #include <imgui.h>
 

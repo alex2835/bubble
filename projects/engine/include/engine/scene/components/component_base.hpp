@@ -18,7 +18,7 @@ namespace bubble
 using namespace recs;
 class Project;
 class Scene;
-struct EditContext;
+struct InspectorContext;
 struct LuaTableRoot;
 
 enum class ComponentID

@@ -86,7 +86,7 @@ void AudioSourceComponent::ApplyParams()
 }
 
 
-void AudioSourceComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, AudioSourceComponent& component )
+void AudioSourceComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioSourceComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "AudioSourceComponent" );
 

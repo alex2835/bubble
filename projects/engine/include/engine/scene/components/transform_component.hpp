@@ -13,7 +13,7 @@ struct TransformComponent : public Transform
     static int ID() { return static_cast<int>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
 
-    static void OnComponentDraw( EditContext& ctx, const Entity& entity, TransformComponent& component );
+    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, TransformComponent& component );
     static void ToJson( json& json, const Project& project, const TransformComponent& component );
     static void FromJson( const json& json, Project& project, TransformComponent& component );
     static void CreateLuaBinding( sol::state& lua );

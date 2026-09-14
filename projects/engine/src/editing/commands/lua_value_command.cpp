@@ -1,5 +1,5 @@
 #include "engine/pch/pch.hpp"
-#include "engine/editing/lua_value_command.hpp"
+#include "engine/editing/commands/lua_value_command.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble

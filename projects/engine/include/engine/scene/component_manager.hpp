@@ -5,7 +5,7 @@
 #include "engine/types/map.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
-#include "engine/editing/edit_context.hpp"
+#include "engine/editing/ui/inspector_context.hpp"
 
 namespace bubble
 {
@@ -16,7 +16,7 @@ concept ComponentConcept = requires( Component component,
                                      const Entity& entity,
                                      sol::state& lua,
                                      Project& project,
-                                     EditContext& ctx,
+                                     InspectorContext& ctx,
                                      json& json )
 {
     { Component::ID() } -> std::same_as<int>;
@@ -27,7 +27,7 @@ concept ComponentConcept = requires( Component component,
     { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
 };
 
-typedef void ( *OnComponentDrawFunc )( EditContext& ctx, const Entity& entity, void* rawData );
+typedef void ( *OnComponentDrawFunc )( InspectorContext& ctx, const Entity& entity, void* rawData );
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
 typedef void ( *ComponentFromJson )( const json& json, Project& project, void* rawData );
 typedef void ( *ComponentCreateLuaBinding )( sol::state& lua );
@@ -54,7 +54,7 @@ public:
         {
             AddName( Component::ID(), Component::Name() );
 
-            AddOnDraw( Component::ID(), []( EditContext& ctx, const Entity& entity, void* rawData )
+            AddOnDraw( Component::ID(), []( InspectorContext& ctx, const Entity& entity, void* rawData )
             { Component::OnComponentDraw( ctx, entity, *reinterpret_cast<Component*>( rawData ) ); } );
 
             AddToJson( Component::ID(), []( json& json, const Project& project, const void* rawData )

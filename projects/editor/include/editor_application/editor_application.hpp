@@ -9,8 +9,9 @@
 #include "utils/ui_globals.hpp"
 #include "utils/editor_settings.hpp"
 #include "engine/editing/history.hpp"
-#include "engine/editing/operator.hpp"
-#include "engine/editing/editor_lua.hpp"
+#include "engine/editing/operators/operator.hpp"
+#include "engine/editing/operators/operator_queue.hpp"
+#include "engine/editing/scripting/editor_lua.hpp"
 #include <nlohmann/json.hpp>
 #include "engine/editing/clipboard.hpp"
 #include "utils/auto_backup.hpp"

@@ -6,7 +6,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/project/project.hpp"
 #include "engine/editing/history.hpp"
-#include "engine/editing/scene_commands.hpp"
+#include "engine/editing/commands/tree_commands.hpp"
 #include <print>
 
 using namespace bubble;

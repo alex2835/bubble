@@ -1,6 +1,6 @@
 // Operators by name, with arguments and a context.
 #include "test.hpp"
-#include "engine/editing/operator.hpp"
+#include "engine/editing/operators/operator.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/editing/clipboard.hpp"
 #include "engine/serialization/types_serialization.hpp"

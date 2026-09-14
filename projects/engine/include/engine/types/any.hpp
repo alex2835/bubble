@@ -8,7 +8,7 @@ namespace bubble
 // A Lua value held from C++: what a script's `state` table, a shader's uniform
 // table and global_state are. Everything that turns one into something else
 // lives next to that something - serialization/any_serialization.hpp for JSON,
-// types/any_draw.hpp for the inspector, renderer/shader_uniforms.hpp for the
+// editing/ui/lua_table_widget.hpp for the inspector, renderer/shader_uniforms.hpp for the
 // GPU block.
 using Any = sol::lua_value;
 using Table = sol::table;

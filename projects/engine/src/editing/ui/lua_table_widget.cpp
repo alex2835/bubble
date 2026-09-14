@@ -1,8 +1,8 @@
 #include "engine/pch/pch.hpp"
-#include "engine/types/any_draw.hpp"
+#include "engine/editing/ui/lua_table_widget.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/imgui_utils.hpp"
-#include "engine/editing/edit_tracking.hpp"
+#include "engine/editing/ui/interaction.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/texture.hpp"
@@ -21,7 +21,7 @@ constexpr auto TABLE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
 
 struct DrawCtx
 {
-    EditContext& mCtx;
+    InspectorContext& mCtx;
     const LuaTableRoot& mRoot;
     bool mFixedKeys;
 
@@ -371,7 +371,7 @@ void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const A
 }
 }
 
-void DrawLuaTable( EditContext& ctx, const LuaTableRoot& root, bool fixedKeys )
+void DrawLuaTable( InspectorContext& ctx, const LuaTableRoot& root, bool fixedKeys )
 {
     const auto table = root.Get();
     if ( not table )

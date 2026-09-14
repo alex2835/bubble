@@ -8,7 +8,7 @@
 
 namespace bubble
 {
-void AudioListenerComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, AudioListenerComponent& )
+void AudioListenerComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioListenerComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "AudioListenerComponent" );
     CheckboxField<AudioListenerComponent>( ctx, entity, "Active", &AudioListenerComponent::mActive );

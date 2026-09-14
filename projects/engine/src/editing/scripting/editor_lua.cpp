@@ -1,5 +1,5 @@
 #include "engine/pch/pch.hpp"
-#include "engine/editing/editor_lua.hpp"
+#include "engine/editing/scripting/editor_lua.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/project/project.hpp"

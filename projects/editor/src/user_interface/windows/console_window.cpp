@@ -1,7 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "editor_user_interface/windows/console_window.hpp"
 #include "editor_application/editor_application.hpp"
-#include "engine/editing/editor_lua.hpp"
+#include "engine/editing/scripting/editor_lua.hpp"
 #include <imgui.h>
 
 namespace bubble

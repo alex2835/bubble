@@ -1,6 +1,6 @@
 #pragma once
-#include "engine/editing/edit_context.hpp"
-#include "engine/editing/lua_value_command.hpp"
+#include "engine/editing/ui/inspector_context.hpp"
+#include "engine/editing/commands/lua_value_command.hpp"
 
 namespace bubble
 {
@@ -8,6 +8,6 @@ namespace bubble
 // trees with add/remove. Every edit is a SetLuaValueCommand on `ctx`'s
 // history. `fixedKeys` keeps the set of keys as it is (a shader's uniforms
 // are the shader's to decide) and only lets the values change.
-void DrawLuaTable( EditContext& ctx, const LuaTableRoot& root, bool fixedKeys = false );
+void DrawLuaTable( InspectorContext& ctx, const LuaTableRoot& root, bool fixedKeys = false );
 
 }

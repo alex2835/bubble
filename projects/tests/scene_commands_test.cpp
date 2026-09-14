@@ -2,7 +2,8 @@
 // move, components - applied, undone and redone.
 #include "test.hpp"
 #include "engine/scene/component_manager.hpp"
-#include "engine/editing/property_command.hpp"
+#include "engine/editing/commands/property_command.hpp"
+#include "engine/editing/commands/component_commands.hpp"
 #include <sol/sol.hpp>
 
 TEST( CreateUndoRedo )

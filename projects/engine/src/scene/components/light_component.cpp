@@ -21,7 +21,7 @@ void LightComponent::SyncToTransform( const TransformComponent& transform )
     Update();
 }
 
-void LightComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, LightComponent& lightComponent )
+void LightComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, LightComponent& lightComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "LightComponent" );
 

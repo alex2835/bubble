@@ -13,7 +13,7 @@
 
 namespace bubble
 {
-void TransformComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, TransformComponent& )
+void TransformComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, TransformComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
     DragFloat3Field<TransformComponent>( ctx, entity, "Scale", &TransformComponent::mScale, 0.01f, 0.01f );

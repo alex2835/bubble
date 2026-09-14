@@ -2,7 +2,7 @@
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
-#include "engine/editing/operator.hpp"
+#include "engine/editing/operators/operator.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
@@ -285,7 +285,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
         }
 
         // Entity components
-        EditContext ctx{ mProject, mHistory };
+        InspectorContext ctx{ mProject, mHistory };
         mProject.mLevel.mScene.ForEachEntityComponentRaw( selectedEntity, 
                                                    [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {

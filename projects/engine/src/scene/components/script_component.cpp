@@ -12,7 +12,7 @@
 
 namespace bubble
 {
-void ScriptComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, ScriptComponent& scriptComponent )
+void ScriptComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, ScriptComponent& scriptComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
 

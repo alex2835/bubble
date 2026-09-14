@@ -1,6 +1,7 @@
 #pragma once
 #include <sol/forward.hpp>
-#include "engine/editing/operator.hpp"
+#include "engine/editing/operators/operator.hpp"
+#include "engine/editing/operators/operator_queue.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/utils/filesystem.hpp"
 

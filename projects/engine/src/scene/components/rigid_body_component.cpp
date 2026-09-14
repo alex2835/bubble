@@ -133,7 +133,7 @@ BodySpec DefaultShape( int shapeType, const BodySpec& current, const opt<AABB>& 
 }
 }
 
-void RigidBodyComponent::OnComponentDraw( EditContext& ctx, const Entity& entity, RigidBodyComponent& component )
+void RigidBodyComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, RigidBodyComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "RigidBody component" );
 
