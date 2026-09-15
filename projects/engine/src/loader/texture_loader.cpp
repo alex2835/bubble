@@ -79,6 +79,20 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& texturePath )
 }
 
 
+Ref<Texture2D> Loader::UploadTexture2D( const TextureData& textureData )
+{
+    auto [relPath, absPath] = RelAbsFromProjectPath( textureData.mPath );
+
+    auto iter = mTextures.find( relPath );
+    if ( iter != mTextures.end() )
+        return iter->second;
+
+    auto texture = bubble::LoadTexture2D( textureData );
+    mTextures.emplace( relPath, texture );
+    return texture;
+}
+
+
 void Loader::LoadTextures2D( const vector<path>& texturePaths )
 {
     ThreadPool threadPool;
@@ -88,7 +102,7 @@ void Loader::LoadTextures2D( const vector<path>& texturePaths )
     {
         auto [relPath, absPath] = RelAbsFromProjectPath( texturePath );
 
-        if ( mTextures.contains( texturePath ) )
+        if ( mTextures.contains( relPath ) )
             continue;
 
         textureDataTasks.emplace_back( [=]()

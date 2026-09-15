@@ -12,6 +12,7 @@
 #include "engine/scripting/script.hpp"
 #include "engine/audio/sound.hpp"
 #include "engine/loader/shader_module_loader.hpp"
+#include <functional>
 
 namespace Assimp { class Importer; }
 
@@ -38,6 +39,15 @@ constexpr string_view BILBOARD_SHADER = "./resources/shaders/billboard"sv;
 // this file per shader is what makes every new shader start as a duplicate.
 
 
+// Loading is split in two: Open* reads and decodes on any thread and returns
+// plain memory, Load* turns that into GPU objects.
+//
+// The split dates from OpenGL, whose context was bound to one thread. WebGPU's
+// device and queue are thread safe, so it is no longer forced - but it is kept,
+// because the browser build has WebGPU only on the main thread, and because the
+// Loader's caches are not synchronized. Decoding is the expensive part anyway,
+// and that is what runs in parallel.
+
 struct TextureData
 {
     Scope<u8[]> mData;
@@ -48,6 +58,9 @@ struct TextureData
 struct ModelData
 {
     Scope<Assimp::Importer> mImporter;
+    // Every texture the model's materials reference, decoded, keyed by the
+    // absolute path the material resolves to. LoadModel uploads from here
+    // rather than reading the files again.
     map<path, TextureData> mTexturesData;
     path mPath;
 };
@@ -56,8 +69,15 @@ std::optional<TextureData> OpenTexture( const path& path );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 
+// Turns decoded texture data into the GPU texture the model will bind. The
+// caller decides where that texture lives - Loader's cache, so meshes and
+// models sharing a file share one texture, or a throwaway map for a model
+// loaded outside any Loader.
+using TextureUploader = std::function<Ref<Texture2D>( const TextureData& )>;
+
+std::optional<ModelData> OpenModel( const path& modelPath );
 Ref<Model> LoadModel( const path& path );
-Ref<Model> LoadModel( const ModelData& modelData );
+Ref<Model> LoadModel( const ModelData& modelData, const TextureUploader& uploadTexture );
 
 Ref<Shader> LoadShader( const path& path );
 
@@ -74,6 +94,9 @@ struct Loader
     Ref<Sound> LoadSound( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
+    // Uploads decoded data into mTextures, or returns the texture already
+    // cached for that path. The TextureUploader models hand to LoadModel.
+    Ref<Texture2D> UploadTexture2D( const TextureData& textureData );
     Ref<Shader> LoadShader( path path );
     Ref<Model> LoadModel( const path& path );
     void LoadModels( const vector<path>& paths );

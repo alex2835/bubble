@@ -77,8 +77,23 @@ std::optional<ModelData> OpenModel( const path& modelPath )
 
 
 
-BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& modelDirectory )
+BasicMaterial LoadMaterial( const aiMaterial* mat,
+                            const ModelData& modelData,
+                            const TextureUploader& uploadTexture )
 {
+    const path modelDirectory = modelData.mPath.parent_path();
+
+    // The files were decoded by OpenModel; here they are only uploaded. One
+    // that failed to decode is already logged and absent from the map, and the
+    // material just goes without it.
+    const auto texture = [&]( const aiString& name ) -> Ref<Texture2D>
+    {
+        auto iter = modelData.mTexturesData.find( modelDirectory / name.C_Str() );
+        if ( iter == modelData.mTexturesData.end() )
+            return nullptr;
+        return uploadTexture( iter->second );
+    };
+
     BasicMaterial material;
     for ( u32 i = 0; i < cTextureTypes.size(); i++ )
     {
@@ -91,16 +106,16 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& modelDire
             switch ( cTextureTypes[i] )
             {
             case aiTextureType_DIFFUSE:
-                material.mDiffuseMap = LoadTexture2D( modelDirectory / str.C_Str() );
+                material.mDiffuseMap = texture( str );
                 break;
             case aiTextureType_SPECULAR:
-                material.mSpecularMap = LoadTexture2D( modelDirectory / str.C_Str() );
+                material.mSpecularMap = texture( str );
                 break;
             case aiTextureType_NORMALS:
-                material.mNormalMap = LoadTexture2D( modelDirectory / str.C_Str() );
+                material.mNormalMap = texture( str );
                 break;
                 //case aiTextureType_HEIGHT:
-                //    material.mNormalMap = LoadTexture2D( directory / str.C_Str() );
+                //    material.mNormalMap = texture( str );
                 //    break;
             default:
                 LogWarning( "Model: {}. Doesn't use texture: {}", modelDirectory.string(), str.C_Str() );
@@ -137,9 +152,10 @@ BasicMaterial LoadMaterialTextures( const aiMaterial* mat, const path& modelDire
 
 
 Mesh ProcessMesh( const aiMesh* mesh,
-                  const aiScene* scene,
-                  const path& modelPath )
+                  const ModelData& modelData,
+                  const TextureUploader& uploadTexture )
 {
+    const aiScene* scene = modelData.mImporter->GetScene();
     VertexBufferData vertices;
 
     // Every attribute is sized to the vertex count, present in the source or not.
@@ -196,7 +212,7 @@ Mesh ProcessMesh( const aiMesh* mesh,
 
     // Material
     aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
-    BasicMaterial material = LoadMaterialTextures( assimp_material, modelPath.parent_path() );
+    BasicMaterial material = LoadMaterial( assimp_material, modelData, uploadTexture );
     
     return Mesh( mesh->mName.C_Str(),
                  std::move( material ),
@@ -207,25 +223,26 @@ Mesh ProcessMesh( const aiMesh* mesh,
 
 Scope<MeshTreeViewNode> ProcessNode( Model& model,
                                      const aiNode* node,
-                                     const aiScene* scene,
-                                     const path& modelPath )
+                                     const ModelData& modelData,
+                                     const TextureUploader& uploadTexture )
 {
+    const aiScene* scene = modelData.mImporter->GetScene();
     auto mesh_node = CreateScope<MeshTreeViewNode>( node->mName.C_Str() );
 
     for ( u32 i = 0; i < node->mNumMeshes; i++ )
     {
         aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-        model.mMeshes.push_back( ProcessMesh( mesh, scene, modelPath ) );
+        model.mMeshes.push_back( ProcessMesh( mesh, modelData, uploadTexture ) );
         mesh_node->mMeshes.push_back( &model.mMeshes.back() );
     }
     for ( u32 i = 0; i < node->mNumChildren; i++ )
-        mesh_node->mChildren.push_back( ProcessNode( model, node->mChildren[i], scene, modelPath ) );
+        mesh_node->mChildren.push_back( ProcessNode( model, node->mChildren[i], modelData, uploadTexture ) );
 
     return std::move( mesh_node );
 }
 
 
-Ref<Model> LoadModel( const ModelData& modelData )
+Ref<Model> LoadModel( const ModelData& modelData, const TextureUploader& uploadTexture )
 {
     auto scene = modelData.mImporter->GetScene();
 
@@ -233,18 +250,28 @@ Ref<Model> LoadModel( const ModelData& modelData )
     model->mName = modelData.mPath.stem().string();
     model->mPath = modelData.mPath;
     model->mMeshes.reserve( scene->mNumMeshes );
-    model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, scene, modelData.mPath );
+    model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, modelData, uploadTexture );
     model->mBBox = Model::CreateBoundingBox( *model );
     return model;
 }
 
 
-Ref<Model> LoadModel( const path& path )
+// A model outside any Loader - the engine's own error model. Textures are
+// still shared between its meshes, just not with anything else.
+Ref<Model> LoadModel( const path& modelPath )
 {
-    auto modelDataMabe = OpenModel( path );
+    auto modelDataMabe = OpenModel( modelPath );
     if ( not modelDataMabe )
         return nullptr;
-    return LoadModel( *modelDataMabe );
+
+    hash_map<path, Ref<Texture2D>> textures;
+    return LoadModel( *modelDataMabe, [&]( const TextureData& textureData )
+    {
+        auto iter = textures.find( textureData.mPath );
+        if ( iter == textures.end() )
+            iter = textures.emplace( textureData.mPath, LoadTexture2D( textureData ) ).first;
+        return iter->second;
+    } );
 }
 
 
@@ -256,14 +283,18 @@ Ref<Model> Loader::LoadModel( const path& modelPath )
     if ( iter != mModels.end() )
         return iter->second;
 
-	auto model = bubble::LoadModel( absPath );
-    if ( not model )
+    auto modelData = OpenModel( absPath );
+    if ( not modelData )
     {
-        LogError( "Failed to laod model: {}", absPath.string() );
+        LogError( "Failed to load model: {}", absPath.string() );
         return nullptr;
     }
 
-	mModels.emplace( relPath, model );
+    auto model = bubble::LoadModel( *modelData, [this]( const TextureData& textureData )
+    {
+        return UploadTexture2D( textureData );
+    } );
+    mModels.emplace( relPath, model );
     return model;
 }
 
@@ -277,7 +308,7 @@ void Loader::LoadModels( const vector<path>& modelsPaths )
     {
         auto [relPath, absPath] = RelAbsFromProjectPath( modelPath );
 
-        if ( mModels.contains( modelPath ) )
+        if ( mModels.contains( relPath ) )
             continue;
 
         modelDataTasks.emplace_back( [=]()
@@ -292,10 +323,13 @@ void Loader::LoadModels( const vector<path>& modelsPaths )
         auto [relModelPath, modelData] = task.get();
         if ( not modelData )
         {
-            LogError( "Failed to laod model: {}", relModelPath.string() );
+            LogError( "Failed to load model: {}", relModelPath.string() );
             continue;
         }
-        mModels[relModelPath] = bubble::LoadModel( *modelData );
+        mModels[relModelPath] = bubble::LoadModel( *modelData, [this]( const TextureData& textureData )
+        {
+            return UploadTexture2D( textureData );
+        } );
     }
 }
 
