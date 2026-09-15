@@ -152,8 +152,8 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
                                    DrawingPrimitive drawingPrimitive,
                                    u32 dynamicOffset )
 {
-    const VertexLayout& layout = mesh.mVertexArray.Layout();
-    if ( not mesh.mVertexArray.Valid() )
+    const VertexLayout& layout = mesh.mBuffers.Layout();
+    if ( not mesh.mBuffers.Valid() )
         return;
 
     PipelineKey key;
@@ -187,7 +187,7 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
     // Meshes carry a default material, so there is always something to bind.
     mesh.ApplyMaterial( target.mPass );
 
-    mesh.BindVertexArray( target.mPass );
+    mesh.BindBuffers( target.mPass );
     target.mPass.drawIndexed( (u32)mesh.IndiciesSize(), 1, 0, 0, 0 );
 }
 

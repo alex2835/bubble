@@ -17,9 +17,9 @@ Engine::Engine( Window& window )
 
       mWhiteShader( LoadShader( WHITE_SHADER ) ),
       mDefaultShader( LoadShader( PHONG_SHADER ) ),
-      mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
-      mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
-      mCameraFrustums{ .mMesh=Mesh( "CameraFrustum", BasicMaterial(), VertexBufferData{}, vector<u32>{}, BufferType::Dynamic ) },
+      mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
+      mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
+      mCameraFrustums{ .mMesh=Mesh( "CameraFrustum", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
 
       // billboards
       mBillboardShader( LoadShader( BILBOARD_SHADER ) ),

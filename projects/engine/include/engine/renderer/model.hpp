@@ -17,8 +17,7 @@ public:
     Mesh( string name,
           BasicMaterial material,
           VertexBufferData vertices,
-          vector<u32> indices,
-          BufferType vbType = BufferType::Static );
+          vector<u32> indices );
 
     Mesh( const Mesh& ) = delete;
     Mesh& operator= ( const Mesh& ) = delete;
@@ -26,7 +25,7 @@ public:
     Mesh( Mesh&& ) = default;
     Mesh& operator= ( Mesh&& ) = default;
 
-    void BindVertexArray( wgpu::RenderPassEncoder pass ) const;
+    void BindBuffers( wgpu::RenderPassEncoder pass ) const;
     u64 IndiciesSize() const;
 
     void UpdateDynamicVertexBufferData( VertexBufferData vertices, vector<u32> indices );
@@ -35,7 +34,7 @@ public:
 
 public:
     string mName;
-    VertexArray mVertexArray;
+    MeshBuffers mBuffers;
     VertexBufferData mVertices;
     vector<u32> mIndices;
     BasicMaterial mMaterial;

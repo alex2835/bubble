@@ -217,22 +217,22 @@ vector<u8> VertexBufferDataFlat( const VertexBufferData& vbd )
 
 
 // ---------------------------------------------------------------------------
-// VertexArray
+// MeshBuffers
 // ---------------------------------------------------------------------------
 
-VertexArray::VertexArray( VertexArray&& other ) noexcept
+MeshBuffers::MeshBuffers( MeshBuffers&& other ) noexcept
 {
     Swap( other );
 }
 
-VertexArray& VertexArray::operator=( VertexArray&& other ) noexcept
+MeshBuffers& MeshBuffers::operator=( MeshBuffers&& other ) noexcept
 {
     if ( this != &other )
         Swap( other );
     return *this;
 }
 
-void VertexArray::Swap( VertexArray& other ) noexcept
+void MeshBuffers::Swap( MeshBuffers& other ) noexcept
 {
     std::swap( mVertexBuffer, other.mVertexBuffer );
     std::swap( mIndexBuffer, other.mIndexBuffer );
@@ -242,11 +242,10 @@ void VertexArray::Swap( VertexArray& other ) noexcept
     std::swap( mIndexCount, other.mIndexCount );
 }
 
-void VertexArray::SetBufferData( const VertexBufferData& vbd,
-                                 const vector<u32>& indices,
-                                 BufferType )
+void MeshBuffers::SetBufferData( const VertexBufferData& vertices,
+                                 const vector<u32>& indices )
 {
-    mLayout = VertexLayout::FromData( vbd );
+    mLayout = VertexLayout::FromData( vertices );
     mIndexCount = indices.size();
 
     if ( mLayout.TotalSize() == 0 or indices.empty() )
@@ -258,7 +257,7 @@ void VertexArray::SetBufferData( const VertexBufferData& vbd,
         return;
     }
 
-    const vector<u8> vertexData = VertexBufferDataFlat( vbd );
+    const vector<u8> vertexData = VertexBufferDataFlat( vertices );
     const u64 indexBytes = indices.size() * sizeof( u32 );
 
     // Reallocate only when the data outgrows the buffer. Sizes are fixed at
@@ -279,7 +278,7 @@ void VertexArray::SetBufferData( const VertexBufferData& vbd,
     Gpu().Queue().writeBuffer( *mIndexBuffer, 0, indices.data(), Align4( indexBytes ) );
 }
 
-void VertexArray::Bind( wgpu::RenderPassEncoder pass ) const
+void MeshBuffers::Bind( wgpu::RenderPassEncoder pass ) const
 {
     if ( not Valid() )
         return;

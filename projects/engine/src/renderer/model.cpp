@@ -9,19 +9,18 @@ namespace bubble
 Mesh::Mesh( string name,
             BasicMaterial material,
             VertexBufferData vertices,
-            vector<u32> indices,
-            BufferType type )
+            vector<u32> indices )
     : mName( std::move( name ) ),
       mVertices( std::move( vertices ) ),
       mIndices( std::move( indices ) ),
       mMaterial( std::move( material ) )
 {
-    mVertexArray.SetBufferData( mVertices, mIndices, type );
+    mBuffers.SetBufferData( mVertices, mIndices );
 }
 
-void Mesh::BindVertexArray( wgpu::RenderPassEncoder pass ) const
+void Mesh::BindBuffers( wgpu::RenderPassEncoder pass ) const
 {
-    mVertexArray.Bind( pass );
+    mBuffers.Bind( pass );
 }
 
 u64 Mesh::IndiciesSize() const
@@ -33,7 +32,7 @@ void Mesh::UpdateDynamicVertexBufferData( VertexBufferData vertices, vector<u32>
 {
     mVertices = std::move( vertices );
     mIndices = std::move( indices );
-    mVertexArray.SetBufferData( mVertices, mIndices, BufferType::Dynamic );
+    mBuffers.SetBufferData( mVertices, mIndices );
 }
 
 void Mesh::ApplyMaterial( wgpu::RenderPassEncoder pass ) const

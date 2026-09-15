@@ -154,7 +154,7 @@ OpenGL — do not "fix" that by enabling blending, it changes the picture.
 Blocked, not interleaved: every position, then every normal, then texcoords,
 tangents, bitangents. WebGPU handles that by binding the **same buffer to
 several vertex slots at different offsets**, one slot per attribute
-(`VertexArray::Bind`).
+(`MeshBuffers::Bind`).
 
 Locations are fixed by semantic, and match the `@location(N)` in the WGSL:
 

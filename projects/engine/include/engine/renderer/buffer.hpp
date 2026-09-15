@@ -45,16 +45,6 @@ u32 ShaderDataComponentCount( ShaderDataType type );
 wgpu::VertexFormat ToWGPUVertexFormat( ShaderDataType type );
 
 
-// Advisory only. WebGPU has no equivalent of GL_STATIC_DRAW / GL_DYNAMIC_DRAW -
-// every buffer is created with CopyDst and written through the queue - but the
-// distinction still says something about intent at the call site.
-enum class BufferType
-{
-    Static,
-    Dynamic
-};
-
-
 // ---------------------------------------------------------------------------
 // Vertex data
 // ---------------------------------------------------------------------------
@@ -153,24 +143,29 @@ vector<u8> VertexBufferDataFlat( const VertexBufferData& vbd );
 
 // A mesh's GPU buffers.
 //
-// Still called VertexArray, but there is no vertex array object any more - the
-// attribute layout belongs to the pipeline, and this just owns the vertex and
-// index buffers and knows how to bind them.
-class VertexArray
+// There is no vertex array object in WebGPU: the attribute layout belongs to
+// the pipeline, and binding is just setVertexBuffer / setIndexBuffer recorded
+// into the pass. So this owns the vertex and index buffers and knows how to
+// bind them, nothing more.
+//
+// There is no static/dynamic hint either - every buffer is created with
+// CopyDst and written through the queue. A buffer is reused across
+// SetBufferData calls while the new data fits, which is what the per-frame
+// debug meshes rely on.
+class MeshBuffers
 {
 public:
-    VertexArray() = default;
-    VertexArray( const VertexArray& ) = delete;
-    VertexArray& operator=( const VertexArray& ) = delete;
-    VertexArray( VertexArray&& ) noexcept;
-    VertexArray& operator=( VertexArray&& ) noexcept;
-    ~VertexArray() = default;
+    MeshBuffers() = default;
+    MeshBuffers( const MeshBuffers& ) = delete;
+    MeshBuffers& operator=( const MeshBuffers& ) = delete;
+    MeshBuffers( MeshBuffers&& ) noexcept;
+    MeshBuffers& operator=( MeshBuffers&& ) noexcept;
+    ~MeshBuffers() = default;
 
-    void Swap( VertexArray& other ) noexcept;
+    void Swap( MeshBuffers& other ) noexcept;
 
     void SetBufferData( const VertexBufferData& vbd,
-                        const vector<u32>& indices,
-                        BufferType type = BufferType::Static );
+                        const vector<u32>& indices );
 
     // setVertexBuffer for every slot, then setIndexBuffer.
     void Bind( wgpu::RenderPassEncoder pass ) const;
