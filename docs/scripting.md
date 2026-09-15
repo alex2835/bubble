@@ -405,8 +405,8 @@ its entity's transform is, and looks where the transform's rotation says.
 
 Fields: `position`, `forward`, `up`, `right` (read only - the cache the
 engine fills from the transform each frame; move the entity to move the
-camera), `world_up`, `near`, `far`, `fov`, `max_speed`, `mouse_sensitivity`,
-and the orbit: `yaw`, `pitch`, `center`, `radius`.
+camera), `world_up`, `near`, `far`, `fov`, and the orbit: `yaw`, `pitch`,
+`center`, `radius`.
 
 Methods: `get_lookat_mat()`, `get_projection_mat()`,
 `update_orbit( entity:get_transform() )` - places the camera on the sphere of

@@ -56,8 +56,6 @@ void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& enti
 
     SliderFloatField<CameraComponent>( ctx, entity, "FOV", &CameraComponent::mFov, 0.1f, 3.14f );
 
-    DragFloatField<CameraComponent>( ctx, entity, "Max Speed", &CameraComponent::mMaxSpeed, 0.1f, 0.0f, 100.0f );
-    DragFloatField<CameraComponent>( ctx, entity, "Mouse Sensitivity", &CameraComponent::mMouseSensitivity, 0.1f, 0.1f, 10.0f );
     DragFloatField<CameraComponent>( ctx, entity, "Radius", &CameraComponent::mRadius, 0.1f, 0.1f, 100.0f );
 }
 
@@ -71,8 +69,6 @@ void CameraComponent::ToJson( json& json, const Project& project, const CameraCo
     json["Fov"] = cameraComponent.mFov;
     json["Yaw"] = cameraComponent.mYaw;
     json["Pitch"] = cameraComponent.mPitch;
-    json["MaxSpeed"] = cameraComponent.mMaxSpeed;
-    json["MouseSensitivity"] = cameraComponent.mMouseSensitivity;
     json["Radius"] = cameraComponent.mRadius;
 }
 
@@ -95,12 +91,6 @@ void CameraComponent::FromJson( const json& json, Project& project, CameraCompon
 
     if ( json.contains( "Pitch" ) )
         cameraComponent.mPitch = json["Pitch"];
-
-    if ( json.contains( "MaxSpeed" ) )
-        cameraComponent.mMaxSpeed = json["MaxSpeed"];
-
-    if ( json.contains( "MouseSensitivity" ) )
-        cameraComponent.mMouseSensitivity = json["MouseSensitivity"];
 
     if ( json.contains( "Radius" ) )
         cameraComponent.mRadius = json["Radius"];
@@ -131,8 +121,6 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "fov",                   &CameraComponent::mFov,
         "yaw",                   &CameraComponent::mYaw,
         "pitch",                 &CameraComponent::mPitch,
-        "max_speed",              &CameraComponent::mMaxSpeed,
-        "mouse_sensitivity",      &CameraComponent::mMouseSensitivity,
         "center",                ValueProperty( &CameraComponent::mCenter ),
         "radius",                &CameraComponent::mRadius,
 

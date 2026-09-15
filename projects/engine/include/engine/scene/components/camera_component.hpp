@@ -17,6 +17,10 @@ namespace bubble
 //
 // mYaw/mPitch on a component are the orbit's place on the sphere around
 // mCenter, driven by the script, and are not the look direction.
+//
+// Camera's movement fields - mMaxSpeed, mMouseSensitivity, the speeds - are
+// the editor's SceneCamera's; a component is moved by scripts through its
+// transform, so they are not exposed here, in the inspector or in Lua.
 struct CameraComponent : public Camera
 {
     using Camera::Camera;           // inherit Camera(vec3, f32, f32, f32, vec3) etc.
