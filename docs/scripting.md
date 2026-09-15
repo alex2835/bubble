@@ -400,14 +400,21 @@ t.position = t.position + vec3( 0, speed * dt, 0 )   -- correct, two allocations
 
 ### Camera
 
-Constructible: `Camera()`, `Camera( position, yaw, pitch, fov, worldUp )`.
+Constructible: `Camera()`. There is no position to pass: a camera is where
+its entity's transform is, and looks where the transform's rotation says.
 
-Fields: `position`, `forward`, `up`, `right`, `world_up`, `near`, `far`, `fov`,
-`yaw`, `pitch`, `max_speed`, `mouse_sensitivity`, `center`, `radius`,
-`use_transform_propagation`.
+Fields: `position`, `forward`, `up`, `right` (read only - the cache the
+engine fills from the transform each frame; move the entity to move the
+camera), `world_up`, `near`, `far`, `fov`, `max_speed`, `mouse_sensitivity`,
+and the orbit: `yaw`, `pitch`, `center`, `radius`.
 
-Methods: `get_lookat_mat()`, `get_projection_mat()`, `euler_angles_to_vectors()`,
-`update_orbit()`.
+Methods: `get_lookat_mat()`, `get_projection_mat()`,
+`update_orbit( entity:get_transform() )` - places the camera on the sphere of
+`radius` around `center` at `yaw`/`pitch`, looking at `center`, by writing the
+entity's transform; `orbit_from_transform( entity:get_transform() )` - the
+inverse, for `on_start`: sets `yaw`/`pitch`/`radius` from where the entity was
+placed relative to `center`, so the orbit begins where the camera stands in
+the editor.
 
 ### Light
 

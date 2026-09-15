@@ -29,6 +29,12 @@ struct CameraComponent : public Camera
     // to update.
     void UpdateOrbit( TransformComponent& transform );
 
+    // The inverse: mYaw/mPitch/mRadius from where the transform is relative
+    // to mCenter. For on_start, so an orbit begins where the camera entity
+    // was placed in the editor instead of wherever the saved angles put it.
+    // The look direction is not taken - an orbit looks at mCenter.
+    void OrbitFromTransform( const TransformComponent& transform );
+
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 

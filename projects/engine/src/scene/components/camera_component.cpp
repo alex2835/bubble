@@ -26,6 +26,24 @@ void CameraComponent::UpdateOrbit( TransformComponent& transform )
     transform.mRotation.y = std::atan2( mForward.z, mForward.x );
 }
 
+void CameraComponent::OrbitFromTransform( const TransformComponent& transform )
+{
+    // Inverse of Camera::UpdateOrbit:
+    //   x = cx + r cos(p) sin(y),  y = cy - r sin(p),  z = cz + r cos(p) cos(y)
+    const vec3 offset = transform.mPosition - mCenter;
+    const f32 radius = length( offset );
+    // On top of the center there is no direction to take; keep the angles
+    // and just record the radius.
+    if ( radius < 1e-4f )
+    {
+        mRadius = radius;
+        return;
+    }
+    mRadius = radius;
+    mYaw    = std::atan2( offset.x, offset.z );
+    mPitch  = -std::asin( glm::clamp( offset.y / radius, -1.0f, 1.0f ) );
+}
+
 void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
@@ -93,7 +111,12 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<CameraComponent>(
         "Camera",
         sol::call_constructor,
-        sol::constructors<CameraComponent(), CameraComponent( vec3, f32, f32, f32, vec3 )>(),
+        // Default constructed only. The Camera( position, yaw, pitch, fov, up )
+        // constructor is not exposed: a component's position is its entity's
+        // transform, and a position passed here would be overwritten on the
+        // first frame. Set fov, near, far, radius and the rest as fields:
+        //     local c = Camera(); c.fov = 1.2
+        sol::constructors<CameraComponent()>(),
 
         // Read only: these are the cache filled from the entity's transform.
         // A script moves a camera by moving its entity, or with update_orbit.
@@ -116,7 +139,9 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "get_lookat_mat",          &CameraComponent::GetLookatMat,
         "get_projection_mat",      &CameraComponent::GetProjectionMat,
         // camera:update_orbit( entity:get_transform() )
-        "update_orbit",           &CameraComponent::UpdateOrbit
+        "update_orbit",           &CameraComponent::UpdateOrbit,
+        // camera:orbit_from_transform( entity:get_transform() ), in on_start
+        "orbit_from_transform",   &CameraComponent::OrbitFromTransform
     );
 }
 
