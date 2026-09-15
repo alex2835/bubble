@@ -13,11 +13,23 @@
 
 namespace bubble
 {
+void CameraComponent::UpdateOrbit( TransformComponent& transform )
+{
+    Camera::UpdateOrbit();
+
+    // The look angles come from mForward, which UpdateOrbit pointed at
+    // mCenter - not from mYaw/mPitch, which are the place on the sphere and
+    // face the other way. This is the inverse of VectorsFromEuler, so the
+    // propagation reproduces mForward exactly.
+    transform.mPosition   = mPosition;
+    transform.mRotation.x = std::asin( glm::clamp( mForward.y, -1.0f, 1.0f ) );
+    transform.mRotation.y = std::atan2( mForward.z, mForward.x );
+}
+
 void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
 {
     ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
-
-    CheckboxField<CameraComponent>( ctx, entity, "Use Transform Propagation", &CameraComponent::mUseTransformPropagation );
+    ImGui::TextWrapped( "Position and orientation come from this entity's TransformComponent." );
 
     // Clipping planes. Each is clamped by the other, so the bounds are read
     // fresh rather than baked into the step.
@@ -29,17 +41,12 @@ void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& enti
     DragFloatField<CameraComponent>( ctx, entity, "Max Speed", &CameraComponent::mMaxSpeed, 0.1f, 0.0f, 100.0f );
     DragFloatField<CameraComponent>( ctx, entity, "Mouse Sensitivity", &CameraComponent::mMouseSensitivity, 0.1f, 0.1f, 10.0f );
     DragFloatField<CameraComponent>( ctx, entity, "Radius", &CameraComponent::mRadius, 0.1f, 0.1f, 100.0f );
-
-    // Update camera vectors when angles change
-    cameraComponent.EulerAnglesToVectors();
 }
 
+// Position, forward, up and right are not written: they are the cache the
+// transform fills, and the transform is serialized on its own.
 void CameraComponent::ToJson( json& json, const Project& project, const CameraComponent& cameraComponent )
 {
-    json["Position"] = cameraComponent.mPosition;
-    json["Forward"] = cameraComponent.mForward;
-    json["Up"] = cameraComponent.mUp;
-    json["Right"] = cameraComponent.mRight;
     json["WorldUp"] = cameraComponent.mWorldUp;
     json["Near"] = cameraComponent.mNear;
     json["Far"] = cameraComponent.mFar;
@@ -49,23 +56,10 @@ void CameraComponent::ToJson( json& json, const Project& project, const CameraCo
     json["MaxSpeed"] = cameraComponent.mMaxSpeed;
     json["MouseSensitivity"] = cameraComponent.mMouseSensitivity;
     json["Radius"] = cameraComponent.mRadius;
-    json["UseTransformPropagation"] = cameraComponent.mUseTransformPropagation;
 }
 
 void CameraComponent::FromJson( const json& json, Project& project, CameraComponent& cameraComponent )
 {
-    if ( json.contains( "Position" ) )
-        cameraComponent.mPosition = json["Position"];
-
-    if ( json.contains( "Forward" ) )
-        cameraComponent.mForward = json["Forward"];
-
-    if ( json.contains( "Up" ) )
-        cameraComponent.mUp = json["Up"];
-
-    if ( json.contains( "Right" ) )
-        cameraComponent.mRight = json["Right"];
-
     if ( json.contains( "WorldUp" ) )
         cameraComponent.mWorldUp = json["WorldUp"];
 
@@ -92,11 +86,6 @@ void CameraComponent::FromJson( const json& json, Project& project, CameraCompon
 
     if ( json.contains( "Radius" ) )
         cameraComponent.mRadius = json["Radius"];
-
-    if ( json.contains( "UseTransformPropagation" ) )
-        cameraComponent.mUseTransformPropagation = json["UseTransformPropagation"];
-
-    cameraComponent.EulerAnglesToVectors();
 }
 
 void CameraComponent::CreateLuaBinding( sol::state& lua )
@@ -106,11 +95,13 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         sol::call_constructor,
         sol::constructors<CameraComponent(), CameraComponent( vec3, f32, f32, f32, vec3 )>(),
 
+        // Read only: these are the cache filled from the entity's transform.
+        // A script moves a camera by moving its entity, or with update_orbit.
+        "position",              sol::readonly( &CameraComponent::mPosition ),
+        "forward",               sol::readonly( &CameraComponent::mForward ),
+        "up",                    sol::readonly( &CameraComponent::mUp ),
+        "right",                 sol::readonly( &CameraComponent::mRight ),
         // vec3 fields by value - see ValueProperty.
-        "position",              ValueProperty( &CameraComponent::mPosition ),
-        "forward",               ValueProperty( &CameraComponent::mForward ),
-        "up",                    ValueProperty( &CameraComponent::mUp ),
-        "right",                 ValueProperty( &CameraComponent::mRight ),
         "world_up",              ValueProperty( &CameraComponent::mWorldUp ),
         "near",                  &CameraComponent::mNear,
         "far",                   &CameraComponent::mFar,
@@ -121,11 +112,10 @@ void CameraComponent::CreateLuaBinding( sol::state& lua )
         "mouse_sensitivity",      &CameraComponent::mMouseSensitivity,
         "center",                ValueProperty( &CameraComponent::mCenter ),
         "radius",                &CameraComponent::mRadius,
-        "use_transform_propagation", &CameraComponent::mUseTransformPropagation,
 
         "get_lookat_mat",          &CameraComponent::GetLookatMat,
         "get_projection_mat",      &CameraComponent::GetProjectionMat,
-        "euler_angles_to_vectors",  &CameraComponent::EulerAnglesToVectors,
+        // camera:update_orbit( entity:get_transform() )
         "update_orbit",           &CameraComponent::UpdateOrbit
     );
 }

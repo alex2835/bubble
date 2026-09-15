@@ -72,9 +72,6 @@ struct Camera
     bool mIsRotatingRight = false;
     bool mIsRotatingUp = false;
 
-    /// Engine
-    bool mUseTransformPropagation = false;
-
 
 public:
     Camera( vec3 position = vec3( 0.0f, 0.0f, 0.0f ),
@@ -92,6 +89,11 @@ public:
     void ProcessMouseMovement( f32 xMousePos, f32 yMousePos );
     void ProcessMouseMovementOffset( f32 xOffset, f32 yOffset );
     void ProcessMouseScroll( f32 offset );
+    // mForward/mRight/mUp from the given look angles. Leaves mYaw/mPitch
+    // alone: on an orbit camera those are the place on the sphere, not the
+    // look direction, and must not be overwritten by a look direction.
+    void VectorsFromEuler( f32 yaw, f32 pitch );
+    // The same from mYaw/mPitch - the free camera, where they are the look.
     void EulerAnglesToVectors();
     void OnUpdateFreeCamera( float dt );
 

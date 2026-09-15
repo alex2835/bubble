@@ -51,6 +51,12 @@ struct Engine
     // scripts, and after the active camera sync - the fallback listener is the
     // camera, and it should be this frame's.
     void PropagateAudioTransforms( Scene& scene );
+    // The editor's version, for a scene that is being edited rather than run:
+    // the ear is the editor camera in mCamera, whatever listener entity the
+    // scene has, and playing voices follow the transforms the gizmo moves.
+    // Without this the inspector's Play button plays against whichever
+    // listener the last game run left behind - or the origin, facing -Z.
+    void PropagateEditorAudio( Scene& scene );
 
     void DrawScene( Framebuffer& framebuffer );
     void DrawScene( Framebuffer& framebuffer, const Scene& scene );

@@ -437,8 +437,21 @@ void Engine::PropagateAudioTransforms( Scene& scene )
     } );
 }
 
-// Only cameras that asked for it. A camera driven by the editor's own controls,
-// or by a script writing mPosition directly, keeps what it has.
+void Engine::PropagateEditorAudio( Scene& scene )
+{
+    mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mUp );
+
+    scene.ForEach<AudioSourceComponent, TransformComponent>(
+    []( Entity entity,
+        AudioSourceComponent& audioSource,
+        const TransformComponent& transform )
+    {
+        audioSource.SyncToTransform( transform );
+    } );
+}
+
+// The transform is the truth and the camera is a cache of it - see
+// CameraComponent. One direction, every frame, for every camera.
 void Engine::PropagateCameraTransforms( Scene& scene )
 {
     scene.ForEach<CameraComponent, TransformComponent>(
@@ -446,13 +459,8 @@ void Engine::PropagateCameraTransforms( Scene& scene )
         CameraComponent& camera,
         const TransformComponent& transform )
     {
-        if ( !camera.mUseTransformPropagation )
-            return;
-
         camera.mPosition = transform.mPosition;
-        camera.mYaw      = transform.mRotation.y;
-        camera.mPitch    = transform.mRotation.x;
-        camera.EulerAnglesToVectors();
+        camera.VectorsFromEuler( transform.mRotation.y, transform.mRotation.x );
     } );
 }
 

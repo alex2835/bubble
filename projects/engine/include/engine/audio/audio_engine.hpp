@@ -62,8 +62,9 @@ struct VoiceParams
     // Off makes the voice 2D - full volume regardless of where the listener is.
     // What UI clicks and music want.
     bool mSpatialized = true;
-    // No attenuation closer than this, silence past the far one.
-    f32 mMinDistance = 1.0f;
+    // miniaudio's inverse model: full volume up to mMinDistance, then
+    //   gain = min / ( min + rolloff * ( d - min ) )
+    f32 mMinDistance = 10.0f;
     f32 mMaxDistance = 100.0f;
     f32 mRolloff = 1.0f;
     vec3 mPosition = vec3( 0.0f );

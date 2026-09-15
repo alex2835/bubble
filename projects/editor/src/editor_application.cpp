@@ -76,6 +76,8 @@ void BubbleEditor::Run()
                 // Draw project scene
                 mEngine.PropagateCameraTransforms( mProject.mLevel.mScene );
                 mEngine.PropagateLightTransforms( mProject.mLevel.mScene );
+                // Sounds previewed from the inspector are heard from here.
+                mEngine.PropagateEditorAudio( mProject.mLevel.mScene );
                 mEngine.DrawScene( mSceneViewport, mProject.mLevel.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mLevel.mScene );
 

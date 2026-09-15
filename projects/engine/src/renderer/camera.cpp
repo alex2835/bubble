@@ -114,16 +114,21 @@ void Camera::ProcessMovement( float dt, CameraMovement direction )
     mSpeedRight = std::clamp( mSpeedRight, -max_speed, max_speed );
 }
 
-void Camera::EulerAnglesToVectors()
+void Camera::VectorsFromEuler( f32 yaw, f32 pitch )
 {
     vec3 forward;
-    forward.x = std::cos( mYaw ) * std::cos( mPitch );
-    forward.y = std::sin( mPitch );
-    forward.z = std::sin( mYaw ) * std::cos( mPitch );
+    forward.x = std::cos( yaw ) * std::cos( pitch );
+    forward.y = std::sin( pitch );
+    forward.z = std::sin( yaw ) * std::cos( pitch );
 
     mForward = normalize( forward );
     mRight = normalize( cross( mForward, mWorldUp ) );
     mUp = normalize( cross( mRight, mForward ) );
+}
+
+void Camera::EulerAnglesToVectors()
+{
+    VectorsFromEuler( mYaw, mPitch );
 }
 
 void Camera::OnUpdateFreeCamera( float dt )
