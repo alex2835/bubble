@@ -3,6 +3,7 @@
 #include "engine/project/project.hpp"
 #include "engine/scene/component_manager.hpp"
 #include <sol/sol.hpp>
+#include "engine/scene/components/state_component.hpp"
 
 namespace bubble
 {

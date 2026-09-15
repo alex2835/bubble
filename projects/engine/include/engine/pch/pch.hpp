@@ -15,5 +15,19 @@
 #include "engine/utils/chrono.hpp"
 #include "engine/log/log.hpp"
 
-// #include "engine/scene/scene.hpp"
-// #include "engine/renderer/renderer.hpp"
+// Third party headers that nearly every translation unit ends up parsing
+// anyway. Together they cost about 2.3 seconds per TU on top of the rest of
+// this file; precompiled, the same set costs 0.1. They never change, so they
+// never invalidate the PCH.
+//
+// webgpu.hpp is header-only with its implementation behind
+// WEBGPU_CPP_IMPLEMENTATION. The one TU that defines it, webgpu_impl.cpp, is
+// excluded from the PCH in CMakeLists - otherwise the forced include would
+// bring the header in first, #pragma once would drop the second include, and
+// every wgpu:: method would be unresolved at link.
+#include <sol/sol.hpp>
+#include <nlohmann/json.hpp>
+#include <imgui.h>
+#include <btBulletDynamicsCommon.h>
+#include <magic_enum/magic_enum.hpp>
+#include "engine/renderer/webgpu.hpp"

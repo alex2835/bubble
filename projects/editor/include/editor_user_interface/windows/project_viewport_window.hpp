@@ -6,6 +6,7 @@
 //#include <ImCurveEdit.h>
 //#include <GraphEditor.h>
 #include "editor_user_interface/windows/window_base.hpp"
+#include "engine/renderer/transform.hpp"
 
 namespace bubble
 {

@@ -9,6 +9,7 @@
 #include <sol/sol.hpp>
 #include <fstream>
 #include <sstream>
+#include "engine/scene/components/tag_component.hpp"
 
 namespace bubble
 {

@@ -6,6 +6,8 @@
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
+#include "engine/scene/components/state_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 
 TEST( EditorLua )
 {

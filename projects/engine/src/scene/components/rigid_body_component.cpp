@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scene/components/rigid_body_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
 #include "engine/utils/imgui_utils.hpp"

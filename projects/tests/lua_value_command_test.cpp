@@ -2,6 +2,7 @@
 #include "test.hpp"
 #include "engine/editing/commands/lua_value_command.hpp"
 #include <sol/sol.hpp>
+#include "engine/scene/components/state_component.hpp"
 
 TEST( LuaValue )
 {

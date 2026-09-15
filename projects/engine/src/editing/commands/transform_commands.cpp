@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/editing/commands/transform_commands.hpp"
+#include "engine/scene/components/transform_component.hpp"
 
 namespace bubble
 {

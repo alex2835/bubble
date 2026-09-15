@@ -2,6 +2,8 @@
 #include "test.hpp"
 #include "engine/editing/commands/property_command.hpp"
 #include <sol/sol.hpp>
+#include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 
 TEST( SetProperty )
 {

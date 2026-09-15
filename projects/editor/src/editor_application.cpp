@@ -2,6 +2,7 @@
 #include "editor_application/editor_application.hpp"
 #include <sol/sol.hpp>
 #include <nlohmann/json.hpp>
+#include "engine/scene/components/state_component.hpp"
 
 namespace bubble
 {

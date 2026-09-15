@@ -12,6 +12,7 @@
 #include "engine/scene/component_manager.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
+#include "engine/scene/components/tag_component.hpp"
 
 namespace bubble
 {

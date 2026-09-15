@@ -5,6 +5,7 @@
 #include <cctype>
 #include <format>
 #include <stdexcept>
+#include "engine/scene/components/transform_component.hpp"
 
 // Helpers shared by the scripting bindings. Private to src/scripting/bindings -
 // nothing outside those translation units needs them, so they are deliberately

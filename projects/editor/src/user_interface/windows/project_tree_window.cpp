@@ -8,6 +8,7 @@
 #include <sol/sol.hpp>
 #include <imgui.h>
 #include <cstring>
+#include "engine/scene/components/tag_component.hpp"
 
 
 namespace bubble

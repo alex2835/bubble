@@ -10,6 +10,7 @@
 #include "engine/project/project.hpp"
 #include <sol/sol.hpp>
 #include <imgui.h>
+#include "engine/scene/components/tag_component.hpp"
 
 namespace bubble
 {

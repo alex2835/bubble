@@ -36,6 +36,13 @@ target_link_libraries(${TARGET_NAME} PUBLIC BulletDynamics)
 
 target_precompile_headers(${TARGET_NAME} PUBLIC "include/engine/pch/pch.hpp")
 
+# webgpu.hpp is in the PCH. This TU defines WEBGPU_CPP_IMPLEMENTATION and then
+# includes the header to emit the function bodies - which the PCH's forced
+# include would have already pulled in without the define, and #pragma once
+# then drops the second include. Every wgpu:: method ends up unresolved.
+set_source_files_properties(src/renderer/webgpu_impl.cpp
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
 # MSVC: the component translation units instantiate enough sol2 templates to
 # overflow the default object-file section limit.
 if(MSVC)

@@ -2,6 +2,7 @@
 #include "engine/scripting/bindings/for_each_lua_bindings.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/components.hpp"
 #include "binding_utils.hpp"
 #include <sol/sol.hpp>
 

@@ -6,6 +6,7 @@
 #include <glm/gtc/epsilon.hpp>
 #include <imgui.h>
 #include <cmath>
+#include "engine/scene/components/transform_component.hpp"
 
 namespace bubble
 {

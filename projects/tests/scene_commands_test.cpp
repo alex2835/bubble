@@ -5,6 +5,11 @@
 #include "engine/editing/commands/property_command.hpp"
 #include "engine/editing/commands/component_commands.hpp"
 #include <sol/sol.hpp>
+#include "engine/scene/components/model_component.hpp"
+#include "engine/scene/components/shader_component.hpp"
+#include "engine/scene/components/state_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 
 TEST( CreateUndoRedo )
 {

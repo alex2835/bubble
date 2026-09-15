@@ -2,6 +2,8 @@
 #include "engine/utils/chrono.hpp"
 #include "engine/project/project.hpp"
 #include "utils/resources_hot_reloader.hpp"
+#include "engine/scene/components/script_component.hpp"
+#include "engine/scene/components/shader_component.hpp"
 
 namespace bubble
 {
