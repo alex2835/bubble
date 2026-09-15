@@ -94,8 +94,8 @@ struct Loader
     Ref<Sound> LoadSound( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
-    // Uploads decoded data into mTextures, or returns the texture already
-    // cached for that path. The TextureUploader models hand to LoadModel.
+    // The TextureUploader handed to LoadModel. Returns the texture already
+    // cached for that path from either map, or uploads into mModelTextures.
     Ref<Texture2D> UploadTexture2D( const TextureData& textureData );
     Ref<Shader> LoadShader( path path );
     Ref<Model> LoadModel( const path& path );
@@ -119,6 +119,12 @@ struct Loader
 public:
     path mProjectRootDir;
     hash_map<path, Ref<Texture2D>> mTextures;
+    // Textures reached only through a model's materials. Kept apart from
+    // mTextures so they are not serialized into the project's texture list
+    // and offered as project textures - the model brings them back on its
+    // own. A path is in at most one of the two maps; loading one of these
+    // explicitly through LoadTexture2D moves it to mTextures.
+    hash_map<path, Ref<Texture2D>> mModelTextures;
     hash_map<path, Ref<Model>> mModels;
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Script>> mScripts;

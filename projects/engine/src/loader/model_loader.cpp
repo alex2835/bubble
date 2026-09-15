@@ -11,10 +11,16 @@
 
 namespace bubble
 {
-constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE ,
+// The material slots the engine has, in the order they are looked up.
+//
+// HEIGHT is here because of OBJ: assimp reports map_bump / bump as HEIGHT and
+// only norm as NORMALS, and what OBJ files call a bump map is nearly always a
+// tangent space normal map. It stands in for the normal map when the material
+// has no NORMALS entry, which is why NORMALS is listed first.
+constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE,
                                                  aiTextureType_SPECULAR,
-                                                 aiTextureType_HEIGHT,
-                                                 aiTextureType_NORMALS };
+                                                 aiTextureType_NORMALS,
+                                                 aiTextureType_HEIGHT };
 
 
 map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
@@ -114,9 +120,10 @@ BasicMaterial LoadMaterial( const aiMaterial* mat,
             case aiTextureType_NORMALS:
                 material.mNormalMap = texture( str );
                 break;
-                //case aiTextureType_HEIGHT:
-                //    material.mNormalMap = texture( str );
-                //    break;
+            case aiTextureType_HEIGHT:
+                if ( not material.mNormalMap )
+                    material.mNormalMap = texture( str );
+                break;
             default:
                 LogWarning( "Model: {}. Doesn't use texture: {}", modelDirectory.string(), str.C_Str() );
             }

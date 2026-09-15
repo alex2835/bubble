@@ -67,6 +67,17 @@ Ref<Texture2D> Loader::LoadTexture2D( const path& texturePath )
     if ( iter != mTextures.end() )
         return iter->second;
 
+    // Already on the GPU for some model: an explicit load makes it a project
+    // texture from here on, so it moves rather than being uploaded again.
+    auto modelIter = mModelTextures.find( relPath );
+    if ( modelIter != mModelTextures.end() )
+    {
+        auto texture = modelIter->second;
+        mModelTextures.erase( modelIter );
+        mTextures.emplace( relPath, texture );
+        return texture;
+    }
+
     auto texture = bubble::LoadTexture2D( absPath );
     if ( not texture )
     {
@@ -86,9 +97,12 @@ Ref<Texture2D> Loader::UploadTexture2D( const TextureData& textureData )
     auto iter = mTextures.find( relPath );
     if ( iter != mTextures.end() )
         return iter->second;
+    iter = mModelTextures.find( relPath );
+    if ( iter != mModelTextures.end() )
+        return iter->second;
 
     auto texture = bubble::LoadTexture2D( textureData );
-    mTextures.emplace( relPath, texture );
+    mModelTextures.emplace( relPath, texture );
     return texture;
 }
 
