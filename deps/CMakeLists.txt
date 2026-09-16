@@ -66,5 +66,18 @@ add_subdirectory(thread_pool)
 
 
 option(BUILD_BULLET3 OFF)
+# Bullet's multithreaded world/dispatcher/solver only parallelise when the
+# library is built with BT_THREADSAFE; otherwise the *Mt classes run serially.
+# Left off for the web build, where pthreads need SharedArrayBuffer and the
+# COOP/COEP headers to go with it.
+if(NOT EMSCRIPTEN)
+	set(BULLET2_MULTITHREADING ON CACHE BOOL "" FORCE)
+endif()
 add_subdirectory(bullet)
+if(BULLET2_MULTITHREADING)
+	# Bullet only adds the define to its own directory, but btThreads.h's
+	# inline btMutexLock/Unlock compile to nothing without it - so every
+	# consumer must see the same value as the library or the locks are skipped.
+	target_compile_definitions(BulletIncludeFile INTERFACE BT_THREADSAFE=1)
+endif()
 

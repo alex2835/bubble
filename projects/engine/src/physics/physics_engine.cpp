@@ -1,16 +1,68 @@
 #include "engine/pch/pch.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/physics/character_controller.hpp"
+#include "BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h"
+#include "BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h"
+#include "LinearMath/btThreads.h"
+#if defined(_WIN32)
+#   define WIN32_LEAN_AND_MEAN
+#   define NOMINMAX
+#   include <windows.h>
+#endif
 
 namespace bubble
 {
 
+#if BT_THREADSAFE
+// Bullet's task scheduler is process-global and owns its worker threads, so it
+// is created once and shared by every PhysicsEngine (the engine rebuilds one
+// on each OnEnd). Bullet's own Win32/POSIX pool; no OpenMP/TBB dependency.
+static int InitTaskScheduler()
+{
+    static btITaskScheduler* scheduler = []
+    {
+#if defined(_WIN32)
+        // btThreadSupportWin32 pins the *calling* thread to physical core 0 as a
+        // side effect of spawning the workers and never undoes it - which would
+        // leave the whole editor / render loop confined to one core. Remember
+        // the process mask and put it back once the workers exist.
+        DWORD_PTR processMask = 0, systemMask = 0;
+        const bool haveMask = GetProcessAffinityMask( GetCurrentProcess(), &processMask, &systemMask ) and processMask != 0;
+#endif
+        // Thread count is Bullet's own default: one per physical core, the
+        // calling thread counted as worker 0.
+        btITaskScheduler* s = btCreateDefaultTaskScheduler();
+#if defined(_WIN32)
+        if ( haveMask )
+            SetThreadAffinityMask( GetCurrentThread(), processMask );
+#endif
+        btSetTaskScheduler( s );
+        return s;
+    }();
+    return scheduler->getNumThreads();
+}
+#endif
+
 PhysicsEngine::PhysicsEngine()
 {
-    // Initialize in correct order
     collisionConfiguration = CreateScope<btDefaultCollisionConfiguration>();
-    dispatcher = CreateScope<btCollisionDispatcher>( collisionConfiguration.get() );
     overlappingPairCache = CreateScope<btDbvtBroadphase>();
+
+#if BT_THREADSAFE
+    const int numThreads = InitTaskScheduler();
+    dispatcher = CreateScope<btCollisionDispatcherMt>( collisionConfiguration.get() );
+    // One solver per thread means island solving never spin-waits for a free one.
+    solverPool = CreateScope<btConstraintSolverPoolMt>( numThreads );
+    solver = CreateScope<btSequentialImpulseConstraintSolverMt>();
+    dynamicsWorld = CreateScope<btDiscreteDynamicsWorldMt>(
+        dispatcher.get(),
+        overlappingPairCache.get(),
+        solverPool.get(),
+        solver.get(),
+        collisionConfiguration.get()
+    );
+#else
+    dispatcher = CreateScope<btCollisionDispatcher>( collisionConfiguration.get() );
     solver = CreateScope<btSequentialImpulseConstraintSolver>();
     dynamicsWorld = CreateScope<btDiscreteDynamicsWorld>(
         dispatcher.get(),
@@ -18,6 +70,7 @@ PhysicsEngine::PhysicsEngine()
         solver.get(),
         collisionConfiguration.get()
     );
+#endif
 
     dynamicsWorld->setGravity( btVector3( 0, -10, 0 ) );
 

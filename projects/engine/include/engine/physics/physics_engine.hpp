@@ -4,6 +4,7 @@
 #include "engine/types/glm.hpp"
 #include "engine/types/pointer.hpp"
 #include "btBulletDynamicsCommon.h"
+#include "BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h"
 #include "BulletCollision/CollisionDispatch/btGhostObject.h"
 #include "BulletDynamics/Character/btKinematicCharacterController.h"
 #include "recs/entity.hpp"
@@ -32,10 +33,19 @@ struct RayHitResult
 
 class PhysicsEngine
 {
+    // Declared in dependency order: members destroy in reverse, so the world
+    // goes before the solvers and dispatcher it points at.
+    //
+    // With BT_THREADSAFE these hold the *Mt variants: the dispatcher runs
+    // narrowphase pairs in parallel, the world solves independent simulation
+    // islands in parallel (each on a solver from the pool), and the single Mt
+    // solver takes islands too large for one thread. Without it they are the
+    // plain serial classes.
     Scope<btDefaultCollisionConfiguration> collisionConfiguration;
     Scope<btCollisionDispatcher> dispatcher;
     Scope<btBroadphaseInterface> overlappingPairCache;
-    Scope<btSequentialImpulseConstraintSolver> solver;
+    Scope<btConstraintSolverPoolMt> solverPool;
+    Scope<btConstraintSolver> solver;
     Scope<btDiscreteDynamicsWorld> dynamicsWorld;
 
 public:

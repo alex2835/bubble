@@ -18,7 +18,16 @@ CharacterController::CharacterController( f32 radius, f32 height, f32 stepHeight
     // Create ghost object for collision detection
     mGhostObject = CreateScope<btPairCachingGhostObject>();
     mGhostObject->setCollisionShape( mShape.get() );
-    mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT );
+    // Kinematic as well as character: the controller moves the ghost by
+    // setting its transform, and dynamic bodies it touches feed contact
+    // manifolds into the constraint solver, which has to know what to do with
+    // an object that is not a btRigidBody. Static-or-kinematic makes it the
+    // infinite-mass "fixed body" (bodies get pushed, the character does not),
+    // which is what the serial solver silently did anyway; the multithreaded
+    // solver asserts on it, and the island manager can now leave the
+    // never-sleeping ghost out of every island it brushes against.
+    mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT |
+                                     btCollisionObject::CF_KINEMATIC_OBJECT );
     mGhostObject->setActivationState( DISABLE_DEACTIVATION );
 
     // Set initial transform
@@ -68,7 +77,9 @@ CharacterController& CharacterController::operator=( const CharacterController& 
     // Create ghost object for collision detection
     mGhostObject = CreateScope<btPairCachingGhostObject>();
     mGhostObject->setCollisionShape( mShape.get() );
-    mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT );
+    // Same flags as the primary constructor; see the note there.
+    mGhostObject->setCollisionFlags( btCollisionObject::CF_CHARACTER_OBJECT |
+                                     btCollisionObject::CF_KINEMATIC_OBJECT );
 
     // Copy transform from source
     mGhostObject->setWorldTransform( other.mGhostObject->getWorldTransform() );
