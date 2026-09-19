@@ -196,6 +196,9 @@ Ref<AnimationClip> ImportClip( const aiAnimation* animation,
         LogError( "Model: {}. Animation '{}' failed to build", modelPath.string(), clip->mName );
         return nullptr;
     }
+    // Kept for the additive version, built if a layer ever asks for one.
+    // Optimized, so it is a fraction of what came out of the file.
+    clip->mRaw = CreateScope<RawAnimation>( std::move( optimized ) );
     return clip;
 }
 

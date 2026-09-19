@@ -207,8 +207,11 @@ void Animator::SamplePose( u32 slot, std::span<const Layer> layers, Pose& out )
         while ( mLayerLocals.size() <= i )
             mLayerLocals.emplace_back().resize( skeleton.num_soa_joints() );
 
+        const ozz::animation::Animation* animation = layer.mAdditive ? layer.mClip->Additive() : layer.mClip->mAnimation.get();
+        if ( not animation )
+            continue;
         ozz::animation::SamplingJob sampling;
-        sampling.animation = layer.mClip->mAnimation.get();
+        sampling.animation = animation;
         sampling.context = contexts[i].get();
         sampling.ratio = std::clamp( layer.mRatio, 0.0f, 1.0f );
         sampling.output = ozz::make_span( mLayerLocals[i] );
@@ -281,17 +284,18 @@ void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
     vector<ozz::animation::BlendingJob::Layer> layers;
+    vector<ozz::animation::BlendingJob::Layer> additiveLayers;
     for ( const Overlay& overlay : overlays )
     {
         if ( not overlay.mPose or overlay.mWeight <= 0.0f )
             continue;
-        ozz::animation::BlendingJob::Layer& layer = layers.emplace_back();
+        ozz::animation::BlendingJob::Layer& layer = ( overlay.mAdditive ? additiveLayers : layers ).emplace_back();
         layer.weight = overlay.mWeight;
         layer.transform = ozz::make_span( *overlay.mPose );
         if ( overlay.mMask )
             layer.joint_weights = ozz::make_span( *overlay.mMask );
     }
-    if ( layers.empty() )
+    if ( layers.empty() and additiveLayers.empty() )
     {
         LocalToModel( ozz::make_span( base ) );
         return;
@@ -308,7 +312,7 @@ void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
         ozz::math::SimdFloat4 taken = zero;
         for ( const Overlay& overlay : overlays )
         {
-            if ( not overlay.mPose or overlay.mWeight <= 0.0f )
+            if ( not overlay.mPose or overlay.mWeight <= 0.0f or overlay.mAdditive )
                 continue;
             const ozz::math::SimdFloat4 w = overlay.mMask ? ( *overlay.mMask )[s] * ozz::math::simd_float4::Load1( overlay.mWeight )
                                                           : ozz::math::simd_float4::Load1( overlay.mWeight );
@@ -323,6 +327,7 @@ void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
 
     ozz::animation::BlendingJob blending;
     blending.layers = ozz::make_span( layers );
+    blending.additive_layers = ozz::make_span( additiveLayers );
     blending.rest_pose = skeleton.joint_rest_poses();
     blending.output = ozz::make_span( mComposed );
     if ( blending.Run() )

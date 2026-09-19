@@ -74,6 +74,11 @@ namespace bubble
 // parameter. A state with neither clip nor blend plays nothing: on the base
 // that is the rest pose, on a layer it is the layer fading out, over the
 // transition's duration. Layers share the parameters with the base.
+//
+// An "additive": true layer adds its clips on top of the pose instead of
+// replacing it, each clip as the change from its own first frame - so a
+// lean or a hit reaction is authored from a neutral first frame and lands
+// on whatever the character is doing.
 
 struct Parameter
 {
@@ -181,6 +186,7 @@ struct ControllerLayer
     vector<string> mMask;
     f32 mWeight = 1.0f;
     string mWeightParameter;
+    bool mAdditive = false;
     StateMachine mMachine;
 };
 

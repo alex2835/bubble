@@ -2,6 +2,9 @@
 #include "engine/animation/skeleton.hpp"
 #include <ozz/animation/runtime/skeleton.h>
 #include <ozz/animation/runtime/animation.h>
+#include <ozz/animation/offline/raw_animation.h>
+#include <ozz/animation/offline/additive_animation_builder.h>
+#include <ozz/animation/offline/animation_builder.h>
 
 namespace bubble
 {
@@ -31,5 +34,25 @@ AnimationClip::AnimationClip() = default;
 AnimationClip::~AnimationClip() = default;
 AnimationClip::AnimationClip( AnimationClip&& ) = default;
 AnimationClip& AnimationClip::operator=( AnimationClip&& ) = default;
+
+const ozz::animation::Animation* AnimationClip::Additive() const
+{
+    if ( mAdditiveBuilt )
+        return mAdditive.get();
+    mAdditiveBuilt = true;
+    if ( not mRaw )
+        return nullptr;
+
+    ozz::animation::offline::RawAnimation delta;
+    if ( not ozz::animation::offline::AdditiveAnimationBuilder()( *mRaw, &delta ) )
+    {
+        LogError( "Animation '{}': failed to build the additive version", mName );
+        return nullptr;
+    }
+    mAdditive = ozz::animation::offline::AnimationBuilder()( delta );
+    if ( not mAdditive )
+        LogError( "Animation '{}': failed to build the additive version", mName );
+    return mAdditive.get();
+}
 
 }

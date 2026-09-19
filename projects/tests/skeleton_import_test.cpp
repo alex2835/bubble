@@ -116,6 +116,12 @@ TEST( SkeletonImport_CesiumMan )
     std::println( "  clip '{}' {:.2f}s, {} joints", clips[0]->mName, clips[0]->mDuration, skeleton.JointCount() );
     CHECK( clips[0]->mAnimation->num_tracks() == (int)skeleton.JointCount() );
     CHECK( std::abs( clips[0]->mDuration - 2.0f ) < 0.05f );
+    // The additive version builds from the kept keys, once.
+    const ozz::animation::Animation* additive = clips[0]->Additive();
+    CHECK( additive != nullptr );
+    CHECK( additive == clips[0]->Additive() );
+    if ( additive )
+        CHECK( additive->num_tracks() == clips[0]->mAnimation->num_tracks() );
 
     // Every skinned vertex has weights that sum to one and joints in range.
     u32 skinnedVertices = 0;

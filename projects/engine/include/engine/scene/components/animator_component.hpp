@@ -71,6 +71,8 @@ struct OverlayLayer
     // The weight the layer is asked for...
     f32 mWeight = 1.0f;
     string mWeightParameter;
+    // Adds its clips' deltas on top instead of replacing.
+    bool mAdditive = false;
     // ...and the one it shows, which follows it at the pace of the last
     // transition, and is zero while the layer plays nothing. That is what
     // fades a one-shot wave out instead of cutting it.
@@ -119,9 +121,9 @@ public:
     bool IsBlend() const { return mBase.IsBlend(); }
     bool InTransition() const;
 
-    // An overlay layer by name, made if there is none: its mask and weight
-    // set, its playback left as it was.
-    OverlayLayer& Layer( string_view name, vector<string> mask, f32 weight );
+    // An overlay layer by name, made if there is none: its mask, weight and
+    // kind set, its playback left as it was.
+    OverlayLayer& Layer( string_view name, vector<string> mask, f32 weight, bool additive = false );
     OverlayLayer* FindLayer( string_view name );
 
     // Hands playback to a controller: from the next frame it decides what

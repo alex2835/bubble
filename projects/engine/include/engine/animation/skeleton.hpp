@@ -8,6 +8,7 @@
 #include <optional>
 
 namespace ozz::animation { class Skeleton; class Animation; }
+namespace ozz::animation::offline { struct RawAnimation; }
 
 namespace bubble
 {
@@ -49,10 +50,20 @@ struct AnimationClip
     AnimationClip( const AnimationClip& ) = delete;
     AnimationClip& operator=( const AnimationClip& ) = delete;
 
+    // The clip as a delta from its own first frame, for an additive layer:
+    // a lean or a hit reaction laid over whatever else plays. Built on first
+    // use from the keys the import kept, which is why those are kept.
+    const ozz::animation::Animation* Additive() const;
+
 public:
     string mName;
     f32 mDuration = 0.0f;
     ozz::unique_ptr<ozz::animation::Animation> mAnimation;
+    Scope<ozz::animation::offline::RawAnimation> mRaw;
+
+private:
+    mutable ozz::unique_ptr<ozz::animation::Animation> mAdditive;
+    mutable bool mAdditiveBuilt = false;
 };
 
 }

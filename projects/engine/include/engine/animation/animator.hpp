@@ -78,11 +78,13 @@ public:
     u32 JointCount() const;
 
     // One clip's contribution to a pose: where in it, 0..1, and how much.
+    // Additive samples the clip's delta from its first frame instead.
     struct Layer
     {
         const AnimationClip* mClip = nullptr;
         f32 mRatio = 0.0f;
         f32 mWeight = 1.0f;
+        bool mAdditive = false;
     };
 
     // A pose sized for this skeleton, at rest.
@@ -100,17 +102,18 @@ public:
     // name the skeleton lacks is skipped, with a warning once.
     const JointMask& Mask( std::span<const string> joints );
 
-    // An overlay to lay over the base.
+    // An overlay to lay over the base: replacing it by its weight within
+    // its mask, or, additive, adding its (delta) pose on top by its weight.
     struct Overlay
     {
         const Pose* mPose = nullptr;
         const JointMask* mMask = nullptr;
         f32 mWeight = 1.0f;
+        bool mAdditive = false;
     };
 
-    // Lays the overlays over `base` - each replacing the base by its weight
-    // within its mask - and poses the skeleton with the result. Must precede
-    // Skin.
+    // Lays the overlays over `base` and poses the skeleton with the result.
+    // Must precede Skin.
     void Compose( const Pose& base, std::span<const Overlay> overlays );
     // Writes the posed vertices for the current pose.
     void Skin();

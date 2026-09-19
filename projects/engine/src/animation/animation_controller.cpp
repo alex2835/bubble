@@ -355,6 +355,7 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
                 else
                     fail( where + "\"weight\" is a number or a parameter name" );
             }
+            layer.mAdditive = value.value( "additive", false );
             ParseStateMachine( value, layer.mMachine, where, hasParameter, fail );
             controller.mLayers.push_back( std::move( layer ) );
         }

@@ -63,7 +63,8 @@ struct StreamStep
 // overlay (`keepWhileFading`) keeps sampling a clip it was told to stop, so
 // its weight has something to fade out on; the base goes to rest at once.
 void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters& parameters,
-                    const Model& model, f32 dt, bool inTransition, bool keepWhileFading, StreamStep& out )
+                    const Model& model, f32 dt, bool inTransition, bool keepWhileFading, bool additive,
+                    StreamStep& out )
 {
     // What the controller says plays, and how: applied on entering a state,
     // and every frame for the values bound to parameters.
@@ -203,7 +204,10 @@ void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters&
     }
 
     for ( Animator::Layer& layer : out.mLayers )
+    {
         layer.mRatio = normalized();
+        layer.mAdditive = additive;
+    }
 }
 }
 
@@ -282,7 +286,7 @@ bool AnimatorComponent::InTransition() const
     return mAnimator and mAnimator->Track( 0 ).InTransition();
 }
 
-OverlayLayer& AnimatorComponent::Layer( string_view name, vector<string> mask, f32 weight )
+OverlayLayer& AnimatorComponent::Layer( string_view name, vector<string> mask, f32 weight, bool additive )
 {
     OverlayLayer* layer = FindLayer( name );
     if ( not layer )
@@ -294,6 +298,7 @@ OverlayLayer& AnimatorComponent::Layer( string_view name, vector<string> mask, f
     layer->mMask = std::move( mask );
     layer->mWeight = weight;
     layer->mWeightParameter.clear();
+    layer->mAdditive = additive;
     return *layer;
 }
 
@@ -320,6 +325,7 @@ void AnimatorComponent::SetController( const Ref<AnimationController>& controlle
         layer.mMask = declared.mMask;
         layer.mWeight = declared.mWeight;
         layer.mWeightParameter = declared.mWeightParameter;
+        layer.mAdditive = declared.mAdditive;
         layer.mPlayback.PlayNothing();
     }
 }
@@ -359,11 +365,11 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
 
     // A stream's frame: advance, sample into `pose`, ease through its track.
     // Returns the clip whose events fired, having queued them.
-    const auto stream = [&]( Playback& playback, const StateMachine* machine, u32 slot, Pose& pose )
+    const auto stream = [&]( Playback& playback, const StateMachine* machine, u32 slot, bool additive, Pose& pose )
     {
         PoseTrack& track = animator.Track( slot );
         StreamStep step;
-        AdvanceStream( playback, machine, mParameters, *model, dt, track.InTransition(), slot != 0, step );
+        AdvanceStream( playback, machine, mParameters, *model, dt, track.InTransition(), slot != 0, additive, step );
 
         if ( not step.mEventClip.empty() )
         {
@@ -390,7 +396,7 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
         if ( pose.size() != soaJoints )
             pose = animator.MakePose();
 
-    stream( mBase, mController.get(), 0, poses[0] );
+    stream( mBase, mController.get(), 0, false, poses[0] );
 
     vector<Animator::Overlay> overlays;
     for ( size_t i = 0; i < mLayers.size(); i++ )
@@ -399,7 +405,7 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
         const ControllerLayer* declared = nullptr;
         if ( mController and i < mController->mLayers.size() and mController->mLayers[i].mName == layer.mName )
             declared = &mController->mLayers[i];
-        stream( layer.mPlayback, declared ? &declared->mMachine : nullptr, static_cast<u32>( i + 1 ), poses[i + 1] );
+        stream( layer.mPlayback, declared ? &declared->mMachine : nullptr, static_cast<u32>( i + 1 ), layer.mAdditive, poses[i + 1] );
 
         // The shown weight follows the asked one at the pace of the last
         // transition - and the asked one is zero while nothing plays.
@@ -412,7 +418,8 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
             layer.mShownWeight += std::clamp( target - layer.mShownWeight, -dt / seconds, dt / seconds );
 
         if ( layer.mShownWeight > 0.0f )
-            overlays.push_back( { &poses[i + 1], layer.mMask.empty() ? nullptr : &animator.Mask( layer.mMask ), layer.mShownWeight } );
+            overlays.push_back( { &poses[i + 1], layer.mMask.empty() ? nullptr : &animator.Mask( layer.mMask ),
+                                  layer.mShownWeight, layer.mAdditive } );
     }
 
     if ( mController )
@@ -590,7 +597,8 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
         string mask;
         for ( const string& joint : layer.mMask )
             mask += ( mask.empty() ? "" : ", " ) + joint;
-        ImGui::Text( "layer '%s' on [%s]  weight %.2f (shown %.2f)", layer.mName.c_str(), mask.c_str(), layer.mWeight, layer.mShownWeight );
+        ImGui::Text( "%slayer '%s' on [%s]  weight %.2f (shown %.2f)", layer.mAdditive ? "additive " : "",
+                     layer.mName.c_str(), mask.c_str(), layer.mWeight, layer.mShownWeight );
         if ( controller and i < controller->mLayers.size() )
             DrawMachine( controller->mLayers[i].mMachine, layer.mPlayback, component.mParameters );
         DrawPlayback( ctx, entity, component, layer.mPlayback, *model, layer.mName.c_str(), component.mAnimator.get(), static_cast<u32>( i + 1 ) );
@@ -656,6 +664,7 @@ void AnimatorComponent::ToJson( json& json, const Project& project, const Animat
             j["Name"] = layer.mName;
             j["Mask"] = layer.mMask;
             j["Weight"] = layer.mWeight;
+            j["Additive"] = layer.mAdditive;
             PlaybackToJson( j, layer.mPlayback );
         }
     }
@@ -678,6 +687,7 @@ void AnimatorComponent::FromJson( const json& json, Project& project, AnimatorCo
             if ( j.contains( "Mask" ) )
                 layer.mMask = j["Mask"].get<vector<string>>();
             layer.mWeight = j.value( "Weight", 1.0f );
+            layer.mAdditive = j.value( "Additive", false );
             PlaybackFromJson( j, layer.mPlayback );
         }
     }
@@ -721,7 +731,8 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         "set_layer",
         sol::overload(
             []( AnimatorComponent& c, string_view name, const sol::object& mask ) { c.Layer( name, MaskFromLua( mask ), 1.0f ); },
-            []( AnimatorComponent& c, string_view name, const sol::object& mask, f32 weight ) { c.Layer( name, MaskFromLua( mask ), weight ); }
+            []( AnimatorComponent& c, string_view name, const sol::object& mask, f32 weight ) { c.Layer( name, MaskFromLua( mask ), weight ); },
+            []( AnimatorComponent& c, string_view name, const sol::object& mask, f32 weight, bool additive ) { c.Layer( name, MaskFromLua( mask ), weight, additive ); }
         ),
         "play_layer",
         sol::overload(

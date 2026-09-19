@@ -134,6 +134,13 @@ shares the parameters with the base and has the same `states`, `entry` and
   showing staying up for the fade. On the base, an empty state is the rest
   pose.
 
+- `"additive": true` — the layer adds its clips on top of the pose instead
+  of replacing it, each clip as the change from its own first frame. Author
+  additive clips from a neutral first frame: a lean, a breathing cycle, a hit
+  reaction. Combined with a mask that leaves the root out, it lands on
+  whatever the character is doing. The additive version of a clip is built
+  the first time a layer asks for it.
+
 Each layer eases its own transitions, independently of the base.
 
 ### Events
@@ -157,7 +164,7 @@ screen.
 
 ## Not done
 
-- Additive clips (lean, breathing, hit reactions), IK and root motion.
+- IK and root motion.
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
 - GPU skinning. Skinning is on the CPU per entity (`renderer.md`).
