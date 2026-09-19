@@ -172,6 +172,24 @@ the playback crosses them, forwards, backwards, or around the loop; in a blend
 the heaviest clip's markers are the ones that count. A marker at `0` fires as
 the loop comes round, not on the first frame.
 
+### IK
+
+Applied last, on the composed pose, from a script each frame it wants it,
+with world space targets:
+
+- `animator:look_at( joint, target, { weight, forward, up } )` turns the
+  joint so its local `forward` (default +Z) points at the target, `up`
+  (default +Y) kept as upright as it can. A head.
+- `animator:reach( end_joint, target, { weight, pole, mid_axis, soften } )`
+  bends the two bones above `end_joint` - foot, knee, hip - to put it on the
+  target. `pole` (world) is where the knee points, by default where it points
+  now; `mid_axis` is the knee's hinge in its own space, by default read off
+  the current bend; `soften` (0.97) keeps the limb from locking straight as
+  the target goes out of reach.
+
+Both are ozz's `IKAimJob` and `IKTwoBoneJob`; the joints below the corrected
+ones follow.
+
 ### What the inspector shows
 
 The current state, every parameter (editable), and each transition out of the
@@ -181,7 +199,6 @@ screen.
 
 ## Not done
 
-- IK.
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
 - GPU skinning. Skinning is on the CPU per entity (`renderer.md`).

@@ -118,6 +118,21 @@ public:
     // Lays the overlays over `base` and poses the skeleton with the result.
     // Must precede Skin.
     void Compose( const Pose& base, std::span<const Overlay> overlays );
+
+    // IK, on the composed pose, before Skin. Targets are in model space.
+
+    // Turns `joint` so that its local `forward` points at `target`, keeping
+    // its local `up` as upright as it can; `weight` 0..1 is how far towards
+    // that. A head looking at something. The joints below it follow.
+    void AimAt( i32 joint, const vec3& target, const vec3& forward, const vec3& up, f32 weight );
+    // Bends the chain of `endJoint`, its parent and grandparent - a foot,
+    // knee and hip - so that the end lands on `target`, the knee pointing
+    // towards `poleVector` (model space; the current bend when null).
+    // `midAxis` is the knee's hinge axis in its own space, taken from the
+    // current bend when null. `soften` below 1 keeps the limb from locking
+    // straight as the target goes out of reach.
+    void ReachTo( i32 endJoint, const vec3& target, const vec3* poleVector, const vec3* midAxis, f32 soften, f32 weight );
+
     // Writes the posed vertices for the current pose.
     void Skin();
 
@@ -136,7 +151,9 @@ private:
         MeshBuffers mBuffers;
     };
 
-    void LocalToModel( ozz::span<const ozz::math::SoaTransform> locals );
+    void LocalToModel( ozz::span<const ozz::math::SoaTransform> locals, i32 fromJoint = -1 );
+    // Model space position of a joint in the current pose.
+    vec3 JointPosition( i32 joint ) const;
 
     Ref<Model> mModel;
     // [slot][layer]. A context caches where it last sampled in an animation

@@ -389,9 +389,12 @@ void Engine::PropagateLightTransforms( Scene& scene )
 void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
 {
     scene.ForEach<ModelComponent, AnimatorComponent>(
-    [&]( Entity, const ModelComponent& modelComponent, AnimatorComponent& animator )
+    [&]( Entity entity, const ModelComponent& modelComponent, AnimatorComponent& animator )
     {
-        animator.Advance( modelComponent.mModel, deltaSeconds );
+        const mat4 world = scene.HasComponent<TransformComponent>( entity )
+                           ? scene.GetComponent<TransformComponent>( entity ).TransformMat()
+                           : glm::identity<mat4>();
+        animator.Advance( modelComponent.mModel, deltaSeconds, world );
     } );
 }
 

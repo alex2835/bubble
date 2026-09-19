@@ -151,9 +151,32 @@ public:
     vec3 mRootDelta = vec3( 0.0f );
     f32 mRootYawDelta = 0.0f;
 
+    // IK for the coming update, in world space; cleared once applied, so a
+    // script asks every frame it wants it.
+    struct AimRequest
+    {
+        string mJoint;
+        vec3 mTarget = vec3( 0.0f );
+        vec3 mForward = vec3( 0.0f, 0.0f, 1.0f );
+        vec3 mUp = vec3( 0.0f, 1.0f, 0.0f );
+        f32 mWeight = 1.0f;
+    };
+    struct ReachRequest
+    {
+        string mEndJoint;
+        vec3 mTarget = vec3( 0.0f );
+        std::optional<vec3> mPoleVector;
+        std::optional<vec3> mMidAxis;
+        f32 mSoften = 0.97f;
+        f32 mWeight = 1.0f;
+    };
+    vector<AimRequest> mAims;
+    vector<ReachRequest> mReaches;
+
     // Advances every stream by dt, poses and skins through mAnimator. The
     // engine calls this once per frame for an entity whose model is skinned.
-    void Advance( const Ref<Model>& model, f32 dt );
+    // `entityWorld` is the entity's transform, which IK targets are given in.
+    void Advance( const Ref<Model>& model, f32 dt, const mat4& entityWorld );
 
     Playback mBase;
     vector<OverlayLayer> mLayers;

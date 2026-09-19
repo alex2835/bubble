@@ -355,7 +355,7 @@ void AnimatorComponent::AddEvent( string_view clip, f32 time, string name )
 }
 
 
-void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
+void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt, const mat4& entityWorld )
 {
     if ( not model or not model->Skinned() )
     {
@@ -457,6 +457,31 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
         mParameters.ResetTriggers();
 
     animator.Compose( poses[0], overlays );
+
+    // IK last, on the composed pose. Targets come in world space; the pose
+    // is in the model's, so they go through the entity's inverse.
+    const mat4 toModel = glm::inverse( entityWorld );
+    const auto joint = [&]( const string& name )
+    {
+        const auto index = model->mSkeleton->JointIndex( name );
+        if ( not index )
+            LogWarning( "Animator: IK joint '{}' is not in the skeleton of '{}'", name, model->mName );
+        return index ? (i32)*index : -1;
+    };
+    for ( const AimRequest& aim : mAims )
+        animator.AimAt( joint( aim.mJoint ), vec3( toModel * vec4( aim.mTarget, 1.0f ) ), aim.mForward, aim.mUp, aim.mWeight );
+    for ( const ReachRequest& reach : mReaches )
+    {
+        std::optional<vec3> pole;
+        if ( reach.mPoleVector )
+            pole = vec3( toModel * vec4( *reach.mPoleVector, 0.0f ) );
+        animator.ReachTo( joint( reach.mEndJoint ), vec3( toModel * vec4( reach.mTarget, 1.0f ) ),
+                          pole ? &*pole : nullptr, reach.mMidAxis ? &*reach.mMidAxis : nullptr,
+                          reach.mSoften, reach.mWeight );
+    }
+    mAims.clear();
+    mReaches.clear();
+
     animator.Skin();
 }
 
@@ -839,6 +864,44 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         ),
         "root_delta",     []( const AnimatorComponent& c ) { return c.mRootDelta; },
         "root_yaw_delta", []( const AnimatorComponent& c ) { return c.mRootYawDelta; },
+
+        // IK for this frame, world space targets. look_at( joint, target,
+        // { weight, forward, up } ) turns a joint at a point; reach(
+        // end_joint, target, { weight, pole, mid_axis, soften } ) bends the
+        // two bones above the end joint to put it on the point.
+        "look_at",
+        sol::overload(
+            []( AnimatorComponent& c, string_view joint, const vec3& target )
+            {
+                c.mAims.push_back( { string( joint ), target } );
+            },
+            []( AnimatorComponent& c, string_view joint, const vec3& target, const sol::table& options )
+            {
+                AnimatorComponent::AimRequest aim{ string( joint ), target };
+                aim.mWeight = options.get_or( "weight", 1.0f );
+                aim.mForward = options.get_or( "forward", aim.mForward );
+                aim.mUp = options.get_or( "up", aim.mUp );
+                c.mAims.push_back( std::move( aim ) );
+            }
+        ),
+        "reach",
+        sol::overload(
+            []( AnimatorComponent& c, string_view endJoint, const vec3& target )
+            {
+                c.mReaches.push_back( { string( endJoint ), target } );
+            },
+            []( AnimatorComponent& c, string_view endJoint, const vec3& target, const sol::table& options )
+            {
+                AnimatorComponent::ReachRequest reach{ string( endJoint ), target };
+                reach.mWeight = options.get_or( "weight", 1.0f );
+                reach.mSoften = options.get_or( "soften", 0.97f );
+                if ( const sol::optional<vec3> pole = options["pole"] )
+                    reach.mPoleVector = *pole;
+                if ( const sol::optional<vec3> axis = options["mid_axis"] )
+                    reach.mMidAxis = *axis;
+                c.mReaches.push_back( std::move( reach ) );
+            }
+        ),
         "controller",
         sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 

@@ -5,6 +5,9 @@
 #include <ozz/animation/runtime/animation.h>
 #include <ozz/animation/runtime/local_to_model_job.h>
 #include <ozz/animation/runtime/blending_job.h>
+#include <ozz/animation/runtime/ik_aim_job.h>
+#include <ozz/animation/runtime/ik_two_bone_job.h>
+#include <ozz/base/maths/simd_quaternion.h>
 #include <ozz/geometry/runtime/skinning_job.h>
 #include <ozz/base/span.h>
 
@@ -73,6 +76,30 @@ void JointsToSoa( const vector<JointPose>& joints, ozz::span<ozz::math::SoaTrans
                          load( &JointPose::mScale, &vec3::y ),
                          load( &JointPose::mScale, &vec3::z ) };
     }
+}
+
+// Post multiplies one joint's local rotation in a SoA pose by `correction`,
+// which is how the IK jobs hand back what they did.
+void MultiplyLocalRotation( Pose& pose, i32 joint, const ozz::math::SimdQuaternion& correction )
+{
+    ozz::math::SoaTransform& soa = pose[joint / 4];
+    ozz::math::SimdQuaternion lanes[4];
+    ozz::math::Transpose4x4( &soa.rotation.x, &lanes[0].xyzw );
+    lanes[joint % 4] = lanes[joint % 4] * correction;
+    ozz::math::Transpose4x4( &lanes[0].xyzw, &soa.rotation.x );
+}
+
+ozz::math::SimdFloat4 ToSimd( const vec3& v )
+{
+    return ozz::math::simd_float4::Load3PtrU( &v.x );
+}
+
+// The rotation part of a model space joint matrix.
+glm::quat RotationOf( const ozz::math::Float4x4& m )
+{
+    mat4 g;
+    memcpy( &g, &m, sizeof( g ) );
+    return glm::normalize( glm::quat_cast( mat3( g ) ) );
 }
 
 // The job takes strides in bytes and reads its inputs as floats.
@@ -299,7 +326,9 @@ void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
     }
     if ( layers.empty() and additiveLayers.empty() )
     {
-        LocalToModel( ozz::make_span( base ) );
+        // IK edits mComposed, so the base is copied even with nothing over it.
+        std::ranges::copy( base, mComposed.begin() );
+        LocalToModel( ozz::make_span( mComposed ) );
         return;
     }
 
@@ -332,14 +361,13 @@ void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
     blending.additive_layers = ozz::make_span( additiveLayers );
     blending.rest_pose = skeleton.joint_rest_poses();
     blending.output = ozz::make_span( mComposed );
-    if ( blending.Run() )
-        LocalToModel( ozz::make_span( mComposed ) );
-    else
-        LocalToModel( ozz::make_span( base ) );
+    if ( not blending.Run() )
+        std::ranges::copy( base, mComposed.begin() );
+    LocalToModel( ozz::make_span( mComposed ) );
 }
 
 
-void Animator::LocalToModel( ozz::span<const ozz::math::SoaTransform> locals )
+void Animator::LocalToModel( ozz::span<const ozz::math::SoaTransform> locals, i32 fromJoint )
 {
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
@@ -347,11 +375,94 @@ void Animator::LocalToModel( ozz::span<const ozz::math::SoaTransform> locals )
     localToModel.skeleton = &skeleton;
     localToModel.input = locals;
     localToModel.output = ozz::make_span( mModels );
+    // From a joint down only, on top of a full pass: what IK changed.
+    localToModel.from = fromJoint < 0 ? ozz::animation::Skeleton::kNoParent : fromJoint;
     localToModel.Run();
 
     const vector<mat4>& inverseBind = mModel->mSkeleton->mInverseBind;
     for ( size_t j = 0; j < mModels.size(); j++ )
         mSkinMatrices[j] = mModels[j] * ToOzz( inverseBind[j] );
+}
+
+
+vec3 Animator::JointPosition( i32 joint ) const
+{
+    mat4 m;
+    memcpy( &m, &mModels[joint], sizeof( m ) );
+    return vec3( m[3] );
+}
+
+
+void Animator::AimAt( i32 joint, const vec3& target, const vec3& forward, const vec3& up, f32 weight )
+{
+    if ( joint < 0 or joint >= (i32)mModels.size() or weight <= 0.0f )
+        return;
+
+    ozz::animation::IKAimJob job;
+    job.target = ToSimd( target );
+    job.forward = ToSimd( forward );
+    job.up = ToSimd( up );
+    // Keeps the head from rolling: the pole is the model's up.
+    job.pole_vector = ozz::math::simd_float4::y_axis();
+    job.weight = std::min( weight, 1.0f );
+    job.joint = &mModels[joint];
+    ozz::math::SimdQuaternion correction;
+    job.joint_correction = &correction;
+    if ( not job.Run() )
+        return;
+
+    MultiplyLocalRotation( mComposed, joint, correction );
+    LocalToModel( ozz::make_span( mComposed ), joint );
+}
+
+
+void Animator::ReachTo( i32 endJoint, const vec3& target, const vec3* poleVector, const vec3* midAxis, f32 soften, f32 weight )
+{
+    const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
+    if ( endJoint < 0 or endJoint >= (i32)mModels.size() or weight <= 0.0f )
+        return;
+    const i32 mid = skeleton.joint_parents()[endJoint];
+    const i32 start = mid >= 0 ? skeleton.joint_parents()[mid] : -1;
+    if ( start < 0 )
+        return;
+
+    // The bend as it is now: where the knee points, and what it turns
+    // about. A straight limb has neither, and the caller's values stand in.
+    const vec3 s = JointPosition( start );
+    const vec3 m = JointPosition( mid );
+    const vec3 e = JointPosition( endJoint );
+    const vec3 bend = m - ( s + e ) * 0.5f;
+    const vec3 hinge = glm::cross( m - s, e - m );
+
+    vec3 pole = poleVector ? *poleVector : bend;
+    if ( glm::length( pole ) < 1e-5f )
+        pole = vec3( 0.0f, 0.0f, 1.0f );
+    vec3 axis;
+    if ( midAxis )
+        axis = *midAxis;
+    else if ( glm::length( hinge ) > 1e-6f )
+        axis = glm::inverse( RotationOf( mModels[mid] ) ) * glm::normalize( hinge );
+    else
+        axis = vec3( 0.0f, 0.0f, 1.0f );
+
+    ozz::animation::IKTwoBoneJob job;
+    job.target = ToSimd( target );
+    job.pole_vector = ToSimd( pole );
+    job.mid_axis = ToSimd( glm::normalize( axis ) );
+    job.soften = std::clamp( soften, 0.0f, 1.0f );
+    job.weight = std::min( weight, 1.0f );
+    job.start_joint = &mModels[start];
+    job.mid_joint = &mModels[mid];
+    job.end_joint = &mModels[endJoint];
+    ozz::math::SimdQuaternion startCorrection, midCorrection;
+    job.start_joint_correction = &startCorrection;
+    job.mid_joint_correction = &midCorrection;
+    if ( not job.Run() )
+        return;
+
+    MultiplyLocalRotation( mComposed, start, startCorrection );
+    MultiplyLocalRotation( mComposed, mid, midCorrection );
+    LocalToModel( ozz::make_span( mComposed ), start );
 }
 
 

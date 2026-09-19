@@ -612,6 +612,13 @@ entity:get_transform():translate( d )
 entity:get_character_controller():set_walk_velocity( d / dt )
 ```
 
+**IK.** For this frame, world space targets: `look_at( joint, target,
+{ weight, forward, up } )` turns a joint at a point (a head; `forward` is the
+joint's local axis to point, default +Z); `reach( end_joint, target,
+{ weight, pole, mid_axis, soften } )` bends the two bones above `end_joint`
+to put it on the point (a foot on the ground, a hand on a handle). Call them
+every frame you want them; see `docs/animation.md` for the options.
+
 **Events.** `events()` returns the names of the clip markers the playback
 crossed during the last animation update - footsteps, the frame a swing
 connects - declared in the controller's `events` section or added with
