@@ -106,6 +106,18 @@ A condition is `"name"` (true / trigger set), `"!name"`, or
 Errors in the file are reported with the file name and what is wrong, and the
 controller does not load.
 
+### Events
+
+```json
+"events": { "walk": [ [0.32, "footstep"], [0.82, "footstep"] ] }
+```
+
+Per clip, `[normalized time, name]` pairs. A script reads what fired with
+`animator:events()`; `add_event` adds markers from a script. Markers fire when
+the playback crosses them, forwards, backwards, or around the loop; in a blend
+the heaviest clip's markers are the ones that count. A marker at `0` fires as
+the loop comes round, not on the first frame.
+
 ### What the inspector shows
 
 The current state, every parameter (editable), and each transition out of the
@@ -118,7 +130,6 @@ screen.
 - Layers with joint masks (upper body over locomotion), additive clips, IK
   and root motion. The `Animator` blends any number of layers already; the
   masks and the asset syntax for them are the missing part.
-- Clip events (footsteps) and state enter/exit callbacks into Lua.
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
 - GPU skinning. Skinning is on the CPU per entity (`renderer.md`).

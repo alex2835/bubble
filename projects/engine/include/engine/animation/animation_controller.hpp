@@ -52,6 +52,13 @@ namespace bubble
 // fire while the pose is still easing into the current state; off by
 // default, so a chain of transitions in one frame cannot flicker through
 // three states.
+//
+// "events" marks moments in clips, by normalized time, that a script hears
+// about through animator:events() - footsteps, the frame a swing connects:
+//
+//     "events": { "walk": [ [0.32, "footstep"], [0.82, "footstep"] ] }
+//
+// In a blend, the clip with the most weight is the one whose events fire.
 
 struct Parameter
 {
@@ -91,6 +98,22 @@ struct Condition
     static Condition Parse( string_view text );
     string ToString() const;
 };
+
+
+// A moment in a clip, at a normalized time.
+struct ClipEvent
+{
+    f32 mTime = 0.0f;
+    string mName;
+};
+using ClipEvents = str_hash_map<vector<ClipEvent>>;
+
+// The events of `clip` crossed by a playback that went from `before` to
+// `now`, in that order - wrapping around the end if `wrapped`, running
+// backwards if `now` < `before` without a wrap. Sorted markers in, names
+// out, in the order they were passed.
+void CrossedEvents( const ClipEvents& events, string_view clip,
+                    f32 before, f32 now, bool wrapped, vector<string>& out );
 
 
 struct ControllerState
@@ -133,6 +156,7 @@ struct AnimationController
     vector<ControllerState> mStates;
     vector<Transition> mTransitions;
     i32 mEntry = 0;
+    ClipEvents mEvents;
 
     // Throws std::runtime_error with what is wrong and where.
     static AnimationController FromJson( const json& json, const path& source );

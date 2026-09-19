@@ -68,6 +68,10 @@ public:
     // The controller's current state name, or empty without one.
     string_view CurrentState() const;
 
+    // Marks a moment in a clip for events(), on top of whatever the
+    // controller declares. Normalized time.
+    void AddEvent( string_view clip, f32 time, string name );
+
     // Advances the playback by dt, poses and skins through mAnimator. The
     // engine calls this once per frame for an entity whose model is skinned.
     void Advance( const Ref<Model>& model, f32 dt );
@@ -93,6 +97,13 @@ public:
     // controller starts from its defaults.
     Parameters mParameters;
     ControllerRuntime mControllerRuntime;
+
+    // Events added with AddEvent, beside the controller's.
+    ClipEvents mEvents;
+    // What the last Advance produced, for a script to poll on its next
+    // update: the clip events crossed, and the state entered if one was.
+    vector<string> mFiredEvents;
+    string mEnteredState;
 
     Scope<Animator> mAnimator;
 };

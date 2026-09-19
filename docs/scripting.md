@@ -584,6 +584,14 @@ an animation controller - a `.anim` file of states and transitions, see
 takes overrides them. A trigger the controller does not consume on the frame
 it was set is dropped.
 
+**Events.** `events()` returns the names of the clip markers the playback
+crossed during the last animation update - footsteps, the frame a swing
+connects - declared in the controller's `events` section or added with
+`add_event( clip, normalized_time, name )`. `entered_state()` returns the
+state the controller entered during that update, or nil. Both describe the
+previous frame: scripts run before the animation update, so an event is seen
+one frame after it happened.
+
 ```lua
 function on_start( entity, state )
     entity:set_animation_controller( "animations/character.anim" )
@@ -595,6 +603,9 @@ function on_update( entity, state, dt )
     animator:set( "speed", length( state.velocity ) )   -- whatever the movement code decided
     animator:set( "grounded", cc:is_on_ground() )
     if is_key_clicked( KeyboardKey.space ) then animator:trigger( "attack" ) end
+    for _, event in ipairs( animator:events() ) do
+        if event == "footstep" then play_sound( state.step ) end
+    end
 end
 ```
 

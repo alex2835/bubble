@@ -135,6 +135,52 @@ string Condition::ToString() const
 }
 
 
+// ClipEvents
+
+void CrossedEvents( const ClipEvents& events, string_view clip,
+                    f32 before, f32 now, bool wrapped, vector<string>& out )
+{
+    auto iter = events.find( clip );
+    if ( iter == events.end() or before == now )
+        return;
+    const vector<ClipEvent>& markers = iter->second;
+
+    // Forwards: the markers in (before, now], as one span or, around the
+    // seam, the tail of the clip then its head.
+    const auto forwards = [&]( f32 from, f32 to )
+    {
+        for ( const ClipEvent& e : markers )
+            if ( e.mTime > from and e.mTime <= to )
+                out.push_back( e.mName );
+    };
+    // Backwards: [now, before), latest first.
+    const auto backwards = [&]( f32 from, f32 to )
+    {
+        for ( auto e = markers.rbegin(); e != markers.rend(); ++e )
+            if ( e->mTime < from and e->mTime >= to )
+                out.push_back( e->mName );
+    };
+
+    if ( wrapped )
+    {
+        if ( now < before )
+        {
+            forwards( before, 1.0f );
+            forwards( -1.0f, now );
+        }
+        else
+        {
+            backwards( before, 0.0f );
+            backwards( 2.0f, now );
+        }
+    }
+    else if ( now > before )
+        forwards( before, now );
+    else
+        backwards( before, now );
+}
+
+
 // AnimationController
 
 AnimationController AnimationController::FromJson( const json& j, const path& source )
@@ -263,6 +309,25 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
             transition.mDuration = value.value( "duration", 0.2f );
             transition.mInterrupt = value.value( "interrupt", false );
             controller.mTransitions.push_back( std::move( transition ) );
+        }
+    }
+
+    if ( auto events = j.find( "events" ); events != j.end() )
+    {
+        if ( not events->is_object() )
+            fail( "\"events\" must be an object of clip: [ [time, name], ... ]" );
+        for ( const auto& [clip, markers] : events->items() )
+        {
+            if ( not markers.is_array() )
+                fail( std::format( "events '{}': [ [time, name], ... ]", clip ) );
+            vector<ClipEvent>& list = controller.mEvents[clip];
+            for ( const auto& marker : markers )
+            {
+                if ( not marker.is_array() or marker.size() != 2 or not marker[0].is_number() or not marker[1].is_string() )
+                    fail( std::format( "events '{}': [ [time, name], ... ]", clip ) );
+                list.push_back( { std::clamp( marker[0].get<f32>(), 0.0f, 1.0f ), marker[1].get<string>() } );
+            }
+            std::ranges::stable_sort( list, {}, &ClipEvent::mTime );
         }
     }
     return controller;

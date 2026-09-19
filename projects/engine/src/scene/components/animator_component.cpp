@@ -50,7 +50,8 @@ AnimatorComponent::AnimatorComponent( const AnimatorComponent& other )
       mBlendValue( other.mBlendValue ),
       mController( other.mController ),
       mParameters( other.mParameters ),
-      mControllerRuntime( other.mControllerRuntime )
+      mControllerRuntime( other.mControllerRuntime ),
+      mEvents( other.mEvents )
 {
 }
 
@@ -68,6 +69,7 @@ AnimatorComponent& AnimatorComponent::operator=( const AnimatorComponent& other 
         mController = other.mController;
         mParameters = other.mParameters;
         mControllerRuntime = other.mControllerRuntime;
+        mEvents = other.mEvents;
         // The runtime is kept: it is bound to the model, not to the settings,
         // and is replaced by the update if the model changed.
     }
@@ -106,6 +108,13 @@ void AnimatorComponent::SetController( const Ref<AnimationController>& controlle
     mParameters = controller ? controller->DefaultParameters() : Parameters{};
 }
 
+void AnimatorComponent::AddEvent( string_view clip, f32 time, string name )
+{
+    vector<ClipEvent>& list = mEvents[string( clip )];
+    list.push_back( { std::clamp( time, 0.0f, 1.0f ), std::move( name ) } );
+    std::ranges::stable_sort( list, {}, &ClipEvent::mTime );
+}
+
 string_view AnimatorComponent::CurrentState() const
 {
     if ( not mController or mControllerRuntime.mCurrent < 0 )
@@ -139,6 +148,9 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
     if ( not mAnimator or mAnimator->GetModel() != model )
         mAnimator = CreateScope<Animator>( model );
 
+    mFiredEvents.clear();
+    mEnteredState.clear();
+
     // What the controller says plays, and how: applied on entering a state,
     // and every frame for the values bound to parameters.
     const auto enter = [&]( const ControllerRuntime::Change& change )
@@ -149,6 +161,7 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
         else
             Play( state.mClip, change.mDuration );
         mLoop = state.IsBlend() or state.mLoop;
+        mEnteredState = state.mName;
     };
     if ( mController )
     {
@@ -219,6 +232,24 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
 
     resolve();
     const f32 previousNormalized = normalized();
+    // The clip whose events fire: the one playing, or the heaviest in a
+    // blend. Taken before the advance, since a clip that ends this frame
+    // still passes its last markers.
+    string_view eventClip;
+    if ( IsBlend() )
+    {
+        f32 heaviest = 0.0f;
+        for ( const auto& [point, weight] : mBlend.Weights( mBlendValue ) )
+            if ( weight > heaviest )
+            {
+                heaviest = weight;
+                eventClip = mBlend.mPoints[point].mClip;
+            }
+    }
+    else
+    {
+        eventClip = mClip;
+    }
     if ( duration > 0.0f and mPlaying )
     {
         if ( IsBlend() )
@@ -234,6 +265,13 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
         {
             mPlaying = false;
         }
+    }
+
+    if ( not eventClip.empty() )
+    {
+        if ( mController )
+            CrossedEvents( mController->mEvents, eventClip, previousNormalized, normalized(), wrapped, mFiredEvents );
+        CrossedEvents( mEvents, eventClip, previousNormalized, normalized(), wrapped, mFiredEvents );
     }
 
     if ( mController )
@@ -468,6 +506,18 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         "get",     []( const AnimatorComponent& c, string_view name ) { return c.mParameters.Get( name ); },
         "trigger", []( AnimatorComponent& c, string_view name ) { c.mParameters.Trigger( name ); },
         "state",   []( const AnimatorComponent& c ) { return string( c.CurrentState() ); },
+        // What the last animation update produced. Scripts run before it,
+        // so these are the previous frame's - a footstep is heard a frame
+        // late, which is 16ms, not a problem.
+        "events",  []( const AnimatorComponent& c ) { return sol::as_table( c.mFiredEvents ); },
+        "entered_state",
+        []( const AnimatorComponent& c ) -> sol::optional<string>
+        {
+            if ( c.mEnteredState.empty() )
+                return sol::nullopt;
+            return c.mEnteredState;
+        },
+        "add_event", []( AnimatorComponent& c, string_view clip, f32 time, string name ) { c.AddEvent( clip, time, std::move( name ) ); },
         "controller",
         sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 

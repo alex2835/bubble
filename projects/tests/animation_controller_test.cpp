@@ -39,6 +39,12 @@ bool Fails( const char* text )
 
 using Frame = ControllerRuntime::Frame;
 const Frame cIdle{ 0.5f, 0.4f, false, false };
+
+// CHECK is a macro, and a braced list with a comma in it splits its argument.
+bool Same( const vector<string>& a, std::initializer_list<const char*> b )
+{
+    return std::ranges::equal( a, b, []( const string& x, const char* y ) { return x == y; } );
+}
 }
 
 TEST( Controller_Parse )
@@ -134,4 +140,57 @@ TEST( Controller_ExitTimeAroundTheLoop )
     runtime.Step( c, params, cIdle );
     change = runtime.Step( c, params, Frame{ 0.0f, 0.0f, false, false } );
     CHECK( change and change->mState == c.FindState( "b" ) );
+}
+
+TEST( Controller_ClipEvents )
+{
+    ClipEvents events;
+    events["walk"] = { { 0.3f, "step_l" }, { 0.8f, "step_r" } };
+    events["swing"] = { { 0.0f, "start" }, { 0.5f, "hit" } };
+    vector<string> out;
+
+    // Plain forward crossing: (before, now].
+    CrossedEvents( events, "walk", 0.1f, 0.5f, false, out );
+    CHECK( Same( out, { "step_l" } ) );
+    out.clear();
+    CrossedEvents( events, "walk", 0.3f, 0.5f, false, out );
+    CHECK( out.empty() ); // 0.3 was already passed
+    CrossedEvents( events, "walk", 0.29f, 0.3f, false, out );
+    CHECK( Same( out, { "step_l" } ) );
+    out.clear();
+
+    // Around the seam: the tail then the head, in order.
+    CrossedEvents( events, "walk", 0.75f, 0.35f, true, out );
+    CHECK( Same( out, { "step_r", "step_l" } ) );
+    out.clear();
+
+    // Backwards, latest first; and backwards around the seam.
+    CrossedEvents( events, "walk", 0.9f, 0.2f, false, out );
+    CHECK( Same( out, { "step_r", "step_l" } ) );
+    out.clear();
+    CrossedEvents( events, "walk", 0.1f, 0.9f, true, out );
+    CHECK( out.empty() ); // nothing in [0, 0.1) or [0.9, 1]
+    CrossedEvents( events, "walk", 0.35f, 0.75f, true, out );
+    CHECK( Same( out, { "step_l", "step_r" } ) );
+    out.clear();
+
+    // A marker at 0 fires when the loop comes round, not on the first frame.
+    CrossedEvents( events, "swing", 0.0f, 0.1f, false, out );
+    CHECK( out.empty() );
+    CrossedEvents( events, "swing", 0.9f, 0.1f, true, out );
+    CHECK( Same( out, { "start" } ) );
+    out.clear();
+
+    // Unknown clip, no motion.
+    CrossedEvents( events, "nope", 0.0f, 1.0f, false, out );
+    CrossedEvents( events, "walk", 0.5f, 0.5f, false, out );
+    CHECK( out.empty() );
+
+    // From the file.
+    const AnimationController c = AnimationController::FromJson( json::parse( R"({
+      "states": { "a": { "clip": "walk" } },
+      "events": { "walk": [ [0.8, "b"], [0.3, "a"] ] }
+    })" ), "events.anim" );
+    CHECK( c.mEvents.at( "walk" ).size() == 2 and c.mEvents.at( "walk" )[0].mName == "a" );
+    CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "events": { "x": [ [ "0.5", "e" ] ] } })" ) );
 }
