@@ -391,49 +391,10 @@ void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
     scene.ForEach<ModelComponent, AnimatorComponent>(
     [&]( Entity, const ModelComponent& modelComponent, AnimatorComponent& animator )
     {
-        const Ref<Model>& model = modelComponent.mModel;
-        if ( not model or not model->Skinned() )
-        {
-            animator.mAnimator.reset();
-            return;
-        }
-        // Bound to the model: a new model means new joints, new meshes, new
-        // buffers. Also the first frame after a load or an add_animator.
-        if ( not animator.mAnimator or animator.mAnimator->GetModel() != model )
-            animator.mAnimator = CreateScope<Animator>( model );
-
-        // Advances `time` through `clip` by this frame, looping or stopping
-        // at the ends; false when it stopped.
-        const auto advance = [&]( const AnimationClip* clip, f32& time )
-        {
-            time += deltaSeconds * animator.mSpeed;
-            if ( animator.mLoop )
-            {
-                time = std::fmod( time, clip->mDuration );
-                if ( time < 0.0f )
-                    time += clip->mDuration;
-                return true;
-            }
-            if ( time < clip->mDuration and time > 0.0f )
-                return true;
-            // Reached either end - the speed may be negative.
-            time = std::clamp( time, 0.0f, clip->mDuration );
-            return false;
-        };
-
-        const AnimationClip* clip = model->FindClip( animator.mClip ).get();
-        if ( clip and animator.mPlaying and not advance( clip, animator.mTime ) )
-            animator.mPlaying = false;
-
-        if ( animator.mPendingTransition > 0.0f )
-        {
-            animator.mAnimator->BeginTransition( animator.mPendingTransition );
-            animator.mPendingTransition = 0.0f;
-        }
-        animator.mAnimator->Sample( clip, animator.mTime, deltaSeconds );
-        animator.mAnimator->Skin();
+        animator.Advance( modelComponent.mModel, deltaSeconds );
     } );
 }
+
 
 void Engine::SyncActiveCamera()
 {

@@ -542,6 +542,23 @@ Fields: `clip` (read only, the name), `time` (seconds into the clip, writable
 for scrubbing), `speed` (1.0; negative plays backwards), `loop` (true). Has
 `tostring`.
 
+**Blend spaces.** `play_blend( name, points, seconds )` plays several clips
+along one parameter, `blend`: `points` is `{ { clip, value }, ... }`, and the
+two clips either side of `blend` are mixed by where it falls between them
+(outside the range the nearest end plays alone). The name is what `clip`
+reports while it plays. Calling `play_blend` again with the same name and
+points does nothing, so a locomotion script can call it every frame and only
+set `blend`. Every clip in the space runs on one shared cycle - `time` is the
+phase 0..1 rather than seconds - so a walk and a run blended half and half
+plant the same foot at the same moment. `is_blend()` tells which mode the
+animator is in.
+
+```lua
+local animator = entity:get_animator()
+animator:play_blend( "locomotion", { { "idle", 0 }, { "walk", 1.5 }, { "run", 4 } }, 0.2 )
+animator.blend = length( velocity )
+```
+
 A name the model has no clip for leaves the character at rest. With `loop`
 off, playback stops at the end and `is_playing()` turns false. The pose for a
 frame is computed after every script has run, so a `play()` shows on the same

@@ -1,20 +1,23 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include "engine/animation/blend_space.hpp"
 
 namespace bubble
 {
 class Animator;
+struct Model;
 
-// Plays one of the clips that came with the entity's skinned model.
+// Plays one of the clips that came with the entity's skinned model, or a
+// blend of them along a parameter.
 //
-// The component is the playback state - which clip, where in it, how fast -
-// and nothing else; that is what the inspector edits, a scene serialises and a
-// script drives. The pose and the posed vertices live in an Animator the
-// engine's animation update creates for the entity and keeps in mAnimator.
-// It is not copied and not serialised: a copy of the component starts a
-// playback of its own, and a loaded scene poses on its first frame.
+// The component is the playback state - which clip or blend, where in it, how
+// fast - and nothing else; that is what the inspector edits, a scene
+// serialises and a script drives. The pose and the posed vertices live in an
+// Animator the engine's animation update creates for the entity and keeps in
+// mAnimator. It is not copied and not serialised: a copy of the component
+// starts a playback of its own, and a loaded scene poses on its first frame.
 //
-// A clip is named rather than indexed. Re-exporting a model reorders its
+// Clips are named rather than indexed. Re-exporting a model reorders its
 // clips more easily than it renames them, and a script says play( "walk" ).
 struct AnimatorComponent
 {
@@ -43,15 +46,33 @@ public:
     // interrupt a transition. A name the model has no clip for leaves the
     // character at rest.
     void Play( string_view clip, f32 transition = 0.0f );
+    // Plays a blend space under `name` - what mClip reports while it plays -
+    // driven by mBlendValue. Playing the blend that is already playing
+    // changes nothing, so a script may call this every frame it wants the
+    // blend, the way it would test mClip before Play.
+    void PlayBlend( string_view name, BlendSpace space, f32 transition = 0.0f );
     void Stop();
     bool IsPlaying() const { return mPlaying; }
     bool InTransition() const;
+    bool IsBlend() const { return not mBlend.Empty(); }
+    // 0..1 through the clip, or through the blend's shared cycle.
+    f32 NormalizedTime( const Model& model ) const;
 
+    // Advances the playback by dt, poses and skins through mAnimator. The
+    // engine calls this once per frame for an entity whose model is skinned.
+    void Advance( const Ref<Model>& model, f32 dt );
+
+    // The clip's name, or the blend's.
     string mClip;
+    // Seconds into the clip; for a blend, the phase 0..1 through the cycle
+    // every clip in it shares.
     f32 mTime = 0.0f;
     f32 mSpeed = 1.0f;
     bool mLoop = true;
     bool mPlaying = true;
+    // Set while a blend plays; its parameter is mBlendValue.
+    BlendSpace mBlend;
+    f32 mBlendValue = 0.0f;
 
     // A Play with a transition time, until the update hands it to the
     // Animator. Not serialised: a transition is a moment, not a setting.

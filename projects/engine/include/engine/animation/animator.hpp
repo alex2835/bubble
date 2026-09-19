@@ -33,11 +33,22 @@ public:
 
     const Ref<Model>& GetModel() const { return mModel; }
 
-    // Samples the clip at `time` seconds, carries any transition in flight,
-    // and poses the skeleton. A null clip poses it at rest, which is what a
-    // model with no clips draws as. `dt` is the frame's step: the transition
-    // advances by it, and it is what the next transition measures the pose's
-    // velocity over.
+    // One clip's contribution to the pose: where in it, 0..1, and how much.
+    struct Layer
+    {
+        const AnimationClip* mClip = nullptr;
+        f32 mRatio = 0.0f;
+        f32 mWeight = 1.0f;
+    };
+
+    // Blends the layers by weight (normalised by ozz, so they need not sum to
+    // one), carries any transition in flight, and poses the skeleton. No
+    // layers - or none with a clip and a weight - poses it at rest, which is
+    // what a model with no clips draws as. `dt` is the frame's step: the
+    // transition advances by it, and it is what the next transition measures
+    // the pose's velocity over.
+    void Sample( std::span<const Layer> layers, f32 dt );
+    // Samples the clip at `time` seconds.
     void Sample( const AnimationClip* clip, f32 time, f32 dt );
     // The next Sample eases the pose from where it is now into whatever it
     // samples, over `seconds`, without the outgoing clip - see Inertializer.
@@ -66,7 +77,11 @@ private:
     void LocalToModel( ozz::span<const ozz::math::SoaTransform> locals );
 
     Ref<Model> mModel;
-    ozz::animation::SamplingJob::Context mContext;
+    // One per layer. A context caches where it last sampled in an animation
+    // and starts over on a different one, so layer i keeps context i and a
+    // steady blend samples every clip warm.
+    vector<Scope<ozz::animation::SamplingJob::Context>> mContexts;
+    vector<ozz::vector<ozz::math::SoaTransform>> mLayerLocals;
     ozz::vector<ozz::math::SoaTransform> mLocals;
 
     // The pose as shown, per joint, this frame and the two before it - what a

@@ -3,6 +3,7 @@
 #include <ozz/animation/runtime/skeleton.h>
 #include <ozz/animation/runtime/animation.h>
 #include <ozz/animation/runtime/local_to_model_job.h>
+#include <ozz/animation/runtime/blending_job.h>
 #include <ozz/geometry/runtime/skinning_job.h>
 #include <ozz/base/span.h>
 
@@ -93,7 +94,6 @@ Animator::Animator( Ref<Model> model )
     BUBBLE_ASSERT( mModel and mModel->Skinned(), "Animator needs a skinned model" );
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
-    mContext.Resize( skeleton.num_joints() );
     mLocals.resize( skeleton.num_soa_joints() );
     mPose.resize( skeleton.num_joints() );
     mPreviousPose.resize( skeleton.num_joints() );
@@ -127,17 +127,57 @@ void Animator::BeginTransition( f32 seconds )
 
 void Animator::Sample( const AnimationClip* clip, f32 time, f32 dt )
 {
+    const f32 ratio = clip and clip->mDuration > 0.0f ? time / clip->mDuration : 0.0f;
+    const Layer layer{ clip, ratio, 1.0f };
+    Sample( std::span<const Layer>( &layer, 1 ), dt );
+}
+
+
+void Animator::Sample( std::span<const Layer> layers, f32 dt )
+{
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
-    bool sampled = false;
-    if ( clip and clip->mAnimation )
+    // Sample every layer that counts, each into its own buffer.
+    vector<ozz::animation::BlendingJob::Layer> blendLayers;
+    for ( size_t i = 0; i < layers.size(); i++ )
     {
+        const Layer& layer = layers[i];
+        if ( not layer.mClip or not layer.mClip->mAnimation or layer.mWeight <= 0.0f )
+            continue;
+
+        while ( mContexts.size() <= i )
+        {
+            mContexts.push_back( CreateScope<ozz::animation::SamplingJob::Context>( skeleton.num_joints() ) );
+            mLayerLocals.emplace_back().resize( skeleton.num_soa_joints() );
+        }
+
         ozz::animation::SamplingJob sampling;
-        sampling.animation = clip->mAnimation.get();
-        sampling.context = &mContext;
-        sampling.ratio = clip->mDuration > 0.0f ? std::clamp( time / clip->mDuration, 0.0f, 1.0f ) : 0.0f;
-        sampling.output = ozz::make_span( mLocals );
-        sampled = sampling.Run();
+        sampling.animation = layer.mClip->mAnimation.get();
+        sampling.context = mContexts[i].get();
+        sampling.ratio = std::clamp( layer.mRatio, 0.0f, 1.0f );
+        sampling.output = ozz::make_span( mLayerLocals[i] );
+        if ( not sampling.Run() )
+            continue;
+
+        ozz::animation::BlendingJob::Layer& blendLayer = blendLayers.emplace_back();
+        blendLayer.weight = layer.mWeight;
+        blendLayer.transform = ozz::make_span( mLayerLocals[i] );
+    }
+
+    bool sampled = false;
+    if ( blendLayers.size() == 1 )
+    {
+        // One layer is that layer; no reason to run the blend.
+        std::ranges::copy( blendLayers[0].transform, mLocals.begin() );
+        sampled = true;
+    }
+    else if ( not blendLayers.empty() )
+    {
+        ozz::animation::BlendingJob blending;
+        blending.layers = ozz::make_span( blendLayers );
+        blending.rest_pose = skeleton.joint_rest_poses();
+        blending.output = ozz::make_span( mLocals );
+        sampled = blending.Run();
     }
     SoaToJoints( sampled ? ozz::make_span( mLocals ) : skeleton.joint_rest_poses(), mPose );
 
