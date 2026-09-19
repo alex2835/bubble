@@ -4,6 +4,7 @@
 #include "utils/resources_hot_reloader.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/shader_component.hpp"
+#include "engine/scene/components/animator_component.hpp"
 
 namespace bubble
 {
@@ -199,6 +200,7 @@ bool ProjectResourcesHotReloader::IsWatchListStale() const
     // always moves the total, so the size covers it.
     std::lock_guard lock( mWatchMutex );
     return mProject.mLoader.mShaders.size() + mProject.mLoader.mScripts.size()
+           + mProject.mLoader.mControllers.size()
            != mWatchList.size() - mModuleWatchCount;
 }
 
@@ -229,6 +231,7 @@ void ProjectResourcesHotReloader::RebuildWatchList()
     };
     watch( mProject.mLoader.mShaders, ResourceType::Shader );
     watch( mProject.mLoader.mScripts, ResourceType::Script );
+    watch( mProject.mLoader.mControllers, ResourceType::Controller );
 
     // One entry per module directory, holding every .glsl in it. Modules are
     // spliced into shaders at compile time and leave no trace in the loader, so
@@ -280,6 +283,7 @@ void ProjectResourcesHotReloader::ReloadPending()
             {
                 case ResourceType::Shader: ReloadShader( reload.mLoaderPath ); break;
                 case ResourceType::Script: ReloadScript( reload.mLoaderPath ); break;
+                case ResourceType::Controller: ReloadController( reload.mLoaderPath ); break;
                 case ResourceType::ShaderModules: ReloadAllShaders(); break;
             }
         }
@@ -378,6 +382,43 @@ void ProjectResourcesHotReloader::ReloadScript( const path& loaderPath )
 
     DropResource<ScriptComponent>( mProject, mProject.mLoader.mScripts,
                                    loaderPath, &ScriptComponent::mScript );
+    mForceWatchListRebuild = true;
+    mUIGlobals.mNeedUpdateProjectFilesWindow = true;
+}
+
+
+
+void ProjectResourcesHotReloader::ReloadController( const path& loaderPath )
+{
+    const auto existing = mProject.mLoader.mControllers.find( loaderPath );
+    if ( existing == mProject.mLoader.mControllers.end() )
+        return;
+
+    LogInfo( "Reload animation controller: {}", loaderPath.string() );
+
+    const path absPath = mProject.mLoader.RelAbsFromProjectPath( loaderPath ).abs;
+    if ( const auto newController = LoadAnimationController( absPath ) )
+    {
+        // In place, so every animator's Ref sees the new one; then each
+        // finds its state again, since the indices it held may have moved.
+        *existing->second = std::move( *newController );
+        mProject.mLevel.mScene.ForEach<AnimatorComponent>( [&]( Entity, AnimatorComponent& animator )
+        {
+            if ( animator.mController == existing->second )
+                animator.OnControllerReloaded();
+        } );
+        return;
+    }
+
+    // A file that does not parse - half way through an edit, most likely -
+    // is reported by the loader and the old controller stays, so the
+    // character keeps working while the file is fixed. Only a file that is
+    // gone drops the resource.
+    std::error_code error;
+    if ( filesystem::exists( absPath, error ) )
+        return;
+    DropResource<AnimatorComponent>( mProject, mProject.mLoader.mControllers,
+                                     loaderPath, &AnimatorComponent::mController );
     mForceWatchListRebuild = true;
     mUIGlobals.mNeedUpdateProjectFilesWindow = true;
 }

@@ -86,6 +86,7 @@ void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters&
             playback.Play( state.mClip, change.mDuration );
         playback.mLoop = state.IsBlend() or state.mLoop;
         playback.mRootMotion = state.mRootMotion;
+        playback.mStateName = state.mName;
         playback.mEnteredState = state.mName;
     };
     if ( machine )
@@ -338,6 +339,56 @@ void AnimatorComponent::SetController( const Ref<AnimationController>& controlle
         layer.mAdditive = declared.mAdditive;
         layer.mPlayback.PlayNothing();
     }
+}
+
+void AnimatorComponent::OnControllerReloaded()
+{
+    if ( not mController )
+        return;
+
+    // Same state by name, or the entry on the next frame. The playback
+    // itself - clip, time, transition - carries on as it was, so a save
+    // that touched nothing near the current state changes nothing on
+    // screen.
+    const auto rebind = [&]( const StateMachine& machine, Playback& playback )
+    {
+        const i32 found = playback.mStateName.empty() ? -1 : machine.FindState( playback.mStateName );
+        playback.mRuntime.mCurrent = found;
+        playback.mRuntime.mPrevious = -1;
+    };
+
+    Parameters parameters = mController->DefaultParameters();
+    for ( auto& [name, parameter] : parameters.mValues )
+    {
+        const auto old = mParameters.mValues.find( name );
+        if ( old != mParameters.mValues.end() and old->second.mType == parameter.mType )
+            parameter.mValue = old->second.mValue;
+    }
+    mParameters = std::move( parameters );
+
+    rebind( *mController, mBase );
+
+    vector<OverlayLayer> layers;
+    for ( const ControllerLayer& declared : mController->mLayers )
+    {
+        OverlayLayer& layer = layers.emplace_back();
+        layer.mName = declared.mName;
+        layer.mMask = declared.mMask;
+        layer.mWeight = declared.mWeight;
+        layer.mWeightParameter = declared.mWeightParameter;
+        layer.mAdditive = declared.mAdditive;
+        if ( const OverlayLayer* old = FindLayer( declared.mName ) )
+        {
+            layer.mPlayback = old->mPlayback;
+            layer.mShownWeight = old->mShownWeight;
+            rebind( declared.mMachine, layer.mPlayback );
+        }
+        else
+        {
+            layer.mPlayback.PlayNothing();
+        }
+    }
+    mLayers = std::move( layers );
 }
 
 string_view AnimatorComponent::CurrentState() const

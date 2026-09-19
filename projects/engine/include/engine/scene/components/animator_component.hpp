@@ -57,9 +57,12 @@ struct Playback
     // PlayNothing was called: the clip is kept for the fade, and IsEmpty.
     bool mFadingOut = false;
 
-    // Under a controller: where its state machine is, and the state entered
-    // by the last update, if one was.
+    // Under a controller: where its state machine is, the state's name (the
+    // index is what the machine steps on; the name is what survives the
+    // machine being reloaded under it), and the state entered by the last
+    // update, if one was.
     ControllerRuntime mRuntime;
+    string mStateName;
     string mEnteredState;
 };
 
@@ -134,6 +137,11 @@ public:
     // current playback as it is. The parameters take the controller's
     // declared defaults, so a script may set only the ones it drives.
     void SetController( const Ref<AnimationController>& controller );
+    // The controller's contents were replaced under it - a hot reload. The
+    // states and layers are found again by name, a state that is gone
+    // falling back to the entry; the parameters keep their values, new
+    // ones at their defaults.
+    void OnControllerReloaded();
     // The controller's current base state name, or empty without one.
     string_view CurrentState() const;
 

@@ -43,7 +43,11 @@ and a transition may interrupt a transition without a pop.
 
 JSON, next to the model, listed under `controllers` in the project file and
 picked up by the Project window. Attached with
-`entity:set_animation_controller( path )` or in the inspector.
+`entity:set_animation_controller( path )` or in the inspector. Saving the file
+reloads it in the running editor: every animator on it finds its state again
+by name (a state that is gone falls back to the entry) and keeps its
+parameters; a file that does not parse is reported and the previous version
+stays until it is fixed.
 
 ```json
 {

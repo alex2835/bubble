@@ -12,8 +12,8 @@ namespace bubble
 {
 class Project;
 
-// Watches the project's shader and script files and reloads them in place when
-// they change on disk.
+// Watches the project's shader, script and animation controller files and
+// reloads them in place when they change on disk.
 //
 // Two threads and one mutex:
 //
@@ -31,6 +31,9 @@ class ProjectResourcesHotReloader
     {
         Shader,
         Script,
+        // A .anim file. Replaced in place, and every animator on it re-finds
+        // its state by name.
+        Controller,
         // The .glsl files behind `#include <module>`. Not a loader resource -
         // nothing holds a handle to one - so a change reloads every shader that
         // could have included it, which is all of them.
@@ -79,6 +82,7 @@ private:
     void ReloadPending();
     void ReloadShader( const path& loaderPath );
     void ReloadScript( const path& loaderPath );
+    void ReloadController( const path& loaderPath );
     void ReloadAllShaders();
 
     // Watcher thread.
