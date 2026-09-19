@@ -194,3 +194,41 @@ TEST( Controller_ClipEvents )
     CHECK( c.mEvents.at( "walk" ).size() == 2 and c.mEvents.at( "walk" )[0].mName == "a" );
     CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "events": { "x": [ [ "0.5", "e" ] ] } })" ) );
 }
+
+TEST( Controller_Layers )
+{
+    const AnimationController c = AnimationController::FromJson( json::parse( R"({
+      "parameters": { "wave": "trigger", "aim": 0.5 },
+      "states": { "walk": { "clip": "walk" } },
+      "layers": [
+        { "name": "upper", "mask": [ "Spine1", "!Neck" ], "weight": "aim",
+          "entry": "none",
+          "states": { "none": {}, "wave": { "clip": "wave", "loop": false } },
+          "transitions": [
+            { "from": "none", "to": "wave", "when": "wave", "duration": 0.1 },
+            { "from": "wave", "to": "none", "exit_time": 1.0, "duration": 0.3 }
+          ] }
+      ]
+    })" ), "layers.anim" );
+    CHECK( c.mLayers.size() == 1 );
+    const ControllerLayer& layer = c.mLayers[0];
+    CHECK( layer.mName == "upper" );
+    CHECK( layer.mMask.size() == 2 and layer.mMask[1] == "!Neck" );
+    CHECK( layer.mWeightParameter == "aim" );
+    CHECK( layer.mMachine.mStates.size() == 2 );
+    CHECK( layer.mMachine.mStates[layer.mMachine.mEntry].IsEmpty() );
+
+    // The layer's machine steps on the shared parameters like the base's.
+    Parameters params = c.DefaultParameters();
+    ControllerRuntime runtime;
+    runtime.Step( layer.mMachine, params, cIdle );
+    CHECK( layer.mMachine.mStates[runtime.mCurrent].mName == "none" );
+    params.Trigger( "wave" );
+    auto change = runtime.Step( layer.mMachine, params, cIdle );
+    CHECK( change and layer.mMachine.mStates[change->mState].mName == "wave" );
+    change = runtime.Step( layer.mMachine, params, Frame{ 1.0f, 0.9f, false, false } );
+    CHECK( change and layer.mMachine.mStates[change->mState].mName == "none" and change->mDuration == 0.3f );
+
+    CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "layers": [ { "mask": "Spine" , "states": { "n": {} } } ] })" ) ); // no name
+    CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "layers": [ { "name": "l", "weight": "nope", "states": { "n": {} } } ] })" ) );
+}

@@ -101,6 +101,10 @@ TEST( SkeletonImport_CesiumMan )
         }
     }
     CHECK( bones == 19 );
+    string names;
+    for ( const char* name : skeleton.mSkeleton->joint_names() )
+        names += string( names.empty() ? "" : " " ) + name;
+    std::println( "  joints: {}", names );
 
     // The clip covers every joint and lasts as long as the file says (2s).
     const auto& clips = modelData->mSkeleton->mClips;

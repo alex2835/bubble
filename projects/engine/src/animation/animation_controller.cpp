@@ -3,6 +3,7 @@
 #include "engine/utils/error.hpp"
 #include <nlohmann/json.hpp>
 #include <charconv>
+#include <functional>
 
 namespace bubble
 {
@@ -183,6 +184,114 @@ void CrossedEvents( const ClipEvents& events, string_view clip,
 
 // AnimationController
 
+namespace
+{
+// The states/entry/transitions block, for the base and for each layer.
+// `where` names the block in errors; `fail` carries the file name.
+void ParseStateMachine( const json& j, StateMachine& machine, const string& where,
+                        const std::function<bool( const string& )>& hasParameter,
+                        const std::function<void( const string& )>& fail )
+{
+    auto states = j.find( "states" );
+    if ( states == j.end() or not states->is_object() or states->empty() )
+        fail( where + "\"states\" must be an object with at least one state" );
+    for ( const auto& [name, value] : states->items() )
+    {
+        ControllerState state;
+        state.mName = name;
+        if ( auto clip = value.find( "clip" ); clip != value.end() )
+            state.mClip = clip->get<string>();
+        if ( auto blend = value.find( "blend" ); blend != value.end() )
+        {
+            state.mBlendParameter = blend->value( "param", string() );
+            if ( not hasParameter( state.mBlendParameter ) )
+                fail( std::format( "{}state '{}': blend \"param\" must name a parameter", where, name ) );
+            auto points = blend->find( "points" );
+            if ( points == blend->end() or not points->is_array() or points->empty() )
+                fail( std::format( "{}state '{}': blend \"points\" must be [ [clip, value], ... ]", where, name ) );
+            for ( const auto& point : *points )
+            {
+                if ( not point.is_array() or point.size() != 2 or not point[0].is_string() or not point[1].is_number() )
+                    fail( std::format( "{}state '{}': blend \"points\" must be [ [clip, value], ... ]", where, name ) );
+                state.mBlend.Add( point[0].get<string>(), point[1].get<f32>() );
+            }
+        }
+        if ( not state.mClip.empty() and not state.mBlend.Empty() )
+            fail( std::format( "{}state '{}': one of \"clip\" and \"blend\", not both", where, name ) );
+
+        state.mLoop = value.value( "loop", true );
+        if ( auto speed = value.find( "speed" ); speed != value.end() )
+        {
+            if ( speed->is_number() )
+                state.mSpeed = speed->get<f32>();
+            else if ( speed->is_string() and hasParameter( speed->get<string>() ) )
+                state.mSpeedParameter = speed->get<string>();
+            else
+                fail( std::format( "{}state '{}': \"speed\" is a number or a parameter name", where, name ) );
+        }
+        machine.mStates.push_back( std::move( state ) );
+    }
+
+    if ( auto entry = j.find( "entry" ); entry != j.end() )
+    {
+        machine.mEntry = machine.FindState( entry->get<string>() );
+        if ( machine.mEntry < 0 )
+            fail( std::format( "{}\"entry\" names no state: '{}'", where, entry->get<string>() ) );
+    }
+
+    if ( auto transitions = j.find( "transitions" ); transitions != j.end() )
+    {
+        if ( not transitions->is_array() )
+            fail( where + "\"transitions\" must be an array" );
+        for ( const auto& value : *transitions )
+        {
+            Transition transition;
+            const string from = value.value( "from", string() );
+            const string to = value.value( "to", string() );
+            if ( from != "*" )
+            {
+                transition.mFrom = machine.FindState( from );
+                if ( transition.mFrom < 0 )
+                    fail( std::format( "{}transition \"from\" names no state: '{}'", where, from ) );
+            }
+            if ( to != "return" )
+            {
+                transition.mTo = machine.FindState( to );
+                if ( transition.mTo < 0 )
+                    fail( std::format( "{}transition \"to\" names no state: '{}'", where, to ) );
+            }
+            if ( transition.mFrom == Transition::cAnyState and transition.mTo == Transition::cReturn )
+                fail( where + "a transition from \"*\" cannot go to \"return\"" );
+
+            if ( auto when = value.find( "when" ); when != value.end() )
+            {
+                const auto add = [&]( const json& text )
+                {
+                    if ( not text.is_string() )
+                        fail( where + "\"when\" is a condition string or an array of them" );
+                    Condition condition = Condition::Parse( text.get<string>() );
+                    if ( not hasParameter( condition.mParameter ) )
+                        fail( std::format( "{}condition '{}' names no parameter", where, text.get<string>() ) );
+                    transition.mConditions.push_back( std::move( condition ) );
+                };
+                if ( when->is_array() )
+                    for ( const auto& text : *when )
+                        add( text );
+                else
+                    add( *when );
+            }
+            if ( auto exitTime = value.find( "exit_time" ); exitTime != value.end() )
+                transition.mExitTime = exitTime->get<f32>();
+            if ( transition.mConditions.empty() and not transition.mExitTime )
+                fail( std::format( "{}transition {} -> {} has no \"when\" and no \"exit_time\"", where, from, to ) );
+            transition.mDuration = value.value( "duration", 0.2f );
+            transition.mInterrupt = value.value( "interrupt", false );
+            machine.mTransitions.push_back( std::move( transition ) );
+        }
+    }
+}
+}
+
 AnimationController AnimationController::FromJson( const json& j, const path& source )
 {
     const auto fail = [&]( const string& what ) { throw std::runtime_error( std::format( "{}: {}", source.string(), what ) ); };
@@ -214,101 +323,40 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
         return std::ranges::any_of( controller.mParameters, [&]( const auto& p ) { return p.first == name; } );
     };
 
-    auto states = j.find( "states" );
-    if ( states == j.end() or not states->is_object() or states->empty() )
-        fail( "\"states\" must be an object with at least one state" );
-    for ( const auto& [name, value] : states->items() )
+    ParseStateMachine( j, controller, "", hasParameter, fail );
+
+    if ( auto layers = j.find( "layers" ); layers != j.end() )
     {
-        ControllerState state;
-        state.mName = name;
-        if ( auto clip = value.find( "clip" ); clip != value.end() )
-            state.mClip = clip->get<string>();
-        if ( auto blend = value.find( "blend" ); blend != value.end() )
+        if ( not layers->is_array() )
+            fail( "\"layers\" must be an array" );
+        for ( const auto& value : *layers )
         {
-            state.mBlendParameter = blend->value( "param", string() );
-            if ( not hasParameter( state.mBlendParameter ) )
-                fail( std::format( "state '{}': blend \"param\" must name a parameter", name ) );
-            auto points = blend->find( "points" );
-            if ( points == blend->end() or not points->is_array() or points->empty() )
-                fail( std::format( "state '{}': blend \"points\" must be [ [clip, value], ... ]", name ) );
-            for ( const auto& point : *points )
+            ControllerLayer layer;
+            layer.mName = value.value( "name", string() );
+            if ( layer.mName.empty() )
+                fail( "every layer needs a \"name\"" );
+            const string where = std::format( "layer '{}': ", layer.mName );
+            if ( auto mask = value.find( "mask" ); mask != value.end() )
             {
-                if ( not point.is_array() or point.size() != 2 or not point[0].is_string() or not point[1].is_number() )
-                    fail( std::format( "state '{}': blend \"points\" must be [ [clip, value], ... ]", name ) );
-                state.mBlend.Add( point[0].get<string>(), point[1].get<f32>() );
-            }
-        }
-        if ( state.mClip.empty() == state.mBlend.Empty() )
-            fail( std::format( "state '{}': exactly one of \"clip\" and \"blend\"", name ) );
-
-        state.mLoop = value.value( "loop", true );
-        if ( auto speed = value.find( "speed" ); speed != value.end() )
-        {
-            if ( speed->is_number() )
-                state.mSpeed = speed->get<f32>();
-            else if ( speed->is_string() and hasParameter( speed->get<string>() ) )
-                state.mSpeedParameter = speed->get<string>();
-            else
-                fail( std::format( "state '{}': \"speed\" is a number or a parameter name", name ) );
-        }
-        controller.mStates.push_back( std::move( state ) );
-    }
-
-    if ( auto entry = j.find( "entry" ); entry != j.end() )
-    {
-        controller.mEntry = controller.FindState( entry->get<string>() );
-        if ( controller.mEntry < 0 )
-            fail( std::format( "\"entry\" names no state: '{}'", entry->get<string>() ) );
-    }
-
-    if ( auto transitions = j.find( "transitions" ); transitions != j.end() )
-    {
-        if ( not transitions->is_array() )
-            fail( "\"transitions\" must be an array" );
-        for ( const auto& value : *transitions )
-        {
-            Transition transition;
-            const string from = value.value( "from", string() );
-            const string to = value.value( "to", string() );
-            if ( from != "*" )
-            {
-                transition.mFrom = controller.FindState( from );
-                if ( transition.mFrom < 0 )
-                    fail( std::format( "transition \"from\" names no state: '{}'", from ) );
-            }
-            if ( to != "return" )
-            {
-                transition.mTo = controller.FindState( to );
-                if ( transition.mTo < 0 )
-                    fail( std::format( "transition \"to\" names no state: '{}'", to ) );
-            }
-            if ( transition.mFrom == Transition::cAnyState and transition.mTo == Transition::cReturn )
-                fail( "a transition from \"*\" cannot go to \"return\"" );
-
-            if ( auto when = value.find( "when" ); when != value.end() )
-            {
-                const auto add = [&]( const json& text )
-                {
-                    if ( not text.is_string() )
-                        fail( "\"when\" is a condition string or an array of them" );
-                    Condition condition = Condition::Parse( text.get<string>() );
-                    if ( not hasParameter( condition.mParameter ) )
-                        fail( std::format( "condition '{}' names no parameter", text.get<string>() ) );
-                    transition.mConditions.push_back( std::move( condition ) );
-                };
-                if ( when->is_array() )
-                    for ( const auto& text : *when )
-                        add( text );
+                if ( mask->is_string() )
+                    layer.mMask.push_back( mask->get<string>() );
+                else if ( mask->is_array() )
+                    for ( const auto& joint : *mask )
+                        layer.mMask.push_back( joint.get<string>() );
                 else
-                    add( *when );
+                    fail( where + "\"mask\" is a joint name or an array of them" );
             }
-            if ( auto exitTime = value.find( "exit_time" ); exitTime != value.end() )
-                transition.mExitTime = exitTime->get<f32>();
-            if ( transition.mConditions.empty() and not transition.mExitTime )
-                fail( std::format( "transition {} -> {} has no \"when\" and no \"exit_time\"", from, to ) );
-            transition.mDuration = value.value( "duration", 0.2f );
-            transition.mInterrupt = value.value( "interrupt", false );
-            controller.mTransitions.push_back( std::move( transition ) );
+            if ( auto weight = value.find( "weight" ); weight != value.end() )
+            {
+                if ( weight->is_number() )
+                    layer.mWeight = weight->get<f32>();
+                else if ( weight->is_string() and hasParameter( weight->get<string>() ) )
+                    layer.mWeightParameter = weight->get<string>();
+                else
+                    fail( where + "\"weight\" is a number or a parameter name" );
+            }
+            ParseStateMachine( value, layer.mMachine, where, hasParameter, fail );
+            controller.mLayers.push_back( std::move( layer ) );
         }
     }
 
@@ -333,7 +381,7 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
     return controller;
 }
 
-i32 AnimationController::FindState( string_view name ) const
+i32 StateMachine::FindState( string_view name ) const
 {
     for ( size_t i = 0; i < mStates.size(); i++ )
         if ( mStates[i].mName == name )
@@ -352,16 +400,16 @@ Parameters AnimationController::DefaultParameters() const
 
 // ControllerRuntime
 
-ControllerRuntime::Change ControllerRuntime::Enter( const AnimationController& controller, i32 state, f32 duration )
+ControllerRuntime::Change ControllerRuntime::Enter( const StateMachine& machine, i32 state, f32 duration )
 {
-    BUBBLE_ASSERT( state >= 0 and state < (i32)controller.mStates.size(), "ControllerRuntime::Enter: no such state" );
+    BUBBLE_ASSERT( state >= 0 and state < (i32)machine.mStates.size(), "ControllerRuntime::Enter: no such state" );
     if ( state != mCurrent )
         mPrevious = mCurrent;
     mCurrent = state;
     return { state, duration };
 }
 
-bool ControllerRuntime::Satisfied( const AnimationController& controller,
+bool ControllerRuntime::Satisfied( const StateMachine& machine,
                                    const Transition& transition,
                                    const Parameters& parameters,
                                    const Frame& frame ) const
@@ -392,17 +440,17 @@ bool ControllerRuntime::Satisfied( const AnimationController& controller,
     return std::ranges::all_of( transition.mConditions, [&]( const Condition& c ) { return c.Holds( parameters ); } );
 }
 
-std::optional<ControllerRuntime::Change> ControllerRuntime::Step( const AnimationController& controller,
+std::optional<ControllerRuntime::Change> ControllerRuntime::Step( const StateMachine& machine,
                                                                   Parameters& parameters,
                                                                   const Frame& frame )
 {
     if ( mCurrent < 0 )
-        return Enter( controller, controller.mEntry, 0.0f );
+        return Enter( machine, machine.mEntry, 0.0f );
 
     // Any-state transitions first, then the state's own, each in file order.
     const auto take = [&]( const Transition& transition ) -> std::optional<Change>
     {
-        if ( not Satisfied( controller, transition, parameters, frame ) )
+        if ( not Satisfied( machine, transition, parameters, frame ) )
             return std::nullopt;
         for ( const Condition& condition : transition.mConditions )
         {
@@ -411,14 +459,14 @@ std::optional<ControllerRuntime::Change> ControllerRuntime::Step( const Animatio
                 iter->second.mValue = 0.0f;
         }
         const i32 target = transition.mTo == Transition::cReturn ? mPrevious : transition.mTo;
-        return Enter( controller, target, transition.mDuration );
+        return Enter( machine, target, transition.mDuration );
     };
 
-    for ( const Transition& transition : controller.mTransitions )
+    for ( const Transition& transition : machine.mTransitions )
         if ( transition.mFrom == Transition::cAnyState )
             if ( auto change = take( transition ) )
                 return change;
-    for ( const Transition& transition : controller.mTransitions )
+    for ( const Transition& transition : machine.mTransitions )
         if ( transition.mFrom == mCurrent )
             if ( auto change = take( transition ) )
                 return change;

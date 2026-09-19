@@ -59,6 +59,21 @@ namespace bubble
 //     "events": { "walk": [ [0.32, "footstep"], [0.82, "footstep"] ] }
 //
 // In a blend, the clip with the most weight is the one whose events fire.
+//
+// "layers" are state machines of their own played over the base one on a
+// part of the skeleton - an aim or a wave on the upper body while the legs
+// keep walking:
+//
+//     "layers": [ { "name": "upper", "mask": [ "mixamorig:Spine1" ], "weight": 1,
+//                   "entry": "none",
+//                   "states": { "none": {}, "wave": { "clip": "wave", "loop": false } },
+//                   "transitions": [ ... ] } ]
+//
+// The mask is a list of joints, each taken with everything below it; a name
+// with a leading "!" takes its subtree back out. "weight" is a number or a
+// parameter. A state with neither clip nor blend plays nothing: on the base
+// that is the rest pose, on a layer it is the layer fading out, over the
+// transition's duration. Layers share the parameters with the base.
 
 struct Parameter
 {
@@ -119,7 +134,7 @@ void CrossedEvents( const ClipEvents& events, string_view clip,
 struct ControllerState
 {
     string mName;
-    // One or the other.
+    // One, the other, or neither.
     string mClip;
     BlendSpace mBlend;
     string mBlendParameter;
@@ -130,6 +145,7 @@ struct ControllerState
     string mSpeedParameter;
 
     bool IsBlend() const { return not mBlend.Empty(); }
+    bool IsEmpty() const { return mClip.empty() and mBlend.Empty(); }
 };
 
 
@@ -147,20 +163,39 @@ struct Transition
 };
 
 
-struct AnimationController
+// States, transitions, and where to start: the base machine, or a layer's.
+struct StateMachine
+{
+    vector<ControllerState> mStates;
+    vector<Transition> mTransitions;
+    i32 mEntry = 0;
+
+    i32 FindState( string_view name ) const;
+};
+
+
+// A state machine played over the base on part of the skeleton.
+struct ControllerLayer
+{
+    string mName;
+    vector<string> mMask;
+    f32 mWeight = 1.0f;
+    string mWeightParameter;
+    StateMachine mMachine;
+};
+
+
+struct AnimationController : StateMachine
 {
     string mName;
     path mPath;
     // In file order, for the inspector.
     vector<std::pair<string, Parameter>> mParameters;
-    vector<ControllerState> mStates;
-    vector<Transition> mTransitions;
-    i32 mEntry = 0;
     ClipEvents mEvents;
+    vector<ControllerLayer> mLayers;
 
     // Throws std::runtime_error with what is wrong and where.
     static AnimationController FromJson( const json& json, const path& source );
-    i32 FindState( string_view name ) const;
     // A Parameters with every declared parameter at its default.
     Parameters DefaultParameters() const;
 };
@@ -189,14 +224,14 @@ struct ControllerRuntime
     };
 
     // Enters the entry state, or the state `state`; the change to play.
-    Change Enter( const AnimationController& controller, i32 state, f32 duration );
+    Change Enter( const StateMachine& machine, i32 state, f32 duration );
     // Takes the first transition whose conditions hold, if any: consumes its
     // triggers and moves; the change to play.
-    std::optional<Change> Step( const AnimationController& controller,
+    std::optional<Change> Step( const StateMachine& machine,
                                 Parameters& parameters,
                                 const Frame& frame );
     // Whether `transition` would fire now; what the inspector shows.
-    bool Satisfied( const AnimationController& controller,
+    bool Satisfied( const StateMachine& machine,
                     const Transition& transition,
                     const Parameters& parameters,
                     const Frame& frame ) const;

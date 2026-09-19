@@ -106,6 +106,36 @@ A condition is `"name"` (true / trigger set), `"!name"`, or
 Errors in the file are reported with the file name and what is wrong, and the
 controller does not load.
 
+### Layers
+
+```json
+"layers": [
+  { "name": "upper", "mask": [ "mixamorig:Spine1", "!mixamorig:Neck" ], "weight": 1,
+    "entry": "none",
+    "states": { "none": {}, "wave": { "clip": "wave", "loop": false } },
+    "transitions": [
+      { "from": "none", "to": "wave", "when": "wave",    "duration": 0.1 },
+      { "from": "wave", "to": "none", "exit_time": 0.95, "duration": 0.3 }
+    ] }
+]
+```
+
+A layer is a state machine of its own, played over the base on part of the
+skeleton: an aim or a wave on the upper body while the legs keep walking. It
+shares the parameters with the base and has the same `states`, `entry` and
+`transitions`.
+
+- `mask` — joint names, each taken with everything below it; a leading `!`
+  takes a subtree back out. Empty means the whole skeleton.
+- `weight` — how much of the layer shows within the mask, a number or a
+  parameter name. At 1 the layer replaces the base there; at 0.5, half.
+- A state with neither `clip` nor `blend` (`{}`) plays nothing: the layer's
+  weight fades to zero over the transition's duration, the clip it was
+  showing staying up for the fade. On the base, an empty state is the rest
+  pose.
+
+Each layer eases its own transitions, independently of the base.
+
 ### Events
 
 ```json
@@ -127,9 +157,7 @@ screen.
 
 ## Not done
 
-- Layers with joint masks (upper body over locomotion), additive clips, IK
-  and root motion. The `Animator` blends any number of layers already; the
-  masks and the asset syntax for them are the missing part.
+- Additive clips (lean, breathing, hit reactions), IK and root motion.
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
 - GPU skinning. Skinning is on the CPU per entity (`renderer.md`).

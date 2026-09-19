@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/animation/animator.hpp"
 #include <ozz/animation/runtime/skeleton.h>
+#include <ozz/animation/runtime/skeleton_utils.h>
 #include <ozz/animation/runtime/animation.h>
 #include <ozz/animation/runtime/local_to_model_job.h>
 #include <ozz/animation/runtime/blending_job.h>
@@ -88,16 +89,64 @@ ozz::span<float> FloatSpan( vector<T>& v )
 }
 
 
+// PoseTrack
+
+PoseTrack::PoseTrack( u32 jointCount )
+    : mPose( jointCount ),
+      mPreviousPose( jointCount ),
+      mBeforePreviousPose( jointCount )
+{
+}
+
+void PoseTrack::BeginTransition( f32 seconds )
+{
+    mPendingTransition = std::max( seconds, 0.0f );
+}
+
+void PoseTrack::Apply( Pose& pose, f32 dt )
+{
+    SoaToJoints( ozz::make_span( pose ), mPose );
+
+    // A transition needs the frame before it to start from; on the first
+    // frame there is none, and the new pose simply shows.
+    if ( mPendingTransition > 0.0f )
+    {
+        if ( mHistory >= 1 )
+            mInertializer.Begin( mPreviousPose,
+                                 mHistory >= 2 ? std::span<const JointPose>( mBeforePreviousPose )
+                                               : std::span<const JointPose>(),
+                                 mLastDt, mPose, mPendingTransition );
+        mPendingTransition = 0.0f;
+    }
+    const bool eased = mInertializer.Active();
+    mInertializer.Apply( mPose, dt );
+
+    // Only a frame that actually advanced is history: a paused editor frame
+    // would otherwise read as a pose that stopped dead, and the transition
+    // out of it would start from zero velocity.
+    if ( dt > 0.0f or mHistory == 0 )
+    {
+        mBeforePreviousPose.swap( mPreviousPose );
+        mPreviousPose = mPose;
+        mLastDt = dt;
+        mHistory = std::min( mHistory + 1, 2u );
+    }
+
+    if ( eased )
+        JointsToSoa( mPose, ozz::make_span( pose ) );
+}
+
+
+// Animator
+
 Animator::Animator( Ref<Model> model )
     : mModel( std::move( model ) )
 {
     BUBBLE_ASSERT( mModel and mModel->Skinned(), "Animator needs a skinned model" );
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
-    mLocals.resize( skeleton.num_soa_joints() );
-    mPose.resize( skeleton.num_joints() );
-    mPreviousPose.resize( skeleton.num_joints() );
-    mBeforePreviousPose.resize( skeleton.num_joints() );
+    mComposed.resize( skeleton.num_soa_joints() );
+    mBaseMask.resize( skeleton.num_soa_joints() );
     mModels.resize( skeleton.num_joints() );
     mSkinMatrices.resize( skeleton.num_joints() );
 
@@ -118,24 +167,32 @@ Animator::Animator( Ref<Model> model )
     }
 }
 
-
-void Animator::BeginTransition( f32 seconds )
+u32 Animator::JointCount() const
 {
-    mPendingTransition = std::max( seconds, 0.0f );
+    return static_cast<u32>( mModel->mSkeleton->mSkeleton->num_joints() );
 }
 
-
-void Animator::Sample( const AnimationClip* clip, f32 time, f32 dt )
-{
-    const f32 ratio = clip and clip->mDuration > 0.0f ? time / clip->mDuration : 0.0f;
-    const Layer layer{ clip, ratio, 1.0f };
-    Sample( std::span<const Layer>( &layer, 1 ), dt );
-}
-
-
-void Animator::Sample( std::span<const Layer> layers, f32 dt )
+Pose Animator::MakePose() const
 {
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
+    const auto rest = skeleton.joint_rest_poses();
+    return Pose( rest.begin(), rest.end() );
+}
+
+PoseTrack& Animator::Track( u32 slot )
+{
+    while ( mTracks.size() <= slot )
+        mTracks.push_back( CreateScope<PoseTrack>( JointCount() ) );
+    return *mTracks[slot];
+}
+
+
+void Animator::SamplePose( u32 slot, std::span<const Layer> layers, Pose& out )
+{
+    const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
+    if ( mContexts.size() <= slot )
+        mContexts.resize( slot + 1 );
+    auto& contexts = mContexts[slot];
 
     // Sample every layer that counts, each into its own buffer.
     vector<ozz::animation::BlendingJob::Layer> blendLayers;
@@ -145,15 +202,14 @@ void Animator::Sample( std::span<const Layer> layers, f32 dt )
         if ( not layer.mClip or not layer.mClip->mAnimation or layer.mWeight <= 0.0f )
             continue;
 
-        while ( mContexts.size() <= i )
-        {
-            mContexts.push_back( CreateScope<ozz::animation::SamplingJob::Context>( skeleton.num_joints() ) );
+        while ( contexts.size() <= i )
+            contexts.push_back( CreateScope<ozz::animation::SamplingJob::Context>( skeleton.num_joints() ) );
+        while ( mLayerLocals.size() <= i )
             mLayerLocals.emplace_back().resize( skeleton.num_soa_joints() );
-        }
 
         ozz::animation::SamplingJob sampling;
         sampling.animation = layer.mClip->mAnimation.get();
-        sampling.context = mContexts[i].get();
+        sampling.context = contexts[i].get();
         sampling.ratio = std::clamp( layer.mRatio, 0.0f, 1.0f );
         sampling.output = ozz::make_span( mLayerLocals[i] );
         if ( not sampling.Run() )
@@ -164,50 +220,115 @@ void Animator::Sample( std::span<const Layer> layers, f32 dt )
         blendLayer.transform = ozz::make_span( mLayerLocals[i] );
     }
 
-    bool sampled = false;
     if ( blendLayers.size() == 1 )
     {
         // One layer is that layer; no reason to run the blend.
-        std::ranges::copy( blendLayers[0].transform, mLocals.begin() );
-        sampled = true;
+        std::ranges::copy( blendLayers[0].transform, out.begin() );
+        return;
     }
-    else if ( not blendLayers.empty() )
+    if ( not blendLayers.empty() )
     {
         ozz::animation::BlendingJob blending;
         blending.layers = ozz::make_span( blendLayers );
         blending.rest_pose = skeleton.joint_rest_poses();
-        blending.output = ozz::make_span( mLocals );
-        sampled = blending.Run();
+        blending.output = ozz::make_span( out );
+        if ( blending.Run() )
+            return;
     }
-    SoaToJoints( sampled ? ozz::make_span( mLocals ) : skeleton.joint_rest_poses(), mPose );
+    std::ranges::copy( skeleton.joint_rest_poses(), out.begin() );
+}
 
-    // A transition needs the frame before it to start from; on the first
-    // frame there is none, and the new clip simply shows.
-    if ( mPendingTransition > 0.0f )
+
+const JointMask& Animator::Mask( std::span<const string> joints )
+{
+    string key;
+    for ( const string& joint : joints )
+        key += joint + '\n';
+    auto iter = mMasks.find( key );
+    if ( iter != mMasks.end() )
+        return iter->second;
+
+    const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
+    vector<f32> weights( skeleton.num_joints(), 0.0f );
+    for ( const string& entry : joints )
     {
-        if ( mHistory >= 1 )
-            mInertializer.Begin( mPreviousPose,
-                                 mHistory >= 2 ? std::span<const JointPose>( mBeforePreviousPose )
-                                               : std::span<const JointPose>(),
-                                 mLastDt, mPose, mPendingTransition );
-        mPendingTransition = 0.0f;
+        const bool exclude = entry.starts_with( '!' );
+        const string_view name = exclude ? string_view( entry ).substr( 1 ) : string_view( entry );
+        const auto root = mModel->mSkeleton->JointIndex( name );
+        if ( not root )
+        {
+            LogWarning( "Animator: mask joint '{}' is not in the skeleton of '{}'", name, mModel->mName );
+            continue;
+        }
+        // ozz orders joints depth first, parents before children, so a
+        // subtree is the run of joints from the root while the parent is
+        // at or below it - which is what IterateJointsDF walks.
+        ozz::animation::IterateJointsDF( skeleton, [&]( int joint, int ) { weights[joint] = exclude ? 0.0f : 1.0f; }, *root );
     }
-    mInertializer.Apply( mPose, dt );
 
-    // Only a frame that actually advanced is history: a paused editor frame
-    // would otherwise read as a pose that stopped dead, and the transition
-    // out of it would start from zero velocity.
-    if ( dt > 0.0f or mHistory == 0 )
+    JointMask mask( skeleton.num_soa_joints() );
+    for ( int s = 0; s < skeleton.num_soa_joints(); s++ )
     {
-        mBeforePreviousPose.swap( mPreviousPose );
-        mPreviousPose = mPose;
-        mLastDt = dt;
-        mHistory = std::min( mHistory + 1, 2u );
+        const auto lane = [&]( int l ) { const int j = s * 4 + l; return j < skeleton.num_joints() ? weights[j] : 0.0f; };
+        mask[s] = ozz::math::simd_float4::Load( lane( 0 ), lane( 1 ), lane( 2 ), lane( 3 ) );
+    }
+    return mMasks.emplace( std::move( key ), std::move( mask ) ).first->second;
+}
+
+
+void Animator::Compose( const Pose& base, std::span<const Overlay> overlays )
+{
+    const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
+
+    vector<ozz::animation::BlendingJob::Layer> layers;
+    for ( const Overlay& overlay : overlays )
+    {
+        if ( not overlay.mPose or overlay.mWeight <= 0.0f )
+            continue;
+        ozz::animation::BlendingJob::Layer& layer = layers.emplace_back();
+        layer.weight = overlay.mWeight;
+        layer.transform = ozz::make_span( *overlay.mPose );
+        if ( overlay.mMask )
+            layer.joint_weights = ozz::make_span( *overlay.mMask );
+    }
+    if ( layers.empty() )
+    {
+        LocalToModel( ozz::make_span( base ) );
+        return;
     }
 
-    if ( mInertializer.Active() or not sampled )
-        JointsToSoa( mPose, ozz::make_span( mLocals ) );
-    LocalToModel( ozz::make_span( mLocals ) );
+    // An overlay at weight w within its mask should show w of itself and
+    // 1 - w of the base, not (base + w overlay) / (1 + w): the base's own
+    // per joint weight is what the overlays leave, so the job's
+    // normalisation lands on the lerp.
+    const ozz::math::SimdFloat4 one = ozz::math::simd_float4::one();
+    const ozz::math::SimdFloat4 zero = ozz::math::simd_float4::zero();
+    for ( int s = 0; s < skeleton.num_soa_joints(); s++ )
+    {
+        ozz::math::SimdFloat4 taken = zero;
+        for ( const Overlay& overlay : overlays )
+        {
+            if ( not overlay.mPose or overlay.mWeight <= 0.0f )
+                continue;
+            const ozz::math::SimdFloat4 w = overlay.mMask ? ( *overlay.mMask )[s] * ozz::math::simd_float4::Load1( overlay.mWeight )
+                                                          : ozz::math::simd_float4::Load1( overlay.mWeight );
+            taken = ozz::math::Min( one, taken + w );
+        }
+        mBaseMask[s] = one - taken;
+    }
+    ozz::animation::BlendingJob::Layer& baseLayer = layers.emplace_back();
+    baseLayer.weight = 1.0f;
+    baseLayer.transform = ozz::make_span( base );
+    baseLayer.joint_weights = ozz::make_span( mBaseMask );
+
+    ozz::animation::BlendingJob blending;
+    blending.layers = ozz::make_span( layers );
+    blending.rest_pose = skeleton.joint_rest_poses();
+    blending.output = ozz::make_span( mComposed );
+    if ( blending.Run() )
+        LocalToModel( ozz::make_span( mComposed ) );
+    else
+        LocalToModel( ozz::make_span( base ) );
 }
 
 

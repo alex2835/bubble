@@ -575,6 +575,20 @@ function on_update( entity, state, dt )
 end
 ```
 
+**Layers.** `set_layer( name, mask, weight )` makes (or reshapes) an overlay
+that plays over the base on part of the skeleton: `mask` is a joint name or
+an array of them, each taken with its subtree (`"!name"` takes one back out),
+`weight` 0..1 (default 1). Then `play_layer( name, clip, seconds )`,
+`stop_layer( name, seconds )` - the layer's weight fades out over `seconds`
+- `layer_weight( name [, w] )`, `layer_clip( name )`, `layer_playing( name )`,
+and under a controller `layer_state( name )`. A controller's `layers` replace
+the ones a script made.
+
+```lua
+animator:set_layer( "upper", { "mixamorig:Spine1" } )
+animator:play_layer( "upper", "wave", 0.1 )   -- legs keep walking
+```
+
 **Controllers.** `entity:set_animation_controller( path )` hands playback to
 an animation controller - a `.anim` file of states and transitions, see
 `docs/animation.md`. From then on the script only writes parameters:

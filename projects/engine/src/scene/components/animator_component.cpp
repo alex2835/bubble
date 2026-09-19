@@ -32,145 +32,61 @@ BlendSpace BlendSpaceFromLua( const sol::table& points )
         throw std::runtime_error( "play_blend: no points" );
     return space;
 }
+
+// { "Spine1", "!Neck" } or "Spine1".
+vector<string> MaskFromLua( const sol::object& mask )
+{
+    vector<string> joints;
+    if ( mask.is<string>() )
+        joints.push_back( mask.as<string>() );
+    else if ( mask.is<sol::table>() )
+        for ( const auto& [_, joint] : mask.as<sol::table>() )
+            joints.push_back( joint.as<string>() );
+    else
+        throw std::runtime_error( "set_layer: mask is a joint name or an array of them" );
+    return joints;
 }
 
-// Out of line for the Scope<Animator>: the header only forward declares it.
-AnimatorComponent::AnimatorComponent() = default;
-AnimatorComponent::~AnimatorComponent() = default;
-AnimatorComponent::AnimatorComponent( AnimatorComponent&& ) noexcept = default;
-AnimatorComponent& AnimatorComponent::operator=( AnimatorComponent&& ) noexcept = default;
-
-AnimatorComponent::AnimatorComponent( const AnimatorComponent& other )
-    : mClip( other.mClip ),
-      mTime( other.mTime ),
-      mSpeed( other.mSpeed ),
-      mLoop( other.mLoop ),
-      mPlaying( other.mPlaying ),
-      mBlend( other.mBlend ),
-      mBlendValue( other.mBlendValue ),
-      mController( other.mController ),
-      mParameters( other.mParameters ),
-      mControllerRuntime( other.mControllerRuntime ),
-      mEvents( other.mEvents )
+// One stream's frame, out of AdvanceStream.
+struct StreamStep
 {
-}
+    vector<Animator::Layer> mLayers;
+    // The clip whose events fire, and how the playback moved through it.
+    string_view mEventClip;
+    f32 mBefore = 0.0f;
+    f32 mNow = 0.0f;
+    bool mWrapped = false;
+};
 
-AnimatorComponent& AnimatorComponent::operator=( const AnimatorComponent& other )
+// Advances `playback` by dt on `model`: time, then the controller's step
+// (with `machine`, if any) against `parameters`, then what to sample. An
+// overlay (`keepWhileFading`) keeps sampling a clip it was told to stop, so
+// its weight has something to fade out on; the base goes to rest at once.
+void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters& parameters,
+                    const Model& model, f32 dt, bool inTransition, bool keepWhileFading, StreamStep& out )
 {
-    if ( this != &other )
-    {
-        mClip = other.mClip;
-        mTime = other.mTime;
-        mSpeed = other.mSpeed;
-        mLoop = other.mLoop;
-        mPlaying = other.mPlaying;
-        mBlend = other.mBlend;
-        mBlendValue = other.mBlendValue;
-        mController = other.mController;
-        mParameters = other.mParameters;
-        mControllerRuntime = other.mControllerRuntime;
-        mEvents = other.mEvents;
-        // The runtime is kept: it is bound to the model, not to the settings,
-        // and is replaced by the update if the model changed.
-    }
-    return *this;
-}
-
-void AnimatorComponent::Play( string_view clip, f32 transition )
-{
-    mClip = clip;
-    mBlend = {};
-    mTime = 0.0f;
-    mPlaying = true;
-    mPendingTransition = std::max( transition, 0.0f );
-}
-
-void AnimatorComponent::PlayBlend( string_view name, BlendSpace space, f32 transition )
-{
-    if ( IsBlend() and mClip == name and mBlend == space )
-        return;
-    mClip = name;
-    mBlend = std::move( space );
-    mTime = 0.0f;
-    mPlaying = true;
-    mPendingTransition = std::max( transition, 0.0f );
-}
-
-void AnimatorComponent::Stop()
-{
-    mPlaying = false;
-}
-
-void AnimatorComponent::SetController( const Ref<AnimationController>& controller )
-{
-    mController = controller;
-    mControllerRuntime = {};
-    mParameters = controller ? controller->DefaultParameters() : Parameters{};
-}
-
-void AnimatorComponent::AddEvent( string_view clip, f32 time, string name )
-{
-    vector<ClipEvent>& list = mEvents[string( clip )];
-    list.push_back( { std::clamp( time, 0.0f, 1.0f ), std::move( name ) } );
-    std::ranges::stable_sort( list, {}, &ClipEvent::mTime );
-}
-
-string_view AnimatorComponent::CurrentState() const
-{
-    if ( not mController or mControllerRuntime.mCurrent < 0 )
-        return {};
-    return mController->mStates[mControllerRuntime.mCurrent].mName;
-}
-
-bool AnimatorComponent::InTransition() const
-{
-    return mPendingTransition > 0.0f or ( mAnimator and mAnimator->InTransition() );
-}
-
-f32 AnimatorComponent::NormalizedTime( const Model& model ) const
-{
-    if ( IsBlend() )
-        return mTime;
-    const auto& clip = model.FindClip( mClip );
-    return clip and clip->mDuration > 0.0f ? std::clamp( mTime / clip->mDuration, 0.0f, 1.0f ) : 0.0f;
-}
-
-
-void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
-{
-    if ( not model or not model->Skinned() )
-    {
-        mAnimator.reset();
-        return;
-    }
-    // Bound to the model: a new model means new joints, new meshes, new
-    // buffers. Also the first frame after a load or an add_animator.
-    if ( not mAnimator or mAnimator->GetModel() != model )
-        mAnimator = CreateScope<Animator>( model );
-
-    mFiredEvents.clear();
-    mEnteredState.clear();
-
     // What the controller says plays, and how: applied on entering a state,
     // and every frame for the values bound to parameters.
     const auto enter = [&]( const ControllerRuntime::Change& change )
     {
-        const ControllerState& state = mController->mStates[change.mState];
+        const ControllerState& state = machine->mStates[change.mState];
         if ( state.IsBlend() )
-            PlayBlend( state.mName, state.mBlend, change.mDuration );
+            playback.PlayBlend( state.mName, state.mBlend, change.mDuration );
+        else if ( state.IsEmpty() )
+            playback.PlayNothing( change.mDuration );
         else
-            Play( state.mClip, change.mDuration );
-        mLoop = state.IsBlend() or state.mLoop;
-        mEnteredState = state.mName;
+            playback.Play( state.mClip, change.mDuration );
+        playback.mLoop = state.IsBlend() or state.mLoop;
+        playback.mEnteredState = state.mName;
     };
-    if ( mController )
+    if ( machine )
     {
-        if ( mControllerRuntime.mCurrent < 0 )
-            enter( mControllerRuntime.Enter( *mController, mController->mEntry, 0.0f ) );
-        const ControllerState& state = mController->mStates[mControllerRuntime.mCurrent];
+        if ( playback.mRuntime.mCurrent < 0 )
+            enter( playback.mRuntime.Enter( *machine, machine->mEntry, 0.0f ) );
+        const ControllerState& state = machine->mStates[playback.mRuntime.mCurrent];
         if ( state.IsBlend() )
-            mBlendValue = mParameters.Get( state.mBlendParameter );
-        mSpeed = state.mSpeedParameter.empty() ? state.mSpeed : mParameters.Get( state.mSpeedParameter );
+            playback.mBlendValue = parameters.Get( state.mBlendParameter );
+        playback.mSpeed = state.mSpeedParameter.empty() ? state.mSpeed : parameters.Get( state.mSpeedParameter );
     }
 
     // Advances `time` through a cycle of `length` by this frame, looping or
@@ -178,8 +94,8 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
     bool wrapped = false;
     const auto advance = [&]( f32& time, f32 length )
     {
-        time += dt * mSpeed;
-        if ( mLoop )
+        time += dt * playback.mSpeed;
+        if ( playback.mLoop )
         {
             const f32 before = time;
             time = std::fmod( time, length );
@@ -197,37 +113,38 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
 
     // The blend's layers and the length of its shared cycle at the current
     // parameter, or the clip's alone.
-    vector<Animator::Layer> layers;
     f32 duration = 0.0f;
     const auto resolve = [&]
     {
-        layers.clear();
+        out.mLayers.clear();
         duration = 0.0f;
-        if ( IsBlend() )
+        if ( playback.mFadingOut and not keepWhileFading )
+            return;
+        if ( playback.IsBlend() )
         {
-            for ( const auto& [point, weight] : mBlend.Weights( mBlendValue ) )
+            for ( const auto& [point, weight] : playback.mBlend.Weights( playback.mBlendValue ) )
             {
-                const auto& clip = model->FindClip( mBlend.mPoints[point].mClip );
+                const auto& clip = model.FindClip( playback.mBlend.mPoints[point].mClip );
                 if ( clip )
                 {
                     duration += weight * clip->mDuration;
-                    layers.push_back( { clip.get(), 0.0f, weight } );
+                    out.mLayers.push_back( { clip.get(), 0.0f, weight } );
                 }
             }
         }
-        else if ( const auto& clip = model->FindClip( mClip ) )
+        else if ( const auto& clip = model.FindClip( playback.mClip ) )
         {
             duration = clip->mDuration;
-            layers.push_back( { clip.get(), 0.0f, 1.0f } );
+            out.mLayers.push_back( { clip.get(), 0.0f, 1.0f } );
         }
     };
     // Where the playback is, 0..1, for the layers' ratios and the
     // controller's exit times.
     const auto normalized = [&]
     {
-        if ( IsBlend() )
-            return mTime;
-        return duration > 0.0f ? std::clamp( mTime / duration, 0.0f, 1.0f ) : 0.0f;
+        if ( playback.IsBlend() )
+            return playback.mTime;
+        return duration > 0.0f ? std::clamp( playback.mTime / duration, 0.0f, 1.0f ) : 0.0f;
     };
 
     resolve();
@@ -235,81 +152,382 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
     // The clip whose events fire: the one playing, or the heaviest in a
     // blend. Taken before the advance, since a clip that ends this frame
     // still passes its last markers.
-    string_view eventClip;
-    if ( IsBlend() )
+    out.mEventClip = {};
+    if ( playback.mFadingOut )
+    {
+        // Fading out is over; its last markers are not.
+    }
+    else if ( playback.IsBlend() )
     {
         f32 heaviest = 0.0f;
-        for ( const auto& [point, weight] : mBlend.Weights( mBlendValue ) )
+        for ( const auto& [point, weight] : playback.mBlend.Weights( playback.mBlendValue ) )
             if ( weight > heaviest )
             {
                 heaviest = weight;
-                eventClip = mBlend.mPoints[point].mClip;
+                out.mEventClip = playback.mBlend.mPoints[point].mClip;
             }
     }
     else
     {
-        eventClip = mClip;
+        out.mEventClip = playback.mClip;
     }
-    if ( duration > 0.0f and mPlaying )
+
+    if ( duration > 0.0f and playback.mPlaying )
     {
-        if ( IsBlend() )
+        if ( playback.IsBlend() )
         {
             // The phase advances at the rate of the blended cycle, so a
             // blend that is mostly run steps about as fast as the run does.
-            f32 time = mTime * duration;
+            f32 time = playback.mTime * duration;
             if ( not advance( time, duration ) )
-                mPlaying = false;
-            mTime = time / duration;
+                playback.mPlaying = false;
+            playback.mTime = time / duration;
         }
-        else if ( not advance( mTime, duration ) )
+        else if ( not advance( playback.mTime, duration ) )
         {
-            mPlaying = false;
+            playback.mPlaying = false;
         }
     }
+    out.mBefore = previousNormalized;
+    out.mNow = normalized();
+    out.mWrapped = wrapped;
 
-    if ( not eventClip.empty() )
+    if ( machine )
     {
-        if ( mController )
-            CrossedEvents( mController->mEvents, eventClip, previousNormalized, normalized(), wrapped, mFiredEvents );
-        CrossedEvents( mEvents, eventClip, previousNormalized, normalized(), wrapped, mFiredEvents );
-    }
-
-    if ( mController )
-    {
-        const ControllerRuntime::Frame frame{ normalized(), previousNormalized, wrapped, InTransition() };
-        if ( auto change = mControllerRuntime.Step( *mController, mParameters, frame ) )
+        const ControllerRuntime::Frame frame{ out.mNow, previousNormalized, wrapped, inTransition or playback.mPendingTransition > 0.0f };
+        if ( auto change = playback.mRuntime.Step( *machine, parameters, frame ) )
         {
             enter( *change );
             resolve();
         }
-        // Whatever no transition took this frame is gone.
-        mParameters.ResetTriggers();
     }
 
-    for ( Animator::Layer& layer : layers )
+    for ( Animator::Layer& layer : out.mLayers )
         layer.mRatio = normalized();
-
-    if ( mPendingTransition > 0.0f )
-    {
-        mAnimator->BeginTransition( mPendingTransition );
-        mPendingTransition = 0.0f;
-    }
-    mAnimator->Sample( layers, dt );
-    mAnimator->Skin();
+}
 }
 
 
-// The controller's live view: the state, every parameter (editable - a
-// tweak while watching, not an edit of the scene), and the transitions out of
-// the current state with whether each would fire now.
-static void DrawControllerState( AnimatorComponent& component )
-{
-    const AnimationController& controller = *component.mController;
-    const ControllerRuntime& runtime = component.mControllerRuntime;
-    const string_view state = component.CurrentState();
-    ImGui::Text( "state: %.*s", (int)state.size(), state.data() );
+// Playback
 
-    for ( const auto& [name, declared] : controller.mParameters )
+void Playback::Play( string_view clip, f32 transition )
+{
+    mClip = clip;
+    mBlend = {};
+    mTime = 0.0f;
+    mPlaying = true;
+    mFadingOut = false;
+    mPendingTransition = std::max( transition, 0.0f );
+    mLastTransition = mPendingTransition;
+}
+
+void Playback::PlayBlend( string_view name, BlendSpace space, f32 transition )
+{
+    if ( IsBlend() and mClip == name and mBlend == space )
+        return;
+    mClip = name;
+    mBlend = std::move( space );
+    mTime = 0.0f;
+    mPlaying = true;
+    mFadingOut = false;
+    mPendingTransition = std::max( transition, 0.0f );
+    mLastTransition = mPendingTransition;
+}
+
+void Playback::PlayNothing( f32 transition )
+{
+    // The clip and its time stay, for an overlay to fade out on; only the
+    // weight moves, so the track has no transition to ease.
+    mFadingOut = true;
+    mLastTransition = std::max( transition, 0.0f );
+}
+
+
+// AnimatorComponent
+
+// Out of line for the Scope<Animator>: the header only forward declares it.
+AnimatorComponent::AnimatorComponent() = default;
+AnimatorComponent::~AnimatorComponent() = default;
+AnimatorComponent::AnimatorComponent( AnimatorComponent&& ) noexcept = default;
+AnimatorComponent& AnimatorComponent::operator=( AnimatorComponent&& ) noexcept = default;
+
+AnimatorComponent::AnimatorComponent( const AnimatorComponent& other )
+    : mBase( other.mBase ),
+      mLayers( other.mLayers ),
+      mController( other.mController ),
+      mParameters( other.mParameters ),
+      mEvents( other.mEvents )
+{
+}
+
+AnimatorComponent& AnimatorComponent::operator=( const AnimatorComponent& other )
+{
+    if ( this != &other )
+    {
+        mBase = other.mBase;
+        mLayers = other.mLayers;
+        mController = other.mController;
+        mParameters = other.mParameters;
+        mEvents = other.mEvents;
+        // The runtime is kept: it is bound to the model, not to the settings,
+        // and is replaced by the update if the model changed.
+    }
+    return *this;
+}
+
+bool AnimatorComponent::InTransition() const
+{
+    if ( mBase.mPendingTransition > 0.0f )
+        return true;
+    return mAnimator and mAnimator->Track( 0 ).InTransition();
+}
+
+OverlayLayer& AnimatorComponent::Layer( string_view name, vector<string> mask, f32 weight )
+{
+    OverlayLayer* layer = FindLayer( name );
+    if ( not layer )
+    {
+        layer = &mLayers.emplace_back();
+        layer->mName = name;
+        layer->mPlayback.PlayNothing();
+    }
+    layer->mMask = std::move( mask );
+    layer->mWeight = weight;
+    layer->mWeightParameter.clear();
+    return *layer;
+}
+
+OverlayLayer* AnimatorComponent::FindLayer( string_view name )
+{
+    for ( OverlayLayer& layer : mLayers )
+        if ( layer.mName == name )
+            return &layer;
+    return nullptr;
+}
+
+void AnimatorComponent::SetController( const Ref<AnimationController>& controller )
+{
+    mController = controller;
+    mBase.mRuntime = {};
+    mParameters = controller ? controller->DefaultParameters() : Parameters{};
+    if ( not controller )
+        return;
+    mLayers.clear();
+    for ( const ControllerLayer& declared : controller->mLayers )
+    {
+        OverlayLayer& layer = mLayers.emplace_back();
+        layer.mName = declared.mName;
+        layer.mMask = declared.mMask;
+        layer.mWeight = declared.mWeight;
+        layer.mWeightParameter = declared.mWeightParameter;
+        layer.mPlayback.PlayNothing();
+    }
+}
+
+string_view AnimatorComponent::CurrentState() const
+{
+    if ( not mController or mBase.mRuntime.mCurrent < 0 )
+        return {};
+    return mController->mStates[mBase.mRuntime.mCurrent].mName;
+}
+
+void AnimatorComponent::AddEvent( string_view clip, f32 time, string name )
+{
+    vector<ClipEvent>& list = mEvents[string( clip )];
+    list.push_back( { std::clamp( time, 0.0f, 1.0f ), std::move( name ) } );
+    std::ranges::stable_sort( list, {}, &ClipEvent::mTime );
+}
+
+
+void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
+{
+    if ( not model or not model->Skinned() )
+    {
+        mAnimator.reset();
+        return;
+    }
+    // Bound to the model: a new model means new joints, new meshes, new
+    // buffers. Also the first frame after a load or an add_animator.
+    if ( not mAnimator or mAnimator->GetModel() != model )
+        mAnimator = CreateScope<Animator>( model );
+    Animator& animator = *mAnimator;
+
+    mFiredEvents.clear();
+    mBase.mEnteredState.clear();
+    for ( OverlayLayer& layer : mLayers )
+        layer.mPlayback.mEnteredState.clear();
+
+    // A stream's frame: advance, sample into `pose`, ease through its track.
+    // Returns the clip whose events fired, having queued them.
+    const auto stream = [&]( Playback& playback, const StateMachine* machine, u32 slot, Pose& pose )
+    {
+        PoseTrack& track = animator.Track( slot );
+        StreamStep step;
+        AdvanceStream( playback, machine, mParameters, *model, dt, track.InTransition(), slot != 0, step );
+
+        if ( not step.mEventClip.empty() )
+        {
+            if ( mController )
+                CrossedEvents( mController->mEvents, step.mEventClip, step.mBefore, step.mNow, step.mWrapped, mFiredEvents );
+            CrossedEvents( mEvents, step.mEventClip, step.mBefore, step.mNow, step.mWrapped, mFiredEvents );
+        }
+
+        if ( playback.mPendingTransition > 0.0f )
+        {
+            track.BeginTransition( playback.mPendingTransition );
+            playback.mPendingTransition = 0.0f;
+        }
+        animator.SamplePose( slot, step.mLayers, pose );
+        track.Apply( pose, dt );
+    };
+
+    // Poses live across the frame in these; the vectors are stable since
+    // nothing is added below.
+    static thread_local vector<Pose> poses;
+    poses.resize( 1 + mLayers.size() );
+    const size_t soaJoints = ( animator.JointCount() + 3 ) / 4;
+    for ( Pose& pose : poses )
+        if ( pose.size() != soaJoints )
+            pose = animator.MakePose();
+
+    stream( mBase, mController.get(), 0, poses[0] );
+
+    vector<Animator::Overlay> overlays;
+    for ( size_t i = 0; i < mLayers.size(); i++ )
+    {
+        OverlayLayer& layer = mLayers[i];
+        const ControllerLayer* declared = nullptr;
+        if ( mController and i < mController->mLayers.size() and mController->mLayers[i].mName == layer.mName )
+            declared = &mController->mLayers[i];
+        stream( layer.mPlayback, declared ? &declared->mMachine : nullptr, static_cast<u32>( i + 1 ), poses[i + 1] );
+
+        // The shown weight follows the asked one at the pace of the last
+        // transition - and the asked one is zero while nothing plays.
+        const f32 asked = layer.mWeightParameter.empty() ? layer.mWeight : mParameters.Get( layer.mWeightParameter );
+        const f32 target = layer.mPlayback.IsEmpty() ? 0.0f : std::clamp( asked, 0.0f, 1.0f );
+        const f32 seconds = layer.mPlayback.mLastTransition;
+        if ( seconds <= 0.0f or dt <= 0.0f )
+            layer.mShownWeight = target;
+        else
+            layer.mShownWeight += std::clamp( target - layer.mShownWeight, -dt / seconds, dt / seconds );
+
+        if ( layer.mShownWeight > 0.0f )
+            overlays.push_back( { &poses[i + 1], layer.mMask.empty() ? nullptr : &animator.Mask( layer.mMask ), layer.mShownWeight } );
+    }
+
+    if ( mController )
+        mParameters.ResetTriggers();
+
+    animator.Compose( poses[0], overlays );
+    animator.Skin();
+}
+
+
+// Inspector
+
+namespace
+{
+// A stream's controls: what plays, speed, loop, scrub, pause. `label`
+// suffixes ImGui ids so several streams can sit in one inspector.
+// The stream at `slot`: the base, or an overlay.
+Playback* PlaybackAt( AnimatorComponent& component, u32 slot )
+{
+    if ( slot == 0 )
+        return &component.mBase;
+    if ( slot - 1 < component.mLayers.size() )
+        return &component.mLayers[slot - 1].mPlayback;
+    return nullptr;
+}
+
+void DrawPlayback( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component,
+                   Playback& playback, const Model& model, const char* label, Animator* animator, u32 slot )
+{
+    ImGui::PushID( label );
+
+    // Choosing a clip restarts it - the same as Play() from a script. The
+    // stream is found again by slot rather than held: the command may run
+    // on the component after an undo has replaced its layers.
+    const string clip = playback.IsEmpty() ? string() : playback.mClip;
+    ComboProperty<AnimatorComponent>( ctx, entity, "clip", clip, clip.empty() ? "None" : clip.c_str(),
+                                      model.mClips,
+                                      []( const auto& c ) { return c->mName; },
+                                      []( const auto& c ) { return c->mName; },
+                                      [slot]( AnimatorComponent& c, const string& v )
+    {
+        if ( Playback* p = PlaybackAt( c, slot ) )
+            p->Play( v, 0.2f );
+    } );
+
+    if ( playback.IsBlend() )
+    {
+        // A blend space is authored by a script or a controller; the
+        // inspector shows it and drives its parameter.
+        ImGui::TextDisabled( "blend '%s':", playback.mClip.c_str() );
+        for ( const BlendPoint& point : playback.mBlend.mPoints )
+            ImGui::TextDisabled( "  %s at %.2f", point.mClip.c_str(), point.mValue );
+        const f32 lo = playback.mBlend.mPoints.front().mValue;
+        const f32 hi = playback.mBlend.mPoints.back().mValue;
+        ImGui::SliderFloat( "Blend", &playback.mBlendValue, lo, hi );
+    }
+
+    // Playback is not an edit: scrubbing, speed and pausing are how a clip
+    // is looked at, and none of it belongs in the history.
+    ImGui::DragFloat( "Speed", &playback.mSpeed, 0.01f, -10.0f, 10.0f );
+    ImGui::Checkbox( "Loop", &playback.mLoop );
+    if ( playback.IsBlend() )
+    {
+        ImGui::SliderFloat( "Phase", &playback.mTime, 0.0f, 1.0f, "%.2f" );
+    }
+    else
+    {
+        const auto& current = model.FindClip( playback.mClip );
+        const f32 duration = current ? current->mDuration : 0.0f;
+        ImGui::SliderFloat( "Time", &playback.mTime, 0.0f, duration, "%.2f s" );
+    }
+    if ( animator and animator->Track( slot ).InTransition() )
+        ImGui::TextDisabled( "transition %.0f%%", 100.0f * animator->Track( slot ).TransitionProgress() );
+    if ( playback.mPlaying )
+    {
+        if ( ImGui::Button( "Pause" ) )
+            playback.mPlaying = false;
+    }
+    else if ( ImGui::Button( "Play" ) )
+    {
+        playback.mPlaying = true;
+    }
+    ImGui::PopID();
+}
+
+// A state machine's live view: the state, and the transitions out of it
+// with whether each would fire now.
+void DrawMachine( const StateMachine& machine, const Playback& playback, const Parameters& parameters )
+{
+    const ControllerRuntime& runtime = playback.mRuntime;
+    if ( runtime.mCurrent < 0 )
+        return;
+    ImGui::Text( "state: %s", machine.mStates[runtime.mCurrent].mName.c_str() );
+    for ( const Transition& transition : machine.mTransitions )
+    {
+        if ( transition.mFrom != Transition::cAnyState and transition.mFrom != runtime.mCurrent )
+            continue;
+        const string to = transition.mTo == Transition::cReturn ? "return" : machine.mStates[transition.mTo].mName;
+        string when;
+        for ( const Condition& condition : transition.mConditions )
+            when += ( when.empty() ? "" : " and " ) + condition.ToString();
+        if ( transition.mExitTime )
+            when += std::format( "{}exit {:.2f}", when.empty() ? "" : ", ", *transition.mExitTime );
+        const bool conditionsHold = std::ranges::all_of( transition.mConditions,
+            [&]( const Condition& c ) { return c.Holds( parameters ); } );
+        ImGui::TextColored( conditionsHold ? ImVec4( 0.4f, 1.0f, 0.4f, 1.0f ) : ImVec4( 0.6f, 0.6f, 0.6f, 1.0f ),
+                            "%s-> %s  [%s]", transition.mFrom == Transition::cAnyState ? "* " : "", to.c_str(), when.c_str() );
+    }
+}
+
+// Every parameter, editable - a tweak while watching, not an edit of the
+// scene.
+void DrawParameters( AnimatorComponent& component )
+{
+    for ( const auto& [name, declared] : component.mController->mParameters )
     {
         auto iter = component.mParameters.mValues.find( name );
         if ( iter == component.mParameters.mValues.end() )
@@ -335,26 +553,7 @@ static void DrawControllerState( AnimatorComponent& component )
             break;
         }
     }
-
-    if ( runtime.mCurrent < 0 )
-        return;
-    // As the last Step saw it, near enough: the frame is over by now.
-    const ControllerRuntime::Frame frame{ 0.0f, 0.0f, false, component.InTransition() };
-    for ( const Transition& transition : controller.mTransitions )
-    {
-        if ( transition.mFrom != Transition::cAnyState and transition.mFrom != runtime.mCurrent )
-            continue;
-        const string to = transition.mTo == Transition::cReturn ? "return" : controller.mStates[transition.mTo].mName;
-        string when;
-        for ( const Condition& condition : transition.mConditions )
-            when += ( when.empty() ? "" : " and " ) + condition.ToString();
-        if ( transition.mExitTime )
-            when += std::format( "{}exit {:.2f}", when.empty() ? "" : ", ", *transition.mExitTime );
-        const bool conditionsHold = std::ranges::all_of( transition.mConditions,
-            [&]( const Condition& c ) { return c.Holds( component.mParameters ); } );
-        ImGui::TextColored( conditionsHold ? ImVec4( 0.4f, 1.0f, 0.4f, 1.0f ) : ImVec4( 0.6f, 0.6f, 0.6f, 1.0f ),
-                            "%s -> %s  [%s]", transition.mFrom == Transition::cAnyState ? "*" : "", to.c_str(), when.c_str() );
-    }
+}
 }
 
 void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component )
@@ -379,57 +578,64 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
                                       []( AnimatorComponent& c, const Ref<AnimationController>& v ) { c.SetController( v ); } );
     if ( controller )
     {
-        DrawControllerState( component );
+        DrawParameters( component );
+        DrawMachine( *controller, component.mBase, component.mParameters );
+    }
+    DrawPlayback( ctx, entity, component, component.mBase, *model, "base", component.mAnimator.get(), 0 );
+
+    for ( size_t i = 0; i < component.mLayers.size(); i++ )
+    {
+        OverlayLayer& layer = component.mLayers[i];
         ImGui::Separator();
+        string mask;
+        for ( const string& joint : layer.mMask )
+            mask += ( mask.empty() ? "" : ", " ) + joint;
+        ImGui::Text( "layer '%s' on [%s]  weight %.2f (shown %.2f)", layer.mName.c_str(), mask.c_str(), layer.mWeight, layer.mShownWeight );
+        if ( controller and i < controller->mLayers.size() )
+            DrawMachine( controller->mLayers[i].mMachine, layer.mPlayback, component.mParameters );
+        DrawPlayback( ctx, entity, component, layer.mPlayback, *model, layer.mName.c_str(), component.mAnimator.get(), static_cast<u32>( i + 1 ) );
     }
+}
 
-    // Choosing a clip restarts it - the same as Play() from a script.
-    const string& clip = component.mClip;
-    ComboProperty<AnimatorComponent>( ctx, entity, "clip", clip, clip.empty() ? "None" : clip.c_str(),
-                                      model->mClips,
-                                      []( const auto& c ) { return c->mName; },
-                                      []( const auto& c ) { return c->mName; },
-                                      []( AnimatorComponent& c, const string& v ) { c.Play( v, 0.2f ); } );
 
-    if ( component.IsBlend() )
-    {
-        // A blend space is authored by a script (or later, a controller); the
-        // inspector shows it and drives its parameter.
-        ImGui::TextDisabled( "blend '%s':", component.mClip.c_str() );
-        for ( const BlendPoint& point : component.mBlend.mPoints )
-            ImGui::TextDisabled( "  %s at %.2f", point.mClip.c_str(), point.mValue );
-        const f32 lo = component.mBlend.mPoints.front().mValue;
-        const f32 hi = component.mBlend.mPoints.back().mValue;
-        EditField<AnimatorComponent>( ctx, entity, "Blend", &AnimatorComponent::mBlendValue,
-                                      [&]( f32& v ) { return ImGui::SliderFloat( "Blend", &v, lo, hi ); } );
-    }
+// Serialization
 
-    DragFloatField<AnimatorComponent>( ctx, entity, "Speed", &AnimatorComponent::mSpeed, 0.01f, -10.0f, 10.0f );
-    CheckboxField<AnimatorComponent>( ctx, entity, "Loop", &AnimatorComponent::mLoop );
+namespace
+{
+void PlaybackToJson( json& j, const Playback& playback )
+{
+    j["Clip"] = playback.mClip;
+    j["Speed"] = playback.mSpeed;
+    j["Loop"] = playback.mLoop;
+    j["Playing"] = playback.mPlaying;
+    if ( playback.IsBlend() )
+    {
+        auto& points = j["Blend"] = json::array();
+        for ( const BlendPoint& point : playback.mBlend.mPoints )
+            points.push_back( { { "Clip", point.mClip }, { "Value", point.mValue } } );
+        j["BlendValue"] = playback.mBlendValue;
+    }
+}
 
-    // Playback is not an edit: scrubbing and pausing are how a clip is looked
-    // at, and neither belongs in the history.
-    if ( component.IsBlend() )
+void PlaybackFromJson( const json& j, Playback& playback )
+{
+    if ( j.contains( "Clip" ) )
+        playback.mClip = j["Clip"];
+    if ( j.contains( "Speed" ) )
+        playback.mSpeed = j["Speed"];
+    if ( j.contains( "Loop" ) )
+        playback.mLoop = j["Loop"];
+    if ( j.contains( "Playing" ) )
+        playback.mPlaying = j["Playing"];
+    if ( j.contains( "Blend" ) )
     {
-        ImGui::SliderFloat( "Phase", &component.mTime, 0.0f, 1.0f, "%.2f" );
+        playback.mBlend = {};
+        for ( const auto& point : j["Blend"] )
+            playback.mBlend.Add( point.value( "Clip", string() ), point.value( "Value", 0.0f ) );
     }
-    else
-    {
-        const auto& current = model->FindClip( component.mClip );
-        const f32 duration = current ? current->mDuration : 0.0f;
-        ImGui::SliderFloat( "Time", &component.mTime, 0.0f, duration, "%.2f s" );
-    }
-    if ( component.mAnimator and component.mAnimator->InTransition() )
-        ImGui::TextDisabled( "transition %.0f%%", 100.0f * component.mAnimator->TransitionProgress() );
-    if ( component.mPlaying )
-    {
-        if ( ImGui::Button( "Pause" ) )
-            component.mPlaying = false;
-    }
-    else if ( ImGui::Button( "Play" ) )
-    {
-        component.mPlaying = true;
-    }
+    if ( j.contains( "BlendValue" ) )
+        playback.mBlendValue = j["BlendValue"];
+}
 }
 
 void AnimatorComponent::ToJson( json& json, const Project& project, const AnimatorComponent& component )
@@ -439,16 +645,19 @@ void AnimatorComponent::ToJson( json& json, const Project& project, const Animat
         auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( component.mController->mPath );
         json["Controller"] = relPath;
     }
-    json["Clip"] = component.mClip;
-    json["Speed"] = component.mSpeed;
-    json["Loop"] = component.mLoop;
-    json["Playing"] = component.mPlaying;
-    if ( component.IsBlend() )
+    PlaybackToJson( json, component.mBase );
+    // A controller's layers come back with it; a script's are saved.
+    if ( not component.mController and not component.mLayers.empty() )
     {
-        auto& points = json["Blend"] = json::array();
-        for ( const BlendPoint& point : component.mBlend.mPoints )
-            points.push_back( { { "Clip", point.mClip }, { "Value", point.mValue } } );
-        json["BlendValue"] = component.mBlendValue;
+        auto& layers = json["Layers"] = json::array();
+        for ( const OverlayLayer& layer : component.mLayers )
+        {
+            auto& j = layers.emplace_back();
+            j["Name"] = layer.mName;
+            j["Mask"] = layer.mMask;
+            j["Weight"] = layer.mWeight;
+            PlaybackToJson( j, layer.mPlayback );
+        }
     }
 }
 
@@ -458,26 +667,36 @@ void AnimatorComponent::FromJson( const json& json, Project& project, AnimatorCo
         return;
     if ( json.contains( "Controller" ) )
         component.SetController( project.mLoader.LoadAnimationController( json["Controller"] ) );
-    if ( json.contains( "Clip" ) )
-        component.mClip = json["Clip"];
-    if ( json.contains( "Speed" ) )
-        component.mSpeed = json["Speed"];
-    if ( json.contains( "Loop" ) )
-        component.mLoop = json["Loop"];
-    if ( json.contains( "Playing" ) )
-        component.mPlaying = json["Playing"];
-    if ( json.contains( "Blend" ) )
+    PlaybackFromJson( json, component.mBase );
+    if ( json.contains( "Layers" ) and not component.mController )
     {
-        component.mBlend = {};
-        for ( const auto& point : json["Blend"] )
-            component.mBlend.Add( point.value( "Clip", string() ), point.value( "Value", 0.0f ) );
+        component.mLayers.clear();
+        for ( const auto& j : json["Layers"] )
+        {
+            OverlayLayer& layer = component.mLayers.emplace_back();
+            layer.mName = j.value( "Name", string() );
+            if ( j.contains( "Mask" ) )
+                layer.mMask = j["Mask"].get<vector<string>>();
+            layer.mWeight = j.value( "Weight", 1.0f );
+            PlaybackFromJson( j, layer.mPlayback );
+        }
     }
-    if ( json.contains( "BlendValue" ) )
-        component.mBlendValue = json["BlendValue"];
 }
+
+
+// Lua
 
 void AnimatorComponent::CreateLuaBinding( sol::state& lua )
 {
+    // The overlay a layer call names; unknown is an error, not a no-op.
+    const auto layer = []( AnimatorComponent& c, string_view name ) -> OverlayLayer&
+    {
+        OverlayLayer* found = c.FindLayer( name );
+        if ( not found )
+            throw std::runtime_error( std::format( "animator: no layer '{}' - set_layer it first", name ) );
+        return *found;
+    };
+
     lua.new_usertype<AnimatorComponent>(
         "Animator",
 
@@ -497,6 +716,42 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         "in_transition", &AnimatorComponent::InTransition,
         "is_blend",      &AnimatorComponent::IsBlend,
 
+        // Overlay layers: set_layer( "upper", { "Spine1" }, 1 ) makes or
+        // reshapes one; the play_layer family plays on it.
+        "set_layer",
+        sol::overload(
+            []( AnimatorComponent& c, string_view name, const sol::object& mask ) { c.Layer( name, MaskFromLua( mask ), 1.0f ); },
+            []( AnimatorComponent& c, string_view name, const sol::object& mask, f32 weight ) { c.Layer( name, MaskFromLua( mask ), weight ); }
+        ),
+        "play_layer",
+        sol::overload(
+            [layer]( AnimatorComponent& c, string_view name, string_view clip ) { layer( c, name ).mPlayback.Play( clip ); },
+            [layer]( AnimatorComponent& c, string_view name, string_view clip, f32 transition ) { layer( c, name ).mPlayback.Play( clip, transition ); }
+        ),
+        "stop_layer",
+        sol::overload(
+            [layer]( AnimatorComponent& c, string_view name ) { layer( c, name ).mPlayback.PlayNothing(); },
+            [layer]( AnimatorComponent& c, string_view name, f32 transition ) { layer( c, name ).mPlayback.PlayNothing( transition ); }
+        ),
+        "layer_weight",
+        sol::overload(
+            [layer]( AnimatorComponent& c, string_view name ) { return layer( c, name ).mWeight; },
+            [layer]( AnimatorComponent& c, string_view name, f32 weight ) { layer( c, name ).mWeight = weight; layer( c, name ).mWeightParameter.clear(); }
+        ),
+        "layer_clip",  [layer]( AnimatorComponent& c, string_view name ) { return layer( c, name ).mPlayback.mClip; },
+        "layer_state",
+        [layer]( AnimatorComponent& c, string_view name ) -> string
+        {
+            const OverlayLayer& l = layer( c, name );
+            if ( not c.mController or l.mPlayback.mRuntime.mCurrent < 0 )
+                return {};
+            for ( const ControllerLayer& declared : c.mController->mLayers )
+                if ( declared.mName == l.mName )
+                    return declared.mMachine.mStates[l.mPlayback.mRuntime.mCurrent].mName;
+            return {};
+        },
+        "layer_playing", [layer]( AnimatorComponent& c, string_view name ) { const auto& p = layer( c, name ).mPlayback; return p.mPlaying and not p.IsEmpty(); },
+
         // Under a controller: what a script drives, and what it can ask.
         "set",
         sol::overload(
@@ -513,22 +768,26 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         "entered_state",
         []( const AnimatorComponent& c ) -> sol::optional<string>
         {
-            if ( c.mEnteredState.empty() )
+            if ( c.mBase.mEnteredState.empty() )
                 return sol::nullopt;
-            return c.mEnteredState;
+            return c.mBase.mEnteredState;
         },
         "add_event", []( AnimatorComponent& c, string_view clip, f32 time, string name ) { c.AddEvent( clip, time, std::move( name ) ); },
         "controller",
         sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 
-        "clip",    sol::readonly( &AnimatorComponent::mClip ),
-        "time",    &AnimatorComponent::mTime,
-        "speed",   &AnimatorComponent::mSpeed,
-        "loop",    &AnimatorComponent::mLoop,
-        "blend",   &AnimatorComponent::mBlendValue,
+        "clip",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mClip; } ),
+        "time",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mTime; },
+                                  []( AnimatorComponent& c, f32 v ) { c.mBase.mTime = v; } ),
+        "speed",   sol::property( []( const AnimatorComponent& c ) { return c.mBase.mSpeed; },
+                                  []( AnimatorComponent& c, f32 v ) { c.mBase.mSpeed = v; } ),
+        "loop",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mLoop; },
+                                  []( AnimatorComponent& c, bool v ) { c.mBase.mLoop = v; } ),
+        "blend",   sol::property( []( const AnimatorComponent& c ) { return c.mBase.mBlendValue; },
+                                  []( AnimatorComponent& c, f32 v ) { c.mBase.mBlendValue = v; } ),
 
         sol::meta_function::to_string,
-        []( const AnimatorComponent& c ) { return c.mClip.empty() ? "none" : c.mClip; }
+        []( const AnimatorComponent& c ) { return c.mBase.mClip.empty() ? "none" : c.mBase.mClip; }
     );
 }
 
