@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/renderer.hpp"
+#include "engine/animation/animator.hpp"
 #include "engine/renderer/gpu_context.hpp"
 #include "engine/utils/geometry.hpp"
 #include "engine/log/log.hpp"
@@ -150,10 +151,13 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
                                    const Mesh& mesh,
                                    const Ref<Shader>& shader,
                                    DrawingPrimitive drawingPrimitive,
-                                   u32 dynamicOffset )
+                                   u32 dynamicOffset,
+                                   const MeshBuffers* buffers )
 {
-    const VertexLayout& layout = mesh.mBuffers.Layout();
-    if ( not mesh.mBuffers.Valid() )
+    if ( not buffers )
+        buffers = &mesh.mBuffers;
+    const VertexLayout& layout = buffers->Layout();
+    if ( not buffers->Valid() )
         return;
 
     PipelineKey key;
@@ -187,8 +191,8 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
     // Meshes carry a default material, so there is always something to bind.
     mesh.ApplyMaterial( target.mPass );
 
-    mesh.BindBuffers( target.mPass );
-    target.mPass.drawIndexed( (u32)mesh.IndiciesSize(), 1, 0, 0, 0 );
+    buffers->Bind( target.mPass );
+    target.mPass.drawIndexed( (u32)buffers->IndexCount(), 1, 0, 0, 0 );
 }
 
 void Renderer::DrawMesh( const RenderTarget& target,
@@ -222,13 +226,16 @@ void Renderer::DrawModel( const RenderTarget& target,
                           const Ref<Shader>& shader,
                           const mat4& transform,
                           DrawingPrimitive drawingPrimitive,
-                          u32 objectId )
+                          u32 objectId,
+                          const Animator* animator )
 {
     if ( not model or not shader or not shader->Valid() )
     {
         BUBBLE_ASSERT( false, "DrawModel: Model or shader is null" );
         return;
     }
+    if ( animator and animator->GetModel() != model )
+        animator = nullptr;
 
     // One slot for the whole model: every mesh in it shares the transform.
     DrawUniforms uniforms;
@@ -237,8 +244,9 @@ void Renderer::DrawModel( const RenderTarget& target,
     uniforms.mObjectId = objectId;
     const u32 dynamicOffset = mDrawRing.Push( &uniforms, sizeof( uniforms ) );
 
-    for ( const auto& mesh : model->mMeshes )
-        DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
+    for ( size_t i = 0; i < model->mMeshes.size(); i++ )
+        DrawMeshPrimitives( target, model->mMeshes[i], shader, drawingPrimitive, dynamicOffset,
+                            animator ? animator->SkinnedBuffers( i ) : nullptr );
     SetUserUniforms( nullptr, 0 );
 }
 

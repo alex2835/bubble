@@ -218,6 +218,7 @@ Each takes an inner value or a whole component.
 | `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `CharacterControllerComponent`. Registers with the physics world. |
 | `entity:add_audio_source( sound )` | sound path, a handle from `load_sound`, or nothing |
 | `entity:add_audio_listener()` | nothing, or an `AudioListener` |
+| `entity:add_animator( clip )` | clip name to start playing, nothing, or an `Animator` |
 | `entity:add_state( table )` | any Lua value |
 | `entity:add_script( path )` | path to a `.lua` file. Attaches a `StateComponent` too if the entity has none, and runs `on_start` **immediately** — see below. |
 
@@ -243,6 +244,7 @@ One name per component. There is no `_component` suffix anywhere in the API —
 | `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
 | `entity:get_audio_source()` | `AudioSource` — `play`, `stop`, `volume`, … |
 | `entity:get_audio_listener()` | `AudioListener` — `active` |
+| `entity:get_animator()` | `Animator` — `play`, `stop`, `clip`, `time`, … |
 | `entity:get_state()` | table |
 
 Each returns the type that actually carries the fields you want. For most
@@ -261,7 +263,7 @@ below.
 
 `entity:has_tag()`, `has_transform`, `has_model`, `has_shader`, `has_camera`,
 `has_light`, `has_rigid_body`, `has_character_controller`, `has_audio_source`,
-`has_audio_listener`, `has_state`.
+`has_audio_listener`, `has_animator`, `has_state`.
 All return a boolean. There is no `has_script`.
 
 | Method | Returns | Notes |
@@ -356,7 +358,7 @@ Generated from the engine's `ComponentID`, so it cannot drift:
 Component.tag  Component.transform  Component.camera  Component.model
 Component.light  Component.shader  Component.script  Component.rigid_body
 Component.character_controller  Component.state
-Component.audio_source  Component.audio_listener
+Component.audio_source  Component.audio_listener  Component.animator
 ```
 
 Used as `for_each_entity` ids. The table it passes back is keyed by the
@@ -522,6 +524,38 @@ camera is used instead, so sound works before anyone has authored audio.
 
 Only the first active listener is used; a second one is a scene authoring
 mistake and is reported once per run.
+
+### Animator
+
+Plays one of the clips that came with the entity's model. Only a skinned model
+(glTF or FBX with a skeleton) has clips; on any other model the component does
+nothing. Clips are named after the animations in the file — an unnamed one is
+`clip_0`, `clip_1`, … in file order.
+
+Methods: `play( name )` — restarts that clip from the beginning;
+`cross_fade( name, seconds )` — the same, but the clip that was playing fades
+out over `seconds` while the new one fades in; `stop()`; `is_playing()`;
+`is_fading()`.
+
+Fields: `clip` (read only, the name), `time` (seconds into the clip, writable
+for scrubbing), `speed` (1.0; negative plays backwards), `loop` (true). Has
+`tostring`.
+
+A name the model has no clip for leaves the character at rest. With `loop`
+off, playback stops at the end and `is_playing()` turns false. The pose for a
+frame is computed after every script has run, so a `play()` shows on the same
+frame.
+
+```lua
+function on_update( entity, state, dt )
+    local animator = entity:get_animator()
+    if state.moving and animator.clip ~= "walk" then
+        animator:cross_fade( "walk", 0.2 )
+    elseif not state.moving and animator.clip ~= "idle" then
+        animator:cross_fade( "idle", 0.2 )
+    end
+end
+```
 
 ### StateComponent
 

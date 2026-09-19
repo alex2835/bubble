@@ -174,6 +174,24 @@ Two rules, and both were bugs before:
   leaves the missing ones zeroed. A mesh with no tangent basis cannot be normal
   mapped anyway.
 
+### Skinned meshes
+
+A skinned model's meshes carry a `MeshSkin` (joint indices and weights, in the
+model's `Skeleton` order) next to their vertex data, and the model carries the
+skeleton and its clips (`engine/animation/`, built by ozz from what assimp
+read). None of that reaches the GPU. **Skinning is on the CPU**: each frame an
+`Animator` samples the pose, and ozz's `SkinningJob` writes posed positions,
+normals and tangents into a `MeshBuffers` the animator owns per skinned mesh.
+`DrawModel` takes the animator and binds those buffers in place of the mesh's
+own - same layout, same pipeline, the material and indices still the model's.
+So two entities sharing a model each have their own posed vertices and nothing
+else duplicated.
+
+GPU skinning would add two attributes (joint indices as `Uint16x4`, weights as
+`Float4`), a storage buffer of joint matrices in the draw group, and a
+`SkinVertex()` in the vertex stage; the animator already computes the matrices
+it would upload. It is the next step once CPU skinning is the frame's cost.
+
 ---
 
 ## Shaders
@@ -336,6 +354,12 @@ inspector still edits it as a checkbox.
   wgpu-native-only feature — push constants especially — until it has been.
 - **`Cubemap` and `Skybox` were deleted, not ported.** They were loaded but had
   no draw path at all.
+- **Node transforms are ignored for static meshes.** `ProcessNode` walks the
+  assimp hierarchy but never applies `aiNode::mTransformation`, so a mesh
+  under a transformed node draws where its raw vertices are. Skinned meshes
+  are not affected - the offset matrices bake the mesh node's transform in -
+  which is why a skinned glTF drawn without an Animator can sit differently
+  from the same model animated.
 - **No golden-image tests.** The engine has no test suite; `deps/wgsl_reflect` is
   the only tested piece. A capture-and-diff harness is the cheapest thing that
   would catch a depth-range or texture-origin regression.

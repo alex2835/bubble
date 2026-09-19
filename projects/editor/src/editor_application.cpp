@@ -78,6 +78,8 @@ void BubbleEditor::Run()
                 mEngine.PropagateLightTransforms( mProject.mLevel.mScene );
                 // Sounds previewed from the inspector are heard from here.
                 mEngine.PropagateEditorAudio( mProject.mLevel.mScene );
+                // Clips play in the editor too; that is how one is previewed.
+                mEngine.UpdateAnimations( mProject.mLevel.mScene, deltaTime.Seconds() );
                 mEngine.DrawScene( mSceneViewport, mProject.mLevel.mScene );
                 mEngine.DrawEditorBillboards( mSceneViewport, mProject.mLevel.mScene );
 
@@ -103,6 +105,8 @@ void BubbleEditor::Run()
                     mEngine.DrawBoundingBoxes( mSceneViewport, mProject.mLevel.mScene );
                 if ( mUIGlobals.mDrawPhysicsShapes )
                     mEngine.DrawPhysicsShapes( mSceneViewport, mProject.mLevel.mScene );
+                if ( mUIGlobals.mDrawSkeletons )
+                    mEngine.DrawSkeletons( mSceneViewport, mProject.mLevel.mScene );
                 break;
             }
             case EditorMode::Running:

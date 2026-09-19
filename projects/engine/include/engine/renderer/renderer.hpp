@@ -26,6 +26,8 @@ struct RenderTarget
 };
 
 
+class Animator;
+
 class Renderer
 {
 public:
@@ -70,19 +72,24 @@ public:
                    u32 objectId = 0,
                    const DrawUniforms* extras = nullptr );
 
+    // With an animator, a skinned mesh draws from the animator's posed vertex
+    // buffers instead of its own; everything else about the draw is the same.
     void DrawModel( const RenderTarget& target,
                     const Ref<Model>& model,
                     const Ref<Shader>& shader,
                     const mat4& transform,
                     DrawingPrimitive drawingPrimitive = DrawingPrimitive::Triangles,
-                    u32 objectId = 0 );
+                    u32 objectId = 0,
+                    const Animator* animator = nullptr );
 
 private:
+    // `buffers` stands in for the mesh's own when given.
     void DrawMeshPrimitives( const RenderTarget& target,
                              const Mesh& mesh,
                              const Ref<Shader>& shader,
                              DrawingPrimitive drawingPrimitive,
-                             u32 dynamicOffset );
+                             u32 dynamicOffset,
+                             const MeshBuffers* buffers = nullptr );
 
     // The three frame blocks. Plain buffers with a POD struct each, the same
     // shape as the material and draw blocks - the layout is checked against

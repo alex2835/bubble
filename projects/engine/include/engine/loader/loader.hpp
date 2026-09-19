@@ -15,6 +15,8 @@
 #include <functional>
 
 namespace Assimp { class Importer; }
+struct aiScene;
+struct aiMesh;
 
 namespace bubble
 {
@@ -55,6 +57,14 @@ struct TextureData
     path mPath;
 };
 
+// The skeleton a skinned model binds to and the clips that came with it,
+// already built into ozz's runtime form. Empty for a static model.
+struct SkeletonData
+{
+    Ref<Skeleton> mSkeleton;
+    vector<Ref<AnimationClip>> mClips;
+};
+
 struct ModelData
 {
     Scope<Assimp::Importer> mImporter;
@@ -62,10 +72,23 @@ struct ModelData
     // absolute path the material resolves to. LoadModel uploads from here
     // rather than reading the files again.
     map<path, TextureData> mTexturesData;
+    // Built alongside the decode, for the same reason the textures are: it is
+    // the expensive part, and it needs no GPU.
+    std::optional<SkeletonData> mSkeleton;
     path mPath;
 };
 
+// Nullopt for a scene with no bones. Skeleton joints are the bone nodes and
+// their ancestors; every clip in the scene is imported against that skeleton.
+std::optional<SkeletonData> ImportSkeleton( const aiScene* scene, const path& modelPath );
+// The mesh's bone weights, remapped from assimp's per mesh bone indices to the
+// skeleton's joint indices. Empty for a mesh without bones.
+MeshSkin ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath );
+
 std::optional<TextureData> OpenTexture( const path& path );
+// An encoded image already in memory - a texture embedded in a glTF binary.
+// The name only identifies it; nothing is read from that path.
+std::optional<TextureData> OpenTexture( const u8* bytes, u64 size, const path& name );
 Ref<Texture2D> LoadTexture2D( const path& path );
 Ref<Texture2D> LoadTexture2D( const TextureData& textureData );
 

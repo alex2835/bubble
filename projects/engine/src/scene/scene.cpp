@@ -9,6 +9,7 @@
 #include "engine/scene/components/light_component.hpp"
 #include "engine/scene/components/model_component.hpp"
 #include "engine/scene/components/rigid_body_component.hpp"
+#include "engine/scene/components/animator_component.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/shader_component.hpp"
 #include "engine/scene/components/state_component.hpp"
@@ -31,6 +32,7 @@ Scene::Scene()
     AddComponent<StateComponent>();
     AddComponent<AudioSourceComponent>();
     AddComponent<AudioListenerComponent>();
+    AddComponent<AnimatorComponent>();
 
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
@@ -44,6 +46,7 @@ Scene::Scene()
     ComponentManager::Add<StateComponent>();
     ComponentManager::Add<AudioSourceComponent>();
     ComponentManager::Add<AudioListenerComponent>();
+    ComponentManager::Add<AnimatorComponent>();
 }
 
 }

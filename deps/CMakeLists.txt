@@ -41,6 +41,9 @@ option(ASSIMP_NO_EXPORT "" ON)
 option(ASSIMP_INJECT_DEBUG_POSTFIX "" OFF)
 option(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT "" FALSE)
 set(ASSIMP_BUILD_OBJ_IMPORTER TRUE)
+# Skinned characters come in as glTF or FBX; OBJ carries no skeleton.
+set(ASSIMP_BUILD_GLTF_IMPORTER TRUE)
+set(ASSIMP_BUILD_FBX_IMPORTER TRUE)
 add_subdirectory(assimp)
 
 #GIT_TAG 0.9.9.8  GIT_REPOSITORY "https://github.com/g-truc/glm.git" 
@@ -64,6 +67,25 @@ add_subdirectory(miniaudio)
 add_subdirectory(magic_enum)
 add_subdirectory(thread_pool)
 
+#GIT_TAG 0.17.0  GIT_REPOSITORY "https://github.com/guillaumeblanc/ozz-animation.git"
+# Skeletal animation runtime: sampling, blending, local-to-model, skinning.
+# Library targets only; see ozz/VENDORED_VERSION.txt for what was dropped.
+option(ozz_build_tools "" OFF)
+option(ozz_build_fbx "" OFF)
+option(ozz_build_gltf "" OFF)
+option(ozz_build_samples "" OFF)
+option(ozz_build_howtos "" OFF)
+option(ozz_build_tests "" OFF)
+option(ozz_build_postfix "" OFF)
+# ozz defaults to the static CRT on MSVC; everything else here uses the DLL one.
+option(ozz_build_msvc_rt_dll "" ON)
+if(EMSCRIPTEN)
+	# No SSE in wasm without -msimd128 emulation; the scalar path is the one
+	# ozz's own WebAssembly CI builds.
+	set(ozz_build_simd_ref ON CACHE BOOL "" FORCE)
+endif()
+add_subdirectory(ozz)
+
 
 option(BUILD_BULLET3 OFF)
 # Bullet's multithreaded world/dispatcher/solver only parallelise when the
@@ -80,4 +102,10 @@ if(BULLET2_MULTITHREADING)
 	# consumer must see the same value as the library or the locks are skipped.
 	target_compile_definitions(BulletIncludeFile INTERFACE BT_THREADSAFE=1)
 endif()
+# btScalar.h defines operator+/-/* on __m128 for its own convenience, and so
+# do ozz's SSE headers; a translation unit that includes both - anything with
+# the PCH and an ozz job - fails on the redefinition. ozz's inline math needs
+# its operators, Bullet's public API does not (BT_USE_SSE_IN_API is off on
+# Windows), so Bullet is the one that goes without in consumers.
+target_compile_definitions(BulletIncludeFile INTERFACE BT_NO_SIMD_OPERATOR_OVERLOADS)
 

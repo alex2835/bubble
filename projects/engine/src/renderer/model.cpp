@@ -9,11 +9,13 @@ namespace bubble
 Mesh::Mesh( string name,
             BasicMaterial material,
             VertexBufferData vertices,
-            vector<u32> indices )
+            vector<u32> indices,
+            MeshSkin skin )
     : mName( std::move( name ) ),
       mVertices( std::move( vertices ) ),
       mIndices( std::move( indices ) ),
-      mMaterial( std::move( material ) )
+      mMaterial( std::move( material ) ),
+      mSkin( std::move( skin ) )
 {
     mBuffers.SetBufferData( mVertices, mIndices );
 }
@@ -54,6 +56,15 @@ AABB Model::CreateBoundingBox( const Model& model )
         for ( const auto& vert : mesh.mVertices.mPositions )
             bbox.extend( vert );
     return bbox;
+}
+
+const Ref<AnimationClip>& Model::FindClip( string_view name ) const
+{
+    static const Ref<AnimationClip> none;
+    for ( const auto& clip : mClips )
+        if ( clip->mName == name )
+            return clip;
+    return none;
 }
 
 }

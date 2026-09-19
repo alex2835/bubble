@@ -86,6 +86,9 @@ void CreateForEachBindings( Scene& scene, sol::state& lua )
                     case ComponentID::AudioListener:
                         componentsTable[ComponentLuaName<AudioListenerComponent>()] = (AudioListenerComponent*)componentDataPtr;
                         break;
+                    case ComponentID::Animator:
+                        componentsTable[ComponentLuaName<AnimatorComponent>()] = (AnimatorComponent*)componentDataPtr;
+                        break;
                     case ComponentID::State:
                         componentsTable[ComponentLuaName<StateComponent>()] = *((StateComponent*)componentDataPtr)->mState;
                         break;

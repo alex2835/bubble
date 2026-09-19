@@ -10,6 +10,9 @@
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/character_controller_component.hpp"
 #include "engine/scene/components/rigid_body_component.hpp"
+#include "engine/scene/components/animator_component.hpp"
+#include "engine/animation/animator.hpp"
+#include <ozz/animation/runtime/skeleton.h>
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
@@ -21,6 +24,18 @@
 
 namespace bubble
 {
+namespace
+{
+// The posed vertices to draw the entity's model with, if it is animated. Null
+// until UpdateAnimations has run for it, and the model then draws at rest.
+const Animator* AnimatorOf( const Scene& scene, Entity entity )
+{
+    if ( not scene.HasComponent<AnimatorComponent>( entity ) )
+        return nullptr;
+    return scene.GetComponent<AnimatorComponent>( entity ).mAnimator.get();
+}
+}
+
 Engine::Engine( Window& window )
     : mWindow( window ),
       mEntityIdShader( LoadShader( ENTITY_PICKING_SHADER ) ),
@@ -30,6 +45,7 @@ Engine::Engine( Window& window )
       mDefaultShader( LoadShader( PHONG_SHADER ) ),
       mBoundingBoxes{ .mMesh=Mesh( "AABB", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
       mPhysicsShapes{ .mMesh=Mesh( "Physics", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
+      mSkeletons{ .mMesh=Mesh( "Skeletons", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
       mCameraFrustums{ .mMesh=Mesh( "CameraFrustum", BasicMaterial(), VertexBufferData{}, vector<u32>{} ) },
 
       // billboards
@@ -247,73 +263,7 @@ void Engine::OnUpdate()
 
     /// Update Scripts
     const f32 deltaSeconds = dt.Seconds();
-
-    // Call scripts, over a snapshot of the entities rather than a live walk.
-    //
-    // ForEach hands its callback references straight into the component pools
-    // and walks them by index, so a script that mutates the scene pulls the
-    // ground out from under the iteration it is running inside: Pool::Push
-    // reallocates and frees the old buffer, and Pool::Remove compacts every
-    // pool and shifts every index after the hole. Taking the entity list first
-    // and looking each entity up again is what makes spawn() and
-    // remove_entity() safe to call from on_update.
-    //
-    // The snapshot is also the definition of which scripts run this frame: an
-    // entity created by a script gets its on_start now and its first on_update
-    // on the next tick, rather than a partial one in the middle of this one.
-    mScriptEntities.clear();
-    mProject.mLevel.mScene.ForEach<StateComponent, ScriptComponent>(
-    [this]( Entity entity, const StateComponent&, const ScriptComponent& )
-    {
-        mScriptEntities.push_back( entity );
-    });
-
-    for ( const Entity entity : mScriptEntities )
-    {
-        // An earlier script this frame may have removed the entity, or taken a
-        // component off it. Neither is an error - it just has nothing to run.
-        if ( not mProject.mLevel.mScene.HasEntity( entity ) or
-             not mProject.mLevel.mScene.HasComponent<StateComponent>( entity ) or
-             not mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
-            continue;
-
-        // Looked up per entity and never held across a call: any script may
-        // have moved both pools since the snapshot was taken.
-        const StateComponent& stateComponent = mProject.mLevel.mScene.GetComponent<StateComponent>( entity );
-        const ScriptComponent& scriptComponent = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity );
-        if ( not scriptComponent.mOnUpdate )
-            continue;
-
-        // By value. The callable lives in the ScriptComponent pool, so a script
-        // that spawns something carrying a script - or calls add_script - would
-        // otherwise free the function object while it is executing. The copy is
-        // a second reference to the same Lua function and owns its own lifetime
-        // for the duration of the call.
-        const sol::protected_function onUpdate = scriptComponent.mOnUpdate;
-
-        sol::protected_function_result result =
-            onUpdate( entity, *stateComponent.mState, deltaSeconds );
-        if ( !result.valid() )
-        {
-            const sol::error err = result;
-
-            // Re-fetched rather than held across the call, for the same reason
-            // the callable was copied. On the error path the cost is irrelevant.
-            string name = "<unknown>";
-            string path = "<no path>";
-            if ( mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
-            {
-                const Ref<Script>& script = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity ).mScript;
-                if ( script )
-                {
-                    name = script->mName;
-                    path = script->mPath.string();
-                }
-            }
-            throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
-                                                   name, (u64)entity, err.what(), path ) );
-        }
-    }
+    UpdateScripts( mProject.mLevel.mScene, deltaSeconds );
 
     // Propagations that start at a transform: consumers, so they run after the
     // scripts. Anything here that ran before them was reading transforms one
@@ -322,6 +272,7 @@ void Engine::OnUpdate()
     // origin with default attenuation.
     PropagateCameraTransforms( mProject.mLevel.mScene );
     PropagateLightTransforms( mProject.mLevel.mScene );
+    UpdateAnimations( mProject.mLevel.mScene, deltaSeconds );
 
     /// Sync active camera entity to rendering camera. After
     /// PropagateCameraTransforms, which is what wrote this frame's position
@@ -452,6 +403,136 @@ void Engine::PropagateEditorAudio( Scene& scene )
 
 // The transform is the truth and the camera is a cache of it - see
 // CameraComponent. One direction, every frame, for every camera.
+void Engine::UpdateScripts( Scene& scene, f32 deltaSeconds )
+{
+    // Call scripts, over a snapshot of the entities rather than a live walk.
+    //
+    // ForEach hands its callback references straight into the component pools
+    // and walks them by index, so a script that mutates the scene pulls the
+    // ground out from under the iteration it is running inside: Pool::Push
+    // reallocates and frees the old buffer, and Pool::Remove compacts every
+    // pool and shifts every index after the hole. Taking the entity list first
+    // and looking each entity up again is what makes spawn() and
+    // remove_entity() safe to call from on_update.
+    //
+    // The snapshot is also the definition of which scripts run this frame: an
+    // entity created by a script gets its on_start now and its first on_update
+    // on the next tick, rather than a partial one in the middle of this one.
+    mScriptEntities.clear();
+    scene.ForEach<StateComponent, ScriptComponent>(
+    [this]( Entity entity, const StateComponent&, const ScriptComponent& )
+    {
+        mScriptEntities.push_back( entity );
+    });
+
+    for ( const Entity entity : mScriptEntities )
+    {
+        // An earlier script this frame may have removed the entity, or taken a
+        // component off it. Neither is an error - it just has nothing to run.
+        if ( not scene.HasEntity( entity ) or
+             not scene.HasComponent<StateComponent>( entity ) or
+             not scene.HasComponent<ScriptComponent>( entity ) )
+            continue;
+
+        // Looked up per entity and never held across a call: any script may
+        // have moved both pools since the snapshot was taken.
+        const StateComponent& stateComponent = scene.GetComponent<StateComponent>( entity );
+        const ScriptComponent& scriptComponent = scene.GetComponent<ScriptComponent>( entity );
+        if ( not scriptComponent.mOnUpdate )
+            continue;
+
+        // By value. The callable lives in the ScriptComponent pool, so a script
+        // that spawns something carrying a script - or calls add_script - would
+        // otherwise free the function object while it is executing. The copy is
+        // a second reference to the same Lua function and owns its own lifetime
+        // for the duration of the call.
+        const sol::protected_function onUpdate = scriptComponent.mOnUpdate;
+
+        sol::protected_function_result result =
+            onUpdate( entity, *stateComponent.mState, deltaSeconds );
+        if ( !result.valid() )
+        {
+            const sol::error err = result;
+
+            // Re-fetched rather than held across the call, for the same reason
+            // the callable was copied. On the error path the cost is irrelevant.
+            string name = "<unknown>";
+            string path = "<no path>";
+            if ( scene.HasComponent<ScriptComponent>( entity ) )
+            {
+                const Ref<Script>& script = scene.GetComponent<ScriptComponent>( entity ).mScript;
+                if ( script )
+                {
+                    name = script->mName;
+                    path = script->mPath.string();
+                }
+            }
+            throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
+                                                   name, (u64)entity, err.what(), path ) );
+        }
+    }
+}
+
+void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
+{
+    scene.ForEach<ModelComponent, AnimatorComponent>(
+    [&]( Entity, const ModelComponent& modelComponent, AnimatorComponent& animator )
+    {
+        const Ref<Model>& model = modelComponent.mModel;
+        if ( not model or not model->Skinned() )
+        {
+            animator.mAnimator.reset();
+            return;
+        }
+        // Bound to the model: a new model means new joints, new meshes, new
+        // buffers. Also the first frame after a load or an add_animator.
+        if ( not animator.mAnimator or animator.mAnimator->GetModel() != model )
+            animator.mAnimator = CreateScope<Animator>( model );
+
+        // Advances `time` through `clip` by this frame, looping or stopping
+        // at the ends; false when it stopped.
+        const auto advance = [&]( const AnimationClip* clip, f32& time )
+        {
+            time += deltaSeconds * animator.mSpeed;
+            if ( animator.mLoop )
+            {
+                time = std::fmod( time, clip->mDuration );
+                if ( time < 0.0f )
+                    time += clip->mDuration;
+                return true;
+            }
+            if ( time < clip->mDuration and time > 0.0f )
+                return true;
+            // Reached either end - the speed may be negative.
+            time = std::clamp( time, 0.0f, clip->mDuration );
+            return false;
+        };
+
+        const AnimationClip* clip = model->FindClip( animator.mClip ).get();
+        if ( clip and animator.mPlaying and not advance( clip, animator.mTime ) )
+            animator.mPlaying = false;
+
+        if ( not animator.IsFading() )
+        {
+            animator.mAnimator->Sample( clip, animator.mTime );
+        }
+        else
+        {
+            const AnimationClip* from = model->FindClip( animator.mFadeFromClip ).get();
+            if ( from and animator.mPlaying )
+                advance( from, animator.mFadeFromTime );
+            animator.mFadeElapsed += deltaSeconds;
+            const f32 t = std::clamp( animator.mFadeElapsed / animator.mFadeDuration, 0.0f, 1.0f );
+            animator.mAnimator->Sample( { from, animator.mFadeFromTime, 1.0f - t },
+                                        { clip, animator.mTime, t } );
+            if ( t >= 1.0f )
+                animator.mFadeDuration = 0.0f;
+        }
+        animator.mAnimator->Skin();
+    } );
+}
+
+
 void Engine::PropagateCameraTransforms( Scene& scene )
 {
     scene.ForEach<CameraComponent, TransformComponent>(
@@ -597,7 +678,8 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
             }
 
             mRenderer.DrawModel( target, modelComponent.mModel, shader,
-                                 transformComponent.TransformMat() );
+                                 transformComponent.TransformMat(),
+                                 DrawingPrimitive::Triangles, 0, AnimatorOf( scene, entity ) );
         } );
     } );
 }
@@ -745,6 +827,59 @@ void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
 }
 
 
+void Engine::DrawSkeletons( Framebuffer& framebuffer, const Scene& scene )
+{
+    if ( scene.Size() == 0 )
+        return;
+
+    mSkeletons.mVertices.Clear();
+    mSkeletons.mIndices.clear();
+
+    scene.ForEach<AnimatorComponent, TransformComponent>(
+        [&]( Entity _,
+             const AnimatorComponent& animatorComponent,
+             const TransformComponent& transform )
+    {
+        const Animator* animator = animatorComponent.mAnimator.get();
+        if ( not animator )
+            return;
+        const auto joints = animator->JointMatrices();
+        const auto parents = animator->GetModel()->mSkeleton->mSkeleton->joint_parents();
+        const mat4 trans = transform.TransformMat();
+
+        // Joint positions first, then a line from each joint to its parent.
+        // A root has no parent and no line; it still gets a vertex, so the
+        // indices below stay the joint indices.
+        const u32 first = (u32)mSkeletons.mVertices.mPositions.size();
+        for ( const mat4& joint : joints )
+            mSkeletons.mVertices.mPositions.push_back( vec3( trans * joint[3] ) );
+        for ( size_t j = 0; j < joints.size(); j++ )
+        {
+            if ( parents[j] < 0 )
+                continue;
+            mSkeletons.mIndices.push_back( first + (u32)j );
+            mSkeletons.mIndices.push_back( first + (u32)parents[j] );
+        }
+    } );
+
+    if ( mSkeletons.mIndices.empty() )
+        return;
+
+    mSkeletons.mMesh.UpdateDynamicVertexBufferData( mSkeletons.mVertices, mSkeletons.mIndices );
+
+    // The depth is cleared first: the bones sit inside the skin that was just
+    // drawn over them, and an overlay that loses to it shows nothing.
+    SubmitPass( mRenderer, "Skeletons", [&]( wgpu::CommandEncoder encoder )
+    {
+        auto pass = framebuffer.BeginRenderPass( encoder, std::nullopt, true, "Skeletons" );
+        const RenderTarget target = RenderTarget::For( *pass, framebuffer );
+        mRenderer.BindFrame( *pass );
+        mRenderer.DrawMesh( target, mSkeletons.mMesh, mWhiteShader,
+                            glm::identity<mat4>(), DrawingPrimitive::Lines );
+    } );
+}
+
+
 void Engine::DrawBillboard( const RenderTarget& target,
                             const Ref<Texture2D>& texture,
                             const Ref<Shader>& shader,
@@ -861,7 +996,7 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
             const auto tansform = valid ? transformComponent.TransformMat()
                                         : transformComponent.TranslationRotationMat();
             mRenderer.DrawModel( target, model, mEntityIdShader, tansform,
-                                 DrawingPrimitive::Triangles, (u32)entity );
+                                 DrawingPrimitive::Triangles, (u32)entity, AnimatorOf( scene, entity ) );
         } );
 
         // Draw camera billboards

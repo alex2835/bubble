@@ -23,6 +23,29 @@ constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE,
                                                  aiTextureType_HEIGHT };
 
 
+// mHeight == 0 means the texture is a still encoded file (png, jpg) of mWidth
+// bytes; otherwise it is raw texels, which assimp stores as BGRA.
+std::optional<TextureData> OpenEmbeddedTexture( const aiTexture* texture, const path& name )
+{
+    if ( texture->mHeight == 0 )
+        return OpenTexture( reinterpret_cast<const u8*>( texture->pcData ), texture->mWidth, name );
+
+    const u64 texelCount = u64( texture->mWidth ) * texture->mHeight;
+    Scope<u8[]> data( new u8[texelCount * 4] );
+    for ( u64 i = 0; i < texelCount; i++ )
+    {
+        const aiTexel& texel = texture->pcData[i];
+        data[i * 4 + 0] = texel.r;
+        data[i * 4 + 1] = texel.g;
+        data[i * 4 + 2] = texel.b;
+        data[i * 4 + 3] = texel.a;
+    }
+    auto spec = Texture2DSpecification::CreateRGBA8( { (i32)texture->mWidth, (i32)texture->mHeight } );
+    spec.SetTextureSpecChanels( 4 );
+    return TextureData{ std::move( data ), spec, name };
+}
+
+
 map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
                                               const aiScene* scene )
 {
@@ -43,6 +66,19 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
                 aiString textureName;
                 material->GetTexture( textureType, textureIndex, &textureName );
                 auto texturePath = modelDirectory / textureName.C_Str();
+
+                // A glTF binary carries its images inside the file; the
+                // material names them "*N". The path is still the map key
+                // LoadMaterial looks up, it just never touches the disk.
+                if ( const aiTexture* embedded = scene->GetEmbeddedTexture( textureName.C_Str() ) )
+                {
+                    texturesDataTasks.emplace_back( [texturePath, embedded]()
+                    {
+                        return std::make_pair( texturePath, OpenEmbeddedTexture( embedded, texturePath ) );
+                    } );
+                    continue;
+                }
+
                 texturesDataTasks.emplace_back( [texturePath]()
                 {
                     return std::make_pair( texturePath, OpenTexture( texturePath ) );
@@ -69,6 +105,9 @@ map<path, TextureData> LoadModelTexturesData( const path& modelDirectory,
 std::optional<ModelData> OpenModel( const path& modelPath )
 {
     auto importer = CreateScope<Assimp::Importer>();
+    // FBX pivots would otherwise become "$AssimpFbx$_..." helper nodes between
+    // every bone and its parent - and joints of the skeleton.
+    importer->SetPropertyBool( AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false );
     const aiScene* scene = importer->ReadFile( modelPath.string(), aiProcess_GenSmoothNormals );
     if ( !scene || ( scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ) || !scene->mRootNode )
     {
@@ -78,7 +117,8 @@ std::optional<ModelData> OpenModel( const path& modelPath )
     importer->ApplyPostProcessing( aiProcess_FlipUVs | aiProcessPreset_TargetRealtime_MaxQuality );
 
     auto texturesData = LoadModelTexturesData( modelPath.parent_path(), importer->GetScene() );
-    return ModelData{ std::move( importer ), std::move( texturesData ), modelPath };
+    auto skeleton = ImportSkeleton( importer->GetScene(), modelPath );
+    return ModelData{ std::move( importer ), std::move( texturesData ), std::move( skeleton ), modelPath };
 }
 
 
@@ -220,11 +260,16 @@ Mesh ProcessMesh( const aiMesh* mesh,
     // Material
     aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
     BasicMaterial material = LoadMaterial( assimp_material, modelData, uploadTexture );
-    
+
+    MeshSkin skin;
+    if ( modelData.mSkeleton )
+        skin = ImportMeshSkin( mesh, *modelData.mSkeleton->mSkeleton, modelData.mPath );
+
     return Mesh( mesh->mName.C_Str(),
                  std::move( material ),
                  std::move( vertices ),
-                 std::move( indices ) );
+                 std::move( indices ),
+                 std::move( skin ) );
 }
 
 
@@ -259,6 +304,11 @@ Ref<Model> LoadModel( const ModelData& modelData, const TextureUploader& uploadT
     model->mMeshes.reserve( scene->mNumMeshes );
     model->mRootMeshTreeView = ProcessNode( *model, scene->mRootNode, modelData, uploadTexture );
     model->mBBox = Model::CreateBoundingBox( *model );
+    if ( modelData.mSkeleton )
+    {
+        model->mSkeleton = modelData.mSkeleton->mSkeleton;
+        model->mClips = modelData.mSkeleton->mClips;
+    }
     return model;
 }
 

@@ -20,6 +20,7 @@
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/state_component.hpp"
+#include "engine/scene/components/animator_component.hpp"
 
 namespace bubble
 {
@@ -214,6 +215,12 @@ void CreateSceneBindings( Scene& scene,
             [&]( const Entity& entity ) { scene.AddComponent<AudioListenerComponent>( entity ); },
             [&]( const Entity& entity, const AudioListenerComponent& c ) { scene.AddComponent<AudioListenerComponent>( entity, c ); }
         ),
+        "add_animator",
+        sol::overload(
+            [&]( const Entity& entity ) { scene.AddComponent<AnimatorComponent>( entity ); },
+            [&]( const Entity& entity, const string& clip ) { scene.AddComponent<AnimatorComponent>( entity ).Play( clip ); },
+            [&]( const Entity& entity, const AnimatorComponent& c ) { scene.AddComponent<AnimatorComponent>( entity, c ); }
+        ),
         "add_state",
         sol::overload(
             [&]( const Entity& entity ) { scene.AddComponent<StateComponent>( entity ); },
@@ -272,6 +279,8 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) -> AudioSourceComponent& { return scene.GetComponent<AudioSourceComponent>( entity ); },
         "get_audio_listener",
         [&]( const Entity& entity ) -> AudioListenerComponent& { return scene.GetComponent<AudioListenerComponent>( entity ); },
+        "get_animator",
+        [&]( const Entity& entity ) -> AnimatorComponent& { return scene.GetComponent<AnimatorComponent>( entity ); },
         "get_state",
         [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
 
@@ -306,6 +315,8 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<AudioSourceComponent>( entity ); },
         "has_audio_listener",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<AudioListenerComponent>( entity ); },
+        "has_animator",
+        [&]( const Entity& entity ) ->bool { return scene.HasComponent<AnimatorComponent>( entity ); },
         "has_state",
         [&]( const Entity& entity ) ->bool { return scene.HasComponent<StateComponent>( entity ); },
 

@@ -34,7 +34,8 @@ enum class ComponentID
 	CharacterController,
 	State,
 	AudioSource,
-	AudioListener
+	AudioListener,
+	Animator
 };
 
 }

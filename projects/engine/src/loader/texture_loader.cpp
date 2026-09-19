@@ -35,6 +35,27 @@ std::optional<TextureData> OpenTexture( const path& path )
     return TextureData{ Scope<u8[]>( data ), spec, path };
 }
 
+std::optional<TextureData> OpenTexture( const u8* bytes, u64 size, const path& name )
+{
+    i32 width = 0;
+    i32 height = 0;
+    i32 channels = 0;
+    stbi_set_flip_vertically_on_load( false );
+
+    const auto length = static_cast<i32>( size );
+    if ( not stbi_info_from_memory( bytes, length, &width, &height, &channels ) )
+        return std::nullopt;
+    const i32 desiredChannels = channels == 3 ? 4 : channels;
+
+    u8* data = stbi_load_from_memory( bytes, length, &width, &height, &channels, desiredChannels );
+    if ( data == nullptr )
+        return std::nullopt;
+
+    auto spec = Texture2DSpecification::CreateRGBA8( { width, height } );
+    spec.SetTextureSpecChanels( desiredChannels );
+    return TextureData{ Scope<u8[]>( data ), spec, name };
+}
+
 Ref<Texture2D> LoadTexture2D( const path& path )
 {
     auto textureDataMaybe = OpenTexture( path );

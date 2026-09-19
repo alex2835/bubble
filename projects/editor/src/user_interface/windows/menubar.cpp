@@ -281,6 +281,7 @@ void Menubar::DrawMenubar()
             {
                 ImGui::Checkbox( "BoundingBoxes", (bool*)&mUIGlobals.mDrawBoundingBoxes );
                 ImGui::Checkbox( "PhysicsShapse", (bool*)&mUIGlobals.mDrawPhysicsShapes );
+                ImGui::Checkbox( "Skeletons", (bool*)&mUIGlobals.mDrawSkeletons );
                 ImGui::EndMenu();
             }
 

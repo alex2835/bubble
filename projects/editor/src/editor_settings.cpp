@@ -41,6 +41,7 @@ void EditorSettings::Save() const
     json& renderingJson = settingsJson["Rendering"];
     renderingJson["DrawBoundingBoxes"] = mDrawBoundingBoxes;
     renderingJson["DrawPhysicsShapes"] = mDrawPhysicsShapes;
+    renderingJson["DrawSkeletons"] = mDrawSkeletons;
 
     const auto filePath = FilePath();
     std::ofstream settingsFile( filePath );
@@ -97,6 +98,7 @@ void EditorSettings::Load()
         {
             mDrawBoundingBoxes = renderingJson->value( "DrawBoundingBoxes", mDrawBoundingBoxes );
             mDrawPhysicsShapes = renderingJson->value( "DrawPhysicsShapes", mDrawPhysicsShapes );
+            mDrawSkeletons = renderingJson->value( "DrawSkeletons", mDrawSkeletons );
         }
     }
     catch ( const std::exception& e )
@@ -133,6 +135,7 @@ void EditorSettings::Apply( Window& window, SceneCamera& camera, UIGlobals& uiGl
 
     uiGlobals.mDrawBoundingBoxes = mDrawBoundingBoxes;
     uiGlobals.mDrawPhysicsShapes = mDrawPhysicsShapes;
+    uiGlobals.mDrawSkeletons = mDrawSkeletons;
 }
 
 void EditorSettings::Capture( const Window& window, const SceneCamera& camera, const UIGlobals& uiGlobals )
@@ -157,6 +160,7 @@ void EditorSettings::Capture( const Window& window, const SceneCamera& camera, c
 
     mDrawBoundingBoxes = uiGlobals.mDrawBoundingBoxes;
     mDrawPhysicsShapes = uiGlobals.mDrawPhysicsShapes;
+    mDrawSkeletons = uiGlobals.mDrawSkeletons;
 }
 
 }

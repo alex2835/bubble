@@ -14,6 +14,7 @@ struct UIGlobals
     // Menu
     bool mDrawBoundingBoxes = false;
     bool mDrawPhysicsShapes = false;
+    bool mDrawSkeletons = false;
 
     // Entity picking. Lives here because the viewport window asks for a read
     // while the editor's frame loop is what renders the id pass and starts the

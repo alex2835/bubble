@@ -57,6 +57,16 @@ struct Engine
     // Without this the inspector's Play button plays against whichever
     // listener the last game run left behind - or the origin, facing -Z.
     void PropagateEditorAudio( Scene& scene );
+    // on_update for every entity that had a script when the frame began.
+    // Between the two propagation groups: it reads the transforms the first
+    // group wrote and is free to move any of them, or to change the scene
+    // outright, before the second group runs.
+    void UpdateScripts( Scene& scene, f32 deltaSeconds );
+    // Animator component -> pose -> posed vertices, for every entity with a
+    // skinned model. After the scripts: a script that calls play() this frame
+    // sees the pose this frame. The editor runs it too, so a clip previews
+    // while the scene is being edited.
+    void UpdateAnimations( Scene& scene, f32 deltaSeconds );
 
     void DrawScene( Framebuffer& framebuffer );
     void DrawScene( Framebuffer& framebuffer, const Scene& scene );
@@ -65,6 +75,10 @@ struct Engine
     void DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene );
     void DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene );
     void DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene );
+    // The posed joints of every animated model, as a line per bone, in the
+    // entity's transform. Whatever the skinning drew, this is the pose it
+    // drew from.
+    void DrawSkeletons( Framebuffer& framebuffer, const Scene& scene );
 
     // Billboards
     static constexpr auto cBillboardSize = vec2( 5.0f );
@@ -130,6 +144,7 @@ public:
     MeshHelpers mBoundingBoxes;
     MeshHelpers mPhysicsShapes;
     MeshHelpers mCameraFrustums;
+    MeshHelpers mSkeletons;
 
     // Visualization Camera, Lights billboards
     Ref<Mesh> mBillboardQuad;

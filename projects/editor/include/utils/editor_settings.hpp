@@ -43,6 +43,7 @@ struct EditorSettings
     /// Rendering helpers from the Options menu
     bool mDrawBoundingBoxes = false;
     bool mDrawPhysicsShapes = false;
+    bool mDrawSkeletons = false;
 
     static path FilePath();
 

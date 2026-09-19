@@ -1,0 +1,12 @@
+ozz-animation 0.17.0
+https://github.com/guillaumeblanc/ozz-animation (tag 0.17.0)
+
+Library sources only. Dropped: extern/ (glfw, gtest, jsoncpp), media/,
+samples/, howtos/, test/, and src/animation/offline/{tools,fbx,gltf} - all of
+them serve the *2ozz command line tools, samples and tests, which are off.
+Skeletons and animations are built in-process from assimp data through the
+offline Raw* types and builders instead, so no importer tool is needed.
+
+Patches:
+- src/animation/offline/CMakeLists.txt: no add_subdirectory of tools/fbx/gltf.
+- build-utils/cmake/compiler_settings.cmake: does not add /W4 on MSVC.
