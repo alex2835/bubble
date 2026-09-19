@@ -187,6 +187,11 @@ own - same layout, same pipeline, the material and indices still the model's.
 So two entities sharing a model each have their own posed vertices and nothing
 else duplicated.
 
+Transitions between clips are inertialized (`engine/animation/
+inertialization.hpp`) rather than cross faded: at the switch the pose's offset
+from the new clip and its velocity are recorded, and decay to zero over the
+transition time. Only the new clip is ever sampled.
+
 GPU skinning would add two attributes (joint indices as `Uint16x4`, weights as
 `Float4`), a storage buffer of joint matrices in the draw group, and a
 `SkinVertex()` in the vertex stage; the animator already computes the matrices

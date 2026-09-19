@@ -3,6 +3,7 @@
 #include "engine/types/array.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/renderer/model.hpp"
+#include "engine/animation/inertialization.hpp"
 #include <ozz/animation/runtime/sampling_job.h>
 #include <ozz/base/containers/vector.h>
 #include <ozz/base/maths/soa_transform.h>
@@ -32,20 +33,18 @@ public:
 
     const Ref<Model>& GetModel() const { return mModel; }
 
-    // A clip and where in it, with a weight to blend against the other layer.
-    struct Layer
-    {
-        const AnimationClip* mClip = nullptr;
-        f32 mTime = 0.0f;
-        f32 mWeight = 1.0f;
-    };
-
-    // Samples the clip at `time` seconds and poses the skeleton; a null clip
-    // poses it at rest, which is what a model with no clips draws as.
-    void Sample( const AnimationClip* clip, f32 time );
-    // Blends two clips by their weights - a cross fade has `from` fading out
-    // as `to` fades in. A layer with a null clip or no weight is left out.
-    void Sample( const Layer& from, const Layer& to );
+    // Samples the clip at `time` seconds, carries any transition in flight,
+    // and poses the skeleton. A null clip poses it at rest, which is what a
+    // model with no clips draws as. `dt` is the frame's step: the transition
+    // advances by it, and it is what the next transition measures the pose's
+    // velocity over.
+    void Sample( const AnimationClip* clip, f32 time, f32 dt );
+    // The next Sample eases the pose from where it is now into whatever it
+    // samples, over `seconds`, without the outgoing clip - see Inertializer.
+    // Called at the switch, before the Sample that plays the new clip.
+    void BeginTransition( f32 seconds );
+    bool InTransition() const { return mInertializer.Active(); }
+    f32 TransitionProgress() const { return mInertializer.Progress(); }
     // Writes the posed vertices for the current pose. Must follow Sample.
     void Skin();
 
@@ -64,17 +63,22 @@ private:
         MeshBuffers mBuffers;
     };
 
-    // Samples `layer` into mLayerLocals[index]; false when there is nothing
-    // to sample.
-    bool SampleLayer( const Layer& layer, size_t index );
     void LocalToModel( ozz::span<const ozz::math::SoaTransform> locals );
 
     Ref<Model> mModel;
-    // One per blend layer: a context caches where it last sampled in one
-    // animation, and would start over every frame if two clips shared it.
-    ozz::animation::SamplingJob::Context mContexts[2];
-    ozz::vector<ozz::math::SoaTransform> mLayerLocals[2];
+    ozz::animation::SamplingJob::Context mContext;
     ozz::vector<ozz::math::SoaTransform> mLocals;
+
+    // The pose as shown, per joint, this frame and the two before it - what a
+    // transition starts from. Kept after the inertializer has had its say, so
+    // a transition out of a transition continues the motion it interrupts.
+    vector<JointPose> mPose;
+    vector<JointPose> mPreviousPose;
+    vector<JointPose> mBeforePreviousPose;
+    u32 mHistory = 0;
+    f32 mLastDt = 0.0f;
+    Inertializer mInertializer;
+    f32 mPendingTransition = 0.0f;
     ozz::vector<ozz::math::Float4x4> mModels;
     // mModels * inverse bind, what the skinning reads.
     ozz::vector<ozz::math::Float4x4> mSkinMatrices;

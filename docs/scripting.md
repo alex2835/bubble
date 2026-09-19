@@ -533,9 +533,10 @@ nothing. Clips are named after the animations in the file — an unnamed one is
 `clip_0`, `clip_1`, … in file order.
 
 Methods: `play( name )` — restarts that clip from the beginning;
-`cross_fade( name, seconds )` — the same, but the clip that was playing fades
-out over `seconds` while the new one fades in; `stop()`; `is_playing()`;
-`is_fading()`.
+`play( name, seconds )` — the same, but the pose eases into the new clip over
+`seconds` instead of snapping (inertialized: the old clip is no longer
+evaluated, and a transition may interrupt a transition); `stop()`;
+`is_playing()`; `in_transition()`.
 
 Fields: `clip` (read only, the name), `time` (seconds into the clip, writable
 for scrubbing), `speed` (1.0; negative plays backwards), `loop` (true). Has
@@ -550,9 +551,9 @@ frame.
 function on_update( entity, state, dt )
     local animator = entity:get_animator()
     if state.moving and animator.clip ~= "walk" then
-        animator:cross_fade( "walk", 0.2 )
+        animator:play( "walk", 0.2 )
     elseif not state.moving and animator.clip ~= "idle" then
-        animator:cross_fade( "idle", 0.2 )
+        animator:play( "idle", 0.2 )
     end
 end
 ```

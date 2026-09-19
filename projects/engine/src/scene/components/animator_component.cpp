@@ -40,31 +40,17 @@ AnimatorComponent& AnimatorComponent::operator=( const AnimatorComponent& other 
     return *this;
 }
 
-void AnimatorComponent::Play( string_view clip )
+void AnimatorComponent::Play( string_view clip, f32 transition )
 {
     mClip = clip;
     mTime = 0.0f;
     mPlaying = true;
-    mFadeDuration = 0.0f;
+    mPendingTransition = std::max( transition, 0.0f );
 }
 
-void AnimatorComponent::CrossFade( string_view clip, f32 seconds )
+bool AnimatorComponent::InTransition() const
 {
-    if ( seconds <= 0.0f or mClip.empty() or not mPlaying )
-    {
-        Play( clip );
-        return;
-    }
-    // A fade started mid fade: the pose at this instant is the blend, but the
-    // outgoing side becomes the clip that was winning. Close enough for the
-    // few frames it lasts; keeping both would need a third layer.
-    mFadeFromClip = mClip;
-    mFadeFromTime = mTime;
-    mFadeDuration = seconds;
-    mFadeElapsed = 0.0f;
-    mClip = clip;
-    mTime = 0.0f;
-    mPlaying = true;
+    return mPendingTransition > 0.0f or ( mAnimator and mAnimator->InTransition() );
 }
 
 void AnimatorComponent::Stop()
@@ -91,7 +77,7 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
                                       model->mClips,
                                       []( const auto& c ) { return c->mName; },
                                       []( const auto& c ) { return c->mName; },
-                                      []( AnimatorComponent& c, const string& v ) { c.Play( v ); } );
+                                      []( AnimatorComponent& c, const string& v ) { c.Play( v, 0.2f ); } );
 
     DragFloatField<AnimatorComponent>( ctx, entity, "Speed", &AnimatorComponent::mSpeed, 0.01f, -10.0f, 10.0f );
     CheckboxField<AnimatorComponent>( ctx, entity, "Loop", &AnimatorComponent::mLoop );
@@ -101,9 +87,8 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
     const auto& current = model->FindClip( component.mClip );
     const f32 duration = current ? current->mDuration : 0.0f;
     ImGui::SliderFloat( "Time", &component.mTime, 0.0f, duration, "%.2f s" );
-    if ( component.IsFading() )
-        ImGui::TextDisabled( "fading from %s (%.0f%%)", component.mFadeFromClip.c_str(),
-                             100.0f * component.mFadeElapsed / component.mFadeDuration );
+    if ( component.mAnimator and component.mAnimator->InTransition() )
+        ImGui::TextDisabled( "transition %.0f%%", 100.0f * component.mAnimator->TransitionProgress() );
     if ( component.mPlaying )
     {
         if ( ImGui::Button( "Pause" ) )
@@ -142,11 +127,14 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
     lua.new_usertype<AnimatorComponent>(
         "Animator",
 
-        "play",       &AnimatorComponent::Play,
-        "cross_fade", &AnimatorComponent::CrossFade,
-        "stop",       &AnimatorComponent::Stop,
-        "is_playing", &AnimatorComponent::IsPlaying,
-        "is_fading",  &AnimatorComponent::IsFading,
+        "play",
+        sol::overload(
+            []( AnimatorComponent& c, string_view clip ) { c.Play( clip ); },
+            []( AnimatorComponent& c, string_view clip, f32 transition ) { c.Play( clip, transition ); }
+        ),
+        "stop",          &AnimatorComponent::Stop,
+        "is_playing",    &AnimatorComponent::IsPlaying,
+        "in_transition", &AnimatorComponent::InTransition,
 
         "clip",    sol::readonly( &AnimatorComponent::mClip ),
         "time",    &AnimatorComponent::mTime,

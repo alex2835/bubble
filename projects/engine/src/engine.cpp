@@ -425,22 +425,12 @@ void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
         if ( clip and animator.mPlaying and not advance( clip, animator.mTime ) )
             animator.mPlaying = false;
 
-        if ( not animator.IsFading() )
+        if ( animator.mPendingTransition > 0.0f )
         {
-            animator.mAnimator->Sample( clip, animator.mTime );
+            animator.mAnimator->BeginTransition( animator.mPendingTransition );
+            animator.mPendingTransition = 0.0f;
         }
-        else
-        {
-            const AnimationClip* from = model->FindClip( animator.mFadeFromClip ).get();
-            if ( from and animator.mPlaying )
-                advance( from, animator.mFadeFromTime );
-            animator.mFadeElapsed += deltaSeconds;
-            const f32 t = std::clamp( animator.mFadeElapsed / animator.mFadeDuration, 0.0f, 1.0f );
-            animator.mAnimator->Sample( { from, animator.mFadeFromTime, 1.0f - t },
-                                        { clip, animator.mTime, t } );
-            if ( t >= 1.0f )
-                animator.mFadeDuration = 0.0f;
-        }
+        animator.mAnimator->Sample( clip, animator.mTime, deltaSeconds );
         animator.mAnimator->Skin();
     } );
 }

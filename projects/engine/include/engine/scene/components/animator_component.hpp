@@ -37,16 +37,15 @@ public:
     AnimatorComponent( AnimatorComponent&& ) noexcept;
     AnimatorComponent& operator=( AnimatorComponent&& ) noexcept;
 
-    // Restarts the clip from the beginning. A name the model has no clip for
-    // leaves the character at rest.
-    void Play( string_view clip );
-    // Like Play, but the clip that was playing fades out over `seconds` while
-    // the new one fades in, both advancing. With nothing playing, or no time
-    // to fade over, it is a Play.
-    void CrossFade( string_view clip, f32 seconds );
+    // Restarts the clip from the beginning. With a transition time the pose
+    // eases into the new clip over that many seconds instead of snapping -
+    // inertialized, so the old clip is not evaluated and a transition can
+    // interrupt a transition. A name the model has no clip for leaves the
+    // character at rest.
+    void Play( string_view clip, f32 transition = 0.0f );
     void Stop();
     bool IsPlaying() const { return mPlaying; }
-    bool IsFading() const { return mFadeDuration > 0.0f; }
+    bool InTransition() const;
 
     string mClip;
     f32 mTime = 0.0f;
@@ -54,12 +53,9 @@ public:
     bool mLoop = true;
     bool mPlaying = true;
 
-    // The outgoing side of a cross fade. Not serialised: a fade is a moment,
-    // not a setting.
-    string mFadeFromClip;
-    f32 mFadeFromTime = 0.0f;
-    f32 mFadeDuration = 0.0f;
-    f32 mFadeElapsed = 0.0f;
+    // A Play with a transition time, until the update hands it to the
+    // Animator. Not serialised: a transition is a moment, not a setting.
+    f32 mPendingTransition = 0.0f;
 
     Scope<Animator> mAnimator;
 };

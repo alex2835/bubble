@@ -3,7 +3,6 @@
 #include <ozz/animation/runtime/skeleton.h>
 #include <ozz/animation/runtime/animation.h>
 #include <ozz/animation/runtime/local_to_model_job.h>
-#include <ozz/animation/runtime/blending_job.h>
 #include <ozz/geometry/runtime/skinning_job.h>
 #include <ozz/base/span.h>
 
@@ -20,6 +19,58 @@ ozz::math::Float4x4 ToOzz( const mat4& m )
     ozz::math::Float4x4 result;
     memcpy( &result, &m, sizeof( result ) );
     return result;
+}
+
+// ozz keeps four joints per SoaTransform, one component across the four
+// lanes; the inertializer wants one struct per joint.
+void SoaToJoints( ozz::span<const ozz::math::SoaTransform> soa, vector<JointPose>& joints )
+{
+    for ( size_t j = 0; j < joints.size(); j++ )
+    {
+        const ozz::math::SoaTransform& t = soa[j / 4];
+        const size_t lane = j % 4;
+        float tx[4], ty[4], tz[4], rx[4], ry[4], rz[4], rw[4], sx[4], sy[4], sz[4];
+        ozz::math::StorePtrU( t.translation.x, tx );
+        ozz::math::StorePtrU( t.translation.y, ty );
+        ozz::math::StorePtrU( t.translation.z, tz );
+        ozz::math::StorePtrU( t.rotation.x, rx );
+        ozz::math::StorePtrU( t.rotation.y, ry );
+        ozz::math::StorePtrU( t.rotation.z, rz );
+        ozz::math::StorePtrU( t.rotation.w, rw );
+        ozz::math::StorePtrU( t.scale.x, sx );
+        ozz::math::StorePtrU( t.scale.y, sy );
+        ozz::math::StorePtrU( t.scale.z, sz );
+        joints[j].mTranslation = vec3( tx[lane], ty[lane], tz[lane] );
+        joints[j].mRotation = glm::quat( rw[lane], rx[lane], ry[lane], rz[lane] );
+        joints[j].mScale = vec3( sx[lane], sy[lane], sz[lane] );
+    }
+}
+
+void JointsToSoa( const vector<JointPose>& joints, ozz::span<ozz::math::SoaTransform> soa )
+{
+    for ( size_t s = 0; s < soa.size(); s++ )
+    {
+        // Lanes past the last joint keep the identity, as ozz pads them.
+        JointPose lanes[4];
+        for ( size_t lane = 0; lane < 4; lane++ )
+            if ( s * 4 + lane < joints.size() )
+                lanes[lane] = joints[s * 4 + lane];
+        const auto load = [&]( auto member, auto component )
+        {
+            return ozz::math::simd_float4::Load( ( lanes[0].*member ).*component, ( lanes[1].*member ).*component,
+                                                 ( lanes[2].*member ).*component, ( lanes[3].*member ).*component );
+        };
+        soa[s].translation = { load( &JointPose::mTranslation, &vec3::x ),
+                               load( &JointPose::mTranslation, &vec3::y ),
+                               load( &JointPose::mTranslation, &vec3::z ) };
+        soa[s].rotation = { load( &JointPose::mRotation, &glm::quat::x ),
+                            load( &JointPose::mRotation, &glm::quat::y ),
+                            load( &JointPose::mRotation, &glm::quat::z ),
+                            load( &JointPose::mRotation, &glm::quat::w ) };
+        soa[s].scale = { load( &JointPose::mScale, &vec3::x ),
+                         load( &JointPose::mScale, &vec3::y ),
+                         load( &JointPose::mScale, &vec3::z ) };
+    }
 }
 
 // The job takes strides in bytes and reads its inputs as floats.
@@ -42,11 +93,11 @@ Animator::Animator( Ref<Model> model )
     BUBBLE_ASSERT( mModel and mModel->Skinned(), "Animator needs a skinned model" );
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
-    for ( auto& context : mContexts )
-        context.Resize( skeleton.num_joints() );
-    for ( auto& locals : mLayerLocals )
-        locals.resize( skeleton.num_soa_joints() );
+    mContext.Resize( skeleton.num_joints() );
     mLocals.resize( skeleton.num_soa_joints() );
+    mPose.resize( skeleton.num_joints() );
+    mPreviousPose.resize( skeleton.num_joints() );
+    mBeforePreviousPose.resize( skeleton.num_joints() );
     mModels.resize( skeleton.num_joints() );
     mSkinMatrices.resize( skeleton.num_joints() );
 
@@ -68,63 +119,55 @@ Animator::Animator( Ref<Model> model )
 }
 
 
-bool Animator::SampleLayer( const Layer& layer, size_t index )
+void Animator::BeginTransition( f32 seconds )
 {
-    const AnimationClip* clip = layer.mClip;
-    if ( not clip or not clip->mAnimation or layer.mWeight <= 0.0f )
-        return false;
-
-    ozz::animation::SamplingJob sampling;
-    sampling.animation = clip->mAnimation.get();
-    sampling.context = &mContexts[index];
-    sampling.ratio = clip->mDuration > 0.0f ? std::clamp( layer.mTime / clip->mDuration, 0.0f, 1.0f ) : 0.0f;
-    sampling.output = ozz::make_span( mLayerLocals[index] );
-    return sampling.Run();
+    mPendingTransition = std::max( seconds, 0.0f );
 }
 
 
-void Animator::Sample( const AnimationClip* clip, f32 time )
-{
-    const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
-    if ( SampleLayer( { clip, time, 1.0f }, 0 ) )
-        LocalToModel( ozz::make_span( mLayerLocals[0] ) );
-    else
-        LocalToModel( skeleton.joint_rest_poses() );
-}
-
-
-void Animator::Sample( const Layer& from, const Layer& to )
+void Animator::Sample( const AnimationClip* clip, f32 time, f32 dt )
 {
     const ozz::animation::Skeleton& skeleton = *mModel->mSkeleton->mSkeleton;
 
-    ozz::animation::BlendingJob::Layer layers[2];
-    size_t count = 0;
-    const Layer* inputs[2] = { &from, &to };
-    for ( size_t i = 0; i < 2; i++ )
+    bool sampled = false;
+    if ( clip and clip->mAnimation )
     {
-        if ( not SampleLayer( *inputs[i], i ) )
-            continue;
-        layers[count].weight = inputs[i]->mWeight;
-        layers[count].transform = ozz::make_span( mLayerLocals[i] );
-        count++;
+        ozz::animation::SamplingJob sampling;
+        sampling.animation = clip->mAnimation.get();
+        sampling.context = &mContext;
+        sampling.ratio = clip->mDuration > 0.0f ? std::clamp( time / clip->mDuration, 0.0f, 1.0f ) : 0.0f;
+        sampling.output = ozz::make_span( mLocals );
+        sampled = sampling.Run();
+    }
+    SoaToJoints( sampled ? ozz::make_span( mLocals ) : skeleton.joint_rest_poses(), mPose );
+
+    // A transition needs the frame before it to start from; on the first
+    // frame there is none, and the new clip simply shows.
+    if ( mPendingTransition > 0.0f )
+    {
+        if ( mHistory >= 1 )
+            mInertializer.Begin( mPreviousPose,
+                                 mHistory >= 2 ? std::span<const JointPose>( mBeforePreviousPose )
+                                               : std::span<const JointPose>(),
+                                 mLastDt, mPose, mPendingTransition );
+        mPendingTransition = 0.0f;
+    }
+    mInertializer.Apply( mPose, dt );
+
+    // Only a frame that actually advanced is history: a paused editor frame
+    // would otherwise read as a pose that stopped dead, and the transition
+    // out of it would start from zero velocity.
+    if ( dt > 0.0f or mHistory == 0 )
+    {
+        mBeforePreviousPose.swap( mPreviousPose );
+        mPreviousPose = mPose;
+        mLastDt = dt;
+        mHistory = std::min( mHistory + 1, 2u );
     }
 
-    if ( count == 0 )
-    {
-        LocalToModel( skeleton.joint_rest_poses() );
-        return;
-    }
-
-    // Weights are normalised by the job, so a fade is (1 - t) against t and
-    // the pose never dips towards rest halfway through.
-    ozz::animation::BlendingJob blending;
-    blending.layers = { layers, count };
-    blending.rest_pose = skeleton.joint_rest_poses();
-    blending.output = ozz::make_span( mLocals );
-    if ( blending.Run() )
-        LocalToModel( ozz::make_span( mLocals ) );
-    else
-        LocalToModel( layers[0].transform );
+    if ( mInertializer.Active() or not sampled )
+        JointsToSoa( mPose, ozz::make_span( mLocals ) );
+    LocalToModel( ozz::make_span( mLocals ) );
 }
 
 
