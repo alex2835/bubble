@@ -85,6 +85,9 @@ public:
         f32 mRatio = 0.0f;
         f32 mWeight = 1.0f;
         bool mAdditive = false;
+        // Sample the clip with its root motion taken out; the root's travel
+        // is the caller's to read off the clip's RootMotion.
+        const AnimationClip::RootMotion* mRootMotion = nullptr;
     };
 
     // A pose sized for this skeleton, at rest.

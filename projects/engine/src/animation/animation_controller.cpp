@@ -220,6 +220,7 @@ void ParseStateMachine( const json& j, StateMachine& machine, const string& wher
             fail( std::format( "{}state '{}': one of \"clip\" and \"blend\", not both", where, name ) );
 
         state.mLoop = value.value( "loop", true );
+        state.mRootMotion = value.value( "root_motion", false );
         if ( auto speed = value.find( "speed" ); speed != value.end() )
         {
             if ( speed->is_number() )
@@ -323,7 +324,11 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
         return std::ranges::any_of( controller.mParameters, [&]( const auto& p ) { return p.first == name; } );
     };
 
+    controller.mRootJoint = j.value( "root_joint", string() );
     ParseStateMachine( j, controller, "", hasParameter, fail );
+    const auto wantsRootMotion = [&]( const StateMachine& m ) { return std::ranges::any_of( m.mStates, &ControllerState::mRootMotion ); };
+    if ( controller.mRootJoint.empty() and wantsRootMotion( controller ) )
+        fail( "a state with \"root_motion\" needs a \"root_joint\"" );
 
     if ( auto layers = j.find( "layers" ); layers != j.end() )
     {

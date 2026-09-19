@@ -123,6 +123,41 @@ TEST( SkeletonImport_CesiumMan )
     if ( additive )
         CHECK( additive->num_tracks() == clips[0]->mAnimation->num_tracks() );
 
+    // Root motion off the hips: the walk covers ground, in a straight line.
+    const auto hips = skeleton.JointIndex( "Skeleton_torso_joint_1" );
+    CHECK( hips.has_value() );
+    const AnimationClip::RootMotion* motion = clips[0]->WithRootMotion( skeleton, hips ? *hips : -1 );
+    CHECK( motion != nullptr );
+    if ( motion )
+    {
+        vec3 travel;
+        glm::quat turn;
+        motion->Delta( 0.0f, 1.0f, false, travel, turn );
+        std::println( "  root travel over the clip: {:.3f} {:.3f} {:.3f}, yaw {:.3f}",
+                      travel.x, travel.y, travel.z, glm::angle( turn ) );
+        // CesiumMan walks on the spot, so there is no travel to check - but
+        // whatever the extractor took has to be horizontal in model space,
+        // and this skeleton's root sits under a Z-up conversion, so that is
+        // not the same as horizontal in the root's own space.
+        CHECK( std::abs( travel.y ) < 1e-4f );
+        vec3 p0, p1;
+        motion->Sample( 0.0f, p0, turn );
+        motion->Sample( 0.5f, p1, turn );
+        CHECK( std::abs( p0.y - p1.y ) < 1e-4f );
+        // Two halves make the whole, and the same around the seam.
+        vec3 a, b, around;
+        motion->Delta( 0.0f, 0.5f, false, a, turn );
+        motion->Delta( 0.5f, 1.0f, false, b, turn );
+        CHECK( glm::length( a + b - travel ) < 1e-3f );
+        motion->Delta( 0.75f, 0.25f, true, around, turn );
+        vec3 tail, head;
+        motion->Delta( 0.75f, 1.0f, false, tail, turn );
+        motion->Delta( 0.0f, 0.25f, false, head, turn );
+        CHECK( glm::length( around - ( tail + head ) ) < 1e-3f );
+        // Cached per joint.
+        CHECK( clips[0]->WithRootMotion( skeleton, *hips ) == motion );
+    }
+
     // Every skinned vertex has weights that sum to one and joints in range.
     u32 skinnedVertices = 0;
     for ( u32 m = 0; m < scene->mNumMeshes; m++ )

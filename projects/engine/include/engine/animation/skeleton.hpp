@@ -7,7 +7,9 @@
 #include <ozz/base/memory/unique_ptr.h>
 #include <optional>
 
-namespace ozz::animation { class Skeleton; class Animation; }
+#include <glm/gtc/quaternion.hpp>
+
+namespace ozz::animation { class Skeleton; class Animation; class Float3Track; class QuaternionTrack; }
 namespace ozz::animation::offline { struct RawAnimation; }
 
 namespace bubble
@@ -55,6 +57,31 @@ struct AnimationClip
     // use from the keys the import kept, which is why those are kept.
     const ozz::animation::Animation* Additive() const;
 
+    // The clip with the root joint's horizontal travel and yaw taken out of
+    // the animation and into tracks of their own, so a character that walks
+    // forward in the clip stays put on the spot, and the distance it would
+    // have covered is read off the tracks and handed to whatever moves the
+    // entity. Built on first use; null when the joint does not move.
+    struct RootMotion
+    {
+        ozz::unique_ptr<ozz::animation::Animation> mAnimation;
+        ozz::unique_ptr<ozz::animation::Float3Track> mPosition;
+        ozz::unique_ptr<ozz::animation::QuaternionTrack> mRotation;
+        // The root's parent at rest, in model space: the tracks are in the
+        // root's local space, and its parent may be an axis conversion.
+        glm::quat mParentRotation = glm::quat( 1.0f, 0.0f, 0.0f, 0.0f );
+        vec3 mParentScale = vec3( 1.0f );
+
+        RootMotion();
+        ~RootMotion();
+        // The root's position and rotation at `ratio`, in model space.
+        void Sample( f32 ratio, vec3& position, glm::quat& rotation ) const;
+        // What the root travelled from `before` to `now`, around the loop if
+        // `wrapped`; model space.
+        void Delta( f32 before, f32 now, bool wrapped, vec3& translation, glm::quat& rotation ) const;
+    };
+    const RootMotion* WithRootMotion( const Skeleton& skeleton, i32 rootJoint ) const;
+
 public:
     string mName;
     f32 mDuration = 0.0f;
@@ -64,6 +91,9 @@ public:
 private:
     mutable ozz::unique_ptr<ozz::animation::Animation> mAdditive;
     mutable bool mAdditiveBuilt = false;
+    mutable Scope<RootMotion> mRootMotion;
+    mutable i32 mRootMotionJoint = -1;
+    mutable bool mRootMotionBuilt = false;
 };
 
 }

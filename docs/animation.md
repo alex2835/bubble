@@ -143,6 +143,23 @@ shares the parameters with the base and has the same `states`, `entry` and
 
 Each layer eases its own transitions, independently of the base.
 
+### Root motion
+
+```json
+"root_joint": "mixamorig:Hips",
+"states": { "run": { "clip": "run", "root_motion": true } }
+```
+
+A state with `root_motion` plays its clips with the root joint's horizontal
+travel and yaw taken out: the character animates on the spot, and what it
+would have moved is reported each frame by `animator:root_delta()` (a vec3 in
+the model's own space, unscaled) and `animator:root_yaw_delta()` (radians).
+The script applies it - to the transform, or as a velocity to the character
+controller - so the animation never moves a body the physics owns. Height and
+the other rotations stay in the animation. In a blend, each clip's travel is
+weighted by its share. Without a controller, `animator:root_motion( joint )`
+does the same for the base playback.
+
 ### Events
 
 ```json
@@ -164,7 +181,7 @@ screen.
 
 ## Not done
 
-- IK and root motion.
+- IK.
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
 - GPU skinning. Skinning is on the CPU per entity (`renderer.md`).

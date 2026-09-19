@@ -58,13 +58,20 @@ struct StreamStep
     bool mWrapped = false;
 };
 
+// Yaw about +Y of a rotation that is (nearly) a yaw.
+f32 YawOf( const glm::quat& q )
+{
+    const vec3 forward = q * vec3( 0.0f, 0.0f, 1.0f );
+    return std::atan2( forward.x, forward.z );
+}
+
 // Advances `playback` by dt on `model`: time, then the controller's step
 // (with `machine`, if any) against `parameters`, then what to sample. An
 // overlay (`keepWhileFading`) keeps sampling a clip it was told to stop, so
 // its weight has something to fade out on; the base goes to rest at once.
 void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters& parameters,
                     const Model& model, f32 dt, bool inTransition, bool keepWhileFading, bool additive,
-                    StreamStep& out )
+                    i32 rootJoint, StreamStep& out )
 {
     // What the controller says plays, and how: applied on entering a state,
     // and every frame for the values bound to parameters.
@@ -78,6 +85,7 @@ void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters&
         else
             playback.Play( state.mClip, change.mDuration );
         playback.mLoop = state.IsBlend() or state.mLoop;
+        playback.mRootMotion = state.mRootMotion;
         playback.mEnteredState = state.mName;
     };
     if ( machine )
@@ -207,6 +215,8 @@ void AdvanceStream( Playback& playback, const StateMachine* machine, Parameters&
     {
         layer.mRatio = normalized();
         layer.mAdditive = additive;
+        if ( playback.mRootMotion and not additive and rootJoint >= 0 )
+            layer.mRootMotion = layer.mClip->WithRootMotion( *model.mSkeleton, rootJoint );
     }
 }
 }
@@ -362,6 +372,13 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
     mBase.mEnteredState.clear();
     for ( OverlayLayer& layer : mLayers )
         layer.mPlayback.mEnteredState.clear();
+    mRootDelta = vec3( 0.0f );
+    mRootYawDelta = 0.0f;
+    if ( mController )
+        mRootJoint = mController->mRootJoint;
+    const i32 rootJoint = mRootJoint.empty() ? -1 : model->mSkeleton->JointIndex( mRootJoint ).value_or( -1 );
+    if ( not mRootJoint.empty() and rootJoint < 0 )
+        LogWarning( "Animator: root joint '{}' is not in the skeleton of '{}'", mRootJoint, model->mName );
 
     // A stream's frame: advance, sample into `pose`, ease through its track.
     // Returns the clip whose events fired, having queued them.
@@ -369,7 +386,21 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt )
     {
         PoseTrack& track = animator.Track( slot );
         StreamStep step;
-        AdvanceStream( playback, machine, mParameters, *model, dt, track.InTransition(), slot != 0, additive, step );
+        AdvanceStream( playback, machine, mParameters, *model, dt, track.InTransition(), slot != 0, additive, rootJoint, step );
+
+        // The travel of the frame, each clip's weighted by its share of the
+        // blend. The layer that takes the root motion out is the one that
+        // must report it, or the character would stand still for nothing.
+        for ( const Animator::Layer& layer : step.mLayers )
+        {
+            if ( not layer.mRootMotion or layer.mWeight <= 0.0f )
+                continue;
+            vec3 translation;
+            glm::quat rotation;
+            layer.mRootMotion->Delta( step.mBefore, step.mNow, step.mWrapped, translation, rotation );
+            mRootDelta += translation * layer.mWeight;
+            mRootYawDelta += YawOf( rotation ) * layer.mWeight;
+        }
 
         if ( not step.mEventClip.empty() )
         {
@@ -589,6 +620,9 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
         DrawMachine( *controller, component.mBase, component.mParameters );
     }
     DrawPlayback( ctx, entity, component, component.mBase, *model, "base", component.mAnimator.get(), 0 );
+    if ( component.mBase.mRootMotion )
+        ImGui::TextDisabled( "root motion on '%s': %.3f %.3f %.3f, yaw %.3f", component.mRootJoint.c_str(),
+                             component.mRootDelta.x, component.mRootDelta.y, component.mRootDelta.z, component.mRootYawDelta );
 
     for ( size_t i = 0; i < component.mLayers.size(); i++ )
     {
@@ -654,6 +688,11 @@ void AnimatorComponent::ToJson( json& json, const Project& project, const Animat
         json["Controller"] = relPath;
     }
     PlaybackToJson( json, component.mBase );
+    if ( not component.mController and not component.mRootJoint.empty() )
+    {
+        json["RootJoint"] = component.mRootJoint;
+        json["RootMotion"] = component.mBase.mRootMotion;
+    }
     // A controller's layers come back with it; a script's are saved.
     if ( not component.mController and not component.mLayers.empty() )
     {
@@ -677,6 +716,11 @@ void AnimatorComponent::FromJson( const json& json, Project& project, AnimatorCo
     if ( json.contains( "Controller" ) )
         component.SetController( project.mLoader.LoadAnimationController( json["Controller"] ) );
     PlaybackFromJson( json, component.mBase );
+    if ( json.contains( "RootJoint" ) )
+    {
+        component.mRootJoint = json["RootJoint"];
+        component.mBase.mRootMotion = json.value( "RootMotion", false );
+    }
     if ( json.contains( "Layers" ) and not component.mController )
     {
         component.mLayers.clear();
@@ -784,6 +828,17 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
             return c.mBase.mEnteredState;
         },
         "add_event", []( AnimatorComponent& c, string_view clip, f32 time, string name ) { c.AddEvent( clip, time, std::move( name ) ); },
+        // Root motion: root_motion( "Hips" ) takes the joint's travel out of
+        // the base's clips from then on; root_delta() and root_yaw_delta()
+        // are what it travelled during the last update, in the model's
+        // space, for the script to apply.
+        "root_motion",
+        sol::overload(
+            []( AnimatorComponent& c, string_view joint ) { c.mRootJoint = joint; c.mBase.mRootMotion = not joint.empty(); },
+            []( AnimatorComponent& c ) { c.mBase.mRootMotion = false; }
+        ),
+        "root_delta",     []( const AnimatorComponent& c ) { return c.mRootDelta; },
+        "root_yaw_delta", []( const AnimatorComponent& c ) { return c.mRootYawDelta; },
         "controller",
         sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 

@@ -45,6 +45,8 @@ struct Playback
     // Set while a blend plays; its parameter is mBlendValue.
     BlendSpace mBlend;
     f32 mBlendValue = 0.0f;
+    // The root's travel is taken out of the clips and reported instead.
+    bool mRootMotion = false;
 
     // A Play with a transition time, until the update hands it to the
     // track; and the last one handed over, which is how long a layer's
@@ -138,6 +140,16 @@ public:
     // Marks a moment in a clip for events(), on top of whatever the
     // controller declares. Normalized time.
     void AddEvent( string_view clip, f32 time, string name );
+
+    // The joint whose travel is root motion - the hips, usually. Set by the
+    // controller, or by a script for a base playback with mRootMotion.
+    string mRootJoint;
+    // What the root travelled during the last Advance, in the model's own
+    // space (unscaled by the entity): for the script to apply to the
+    // transform or the character controller. Zero when no stream has root
+    // motion.
+    vec3 mRootDelta = vec3( 0.0f );
+    f32 mRootYawDelta = 0.0f;
 
     // Advances every stream by dt, poses and skins through mAnimator. The
     // engine calls this once per frame for an entity whose model is skinned.

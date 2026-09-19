@@ -75,6 +75,13 @@ namespace bubble
 // that is the rest pose, on a layer it is the layer fading out, over the
 // transition's duration. Layers share the parameters with the base.
 //
+// "root_joint" names the joint - the hips, usually - whose horizontal travel
+// and yaw a state with "root_motion": true takes out of its clips: the
+// character animates on the spot, and the movement it would have made is
+// read each frame with animator:root_delta() and applied by the script to
+// whatever moves the entity. That keeps the animation from moving a body the
+// physics owns.
+//
 // An "additive": true layer adds its clips on top of the pose instead of
 // replacing it, each clip as the change from its own first frame - so a
 // lean or a hit reaction is authored from a neutral first frame and lands
@@ -148,6 +155,8 @@ struct ControllerState
     f32 mSpeed = 1.0f;
     // Read instead of mSpeed when set.
     string mSpeedParameter;
+    // The root's travel comes out of the clips and into root_delta().
+    bool mRootMotion = false;
 
     bool IsBlend() const { return not mBlend.Empty(); }
     bool IsEmpty() const { return mClip.empty() and mBlend.Empty(); }
@@ -199,6 +208,8 @@ struct AnimationController : StateMachine
     vector<std::pair<string, Parameter>> mParameters;
     ClipEvents mEvents;
     vector<ControllerLayer> mLayers;
+    // The joint whose travel is root motion, for states that ask for it.
+    string mRootJoint;
 
     // Throws std::runtime_error with what is wrong and where.
     static AnimationController FromJson( const json& json, const path& source );

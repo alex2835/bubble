@@ -207,7 +207,9 @@ void Animator::SamplePose( u32 slot, std::span<const Layer> layers, Pose& out )
         while ( mLayerLocals.size() <= i )
             mLayerLocals.emplace_back().resize( skeleton.num_soa_joints() );
 
-        const ozz::animation::Animation* animation = layer.mAdditive ? layer.mClip->Additive() : layer.mClip->mAnimation.get();
+        const ozz::animation::Animation* animation = layer.mAdditive     ? layer.mClip->Additive()
+                                                    : layer.mRootMotion ? layer.mRootMotion->mAnimation.get()
+                                                                        : layer.mClip->mAnimation.get();
         if ( not animation )
             continue;
         ozz::animation::SamplingJob sampling;

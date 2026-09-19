@@ -599,6 +599,19 @@ an animation controller - a `.anim` file of states and transitions, see
 takes overrides them. A trigger the controller does not consume on the frame
 it was set is dropped.
 
+**Root motion.** `root_motion( joint )` takes that joint's horizontal travel
+and yaw out of the base's clips (a controller does this per state with
+`root_motion: true` and its `root_joint`); `root_delta()` (vec3, the model's
+space, unscaled by the entity) and `root_yaw_delta()` (radians) are what it
+travelled during the last animation update, for the script to apply:
+
+```lua
+local d = animator:root_delta() * entity.scale   -- the entity's own frame
+-- turn d by the entity's yaw first if it is rotated, then either:
+entity:get_transform():translate( d )
+entity:get_character_controller():set_walk_velocity( d / dt )
+```
+
 **Events.** `events()` returns the names of the clip markers the playback
 crossed during the last animation update - footsteps, the frame a swing
 connects - declared in the controller's `events` section or added with
