@@ -11,6 +11,8 @@
 namespace bubble
 {
 class Scene;
+struct StateComponent;
+struct ScriptComponent;
 
 struct Engine
 {
@@ -33,6 +35,7 @@ struct Engine
     // Anything ending at a transform is an input to gameplay and runs before the
     // scripts; anything starting at one is a consumer and runs after them, since
     // a script is free to move a transform or create an entity outright.
+    // Declared in the order OnUpdate runs them.
 
     // physics -> transform component. Before the scripts.
     void PropagatePhysicsTransforms( Scene& scene );
@@ -40,6 +43,13 @@ struct Engine
     // voice at. Before the scripts, because a script calling play() has to get
     // the position the entity is at now.
     void PropagateAudioSourcePositions( Scene& scene );
+    // on_update for every entity that had a script when the frame began.
+    // Between the two propagation groups: it reads the transforms the first
+    // group wrote and is free to move any of them, or to change the scene
+    // outright, before the second group runs. Always the level's scene: the
+    // Lua bindings spawn into and remove from that one whatever is passed
+    // here, so there is no parameter to get wrong.
+    void UpdateScripts( f32 deltaSeconds );
     // transform component -> camera. After the scripts, and before the active
     // camera sync that reads the CameraComponent this writes.
     void PropagateCameraTransforms( Scene& scene );
@@ -47,6 +57,15 @@ struct Engine
     // it renders from the transform directly, so this is what keeps the
     // component consistent for the inspector, serialization and billboards.
     void PropagateLightTransforms( Scene& scene );
+    // Animator component -> pose -> posed vertices, for every entity with a
+    // skinned model. After the scripts: a script that calls play() this frame
+    // sees the pose this frame. The editor runs it too, so a clip previews
+    // while the scene is being edited.
+    void UpdateAnimations( Scene& scene, f32 deltaSeconds );
+    // active camera entity's CameraComponent -> mCamera, the camera the scene
+    // is rendered and heard from. After PropagateCameraTransforms, which is
+    // what wrote this frame's position into the component.
+    void SyncActiveCamera();
     // transform component -> audio listener and playing voices. After the
     // scripts, and after the active camera sync - the fallback listener is the
     // camera, and it should be this frame's.
@@ -57,16 +76,15 @@ struct Engine
     // Without this the inspector's Play button plays against whichever
     // listener the last game run left behind - or the origin, facing -Z.
     void PropagateEditorAudio( Scene& scene );
-    // on_update for every entity that had a script when the frame began.
-    // Between the two propagation groups: it reads the transforms the first
-    // group wrote and is free to move any of them, or to change the scene
-    // outright, before the second group runs.
-    void UpdateScripts( Scene& scene, f32 deltaSeconds );
-    // Animator component -> pose -> posed vertices, for every entity with a
-    // skinned model. After the scripts: a script that calls play() this frame
-    // sees the pose this frame. The editor runs it too, so a clip previews
-    // while the scene is being edited.
-    void UpdateAnimations( Scene& scene, f32 deltaSeconds );
+
+    // Calls fn once for every entity of the level that has both a script and
+    // a state, over a snapshot rather than a live walk, and skips any the
+    // earlier calls removed or stripped. This is what makes spawn(),
+    // remove_entity() and add_script safe to call from on_start and on_update.
+    // The references handed to fn are only good until fn does something to the
+    // scene; whatever fn needs across a script call it copies first.
+    using ScriptEntityFn = std::function<void( Entity, const StateComponent&, const ScriptComponent& )>;
+    void ForEachScriptEntity( const ScriptEntityFn& fn );
 
     void DrawScene( Framebuffer& framebuffer );
     void DrawScene( Framebuffer& framebuffer, const Scene& scene );
@@ -129,10 +147,14 @@ public:
     // once per model per frame.
     vector<u8> mUserUniformScratch;
 
-    // The entities whose scripts run this frame, taken before the first one is
-    // called - see the comment in OnUpdate. A member rather than a local so the
-    // frame does not allocate a vector per tick.
+    // The snapshot ForEachScriptEntity walks. A member rather than a local so
+    // the frame does not allocate a vector per tick.
     vector<Entity> mScriptEntities;
+
+    // Once per level, not per frame: a scene with two active listeners is
+    // an authoring mistake that would otherwise be reported sixty times a
+    // second. Reset by UnloadLevel so the next level gets its own report.
+    bool mMultipleListenersReported = false;
 
     // Visualization Bounding boxes and Physics shapes
     struct MeshHelpers

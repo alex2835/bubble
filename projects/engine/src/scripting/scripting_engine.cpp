@@ -140,6 +140,23 @@ ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& scri
     return callbacks;
 }
 
+namespace
+{
+// Turns a failed call into the exception the user sees. `script` is the copy
+// the caller holds, so it is still valid whatever the call did to the pools.
+[[noreturn]] void ThrowScriptError( const sol::protected_function_result& result,
+                                    string_view callback,
+                                    const Ref<Script>& script,
+                                    recs::Entity entity )
+{
+    const sol::error err = result;
+    const string name = script ? script->mName : string( "<unknown>" );
+    const string scriptPath = script ? script->mPath.string() : string( "<no path>" );
+    throw std::runtime_error( std::format( "Script '{}' failed in {} on entity {}.\n  {}\n  {}",
+                                           name, callback, (u64)entity, err.what(), scriptPath ) );
+}
+}
+
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
                         recs::Entity entity,
@@ -149,14 +166,22 @@ void CallScriptOnStart( sol::protected_function onStart,
         return;
 
     sol::protected_function_result result = onStart( entity, state );
-    if ( result.valid() )
+    if ( not result.valid() )
+        ThrowScriptError( result, "on_start", script, entity );
+}
+
+void CallScriptOnUpdate( sol::protected_function onUpdate,
+                         Ref<Script> script,
+                         recs::Entity entity,
+                         const Any& state,
+                         f32 deltaSeconds )
+{
+    if ( not onUpdate )
         return;
 
-    const sol::error err = result;
-    const string name = script ? script->mName : string( "<unknown>" );
-    const string scriptPath = script ? script->mPath.string() : string( "<no path>" );
-    throw std::runtime_error( std::format( "Script '{}' failed in on_start on entity {}.\n  {}\n  {}",
-                                           name, (u64)entity, err.what(), scriptPath ) );
+    sol::protected_function_result result = onUpdate( entity, state, deltaSeconds );
+    if ( not result.valid() )
+        ThrowScriptError( result, "on_update", script, entity );
 }
 
 ScriptCallbacks ScriptingEngine::ExtractCallbacks( const Ref<Script>& script )

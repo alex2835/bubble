@@ -180,32 +180,13 @@ void Engine::LoadLevel( const path& relFile )
 
     // on_start runs only once every script has been extracted and every global
     // is in place, so the first script to start already sees the whole API and
-    // whatever the others put in global_state.
-    //
-    // Over a snapshot, for the same reason OnUpdate uses one: on_start is a
-    // natural place to build a level, and spawning pushes into the very pools a
-    // live ForEach would be walking. An entity created here has already had its
-    // own on_start run by spawn, so leaving it out of this pass is correct.
-    mScriptEntities.clear();
-    mProject.mLevel.mScene.ForEach<StateComponent, ScriptComponent>(
-    [this]( Entity entity, const StateComponent&, const ScriptComponent& )
+    // whatever the others put in global_state. An entity created by one of
+    // them has already had its own on_start run by spawn, so the snapshot
+    // leaving it out is correct.
+    ForEachScriptEntity( []( Entity entity, const StateComponent& state, const ScriptComponent& script )
     {
-        mScriptEntities.push_back( entity );
+        CallScriptOnStart( script.mOnStart, script.mScript, entity, *state.mState );
     } );
-
-    for ( const Entity entity : mScriptEntities )
-    {
-        if ( not mProject.mLevel.mScene.HasEntity( entity ) or
-             not mProject.mLevel.mScene.HasComponent<StateComponent>( entity ) or
-             not mProject.mLevel.mScene.HasComponent<ScriptComponent>( entity ) )
-            continue;
-
-        const StateComponent& stateComponent = mProject.mLevel.mScene.GetComponent<StateComponent>( entity );
-        const ScriptComponent& scriptComponent = mProject.mLevel.mScene.GetComponent<ScriptComponent>( entity );
-
-        CallScriptOnStart( scriptComponent.mOnStart, scriptComponent.mScript,
-                           entity, *stateComponent.mState );
-    }
 }
 
 void Engine::UnloadLevel()
@@ -226,6 +207,7 @@ void Engine::UnloadLevel()
     mPhysicsEngine.ClearWorld();
     mAudioEngine.StopAll();
     mActiveCameraEntity = INVALID_ENTITY;
+    mMultipleListenersReported = false;
     mProject.mLevel.Clear();
 }
 
@@ -242,18 +224,20 @@ void Engine::OnEnd()
     mProject.mScriptingEngine = ScriptingEngine();
 }
 
-void Engine::OnUpdate() 
+void Engine::OnUpdate()
 {
     mTimer.OnUpdate();
     const auto dt = mTimer.GetDeltaTime();
+    const f32 deltaSeconds = dt.Seconds();
+    Scene& scene = mProject.mLevel.mScene;
 
     /// Update physics world
     mPhysicsEngine.Update( dt );
 
     // Propagations that end at a transform: gameplay inputs, so they run first
     // and a script reads this frame's values.
-    PropagatePhysicsTransforms( mProject.mLevel.mScene );
-    PropagateAudioSourcePositions( mProject.mLevel.mScene );
+    PropagatePhysicsTransforms( scene );
+    PropagateAudioSourcePositions( scene );
 
     // Reaping finished voices before the scripts run means is_playing() answers
     // for the frame the script is in, not the one before it. This also drives
@@ -261,31 +245,21 @@ void Engine::OnUpdate()
     // gesture rather than a specific call site.
     mAudioEngine.OnUpdate();
 
-    /// Update Scripts
-    const f32 deltaSeconds = dt.Seconds();
-    UpdateScripts( mProject.mLevel.mScene, deltaSeconds );
+    UpdateScripts( deltaSeconds );
 
     // Propagations that start at a transform: consumers, so they run after the
     // scripts. Anything here that ran before them was reading transforms one
     // frame stale, and saw nothing at all of an entity a script had just
     // created - which is how a light spawned from on_update got a frame at the
     // origin with default attenuation.
-    PropagateCameraTransforms( mProject.mLevel.mScene );
-    PropagateLightTransforms( mProject.mLevel.mScene );
-    UpdateAnimations( mProject.mLevel.mScene, deltaSeconds );
-
-    /// Sync active camera entity to rendering camera. After
-    /// PropagateCameraTransforms, which is what wrote this frame's position
-    /// into the CameraComponent.
-    if ( mActiveCameraEntity != INVALID_ENTITY and
-         mProject.mLevel.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
-    {
-        mCamera = mProject.mLevel.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
-    }
+    PropagateCameraTransforms( scene );
+    PropagateLightTransforms( scene );
+    UpdateAnimations( scene, deltaSeconds );
+    SyncActiveCamera();
 
     // Last: it reads mCamera for the fallback listener, so it wants the sync
     // above to have happened.
-    PropagateAudioTransforms( mProject.mLevel.mScene );
+    PropagateAudioTransforms( scene );
 
     // A level switch a script asked for this frame. Last of all: nothing above
     // may run against a scene that is half unloaded, and the scripts that ran
@@ -301,8 +275,8 @@ void Engine::OnUpdate()
 void Engine::PropagatePhysicsTransforms( Scene& scene )
 {
     // Update transforms from RigidBody components
-    mProject.mLevel.mScene.ForEach<TransformComponent, RigidBodyComponent>(
-        []( Entity entity,
+    scene.ForEach<TransformComponent, RigidBodyComponent>(
+        []( Entity,
             TransformComponent& transform,
             const RigidBodyComponent& rigidBody )
     {
@@ -311,7 +285,7 @@ void Engine::PropagatePhysicsTransforms( Scene& scene )
 
     // Update transforms from CharacterController components
     scene.ForEach<TransformComponent, CharacterControllerComponent>(
-        []( Entity entity,
+        []( Entity,
             TransformComponent& transform,
             const CharacterControllerComponent& controller )
     {
@@ -327,7 +301,7 @@ void Engine::PropagatePhysicsTransforms( Scene& scene )
 void Engine::PropagateAudioSourcePositions( Scene& scene )
 {
     scene.ForEach<AudioSourceComponent, TransformComponent>(
-    []( Entity entity,
+    []( Entity,
         AudioSourceComponent& audioSource,
         const TransformComponent& transform )
     {
@@ -335,77 +309,11 @@ void Engine::PropagateAudioSourcePositions( Scene& scene )
     } );
 }
 
-void Engine::PropagateAudioTransforms( Scene& scene )
+void Engine::ForEachScriptEntity( const ScriptEntityFn& fn )
 {
-    // The first active listener wins. A scene with two of them is an authoring
-    // mistake with no sensible resolution - averaging them would be worse than
-    // picking one - so it is reported and the rest are ignored.
-    bool listenerFound = false;
-    scene.ForEach<AudioListenerComponent, TransformComponent>(
-    [&]( Entity entity,
-         const AudioListenerComponent& listener,
-         const TransformComponent& transform )
-    {
-        if ( not listener.mActive )
-            return;
+    Scene& scene = mProject.mLevel.mScene;
 
-        if ( listenerFound )
-        {
-            static bool reported = false;
-            if ( not reported )
-            {
-                LogWarning( "More than one active AudioListenerComponent in the scene, "
-                            "using the first one found." );
-                reported = true;
-            }
-            return;
-        }
-        listenerFound = true;
-
-        // Same euler convention the camera uses, so a listener parented to the
-        // player hears what the camera looks at.
-        const f32 yaw = transform.mRotation.y;
-        const f32 pitch = transform.mRotation.x;
-        const vec3 forward = normalize( vec3( cos( yaw ) * cos( pitch ),
-                                              sin( pitch ),
-                                              sin( yaw ) * cos( pitch ) ) );
-        mAudioEngine.SetListener( transform.mPosition, forward, vec3( 0.0f, 1.0f, 0.0f ) );
-    } );
-
-    // Without a listener entity the camera is the ear. This is what makes sound
-    // work in a scene nobody has authored audio for yet.
-    if ( not listenerFound )
-        mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mWorldUp );
-
-    // Again after the scripts, so a source an entity carried across the frame
-    // does not have its voice trail a frame behind the entity.
-    scene.ForEach<AudioSourceComponent, TransformComponent>(
-    []( Entity entity,
-        AudioSourceComponent& audioSource,
-        const TransformComponent& transform )
-    {
-        audioSource.SyncToTransform( transform );
-    } );
-}
-
-void Engine::PropagateEditorAudio( Scene& scene )
-{
-    mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mUp );
-
-    scene.ForEach<AudioSourceComponent, TransformComponent>(
-    []( Entity entity,
-        AudioSourceComponent& audioSource,
-        const TransformComponent& transform )
-    {
-        audioSource.SyncToTransform( transform );
-    } );
-}
-
-// The transform is the truth and the camera is a cache of it - see
-// CameraComponent. One direction, every frame, for every camera.
-void Engine::UpdateScripts( Scene& scene, f32 deltaSeconds )
-{
-    // Call scripts, over a snapshot of the entities rather than a live walk.
+    // Over a snapshot of the entities rather than a live walk.
     //
     // ForEach hands its callback references straight into the component pools
     // and walks them by index, so a script that mutates the scene pulls the
@@ -413,9 +321,9 @@ void Engine::UpdateScripts( Scene& scene, f32 deltaSeconds )
     // reallocates and frees the old buffer, and Pool::Remove compacts every
     // pool and shifts every index after the hole. Taking the entity list first
     // and looking each entity up again is what makes spawn() and
-    // remove_entity() safe to call from on_update.
+    // remove_entity() safe to call from a script.
     //
-    // The snapshot is also the definition of which scripts run this frame: an
+    // The snapshot is also the definition of which scripts run this pass: an
     // entity created by a script gets its on_start now and its first on_update
     // on the next tick, rather than a partial one in the middle of this one.
     mScriptEntities.clear();
@@ -423,11 +331,11 @@ void Engine::UpdateScripts( Scene& scene, f32 deltaSeconds )
     [this]( Entity entity, const StateComponent&, const ScriptComponent& )
     {
         mScriptEntities.push_back( entity );
-    });
+    } );
 
     for ( const Entity entity : mScriptEntities )
     {
-        // An earlier script this frame may have removed the entity, or taken a
+        // An earlier script this pass may have removed the entity, or taken a
         // component off it. Neither is an error - it just has nothing to run.
         if ( not scene.HasEntity( entity ) or
              not scene.HasComponent<StateComponent>( entity ) or
@@ -436,41 +344,46 @@ void Engine::UpdateScripts( Scene& scene, f32 deltaSeconds )
 
         // Looked up per entity and never held across a call: any script may
         // have moved both pools since the snapshot was taken.
-        const StateComponent& stateComponent = scene.GetComponent<StateComponent>( entity );
-        const ScriptComponent& scriptComponent = scene.GetComponent<ScriptComponent>( entity );
-        if ( not scriptComponent.mOnUpdate )
-            continue;
-
-        // By value. The callable lives in the ScriptComponent pool, so a script
-        // that spawns something carrying a script - or calls add_script - would
-        // otherwise free the function object while it is executing. The copy is
-        // a second reference to the same Lua function and owns its own lifetime
-        // for the duration of the call.
-        const sol::protected_function onUpdate = scriptComponent.mOnUpdate;
-
-        sol::protected_function_result result =
-            onUpdate( entity, *stateComponent.mState, deltaSeconds );
-        if ( !result.valid() )
-        {
-            const sol::error err = result;
-
-            // Re-fetched rather than held across the call, for the same reason
-            // the callable was copied. On the error path the cost is irrelevant.
-            string name = "<unknown>";
-            string path = "<no path>";
-            if ( scene.HasComponent<ScriptComponent>( entity ) )
-            {
-                const Ref<Script>& script = scene.GetComponent<ScriptComponent>( entity ).mScript;
-                if ( script )
-                {
-                    name = script->mName;
-                    path = script->mPath.string();
-                }
-            }
-            throw std::runtime_error( std::format( "Script '{}' failed on entity {}.\n  {}\n  {}",
-                                                   name, (u64)entity, err.what(), path ) );
-        }
+        fn( entity,
+            scene.GetComponent<StateComponent>( entity ),
+            scene.GetComponent<ScriptComponent>( entity ) );
     }
+}
+
+void Engine::UpdateScripts( f32 deltaSeconds )
+{
+    ForEachScriptEntity( [&]( Entity entity, const StateComponent& state, const ScriptComponent& script )
+    {
+        CallScriptOnUpdate( script.mOnUpdate, script.mScript, entity, *state.mState, deltaSeconds );
+    } );
+}
+
+// The transform is the truth and the camera is a cache of it - see
+// CameraComponent. One direction, every frame, for every camera.
+void Engine::PropagateCameraTransforms( Scene& scene )
+{
+    scene.ForEach<CameraComponent, TransformComponent>(
+    []( Entity,
+        CameraComponent& camera,
+        const TransformComponent& transform )
+    {
+        camera.mPosition = transform.mPosition;
+        camera.VectorsFromEuler( transform.mRotation.y, transform.mRotation.x );
+    } );
+}
+
+// The rendered light is derived from the transform in DrawScene, which does not
+// read any of these fields. This keeps the component itself consistent for the
+// inspector, for serialization, and for the editor billboards.
+void Engine::PropagateLightTransforms( Scene& scene )
+{
+    scene.ForEach<LightComponent, TransformComponent>(
+    []( Entity,
+        LightComponent& light,
+        const TransformComponent& transform )
+    {
+        light.SyncToTransform( transform );
+    } );
 }
 
 void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
@@ -532,31 +445,65 @@ void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
     } );
 }
 
-
-void Engine::PropagateCameraTransforms( Scene& scene )
+void Engine::SyncActiveCamera()
 {
-    scene.ForEach<CameraComponent, TransformComponent>(
-    []( Entity entity,
-        CameraComponent& camera,
-        const TransformComponent& transform )
+    if ( mActiveCameraEntity != INVALID_ENTITY and
+         mProject.mLevel.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
     {
-        camera.mPosition = transform.mPosition;
-        camera.VectorsFromEuler( transform.mRotation.y, transform.mRotation.x );
-    } );
+        mCamera = mProject.mLevel.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
+    }
 }
 
-// The rendered light is derived from the transform in DrawScene, which does not
-// read any of these fields. This keeps the component itself consistent for the
-// inspector, for serialization, and for the editor billboards.
-void Engine::PropagateLightTransforms( Scene& scene )
+void Engine::PropagateAudioTransforms( Scene& scene )
 {
-    scene.ForEach<LightComponent, TransformComponent>(
-    []( Entity entity,
-        LightComponent& light,
-        const TransformComponent& transform )
+    // The first active listener wins. A scene with two of them is an authoring
+    // mistake with no sensible resolution - averaging them would be worse than
+    // picking one - so it is reported and the rest are ignored.
+    bool listenerFound = false;
+    scene.ForEach<AudioListenerComponent, TransformComponent>(
+    [&]( Entity,
+         const AudioListenerComponent& listener,
+         const TransformComponent& transform )
     {
-        light.SyncToTransform( transform );
+        if ( not listener.mActive )
+            return;
+
+        if ( listenerFound )
+        {
+            if ( not mMultipleListenersReported )
+            {
+                LogWarning( "More than one active AudioListenerComponent in the scene, "
+                            "using the first one found." );
+                mMultipleListenersReported = true;
+            }
+            return;
+        }
+        listenerFound = true;
+
+        // Same euler convention the camera uses, so a listener parented to the
+        // player hears what the camera looks at.
+        const f32 yaw = transform.mRotation.y;
+        const f32 pitch = transform.mRotation.x;
+        const vec3 forward = normalize( vec3( cos( yaw ) * cos( pitch ),
+                                              sin( pitch ),
+                                              sin( yaw ) * cos( pitch ) ) );
+        mAudioEngine.SetListener( transform.mPosition, forward, vec3( 0.0f, 1.0f, 0.0f ) );
     } );
+
+    // Without a listener entity the camera is the ear. This is what makes sound
+    // work in a scene nobody has authored audio for yet.
+    if ( not listenerFound )
+        mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mWorldUp );
+
+    // Again after the scripts, so a source an entity carried across the frame
+    // does not have its voice trail a frame behind the entity.
+    PropagateAudioSourcePositions( scene );
+}
+
+void Engine::PropagateEditorAudio( Scene& scene )
+{
+    mAudioEngine.SetListener( mCamera.mPosition, mCamera.mForward, mCamera.mWorldUp );
+    PropagateAudioSourcePositions( scene );
 }
 
 // Every draw entry point below records and submits its own command buffer.

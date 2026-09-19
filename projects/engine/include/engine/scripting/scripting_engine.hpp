@@ -30,18 +30,25 @@ struct ScriptCallbacks
 // (add_script, spawn{ script = ... }) and hold only the sol::state.
 ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& script );
 
-// Run one script's on_start, reporting which script and entity failed. Shared
-// by engine startup and by a script attached at runtime.
-// onStart and script are taken BY VALUE on purpose. Every caller reaches them
-// through a ScriptComponent, which lives in a component pool, and on_start is
-// free to spawn or to call add_script - either of which pushes into that same
-// pool, reallocating it and freeing the callable while it is executing. The
-// copies are a second reference to the same Lua function and a second count on
-// the script, and they own their lifetime for the duration of the call.
+// Run one script's on_start / on_update, reporting which script and entity
+// failed. on_start is shared by engine startup and by a script attached at
+// runtime; on_update by the engine's frame.
+// The callable and script are taken BY VALUE on purpose. Every caller reaches
+// them through a ScriptComponent, which lives in a component pool, and a script
+// is free to spawn or to call add_script - either of which pushes into that
+// same pool, reallocating it and freeing the callable while it is executing.
+// The copies are a second reference to the same Lua function and a second
+// count on the script, and they own their lifetime for the duration of the
+// call. A null callable is a script without that entry point, and a no-op.
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
                         recs::Entity entity,
                         const Any& state );
+void CallScriptOnUpdate( sol::protected_function onUpdate,
+                         Ref<Script> script,
+                         recs::Entity entity,
+                         const Any& state,
+                         f32 deltaSeconds );
 
 
 class ScriptingEngine
