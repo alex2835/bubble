@@ -17,7 +17,12 @@ namespace bubble
 // only norm as NORMALS, and what OBJ files call a bump map is nearly always a
 // tangent space normal map. It stands in for the normal map when the material
 // has no NORMALS entry, which is why NORMALS is listed first.
-constexpr array<aiTextureType, 4> cTextureTypes{ aiTextureType_DIFFUSE,
+//
+// BASE_COLOR likewise stands in for DIFFUSE: a PBR material - an FBX out of
+// Maya's Stingray shader, or most character tools - names its colour map
+// that, and has no DIFFUSE at all.
+constexpr array<aiTextureType, 5> cTextureTypes{ aiTextureType_DIFFUSE,
+                                                 aiTextureType_BASE_COLOR,
                                                  aiTextureType_SPECULAR,
                                                  aiTextureType_NORMALS,
                                                  aiTextureType_HEIGHT };
@@ -153,6 +158,10 @@ BasicMaterial LoadMaterial( const aiMaterial* mat,
             {
             case aiTextureType_DIFFUSE:
                 material.mDiffuseMap = texture( str );
+                break;
+            case aiTextureType_BASE_COLOR:
+                if ( not material.mDiffuseMap )
+                    material.mDiffuseMap = texture( str );
                 break;
             case aiTextureType_SPECULAR:
                 material.mSpecularMap = texture( str );

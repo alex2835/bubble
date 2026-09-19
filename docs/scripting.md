@@ -540,7 +540,9 @@ evaluated, and a transition may interrupt a transition); `stop()`;
 
 Fields: `clip` (read only, the name), `time` (seconds into the clip, writable
 for scrubbing), `speed` (1.0; negative plays backwards), `loop` (true). Has
-`tostring`.
+`tostring`. `clips()` lists the model's clip names and `joints()` its joint
+names (both from the frame after the animator first ran - `on_start` is too
+early, `on_update` is fine).
 
 **Blend spaces.** `play_blend( name, points, seconds )` plays several clips
 along one parameter, `blend`: `points` is `{ { clip, value }, ... }`, and the

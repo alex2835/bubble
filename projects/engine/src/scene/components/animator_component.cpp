@@ -954,6 +954,29 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         "controller",
         sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 
+        // The names of the model's clips, once the animator has seen the
+        // model - after its first update. What play() and a controller name.
+        "clips",
+        []( const AnimatorComponent& c )
+        {
+            vector<string> names;
+            if ( c.mAnimator )
+                for ( const auto& clip : c.mAnimator->GetModel()->mClips )
+                    names.push_back( clip->mName );
+            return sol::as_table( names );
+        },
+        // The skeleton's joint names, in order: what masks, root_motion and
+        // IK take. Same timing as clips().
+        "joints",
+        []( const AnimatorComponent& c )
+        {
+            vector<string> names;
+            if ( c.mAnimator )
+                for ( const auto& [name, index] : c.mAnimator->GetModel()->mSkeleton->mJointByName )
+                    names.push_back( name );
+            std::ranges::sort( names );
+            return sol::as_table( names );
+        },
         "clip",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mClip; } ),
         "time",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mTime; },
                                   []( AnimatorComponent& c, f32 v ) { c.mBase.mTime = v; } ),
