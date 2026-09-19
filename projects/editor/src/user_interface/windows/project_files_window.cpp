@@ -14,8 +14,12 @@ std::optional<path> tryFindModelInFolder( const path& dir )
 {
     for ( const auto& item : filesystem::directory_iterator( dir ) )
     {
+        // The formats the loader's assimp build imports.
         const auto& extension = item.path().extension();
-        if ( extension == ".obj" )
+        if ( extension == ".obj" or
+             extension == ".fbx" or
+             extension == ".glb" or
+             extension == ".gltf" )
             return item;
     }
     return std::nullopt;
