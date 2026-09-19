@@ -9,13 +9,11 @@ namespace bubble
 Mesh::Mesh( string name,
             BasicMaterial material,
             VertexBufferData vertices,
-            vector<u32> indices,
-            MeshSkin skin )
+            vector<u32> indices )
     : mName( std::move( name ) ),
       mVertices( std::move( vertices ) ),
       mIndices( std::move( indices ) ),
-      mMaterial( std::move( material ) ),
-      mSkin( std::move( skin ) )
+      mMaterial( std::move( material ) )
 {
     mBuffers.SetBufferData( mVertices, mIndices );
 }

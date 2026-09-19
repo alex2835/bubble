@@ -38,6 +38,9 @@ enum class ShaderDataType
     Bool,
     // WGSL distinguishes i32 from u32, and the entity id shader needs one.
     UInt,
+    // Four 16 bit unsigned integers: the joint indices of a skinned vertex,
+    // read as vec4<u32>. A vertex format only, never a uniform.
+    UShort4,
 };
 u32 VertexAttributeSize( ShaderDataType type );
 u32 ShaderDataComponentCount( ShaderDataType type );
@@ -52,12 +55,19 @@ wgpu::VertexFormat ToWGPUVertexFormat( ShaderDataType type );
 // Vertex attribute locations, matching the WGSL @location on the vertex stage.
 enum class VertexAttributeSemantic : u32
 {
-    Position  = 0,
-    Normal    = 1,
-    TexCoords = 2,
-    Tangent   = 3,
-    Bitangent = 4,
+    Position     = 0,
+    Normal       = 1,
+    TexCoords    = 2,
+    Tangent      = 3,
+    Bitangent    = 4,
+    // A skinned mesh: up to four joints per vertex, and their weights. The
+    // indices are the model's Skeleton order; a shader that declares
+    // vs_skinned reads them, see common.wgsl.
+    JointIndices = 5,
+    JointWeights = 6,
 };
+constexpr u32 cSkinAttributeMask = ( 1u << (u32)VertexAttributeSemantic::JointIndices ) |
+                                   ( 1u << (u32)VertexAttributeSemantic::JointWeights );
 
 struct VertexBufferData
 {
@@ -66,8 +76,12 @@ struct VertexBufferData
     vector<vec2> mTexCoords;
     vector<vec3> mTangents;
     vector<vec3> mBitangents;
+    // Both empty for an unskinned mesh, both sized to the vertices otherwise.
+    vector<glm::u16vec4> mJointIndices;
+    vector<vec4> mJointWeights;
 
     u64 VertexCount() const { return mPositions.size(); }
+    bool Skinned() const { return not mJointIndices.empty(); }
 
     void Clear()
     {
@@ -76,6 +90,8 @@ struct VertexBufferData
         mTexCoords.clear();
         mTangents.clear();
         mBitangents.clear();
+        mJointIndices.clear();
+        mJointWeights.clear();
     }
 };
 

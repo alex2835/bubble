@@ -8,7 +8,6 @@
 #include <ozz/animation/runtime/ik_aim_job.h>
 #include <ozz/animation/runtime/ik_two_bone_job.h>
 #include <ozz/base/maths/simd_quaternion.h>
-#include <ozz/geometry/runtime/skinning_job.h>
 #include <ozz/base/span.h>
 
 namespace bubble
@@ -102,17 +101,6 @@ glm::quat RotationOf( const ozz::math::Float4x4& m )
     return glm::normalize( glm::quat_cast( mat3( g ) ) );
 }
 
-// The job takes strides in bytes and reads its inputs as floats.
-template <typename T>
-ozz::span<const float> FloatSpan( const vector<T>& v )
-{
-    return { reinterpret_cast<const float*>( v.data() ), v.size() * sizeof( T ) / sizeof( float ) };
-}
-template <typename T>
-ozz::span<float> FloatSpan( vector<T>& v )
-{
-    return { reinterpret_cast<float*>( v.data() ), v.size() * sizeof( T ) / sizeof( float ) };
-}
 }
 
 
@@ -176,22 +164,6 @@ Animator::Animator( Ref<Model> model )
     mBaseMask.resize( skeleton.num_soa_joints() );
     mModels.resize( skeleton.num_joints() );
     mSkinMatrices.resize( skeleton.num_joints() );
-
-    mSkinnedMeshOfMesh.assign( mModel->mMeshes.size(), -1 );
-    for ( size_t i = 0; i < mModel->mMeshes.size(); i++ )
-    {
-        const Mesh& mesh = mModel->mMeshes[i];
-        if ( mesh.mSkin.Empty() )
-            continue;
-        mSkinnedMeshOfMesh[i] = static_cast<i32>( mSkinnedMeshes.size() );
-        SkinnedMesh& skinned = mSkinnedMeshes.emplace_back();
-        skinned.mMeshIndex = i;
-        // Texture coordinates never change; the rest is overwritten each
-        // frame. Copying everything keeps the layout identical to the mesh's
-        // own, so the same pipeline draws either.
-        skinned.mVertices = mesh.mVertices;
-        skinned.mBuffers.SetBufferData( skinned.mVertices, mesh.mIndices );
-    }
 }
 
 u32 Animator::JointCount() const
@@ -466,69 +438,15 @@ void Animator::ReachTo( i32 endJoint, const vec3& target, const vec3* poleVector
 }
 
 
-void Animator::Skin()
-{
-    for ( SkinnedMesh& skinned : mSkinnedMeshes )
-    {
-        const Mesh& mesh = mModel->mMeshes[skinned.mMeshIndex];
-        const MeshSkin& skin = mesh.mSkin;
-        const VertexBufferData& in = mesh.mVertices;
-        VertexBufferData& out = skinned.mVertices;
-
-        ozz::geometry::SkinningJob job;
-        job.vertex_count = static_cast<int>( in.VertexCount() );
-        job.influences_count = 4;
-        job.joint_matrices = ozz::make_span( mSkinMatrices );
-        job.joint_indices = { &skin.mJointIndices[0].x, skin.mJointIndices.size() * 4 };
-        job.joint_indices_stride = sizeof( glm::u16vec4 );
-        // The job reads influences_count - 1 weights and restores the last
-        // from the sum, which is why the weights had to be normalised on
-        // import.
-        job.joint_weights = FloatSpan( skin.mJointWeights );
-        job.joint_weights_stride = sizeof( vec4 );
-        job.in_positions = FloatSpan( in.mPositions );
-        job.in_positions_stride = sizeof( vec3 );
-        job.out_positions = FloatSpan( out.mPositions );
-        job.out_positions_stride = sizeof( vec3 );
-        job.in_normals = FloatSpan( in.mNormals );
-        job.in_normals_stride = sizeof( vec3 );
-        job.out_normals = FloatSpan( out.mNormals );
-        job.out_normals_stride = sizeof( vec3 );
-        job.in_tangents = FloatSpan( in.mTangents );
-        job.in_tangents_stride = sizeof( vec3 );
-        job.out_tangents = FloatSpan( out.mTangents );
-        job.out_tangents_stride = sizeof( vec3 );
-        if ( not job.Run() )
-        {
-            LogError( "Animator: skinning failed for mesh '{}' of '{}'", mesh.mName, mModel->mName );
-            continue;
-        }
-
-        // The job leaves bitangents to the caller: a cross product is cheaper
-        // than skinning a third vector. The handedness is the mesh's own.
-        for ( size_t v = 0; v < out.mBitangents.size(); v++ )
-        {
-            const f32 sign = glm::dot( glm::cross( in.mNormals[v], in.mTangents[v] ), in.mBitangents[v] ) < 0.0f
-                             ? -1.0f : 1.0f;
-            out.mBitangents[v] = glm::cross( out.mNormals[v], out.mTangents[v] ) * sign;
-        }
-
-        skinned.mBuffers.SetBufferData( out, mesh.mIndices );
-    }
-}
-
-
-const MeshBuffers* Animator::SkinnedBuffers( size_t meshIndex ) const
-{
-    if ( meshIndex >= mSkinnedMeshOfMesh.size() or mSkinnedMeshOfMesh[meshIndex] < 0 )
-        return nullptr;
-    return &mSkinnedMeshes[mSkinnedMeshOfMesh[meshIndex]].mBuffers;
-}
-
-
 std::span<const mat4> Animator::JointMatrices() const
 {
     return { reinterpret_cast<const mat4*>( mModels.data() ), mModels.size() };
+}
+
+
+std::span<const mat4> Animator::SkinMatrices() const
+{
+    return { reinterpret_cast<const mat4*>( mSkinMatrices.data() ), mSkinMatrices.size() };
 }
 
 }

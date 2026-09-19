@@ -111,16 +111,21 @@ StandardLayouts::StandardLayouts()
         mMaterial = wgpu::raii::BindGroupLayout( Gpu().Device().createBindGroupLayout( desc ) );
     }
 
-    // Draw: one dynamically offset slot per draw.
+    // Draw: one dynamically offset slot per draw, and beside it the joint
+    // matrices of a skinned draw, offset the same way. Every draw sets both
+    // offsets; an unskinned one points the second at slot zero and never
+    // reads it.
     {
-        wgpu::BindGroupLayoutEntry entry =
+        array<wgpu::BindGroupLayoutEntry, 2> entries = {
             uniformEntry( 0, wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
-                          true, sizeof( DrawUniforms ) );
+                          true, sizeof( DrawUniforms ) ),
+            uniformEntry( 1, wgpu::ShaderStage::Vertex, true, cSkinBlockSize ),
+        };
 
         wgpu::BindGroupLayoutDescriptor desc = wgpu::Default;
         desc.label = wgpu::StringView( "Draw Bind Group Layout" );
-        desc.entryCount = 1;
-        desc.entries = &entry;
+        desc.entryCount = entries.size();
+        desc.entries = entries.data();
         mDraw = wgpu::raii::BindGroupLayout( Gpu().Device().createBindGroupLayout( desc ) );
     }
 
@@ -160,7 +165,7 @@ StandardLayouts::StandardLayouts()
 // DynamicUniformRing
 // ---------------------------------------------------------------------------
 
-void DynamicUniformRing::Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label )
+void DynamicUniformRing::Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label, u64 initialSlots )
 {
     mBlockSize = blockSize;
     mLayout = layout;
@@ -173,7 +178,7 @@ void DynamicUniformRing::Init( u64 blockSize, wgpu::BindGroupLayout layout, stri
         alignment = limits.minUniformBufferOffsetAlignment;
 
     mSlotSize = AlignTo( mBlockSize, alignment );
-    Reallocate( 256 );
+    Reallocate( initialSlots );
 }
 
 void DynamicUniformRing::Reallocate( u64 slotCount )
@@ -192,6 +197,9 @@ void DynamicUniformRing::Reallocate( u64 slotCount )
         LogError( "{}: buffer of {} bytes failed", mLabel, bufferDesc.size );
         return;
     }
+    mGeneration++;
+    if ( not mLayout )
+        return;
 
     wgpu::BindGroupEntry entry = {};
     entry.binding = 0;
@@ -255,7 +263,8 @@ void DynamicUniformRing::Flush()
 wgpu::raii::RenderPipeline CreateRenderPipeline( wgpu::ShaderModule module,
                                                  const PipelineKey& key,
                                                  const VertexLayout& vertexLayout,
-                                                 string_view label )
+                                                 string_view label,
+                                                 const char* vertexEntry )
 {
     // Kept alive until createRenderPipeline returns - the descriptor only holds
     // pointers into it.
@@ -295,7 +304,7 @@ wgpu::raii::RenderPipeline CreateRenderPipeline( wgpu::ShaderModule module,
     desc.label = wgpu::StringView( label );
     desc.layout = Gpu().Layouts().Pipeline();
     desc.vertex.module = module;
-    desc.vertex.entryPoint = wgpu::StringView( "vs_main" );
+    desc.vertex.entryPoint = wgpu::StringView( vertexEntry );
     desc.vertex.constantCount = 0;
     desc.vertex.constants = nullptr;
     desc.vertex.bufferCount = vertexDescriptors.mLayouts.size();

@@ -261,15 +261,13 @@ Mesh ProcessMesh( const aiMesh* mesh,
     aiMaterial* assimp_material = scene->mMaterials[mesh->mMaterialIndex];
     BasicMaterial material = LoadMaterial( assimp_material, modelData, uploadTexture );
 
-    MeshSkin skin;
     if ( modelData.mSkeleton )
-        skin = ImportMeshSkin( mesh, *modelData.mSkeleton->mSkeleton, modelData.mPath );
+        ImportMeshSkin( mesh, *modelData.mSkeleton->mSkeleton, modelData.mPath, vertices );
 
     return Mesh( mesh->mName.C_Str(),
                  std::move( material ),
                  std::move( vertices ),
-                 std::move( indices ),
-                 std::move( skin ) );
+                 std::move( indices ) );
 }
 
 

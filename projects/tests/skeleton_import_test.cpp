@@ -162,7 +162,9 @@ TEST( SkeletonImport_CesiumMan )
     u32 skinnedVertices = 0;
     for ( u32 m = 0; m < scene->mNumMeshes; m++ )
     {
-        const MeshSkin skin = ImportMeshSkin( scene->mMeshes[m], skeleton, cCesiumMan );
+        VertexBufferData skin;
+        skin.mPositions.resize( scene->mMeshes[m]->mNumVertices );
+        ImportMeshSkin( scene->mMeshes[m], skeleton, cCesiumMan, skin );
         CHECK( skin.mJointIndices.size() == scene->mMeshes[m]->mNumVertices );
         for ( size_t v = 0; v < skin.mJointWeights.size(); v++ )
         {

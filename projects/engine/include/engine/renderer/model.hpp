@@ -11,19 +11,6 @@
 
 namespace bubble
 {
-// Per vertex skinning data. Kept beside VertexBufferData rather than in it,
-// because nothing on the GPU reads it: skinning runs on the CPU, and the posed
-// vertices reach the GPU through UpdateDynamicVertexBufferData like any other
-// dynamic mesh. Joint indices are in the model's Skeleton order.
-struct MeshSkin
-{
-    vector<glm::u16vec4> mJointIndices;
-    vector<vec4> mJointWeights;
-
-    bool Empty() const { return mJointIndices.empty(); }
-};
-
-
 class Mesh
 {
 public:
@@ -31,8 +18,7 @@ public:
     Mesh( string name,
           BasicMaterial material,
           VertexBufferData vertices,
-          vector<u32> indices,
-          MeshSkin skin = {} );
+          vector<u32> indices );
 
     Mesh( const Mesh& ) = delete;
     Mesh& operator= ( const Mesh& ) = delete;
@@ -53,7 +39,6 @@ public:
     VertexBufferData mVertices;
     vector<u32> mIndices;
     BasicMaterial mMaterial;
-    MeshSkin mSkin;
 };
 
 

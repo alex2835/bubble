@@ -9,7 +9,7 @@ renderer side in `docs/renderer.md` (*Skinned meshes*).
 | | |
 |---|---|
 | `engine/animation/skeleton.hpp` | `Skeleton` (ozz skeleton + inverse bind matrices) and `AnimationClip`, imported with the model by `loader/skeleton_loader.cpp` |
-| `engine/animation/animator.hpp` | `Animator` — samples, blends, eases, poses and skins one entity |
+| `engine/animation/animator.hpp` | `Animator` — samples, blends, eases and poses one entity; the joint matrices the GPU skins with |
 | `engine/animation/inertialization.hpp` | how transitions ease |
 | `engine/animation/blend_space.hpp` | clips along a parameter |
 | `engine/animation/animation_controller.hpp` | the `.anim` asset and its evaluation |
@@ -205,4 +205,3 @@ screen.
 
 - A node editor. The JSON with the live inspector is the source of truth; an
   editor would be a view over it.
-- GPU skinning. Skinning is on the CPU per entity (`renderer.md`).

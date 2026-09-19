@@ -35,6 +35,7 @@ void Shader::Swap( Shader& other ) noexcept
     std::swap( mUniformDefaults, other.mUniformDefaults );
     std::swap( mUniformOffsets, other.mUniformOffsets );
     std::swap( mUserUniformSize, other.mUserUniformSize );
+    std::swap( mHasSkinnedVertexStage, other.mHasSkinnedVertexStage );
     // Pipelines belong to the module they were built from, so they travel with
     // it rather than being cleared.
     std::swap( mPipelines, other.mPipelines );
@@ -50,7 +51,9 @@ wgpu::RenderPipeline Shader::GetPipeline( const PipelineKey& key, const VertexLa
             return *pipeline;
     }
 
-    auto pipeline = CreateRenderPipeline( *mModule, key, layout, mName );
+    const bool skinned = mHasSkinnedVertexStage and
+                         ( key.mAttributeMask & cSkinAttributeMask ) == cSkinAttributeMask;
+    auto pipeline = CreateRenderPipeline( *mModule, key, layout, mName, skinned ? "vs_skinned" : "vs_main" );
     if ( not pipeline )
     {
         LogError( "Shader {}: could not create a render pipeline", mName );

@@ -329,6 +329,10 @@ Ref<Shader> LoadShader( const path& path )
     shader->mModule = std::move( *moduleMaybe );
 
     ReflectUserUniforms( *shader, processed->mText );
+    // Found by name rather than reflected: an entry point is a function, and
+    // the reflection reads declarations. A `fn vs_skinned` anywhere in the
+    // expanded source is the one WGSL compiled, so this cannot disagree.
+    shader->mHasSkinnedVertexStage = processed->mText.find( "fn vs_skinned" ) != string::npos;
 
     return shader;
 }

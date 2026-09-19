@@ -53,20 +53,16 @@ private:
 };
 
 
-// One entity's animation for one skinned model: the poses, and the posed
-// vertices. Created by the AnimatorComponent for an entity that has a skinned
-// ModelComponent, and replaced when the entity's model changes.
+// One entity's animation for one skinned model: the poses, and the joint
+// matrices the GPU skins with. Created by the AnimatorComponent for an entity
+// that has a skinned ModelComponent, and replaced when the entity's model
+// changes.
 //
 // A frame is: SamplePose for the base and for each overlay, each stream's
 // PoseTrack easing its own, then Compose to lay the overlays over the base by
-// their masks and take the result to model space, then Skin.
-//
-// Skinning runs on the CPU. ozz's SkinningJob writes posed positions, normals
-// and tangents for every skinned mesh into a vertex buffer this object owns.
-// The renderer draws the model's meshes as usual but binds these buffers in
-// place of the mesh's own - the material, indices and everything else stay
-// the model's, so nothing is duplicated per instance but the vertices that
-// actually change.
+// their masks and take the result to model space, then IK. SkinMatrices() is
+// the result - model space pose times inverse bind, per joint - which the
+// renderer binds for the vertex stage; nothing per entity lives on the GPU.
 class Animator
 {
 public:
@@ -133,24 +129,12 @@ public:
     // straight as the target goes out of reach.
     void ReachTo( i32 endJoint, const vec3& target, const vec3* poleVector, const vec3* midAxis, f32 soften, f32 weight );
 
-    // Writes the posed vertices for the current pose.
-    void Skin();
-
-    // The posed vertex buffers for the model's mesh at `meshIndex`, or null
-    // for a mesh with no skin, which draws from its own buffers.
-    const MeshBuffers* SkinnedBuffers( size_t meshIndex ) const;
-
     // Model space joint matrices of the current pose, in skeleton order.
     std::span<const mat4> JointMatrices() const;
+    // The same times each joint's inverse bind: what a vertex is skinned by.
+    std::span<const mat4> SkinMatrices() const;
 
 private:
-    struct SkinnedMesh
-    {
-        size_t mMeshIndex = 0;
-        VertexBufferData mVertices;
-        MeshBuffers mBuffers;
-    };
-
     void LocalToModel( ozz::span<const ozz::math::SoaTransform> locals, i32 fromJoint = -1 );
     // Model space position of a joint in the current pose.
     vec3 JointPosition( i32 joint ) const;
@@ -168,9 +152,6 @@ private:
     ozz::vector<ozz::math::Float4x4> mModels;
     // mModels * inverse bind, what the skinning reads.
     ozz::vector<ozz::math::Float4x4> mSkinMatrices;
-    vector<SkinnedMesh> mSkinnedMeshes;
-    // Index into mSkinnedMeshes per model mesh, -1 for an unskinned one.
-    vector<i32> mSkinnedMeshOfMesh;
 };
 
 }

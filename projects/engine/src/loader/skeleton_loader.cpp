@@ -262,11 +262,10 @@ std::optional<SkeletonData> ImportSkeleton( const aiScene* scene, const path& mo
 }
 
 
-MeshSkin ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath )
+void ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath, VertexBufferData& skin )
 {
-    MeshSkin skin;
     if ( mesh->mNumBones == 0 )
-        return skin;
+        return;
 
     // Four influences per vertex: aiProcess_LimitBoneWeights, which is in the
     // post processing preset OpenModel applies, has already trimmed and
@@ -312,7 +311,6 @@ MeshSkin ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const pat
         if ( sum > 0.0f )
             weights /= sum;
     }
-    return skin;
 }
 
 }

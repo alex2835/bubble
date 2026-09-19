@@ -53,6 +53,7 @@ u32 VertexAttributeSize( ShaderDataType type )
         case ShaderDataType::Int4:   return 4 * 4;
         case ShaderDataType::UInt:   return 4;
         case ShaderDataType::Bool:   return 4;
+        case ShaderDataType::UShort4: return 2 * 4;
 
         case ShaderDataType::Mat3:
         case ShaderDataType::Mat4:
@@ -84,6 +85,7 @@ u32 ShaderDataComponentCount( ShaderDataType type )
         case ShaderDataType::Int4:   return 4;
         case ShaderDataType::UInt:   return 1;
         case ShaderDataType::Bool:   return 1;
+        case ShaderDataType::UShort4: return 4;
 
         case ShaderDataType::Mat3:
         case ShaderDataType::Mat4:
@@ -107,6 +109,7 @@ wgpu::VertexFormat ToWGPUVertexFormat( ShaderDataType type )
         case ShaderDataType::Int3:   return wgpu::VertexFormat::Sint32x3;
         case ShaderDataType::Int4:   return wgpu::VertexFormat::Sint32x4;
         case ShaderDataType::UInt:   return wgpu::VertexFormat::Uint32;
+        case ShaderDataType::UShort4: return wgpu::VertexFormat::Uint16x4;
         default: break;
     }
     BUBBLE_ASSERT( false, "Type is not usable as a vertex attribute" );
@@ -141,6 +144,8 @@ VertexLayout VertexLayout::FromData( const VertexBufferData& vbd )
     add( VertexAttributeSemantic::TexCoords, ShaderDataType::Float2, vbd.mTexCoords.size() );
     add( VertexAttributeSemantic::Tangent,   ShaderDataType::Float3, vbd.mTangents.size() );
     add( VertexAttributeSemantic::Bitangent, ShaderDataType::Float3, vbd.mBitangents.size() );
+    add( VertexAttributeSemantic::JointIndices, ShaderDataType::UShort4, vbd.mJointIndices.size() );
+    add( VertexAttributeSemantic::JointWeights, ShaderDataType::Float4, vbd.mJointWeights.size() );
 
     layout.mTotalSize = offset;
     return layout;
@@ -210,6 +215,8 @@ vector<u8> VertexBufferDataFlat( const VertexBufferData& vbd )
             case VertexAttributeSemantic::TexCoords: copy( slot, vbd.mTexCoords.data() );  break;
             case VertexAttributeSemantic::Tangent:   copy( slot, vbd.mTangents.data() );   break;
             case VertexAttributeSemantic::Bitangent: copy( slot, vbd.mBitangents.data() ); break;
+            case VertexAttributeSemantic::JointIndices: copy( slot, vbd.mJointIndices.data() ); break;
+            case VertexAttributeSemantic::JointWeights: copy( slot, vbd.mJointWeights.data() ); break;
         }
     }
     return data;

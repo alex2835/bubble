@@ -101,7 +101,7 @@ that matters for cost.
 |---|---|---|
 | 0 `Frame` | camera (proj/view), lights info, lights array | once per pass |
 | 1 `Material` | material params + 3 maps + sampler | per mesh |
-| 2 `Draw` | model matrix, normal matrix, object id, billboard params | per draw, dynamic offset |
+| 2 `Draw` | binding 0: model matrix, normal matrix, object id, billboard params; binding 1: the joint matrices of a skinned draw | per draw, two dynamic offsets |
 | 3 `User` | the shader's own `UserUniforms` block | per draw, dynamic offset |
 
 Indices match `@group(N)` in the WGSL. Defined in `pipeline.hpp`
@@ -158,9 +158,11 @@ several vertex slots at different offsets**, one slot per attribute
 
 Locations are fixed by semantic, and match the `@location(N)` in the WGSL:
 
-| 0 | 1 | 2 | 3 | 4 |
-|---|---|---|---|---|
-| Position | Normal | TexCoords | Tangent | Bitangent |
+| 0 | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| Position | Normal | TexCoords | Tangent | Bitangent | JointIndices (`Uint16x4`) | JointWeights |
+
+The last two exist only on a skinned mesh.
 
 Two rules, and both were bugs before:
 
@@ -176,26 +178,38 @@ Two rules, and both were bugs before:
 
 ### Skinned meshes
 
-A skinned model's meshes carry a `MeshSkin` (joint indices and weights, in the
-model's `Skeleton` order) next to their vertex data, and the model carries the
-skeleton and its clips (`engine/animation/`, built by ozz from what assimp
-read). None of that reaches the GPU. **Skinning is on the CPU**: each frame an
-`Animator` samples the pose, and ozz's `SkinningJob` writes posed positions,
-normals and tangents into a `MeshBuffers` the animator owns per skinned mesh.
-`DrawModel` takes the animator and binds those buffers in place of the mesh's
-own - same layout, same pipeline, the material and indices still the model's.
-So two entities sharing a model each have their own posed vertices and nothing
-else duplicated.
+A skinned model's meshes carry joint indices and weights in their vertex data
+(in the model's `Skeleton` order), and the model carries the skeleton and its
+clips (`engine/animation/`, built by ozz from what assimp read). Each frame
+the `Animator` computes one matrix per joint - model space pose times inverse
+bind - and `DrawModel` pushes them into the skin ring, a slot of
+`cMaxSkinJoints` (256) matrices bound at group 2 binding 1 beside the draw
+block. Nothing per entity lives on the GPU; two entities sharing a model
+share everything but that slot.
 
-Transitions between clips are inertialized (`engine/animation/
-inertialization.hpp`) rather than cross faded: at the switch the pose's offset
-from the new clip and its velocity are recorded, and decay to zero over the
-transition time. Only the new clip is ever sampled.
+The vertex stage does the skinning. A shader declares a second entry point,
+`vs_skinned`, taking the `SkinInput` struct from `common` beside its own
+inputs, and applies `SkinMatrix( skin.aJoints, skin.aWeights )` to the
+position and the tangent frame before carrying on as `vs_main` would:
 
-GPU skinning would add two attributes (joint indices as `Uint16x4`, weights as
-`Float4`), a storage buffer of joint matrices in the draw group, and a
-`SkinVertex()` in the vertex stage; the animator already computes the matrices
-it would upload. It is the next step once CPU skinning is the frame's cost.
+```wgsl
+@vertex
+fn vs_skinned( in: VertexInput, skin: SkinInput ) -> VertexOutput
+{
+    let m = SkinMatrix( skin.aJoints, skin.aWeights );
+    let r = mat3x3<f32>( m[0].xyz, m[1].xyz, m[2].xyz );
+    return PhongVertex( ( m * vec4<f32>( in.aPosition, 1.0 ) ).xyz,
+                        normalize( r * in.aNormal ), in.aTexCoords,
+                        normalize( r * in.aTangent ), normalize( r * in.aBitangent ) );
+}
+```
+
+The engine picks `vs_skinned` over `vs_main` when the mesh has the joint
+attributes and the shader has the entry point - it is part of the pipeline
+variant, keyed by the attribute mask. A shader without one draws a skinned
+mesh at rest, silently: the extra attributes are simply not read. The engine
+shaders (`phong`, `only_diffuse`, `white`, `object_picking`) all have one; a
+project shader that should animate a character needs its own.
 
 ---
 

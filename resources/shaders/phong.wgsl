@@ -16,6 +16,16 @@ fn vs_main( in: VertexInput ) -> VertexOutput
     return PhongVertex( in.aPosition, in.aNormal, in.aTexCoords, in.aTangent, in.aBitangent );
 }
 
+@vertex
+fn vs_skinned( in: VertexInput, skin: SkinInput ) -> VertexOutput
+{
+    let m = SkinMatrix( skin.aJoints, skin.aWeights );
+    let r = mat3x3<f32>( m[0].xyz, m[1].xyz, m[2].xyz );
+    return PhongVertex( ( m * vec4<f32>( in.aPosition, 1.0 ) ).xyz,
+                        normalize( r * in.aNormal ), in.aTexCoords,
+                        normalize( r * in.aTangent ), normalize( r * in.aBitangent ) );
+}
+
 @fragment
 fn fs_main( in: VertexOutput ) -> @location(0) vec4<f32>
 {

@@ -29,6 +29,12 @@ constexpr u32 cBindGroupCount = 4;
 // than corrupting the next entity's values.
 constexpr u64 cUserUniformBlockSize = 256;
 
+// The joint matrices a skinned draw binds, at group 2 binding 1: one mat4 per
+// joint, this many at most. A skeleton with more is drawn unskinned, with an
+// error. The slot is 16 KB, a quarter of the uniform binding limit.
+constexpr u32 cMaxSkinJoints = 256;
+constexpr u64 cSkinBlockSize = cMaxSkinJoints * sizeof( mat4 );
+
 
 // Per pass camera uniforms, matching the WGSL VertexUniforms block at
 // @group(0) @binding(0). Two mat4x4 need no padding - a mat4 is 16 byte
@@ -141,8 +147,12 @@ public:
 
     // Deferred out of the constructor because the layouts it needs are
     // themselves created lazily, on first use of the device.
-    void Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label );
-    bool Ready() const { return (bool)mBindGroup; }
+    //
+    // A ring with a null layout makes no bind group of its own: it is one
+    // binding of a group somebody else builds from GetBuffer(), rebuilt
+    // whenever Generation() moves. The draw group is two such rings.
+    void Init( u64 blockSize, wgpu::BindGroupLayout layout, string_view label, u64 initialSlots = 256 );
+    bool Ready() const { return (bool)mBuffer; }
 
     // Call once at the top of a frame.
     void Reset();
@@ -157,6 +167,10 @@ public:
     void Flush();
 
     wgpu::BindGroup GetBindGroup() const { return *mBindGroup; }
+    wgpu::Buffer GetBuffer() const { return *mBuffer; }
+    u64 BlockSize() const { return mBlockSize; }
+    // Bumped whenever the buffer is reallocated.
+    u64 Generation() const { return mGeneration; }
 
 private:
     void Reallocate( u64 slotCount );
@@ -173,12 +187,16 @@ private:
     // Growth is deferred to Flush: reallocating mid frame would orphan the bind
     // group that already-recorded draw commands point at.
     u64 mPendingGrowth = 0;
+    u64 mGeneration = 0;
 };
 
 
+// `vertexEntry` is the vertex stage to run: vs_main, or vs_skinned for a
+// skinned mesh drawn by a shader that has one.
 wgpu::raii::RenderPipeline CreateRenderPipeline( wgpu::ShaderModule module,
                                                  const PipelineKey& key,
                                                  const VertexLayout& vertexLayout,
-                                                 string_view label );
+                                                 string_view label,
+                                                 const char* vertexEntry = "vs_main" );
 
 }

@@ -532,8 +532,6 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt, const mat4& en
     }
     mAims.clear();
     mReaches.clear();
-
-    animator.Skin();
 }
 
 

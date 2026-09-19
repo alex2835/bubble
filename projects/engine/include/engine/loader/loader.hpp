@@ -82,9 +82,9 @@ struct ModelData
 // Nullopt for a scene with no bones. Skeleton joints are the bone nodes and
 // their ancestors; every clip in the scene is imported against that skeleton.
 std::optional<SkeletonData> ImportSkeleton( const aiScene* scene, const path& modelPath );
-// The mesh's bone weights, remapped from assimp's per mesh bone indices to the
-// skeleton's joint indices. Empty for a mesh without bones.
-MeshSkin ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath );
+// Fills the mesh's joint indices and weights, remapped from assimp's per mesh
+// bone indices to the skeleton's. Leaves them empty for a mesh without bones.
+void ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath, VertexBufferData& vertices );
 
 std::optional<TextureData> OpenTexture( const path& path );
 // An encoded image already in memory - a texture embedded in a glTF binary.

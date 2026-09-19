@@ -88,6 +88,9 @@ public:
     UniformOffsets mUniformOffsets;
     // Size of the shader's UserUniforms block, zero when it declares none.
     u32 mUserUniformSize = 0;
+    // Declares a vs_skinned entry point, used in place of vs_main for a mesh
+    // that has joint attributes. Without one a skinned mesh draws at rest.
+    bool mHasSkinnedVertexStage = false;
 
 private:
     // Linear search: a shader has a handful of variants at most, so a map would

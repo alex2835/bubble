@@ -26,13 +26,15 @@ namespace bubble
 {
 namespace
 {
-// The posed vertices to draw the entity's model with, if it is animated. Null
-// until UpdateAnimations has run for it, and the model then draws at rest.
-const Animator* AnimatorOf( const Scene& scene, Entity entity )
+// The joint matrices to draw the entity's model with, if it is animated.
+// Empty until UpdateAnimations has run for it, and the model then draws at
+// rest.
+std::span<const mat4> SkinOf( const Scene& scene, Entity entity )
 {
     if ( not scene.HasComponent<AnimatorComponent>( entity ) )
-        return nullptr;
-    return scene.GetComponent<AnimatorComponent>( entity ).mAnimator.get();
+        return {};
+    const Animator* animator = scene.GetComponent<AnimatorComponent>( entity ).mAnimator.get();
+    return animator ? animator->SkinMatrices() : std::span<const mat4>{};
 }
 }
 
@@ -580,7 +582,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
 
             mRenderer.DrawModel( target, modelComponent.mModel, shader,
                                  transformComponent.TransformMat(),
-                                 DrawingPrimitive::Triangles, 0, AnimatorOf( scene, entity ) );
+                                 DrawingPrimitive::Triangles, 0, SkinOf( scene, entity ) );
         } );
     } );
 }
@@ -897,7 +899,7 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
             const auto tansform = valid ? transformComponent.TransformMat()
                                         : transformComponent.TranslationRotationMat();
             mRenderer.DrawModel( target, model, mEntityIdShader, tansform,
-                                 DrawingPrimitive::Triangles, (u32)entity, AnimatorOf( scene, entity ) );
+                                 DrawingPrimitive::Triangles, (u32)entity, SkinOf( scene, entity ) );
         } );
 
         // Draw camera billboards

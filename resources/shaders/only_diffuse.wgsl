@@ -10,17 +10,32 @@ struct VertexInput
     @location(4) aBitangent: vec3<f32>,
 };
 
+fn Vertex( position: vec3<f32>, normal: vec3<f32>, texCoords: vec2<f32>,
+           tangent: vec3<f32>, bitangent: vec3<f32> ) -> VertexOutput
+{
+    var out: VertexOutput;
+    out.vFragPos = ( uDraw.uModel * vec4<f32>( position, 1.0 ) ).xyz;
+    out.vNormal = normalize( uDraw.uNormalMatrix * normal );
+    out.vTexCoords = texCoords;
+    out.vTangent = tangent;
+    out.vBitangent = bitangent;
+    out.position = uVertex.uProjection * uVertex.uView * vec4<f32>( out.vFragPos, 1.0 );
+    return out;
+}
+
 @vertex
 fn vs_main( in: VertexInput ) -> VertexOutput
 {
-    var out: VertexOutput;
-    out.vFragPos = ( uDraw.uModel * vec4<f32>( in.aPosition, 1.0 ) ).xyz;
-    out.vNormal = normalize( uDraw.uNormalMatrix * in.aNormal );
-    out.vTexCoords = in.aTexCoords;
-    out.vTangent = in.aTangent;
-    out.vBitangent = in.aBitangent;
-    out.position = uVertex.uProjection * uVertex.uView * vec4<f32>( out.vFragPos, 1.0 );
-    return out;
+    return Vertex( in.aPosition, in.aNormal, in.aTexCoords, in.aTangent, in.aBitangent );
+}
+
+@vertex
+fn vs_skinned( in: VertexInput, skin: SkinInput ) -> VertexOutput
+{
+    let m = SkinMatrix( skin.aJoints, skin.aWeights );
+    let r = mat3x3<f32>( m[0].xyz, m[1].xyz, m[2].xyz );
+    return Vertex( ( m * vec4<f32>( in.aPosition, 1.0 ) ).xyz, normalize( r * in.aNormal ),
+                   in.aTexCoords, normalize( r * in.aTangent ), normalize( r * in.aBitangent ) );
 }
 
 @fragment

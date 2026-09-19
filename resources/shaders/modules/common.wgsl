@@ -41,6 +41,36 @@ struct DrawUniforms
 };
 @group(2) @binding(0) var<uniform> uDraw: DrawUniforms;
 
+// The joint matrices of a skinned draw - model space pose times inverse bind,
+// one per joint of the model's skeleton - bound beside the draw block by the
+// same dynamic offset. cMaxSkinJoints matches pipeline.hpp.
+const cMaxSkinJoints: u32 = 256u;
+struct SkinUniforms
+{
+    uJoints: array<mat4x4<f32>, 256>,
+};
+@group(2) @binding(1) var<uniform> uSkin: SkinUniforms;
+
+// The attributes a skinned mesh carries beyond the five every mesh has, at
+// the locations VertexAttributeSemantic gives them.
+struct SkinInput
+{
+    @location(5) aJoints: vec4<u32>,
+    @location(6) aWeights: vec4<f32>,
+};
+
+// The matrix taking a vertex from its bind pose to the current pose, from
+// its four joints and their weights. A shader's vs_skinned applies it to the
+// position and the tangent frame, then carries on as vs_main would; the
+// engine picks vs_skinned over vs_main for a mesh that has the attributes.
+fn SkinMatrix( joints: vec4<u32>, weights: vec4<f32> ) -> mat4x4<f32>
+{
+    return uSkin.uJoints[joints.x] * weights.x +
+           uSkin.uJoints[joints.y] * weights.y +
+           uSkin.uJoints[joints.z] * weights.z +
+           uSkin.uJoints[joints.w] * weights.w;
+}
+
 
 // What the vertex stage hands the fragment stage. WGSL has no free-floating
 // in/out declarations, so the varyings the GLSL modules declared separately are

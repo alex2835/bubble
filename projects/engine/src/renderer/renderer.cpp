@@ -1,6 +1,5 @@
 #include "engine/pch/pch.hpp"
 #include "engine/renderer/renderer.hpp"
-#include "engine/animation/animator.hpp"
 #include "engine/renderer/gpu_context.hpp"
 #include "engine/utils/geometry.hpp"
 #include "engine/log/log.hpp"
@@ -66,8 +65,33 @@ Renderer::Renderer()
     desc.entries = entries.data();
     mFrameBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
 
-    mDrawRing.Init( sizeof( DrawUniforms ), Gpu().Layouts().Draw(), "Draw Uniform Ring" );
+    // Neither draw ring owns the group: it is built here from both.
+    mDrawRing.Init( sizeof( DrawUniforms ), nullptr, "Draw Uniform Ring" );
+    // Skinned draws are a few per frame, and the slot is 16 KB; it grows.
+    mSkinRing.Init( cSkinBlockSize, nullptr, "Skin Uniform Ring", 16 );
+    RebuildDrawBindGroup();
     mUserRing.Init( cUserUniformBlockSize, Gpu().Layouts().User(), "User Uniform Ring" );
+}
+
+void Renderer::RebuildDrawBindGroup()
+{
+    array<wgpu::BindGroupEntry, 2> entries = {};
+    entries[0].binding = 0;
+    entries[0].buffer = mDrawRing.GetBuffer();
+    entries[0].offset = 0;
+    entries[0].size = mDrawRing.BlockSize();
+    entries[1].binding = 1;
+    entries[1].buffer = mSkinRing.GetBuffer();
+    entries[1].offset = 0;
+    entries[1].size = mSkinRing.BlockSize();
+
+    wgpu::BindGroupDescriptor desc = wgpu::Default;
+    desc.label = wgpu::StringView( "Draw Bind Group" );
+    desc.layout = Gpu().Layouts().Draw();
+    desc.entryCount = entries.size();
+    desc.entries = entries.data();
+    mDrawBindGroup = wgpu::raii::BindGroup( Gpu().Device().createBindGroup( desc ) );
+    mDrawBindGroupGeneration = mDrawRing.Generation() + mSkinRing.Generation();
 }
 
 void Renderer::SetUserUniforms( const void* data, u64 size )
@@ -79,13 +103,20 @@ void Renderer::SetUserUniforms( const void* data, u64 size )
 void Renderer::BeginFrame()
 {
     mDrawRing.Reset();
+    mSkinRing.Reset();
     mUserRing.Reset();
 }
 
 void Renderer::FlushDrawUniforms()
 {
     mDrawRing.Flush();
+    mSkinRing.Flush();
     mUserRing.Flush();
+    // Flush is where a ring grows, and a new buffer needs a new group. The
+    // commands recorded this frame already point at the old one, which the
+    // old group keeps alive until they are done.
+    if ( mDrawRing.Generation() + mSkinRing.Generation() != mDrawBindGroupGeneration )
+        RebuildDrawBindGroup();
 }
 
 void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
@@ -151,11 +182,10 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
                                    const Mesh& mesh,
                                    const Ref<Shader>& shader,
                                    DrawingPrimitive drawingPrimitive,
-                                   u32 dynamicOffset,
-                                   const MeshBuffers* buffers )
+                                   u32 drawOffset,
+                                   u32 skinOffset )
 {
-    if ( not buffers )
-        buffers = &mesh.mBuffers;
+    const MeshBuffers* buffers = &mesh.mBuffers;
     const VertexLayout& layout = buffers->Layout();
     if ( not buffers->Valid() )
         return;
@@ -176,8 +206,9 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
 
     // The draw group is always bound, even for shaders that read nothing from
     // it - a pipeline layout entry has to be satisfied.
-    target.mPass.setBindGroup( (u32)BindGroupIndex::Draw, mDrawRing.GetBindGroup(),
-                               1, &dynamicOffset );
+    const array<u32, 2> drawOffsets = { drawOffset, skinOffset };
+    target.mPass.setBindGroup( (u32)BindGroupIndex::Draw, *mDrawBindGroup,
+                               drawOffsets.size(), drawOffsets.data() );
 
     // Likewise the shader's own uniforms. A shader that declares no
     // UserUniforms block still gets a slot bound; it just never reads it.
@@ -217,7 +248,7 @@ void Renderer::DrawMesh( const RenderTarget& target,
     uniforms.mObjectId = objectId;
     const u32 dynamicOffset = mDrawRing.Push( &uniforms, sizeof( uniforms ) );
 
-    DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset );
+    DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset, 0 );
     SetUserUniforms( nullptr, 0 );
 }
 
@@ -227,15 +258,22 @@ void Renderer::DrawModel( const RenderTarget& target,
                           const mat4& transform,
                           DrawingPrimitive drawingPrimitive,
                           u32 objectId,
-                          const Animator* animator )
+                          std::span<const mat4> skin )
 {
     if ( not model or not shader or not shader->Valid() )
     {
         BUBBLE_ASSERT( false, "DrawModel: Model or shader is null" );
         return;
     }
-    if ( animator and animator->GetModel() != model )
-        animator = nullptr;
+
+    // One slot of joint matrices for the whole model: its meshes share the
+    // skeleton. A skeleton past the slot draws at rest rather than reading
+    // another draw's matrices for its high joints.
+    u32 skinOffset = 0;
+    if ( skin.size() > cMaxSkinJoints )
+        LogError( "DrawModel: {} has {} joints, more than the {} a draw can bind", model->mName, skin.size(), cMaxSkinJoints );
+    else if ( not skin.empty() )
+        skinOffset = mSkinRing.Push( skin.data(), skin.size_bytes() );
 
     // One slot for the whole model: every mesh in it shares the transform.
     DrawUniforms uniforms;
@@ -244,9 +282,8 @@ void Renderer::DrawModel( const RenderTarget& target,
     uniforms.mObjectId = objectId;
     const u32 dynamicOffset = mDrawRing.Push( &uniforms, sizeof( uniforms ) );
 
-    for ( size_t i = 0; i < model->mMeshes.size(); i++ )
-        DrawMeshPrimitives( target, model->mMeshes[i], shader, drawingPrimitive, dynamicOffset,
-                            animator ? animator->SkinnedBuffers( i ) : nullptr );
+    for ( const auto& mesh : model->mMeshes )
+        DrawMeshPrimitives( target, mesh, shader, drawingPrimitive, dynamicOffset, skinOffset );
     SetUserUniforms( nullptr, 0 );
 }
 
