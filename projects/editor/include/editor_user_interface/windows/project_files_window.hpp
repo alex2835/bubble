@@ -14,7 +14,8 @@ enum class FilesystemNodeType
     Texture,
     Shader,
     Level,
-    Sound
+    Sound,
+    AnimationController
 };
 
 struct FilesystemNode

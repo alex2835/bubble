@@ -575,6 +575,29 @@ function on_update( entity, state, dt )
 end
 ```
 
+**Controllers.** `entity:set_animation_controller( path )` hands playback to
+an animation controller - a `.anim` file of states and transitions, see
+`docs/animation.md`. From then on the script only writes parameters:
+`set( name, number | boolean )`, `trigger( name )`; and asks `get( name )`,
+`state()` (the current state's name), `controller` (read only, the path).
+`play`/`play_blend` still work under a controller, but the next transition it
+takes overrides them. A trigger the controller does not consume on the frame
+it was set is dropped.
+
+```lua
+function on_start( entity, state )
+    entity:set_animation_controller( "animations/character.anim" )
+end
+
+function on_update( entity, state, dt )
+    local animator = entity:get_animator()
+    local cc = entity:get_character_controller()
+    animator:set( "speed", length( state.velocity ) )   -- whatever the movement code decided
+    animator:set( "grounded", cc:is_on_ground() )
+    if is_key_clicked( KeyboardKey.space ) then animator:trigger( "attack" ) end
+end
+```
+
 ### StateComponent
 
 A plain Lua table. No usertype — it is the native type.

@@ -59,6 +59,11 @@ bool isSoundFile( const filesystem::directory_entry& item )
     return false;
 }
 
+bool isAnimationControllerFile( const filesystem::directory_entry& item )
+{
+    return item.path().extension() == ".anim";
+}
+
 FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
 {
     if ( item.is_directory() )
@@ -77,6 +82,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
             return FilesystemNodeType::Shader;
         else if ( isSoundFile( item ) )
             return FilesystemNodeType::Sound;
+        else if ( isAnimationControllerFile( item ) )
+            return FilesystemNodeType::AnimationController;
         else if ( item.path().extension() == LEVEL_FILE_EXT )
             return FilesystemNodeType::Level;
     }
@@ -137,6 +144,10 @@ void ProjectFilesWindow::LoadResources( const FilesystemNode& node )
     else if ( node.mType == FilesystemNodeType::Sound )
     {
         mProject.mLoader.LoadSound( node.mPath );
+    }
+    else if ( node.mType == FilesystemNodeType::AnimationController )
+    {
+        mProject.mLoader.LoadAnimationController( node.mPath );
     }
 
     for ( const auto& child : node.mChildren )

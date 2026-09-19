@@ -11,6 +11,7 @@
 #include "engine/renderer/model.hpp"
 #include "engine/scripting/script.hpp"
 #include "engine/audio/sound.hpp"
+#include "engine/animation/animation_controller.hpp"
 #include "engine/loader/shader_module_loader.hpp"
 #include <functional>
 
@@ -108,6 +109,10 @@ Ref<Script> LoadScript( const path& path );
 
 Ref<Sound> LoadSound( const path& path );
 
+// A .anim JSON file - see animation_controller.hpp. Null, with the error
+// logged, for one that does not parse.
+Ref<AnimationController> LoadAnimationController( const path& path );
+
 
 
 struct Loader
@@ -115,6 +120,7 @@ struct Loader
     Loader() = default;
     Ref<Script> LoadScript( const path& path );
     Ref<Sound> LoadSound( const path& path );
+    Ref<AnimationController> LoadAnimationController( const path& path );
     Ref<Texture2D> LoadTexture2D( const path& path );
     void LoadTextures2D( const vector<path>& paths );
     // The TextureUploader handed to LoadModel. Returns the texture already
@@ -152,6 +158,7 @@ public:
     hash_map<path, Ref<Shader>> mShaders;
     hash_map<path, Ref<Script>> mScripts;
     hash_map<path, Ref<Sound>> mSounds;
+    hash_map<path, Ref<AnimationController>> mControllers;
 
     // Stamped whenever mShaders or mScripts gains an entry, so an observer can
     // tell in one comparison whether its view of them is out of date. Erasing

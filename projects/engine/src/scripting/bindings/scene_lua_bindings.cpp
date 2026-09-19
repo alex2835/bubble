@@ -221,6 +221,15 @@ void CreateSceneBindings( Scene& scene,
             [&]( const Entity& entity, const string& clip ) { scene.AddComponent<AnimatorComponent>( entity ).Play( clip ); },
             [&]( const Entity& entity, const AnimatorComponent& c ) { scene.AddComponent<AnimatorComponent>( entity, c ); }
         ),
+        // The controller is a project resource, so attaching one needs the
+        // loader; the Animator usertype has none.
+        "set_animation_controller",
+        [&]( const Entity& entity, const string& controllerPath )
+        {
+            auto controller = LoadOrThrow<Ref<AnimationController>>(
+                [&]( const path& p ){ return loader.LoadAnimationController( p ); }, "animation controller", controllerPath );
+            scene.GetComponent<AnimatorComponent>( entity ).SetController( controller );
+        },
         "add_state",
         sol::overload(
             [&]( const Entity& entity ) { scene.AddComponent<StateComponent>( entity ); },

@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
 #include "engine/animation/blend_space.hpp"
+#include "engine/animation/animation_controller.hpp"
 
 namespace bubble
 {
@@ -8,7 +9,8 @@ class Animator;
 struct Model;
 
 // Plays one of the clips that came with the entity's skinned model, or a
-// blend of them along a parameter.
+// blend of them along a parameter - directly, from a script, or under an
+// AnimationController that picks them from the script's parameters.
 //
 // The component is the playback state - which clip or blend, where in it, how
 // fast - and nothing else; that is what the inspector edits, a scene
@@ -58,6 +60,14 @@ public:
     // 0..1 through the clip, or through the blend's shared cycle.
     f32 NormalizedTime( const Model& model ) const;
 
+    // Hands playback to a controller: from the next frame it decides what
+    // plays, from mParameters. Null detaches, leaving the current playback
+    // as it is. The parameters take the controller's declared defaults, so
+    // a script may set only the ones it drives.
+    void SetController( const Ref<AnimationController>& controller );
+    // The controller's current state name, or empty without one.
+    string_view CurrentState() const;
+
     // Advances the playback by dt, poses and skins through mAnimator. The
     // engine calls this once per frame for an entity whose model is skinned.
     void Advance( const Ref<Model>& model, f32 dt );
@@ -77,6 +87,12 @@ public:
     // A Play with a transition time, until the update hands it to the
     // Animator. Not serialised: a transition is a moment, not a setting.
     f32 mPendingTransition = 0.0f;
+
+    Ref<AnimationController> mController;
+    // What a script writes and the controller reads; not serialised, a
+    // controller starts from its defaults.
+    Parameters mParameters;
+    ControllerRuntime mControllerRuntime;
 
     Scope<Animator> mAnimator;
 };
