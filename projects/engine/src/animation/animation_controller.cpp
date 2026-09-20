@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <charconv>
 #include <functional>
+#include <fstream>
 
 namespace bubble
 {
@@ -384,7 +385,158 @@ AnimationController AnimationController::FromJson( const json& j, const path& so
             std::ranges::stable_sort( list, {}, &ClipEvent::mTime );
         }
     }
+
+    if ( auto editor = j.find( "editor" ); editor != j.end() and editor->is_object() )
+    {
+        if ( auto positions = editor->find( "positions" ); positions != editor->end() and positions->is_object() )
+            for ( const auto& [key, value] : positions->items() )
+                if ( value.is_array() and value.size() == 2 and value[0].is_number() and value[1].is_number() )
+                    controller.mNodePositions[key] = vec2( value[0].get<f32>(), value[1].get<f32>() );
+    }
     return controller;
+}
+
+
+namespace
+{
+// A number as the JSON reads it back: whole where it is whole.
+json Number( f32 value )
+{
+    return value == std::floor( value ) and std::abs( value ) < 1e7f ? json( static_cast<int>( value ) ) : json( value );
+}
+
+json MachineToJson( const StateMachine& machine )
+{
+    json j = json::object();
+    if ( not machine.mStates.empty() )
+        j["entry"] = machine.mStates[std::clamp( machine.mEntry, 0, (i32)machine.mStates.size() - 1 )].mName;
+
+    json& states = j["states"] = json::object();
+    for ( const ControllerState& state : machine.mStates )
+    {
+        json& s = states[state.mName] = json::object();
+        if ( state.IsBlend() )
+        {
+            json points = json::array();
+            for ( const BlendPoint& point : state.mBlend.mPoints )
+                points.push_back( { point.mClip, Number( point.mValue ) } );
+            s["blend"] = { { "param", state.mBlendParameter }, { "points", points } };
+        }
+        else if ( not state.mClip.empty() )
+        {
+            s["clip"] = state.mClip;
+        }
+        if ( not state.mLoop )
+            s["loop"] = false;
+        if ( not state.mSpeedParameter.empty() )
+            s["speed"] = state.mSpeedParameter;
+        else if ( state.mSpeed != 1.0f )
+            s["speed"] = Number( state.mSpeed );
+        if ( state.mRootMotion )
+            s["root_motion"] = true;
+    }
+
+    if ( not machine.mTransitions.empty() )
+    {
+        json& transitions = j["transitions"] = json::array();
+        for ( const Transition& transition : machine.mTransitions )
+        {
+            json t = json::object();
+            t["from"] = transition.mFrom == Transition::cAnyState ? "*" : machine.mStates[transition.mFrom].mName;
+            t["to"] = transition.mTo == Transition::cReturn ? "return" : machine.mStates[transition.mTo].mName;
+            if ( transition.mConditions.size() == 1 )
+            {
+                t["when"] = transition.mConditions[0].ToString();
+            }
+            else if ( not transition.mConditions.empty() )
+            {
+                json when = json::array();
+                for ( const Condition& condition : transition.mConditions )
+                    when.push_back( condition.ToString() );
+                t["when"] = when;
+            }
+            if ( transition.mExitTime )
+                t["exit_time"] = Number( *transition.mExitTime );
+            t["duration"] = Number( transition.mDuration );
+            if ( transition.mInterrupt )
+                t["interrupt"] = true;
+            transitions.push_back( std::move( t ) );
+        }
+    }
+    return j;
+}
+}
+
+json AnimationController::ToJson() const
+{
+    json j = json::object();
+
+    json& parameters = j["parameters"] = json::object();
+    for ( const auto& [name, parameter] : mParameters )
+    {
+        switch ( parameter.mType )
+        {
+        case Parameter::Type::Float:   parameters[name] = Number( parameter.mValue ); break;
+        case Parameter::Type::Bool:    parameters[name] = parameter.mValue != 0.0f; break;
+        case Parameter::Type::Trigger: parameters[name] = "trigger"; break;
+        }
+    }
+    if ( not mRootJoint.empty() )
+        j["root_joint"] = mRootJoint;
+
+    j.update( MachineToJson( *this ) );
+
+    if ( not mLayers.empty() )
+    {
+        json& layers = j["layers"] = json::array();
+        for ( const ControllerLayer& layer : mLayers )
+        {
+            json l = json::object();
+            l["name"] = layer.mName;
+            if ( not layer.mMask.empty() )
+                l["mask"] = layer.mMask;
+            if ( not layer.mWeightParameter.empty() )
+                l["weight"] = layer.mWeightParameter;
+            else if ( layer.mWeight != 1.0f )
+                l["weight"] = Number( layer.mWeight );
+            if ( layer.mAdditive )
+                l["additive"] = true;
+            l.update( MachineToJson( layer.mMachine ) );
+            layers.push_back( std::move( l ) );
+        }
+    }
+
+    if ( not mEvents.empty() )
+    {
+        json& events = j["events"] = json::object();
+        for ( const auto& [clip, markers] : mEvents )
+        {
+            json list = json::array();
+            for ( const ClipEvent& marker : markers )
+                list.push_back( { Number( marker.mTime ), marker.mName } );
+            events[clip] = std::move( list );
+        }
+    }
+
+    if ( not mNodePositions.empty() )
+    {
+        json& positions = j["editor"]["positions"] = json::object();
+        for ( const auto& [key, position] : mNodePositions )
+            positions[key] = { Number( std::round( position.x ) ), Number( std::round( position.y ) ) };
+    }
+    return j;
+}
+
+bool AnimationController::Save() const
+{
+    std::ofstream file( mPath );
+    if ( not file.is_open() )
+    {
+        LogError( "Animation controller {}: could not open for writing", mPath.string() );
+        return false;
+    }
+    file << ToJson().dump( 2 ) << '\n';
+    return (bool)file;
 }
 
 i32 StateMachine::FindState( string_view name ) const

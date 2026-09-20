@@ -15,6 +15,7 @@ add_definitions(-DSOL_ALL_SAFETIES_ON)
 
 target_link_libraries(${TARGET_NAME} bubble_engine)
 target_link_libraries(${TARGET_NAME} argagg)
+target_link_libraries(${TARGET_NAME} imgui_node_editor)
 
 # Copies wgpu_native.dll next to the executable. No-op for the Emscripten
 # backends, which link the implementation in.

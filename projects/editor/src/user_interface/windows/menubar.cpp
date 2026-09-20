@@ -285,6 +285,12 @@ void Menubar::DrawMenubar()
                 ImGui::EndMenu();
             }
 
+            if ( ImGui::BeginMenu( "Windows" ) )
+            {
+                ImGui::MenuItem( "Animation Graph", nullptr, &mUIGlobals.mShowAnimationGraph );
+                ImGui::EndMenu();
+            }
+
             if ( ImGui::BeginMenu( "Interface" ) )
                 DrawInterfaceMenu();
 

@@ -232,3 +232,41 @@ TEST( Controller_Layers )
     CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "layers": [ { "mask": "Spine" , "states": { "n": {} } } ] })" ) ); // no name
     CHECK( Fails( R"({ "states": { "a": { "clip": "x" } }, "layers": [ { "name": "l", "weight": "nope", "states": { "n": {} } } ] })" ) );
 }
+
+TEST( Controller_RoundTrip )
+{
+    // FromJson( ToJson( x ) ) is x, and the second ToJson is byte for byte
+    // the first: nothing is lost or reordered on a save from the editor.
+    const AnimationController first = Load();
+    const json once = first.ToJson();
+    const AnimationController second = AnimationController::FromJson( once, "test.anim" );
+    const json twice = second.ToJson();
+    CHECK( once == twice );
+    CHECK( second.mStates.size() == first.mStates.size() );
+    CHECK( second.mTransitions.size() == first.mTransitions.size() );
+    CHECK( second.mParameters.size() == first.mParameters.size() );
+    CHECK( second.mStates[second.mEntry].mName == "locomotion" );
+    CHECK( second.mTransitions[0].mFrom == Transition::cAnyState and second.mTransitions[0].mInterrupt );
+    CHECK( second.mTransitions[3].mTo == Transition::cReturn and second.mTransitions[3].mExitTime and *second.mTransitions[3].mExitTime == 0.9f );
+    CHECK( second.mStates[second.FindState( "attack" )].mSpeed == 1.5f );
+
+    // Layers, events, root joint and the layout survive too.
+    AnimationController full = AnimationController::FromJson( json::parse( R"({
+      "parameters": { "speed": 0, "wave": "trigger", "aim": 0.5 },
+      "root_joint": "Hips",
+      "states": { "walk": { "clip": "walk", "root_motion": true } },
+      "layers": [ { "name": "upper", "mask": [ "Spine1" ], "weight": "aim", "additive": true, "entry": "none",
+                    "states": { "none": {}, "wave": { "clip": "wave", "loop": false } },
+                    "transitions": [ { "from": "none", "to": "wave", "when": [ "wave", "speed > 1" ], "duration": 0.1 } ] } ],
+      "events": { "walk": [ [0.3, "step"] ] },
+      "editor": { "positions": { "walk": [10, 20], "upper/wave": [30, 40] } }
+    })" ), "full.anim" );
+    const json a = full.ToJson();
+    const AnimationController again = AnimationController::FromJson( a, "full.anim" );
+    CHECK( again.ToJson() == a );
+    CHECK( again.mRootJoint == "Hips" and again.mStates[0].mRootMotion );
+    CHECK( again.mLayers.size() == 1 and again.mLayers[0].mAdditive and again.mLayers[0].mWeightParameter == "aim" );
+    CHECK( again.mLayers[0].mMachine.mTransitions[0].mConditions.size() == 2 );
+    CHECK( again.mEvents.at( "walk" ).size() == 1 );
+    CHECK( again.mNodePositions.at( "upper/wave" ) == vec2( 30, 40 ) );
+}

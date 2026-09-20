@@ -4,6 +4,7 @@
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
 #include "editor_user_interface/windows/console_window.hpp"
+#include "editor_user_interface/windows/animation_graph_window.hpp"
 
 namespace bubble
 {
@@ -22,6 +23,7 @@ private:
     ProjectViewportWindow mSceneViewportWindow;
     ProjectFilesWindow mProjectWindow;
     ConsoleWindow mConsoleWindow;
+    AnimationGraphWindow mAnimationGraphWindow;
 };
 
 }

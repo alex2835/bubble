@@ -194,14 +194,32 @@ with world space targets:
 Both are ozz's `IKAimJob` and `IKTwoBoneJob`; the joints below the corrected
 ones follow.
 
+### The graph window
+
+`Options → Windows → Animation Graph` (or `window.show` from an editor
+script) shows a controller as a graph: states are nodes, transitions are
+links, an *any state* node stands for `"from": "*"` and a *return* node for
+`"to": "return"`; one tab per machine, the base and each layer. It opens the
+selected entity's controller, or the first in the project.
+
+- Right click the canvas for a new state; drag from a node's `out` pin to
+  another's `in` pin for a transition (or from *any state*, or into
+  *return*); Delete removes what is selected.
+- The sidebar edits what is selected - a state's clip or blend space, loop,
+  speed, root motion, the events of its clip; a transition's conditions,
+  exit time, duration, interruptibility and its place in the order - plus
+  the parameters, the root joint, and the layer's mask, weight and kind.
+- The entry state has a green border. While an entity in the scene runs the
+  controller, its current state is orange and the transitions out of it
+  whose conditions hold are green - the inspector's view, on the graph.
+
+The window edits a draft; **Save** writes the `.anim` file, and the hot
+reloader hands it to every animator on it. Node positions are saved in the
+file under `"editor"`, which the runtime ignores.
+
 ### What the inspector shows
 
 The current state, every parameter (editable), and each transition out of the
 current state with its conditions - green while they hold. That is the whole
 debugging story: if a character will not leave a state, the reason is on
 screen.
-
-## Not done
-
-- A node editor. The JSON with the live inspector is the source of truth; an
-  editor would be a view over it.

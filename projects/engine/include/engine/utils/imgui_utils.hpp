@@ -5,11 +5,11 @@
 namespace ImGui
 {
 // True when the text was edited this frame, like the char* form.
-inline bool InputText( std::string_view label, std::string& str )
+inline bool InputText( std::string_view label, std::string& str, ImGuiInputTextFlags flags = 0 )
 {
     char buffer[128] = { 0 };
     str.copy( buffer, sizeof( buffer ) - 1 );
-    const bool changed = ImGui::InputText( label.data(), buffer, sizeof( buffer ) );
+    const bool changed = ImGui::InputText( label.data(), buffer, sizeof( buffer ), flags );
     str.assign( buffer );
     return changed;
 }

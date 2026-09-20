@@ -210,9 +210,18 @@ struct AnimationController : StateMachine
     vector<ControllerLayer> mLayers;
     // The joint whose travel is root motion, for states that ask for it.
     string mRootJoint;
+    // The graph window's layout, kept in the file under "editor" so a save
+    // round trips it: a node position per state, keyed "state" for the base
+    // machine and "layer/state" for a layer's. Nothing at runtime reads it.
+    map<string, vec2> mNodePositions;
 
     // Throws std::runtime_error with what is wrong and where.
     static AnimationController FromJson( const json& json, const path& source );
+    // The same file back: what FromJson reads, plus the layout.
+    json ToJson() const;
+    // ToJson to mPath, pretty printed. False, with the error logged, if the
+    // file could not be written.
+    bool Save() const;
     // A Parameters with every declared parameter at its default.
     Parameters DefaultParameters() const;
 };
