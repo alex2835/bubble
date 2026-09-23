@@ -16,6 +16,8 @@
 #include <functional>
 
 namespace Assimp { class Importer; }
+namespace ozz::animation { class Skeleton; }
+namespace ozz::animation::offline { struct RawAnimation; }
 struct aiScene;
 struct aiMesh;
 
@@ -85,6 +87,17 @@ std::optional<SkeletonData> ImportSkeleton( const aiScene* scene, const path& mo
 // Fills the mesh's joint indices and weights, remapped from assimp's per mesh
 // bone indices to the skeleton's. Leaves them empty for a mesh without bones.
 void ImportMeshSkin( const aiMesh* mesh, const Skeleton& skeleton, const path& modelPath, VertexBufferData& vertices );
+// A clip retargeted from a rig of another size can come with that size baked
+// into one joint: a uniform scale held for the whole clip, and the joint's
+// translation grown to match so the feet still reach the floor. Played beside
+// the model's other clips, the character grows and shrinks as they blend.
+// For every joint whose scale is uniform, never changes over the clip and is
+// not its rest scale, this puts the rest scale back and divides the joint's
+// translation by the same factor: the same motion, at the model's size.
+// Scale that changes over the clip is animation and is left alone. Returns
+// the joints it changed.
+vector<string> NormalizeConstantScale( ozz::animation::offline::RawAnimation& raw,
+                                       const ozz::animation::Skeleton& skeleton );
 
 std::optional<TextureData> OpenTexture( const path& path );
 // An encoded image already in memory - a texture embedded in a glTF binary.

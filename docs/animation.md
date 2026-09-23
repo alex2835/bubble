@@ -20,6 +20,14 @@ Runtime is [ozz-animation](https://github.com/guillaumeblanc/ozz-animation)
 converted offline. Clips are addressed by name - the animation's name in the
 file, or `clip_0`, `clip_1`, … for unnamed ones.
 
+A clip retargeted from a rig of another size sometimes carries that size on
+one joint: a uniform scale held for the whole clip, with the joint's
+translation grown to match (Meshy's idle does this on the hips). Blended with
+the model's other clips, the character would grow and shrink. Import takes
+such a scale out and divides the joint's translation by the same factor, so
+the clip plays at the model's size; it logs each joint it changes. Scale that
+changes during a clip is animation and is kept.
+
 A model with bones gets a `Skeleton` and its clips on `Model`; an entity with
 that model and an `AnimatorComponent` is posed every frame by
 `Engine::UpdateAnimations`, after the scripts and in the editor too.

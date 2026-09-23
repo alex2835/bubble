@@ -5,6 +5,7 @@
 #include <ozz/animation/runtime/skeleton.h>
 #include <ozz/animation/runtime/skeleton_utils.h>
 #include <ozz/animation/runtime/animation.h>
+#include <ozz/animation/offline/raw_animation.h>
 
 // The assimp -> ozz import, checked on a Khronos sample that has all three of
 // skin, skeleton and clip. OpenModel does no GPU work, so this runs headless.
@@ -176,4 +177,57 @@ TEST( SkeletonImport_CesiumMan )
         }
     }
     CHECK( skinnedVertices > 0 );
+}
+
+TEST( SkeletonImport_ConstantScaleNormalized )
+{
+    // A clip retargeted from a bigger rig: the hips held at 1.25 for the whole
+    // clip and lifted by as much. Import takes the scale out and brings the
+    // hips down with it. Scale that moves over the clip, and a scale that is
+    // not uniform, are the clip's own and stay.
+    auto modelData = OpenModel( cCesiumMan );
+    CHECK( modelData and modelData->mSkeleton );
+    if ( not modelData or not modelData->mSkeleton )
+        return;
+    const ozz::animation::Skeleton& skeleton = *modelData->mSkeleton->mSkeleton->mSkeleton;
+    const Skeleton& ours = *modelData->mSkeleton->mSkeleton;
+    const i32 hips = *ours.JointIndex( "Skeleton_torso_joint_1" );
+    const i32 leg = *ours.JointIndex( "leg_joint_L_1" );
+    const i32 arm = *ours.JointIndex( "Skeleton_arm_joint_R" );
+
+    using ozz::animation::offline::RawAnimation;
+    RawAnimation raw;
+    raw.duration = 1.0f;
+    raw.tracks.resize( skeleton.num_joints() );
+    for ( int j = 0; j < skeleton.num_joints(); j++ )
+    {
+        const ozz::math::Transform rest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, j );
+        raw.tracks[j].translations.push_back( { 0.0f, rest.translation } );
+        raw.tracks[j].rotations.push_back( { 0.0f, rest.rotation } );
+        raw.tracks[j].scales.push_back( { 0.0f, rest.scale } );
+    }
+    const ozz::math::Transform hipsRest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, hips );
+    const ozz::math::Transform legRest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, leg );
+    const ozz::math::Transform armRest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, arm );
+    auto& hipsTrack = raw.tracks[hips];
+    hipsTrack.scales = { { 0.0f, hipsRest.scale * 1.25f }, { 1.0f, hipsRest.scale * 1.25f } };
+    hipsTrack.translations = { { 0.0f, hipsRest.translation * 1.25f }, { 1.0f, hipsRest.translation * 1.5f } };
+    raw.tracks[leg].scales = { { 0.0f, legRest.scale }, { 1.0f, legRest.scale * 1.5f } };
+    raw.tracks[arm].scales = { { 0.0f, armRest.scale * ozz::math::Float3( 1.0f, 2.0f, 1.0f ) } };
+
+    const vector<string> changed = NormalizeConstantScale( raw, skeleton );
+    CHECK( changed.size() == 1 and changed[0] == "Skeleton_torso_joint_1" );
+
+    auto near = []( const ozz::math::Float3& a, const ozz::math::Float3& b ) {
+        return std::abs( a.x - b.x ) < 1e-4f and std::abs( a.y - b.y ) < 1e-4f and std::abs( a.z - b.z ) < 1e-4f;
+    };
+    CHECK( hipsTrack.scales.size() == 1 and near( hipsTrack.scales[0].value, hipsRest.scale ) );
+    CHECK( near( hipsTrack.translations[0].value, hipsRest.translation ) );
+    CHECK( near( hipsTrack.translations[1].value, hipsRest.translation * ( 1.5f / 1.25f ) ) );
+    CHECK( raw.tracks[leg].scales.size() == 2 );
+    CHECK( near( raw.tracks[arm].scales[0].value, armRest.scale * ozz::math::Float3( 1.0f, 2.0f, 1.0f ) ) );
+    CHECK( raw.Validate() );
+
+    // Once is enough: a second pass finds nothing to take out.
+    CHECK( NormalizeConstantScale( raw, skeleton ).empty() );
 }

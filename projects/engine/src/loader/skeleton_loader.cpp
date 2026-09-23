@@ -124,6 +124,55 @@ void FillKeys( ozz::vector<Key>& keys, const AiKey* aiKeys, u32 count,
 }
 
 
+bool Near( f32 a, f32 b )
+{
+    return std::abs( a - b ) <= 1e-4f * std::max( 1.0f, std::abs( b ) );
+}
+
+bool Uniform( const ozz::math::Float3& v )
+{
+    return Near( v.y, v.x ) and Near( v.z, v.x );
+}
+
+} // namespace
+
+
+vector<string> NormalizeConstantScale( RawAnimation& raw, const ozz::animation::Skeleton& skeleton )
+{
+    vector<string> changed;
+    const auto jointNames = skeleton.joint_names();
+    for ( size_t j = 0; j < raw.tracks.size() and j < jointNames.size(); j++ )
+    {
+        RawAnimation::JointTrack& track = raw.tracks[j];
+        if ( track.scales.empty() )
+            continue;
+        const ozz::math::Float3 held = track.scales.front().value;
+        if ( not Uniform( held ) )
+            continue;
+        const bool constant = std::ranges::all_of( track.scales, [&]( const auto& key ) {
+            return Near( key.value.x, held.x ) and Near( key.value.y, held.y ) and Near( key.value.z, held.z );
+        } );
+        const ozz::math::Transform rest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, static_cast<int>( j ) );
+        if ( not constant or not Uniform( rest.scale ) or rest.scale.x == 0.0f or Near( held.x, rest.scale.x ) )
+            continue;
+
+        // Dropping the scale shrinks everything below the joint by `factor`;
+        // dividing its translation too shrinks the joint's own offset from
+        // its parent, so the subtree as a whole is the clip's pose scaled
+        // about the parent - nothing slides or floats.
+        const f32 factor = held.x / rest.scale.x;
+        for ( auto& key : track.translations )
+            key.value = key.value / factor;
+        track.scales.assign( 1, { 0.0f, rest.scale } );
+        changed.emplace_back( jointNames[j] );
+    }
+    return changed;
+}
+
+
+namespace
+{
+
 Ref<AnimationClip> ImportClip( const aiAnimation* animation,
                                const ozz::animation::Skeleton& skeleton,
                                const path& modelPath )
@@ -178,6 +227,10 @@ Ref<AnimationClip> ImportClip( const aiAnimation* animation,
         LogError( "Model: {}. Animation '{}' failed ozz validation", modelPath.string(), raw.name.c_str() );
         return nullptr;
     }
+
+    for ( const string& joint : NormalizeConstantScale( raw, skeleton ) )
+        LogInfo( "Model: {}. Animation '{}': joint '{}' held a scale of its own for the whole clip; "
+                 "taken out, the clip plays at the model's size", modelPath.string(), raw.name.c_str(), joint );
 
     // Drops keys the interpolation would reproduce anyway, within 1mm at the
     // joint and 10cm at the end of the chain it moves. glTF exporters bake a
