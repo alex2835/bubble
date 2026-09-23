@@ -32,6 +32,7 @@ add_subdirectory(glfw3webgpu)
 add_subdirectory(imgui)
 add_subdirectory(imgui_gizmo)
 add_subdirectory(imgui-filebrowser)
+add_subdirectory(imgui_node_editor)
 
 #GIT_TAG v6.0.5  GIT_REPOSITORY "https://github.com/assimp/assimp.git"
 option(ASSIMP_BUILD_TESTS "" OFF)
