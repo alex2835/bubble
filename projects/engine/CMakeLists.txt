@@ -44,14 +44,11 @@ target_precompile_headers(${TARGET_NAME} PUBLIC "include/engine/pch/pch.hpp")
 set_source_files_properties(src/renderer/webgpu_impl.cpp
     PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
-# MSVC: the component translation units instantiate enough sol2 templates to
-# overflow the default object-file section limit.
+# MSVC: the component and Lua binding translation units instantiate enough
+# sol2 templates to overflow the default object-file section limit (Debug hits
+# it first). Set target-wide so a new heavy TU doesn't need to be listed.
 if(MSVC)
-    file(GLOB COMPONENT_SRCS src/scene/components/*.cpp)
-    set_source_files_properties(
-        ${COMPONENT_SRCS}
-        PROPERTIES COMPILE_FLAGS "/bigobj"
-    )
+    target_compile_options(${TARGET_NAME} PRIVATE /bigobj)
 endif()
 
 target_link_libraries(${TARGET_NAME} PUBLIC webgpu)

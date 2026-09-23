@@ -1,4 +1,7 @@
 #pragma once
+#include <concepts>
+#include <format>
+#include <string>
 #include <string_view>
 #include <type_traits>
 
@@ -12,6 +15,17 @@ concept ComponentType = requires( T component )
 {
     { T::ID() } -> std::same_as<int>;
 };
+
+// Human-readable component name for error messages: "Model (12)" when the
+// type has a static Name(), otherwise just the id.
+template <ComponentType T>
+std::string ComponentName()
+{
+    if constexpr ( requires { { T::Name() } -> std::convertible_to<std::string_view>; } )
+        return std::format( "{} ({})", std::string_view( T::Name() ), T::ID() );
+    else
+        return std::to_string( T::ID() );
+}
 
 // Tuples
 template <ComponentType T, size_t Size, size_t... Is>

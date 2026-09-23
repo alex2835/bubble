@@ -223,7 +223,7 @@ const Pool& Registry::GetComponentPool( ComponentTypeId id ) const
 {
     auto iter = mPools.find( id );
     if ( iter == mPools.end() )
-        throw std::runtime_error( "Registry::GetComponentPool failed due to invalid component id" );
+        throw std::runtime_error( "Registry::GetComponentPool: no pool for component id " + std::to_string( id ) );
     return iter->second;
 }
 

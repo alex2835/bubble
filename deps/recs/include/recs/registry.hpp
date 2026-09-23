@@ -186,7 +186,7 @@ template <ComponentType Component, typename ...Args>
 Component& Registry::AddComponent( Entity entity, Args&& ...args )
 {
     if ( entity == INVALID_ENTITY )
-        throw std::runtime_error( "AddComponent: Invalid entity" );
+        throw std::runtime_error( std::format( "AddComponent<{}>: Invalid entity", ComponentName<Component>() ) );
 
     if ( mComponents.emplace( Component::ID() ).second )
         mPools.emplace( Component::ID(), Pool::CreatePool<Component>() );
@@ -210,15 +210,17 @@ template <ComponentType Component>
 Component& Registry::GetComponent( Entity entity )
 {
     if ( entity == INVALID_ENTITY )
-        throw std::runtime_error( "GetComponent: Invalid entity" );
+        throw std::runtime_error( std::format( "GetComponent<{}>: Invalid entity", ComponentName<Component>() ) );
 
     // The pool lookup already answers "does this entity have the component",
-    // so a HasComponent pre-check would just repeat the work.
-    Pool& pool = GetComponentPool( Component::ID() );
-    if ( void* raw = pool.GetRaw( entity ) )
-        return *static_cast<Component*>( raw );
+    // so a HasComponent pre-check would just repeat the work. An unregistered
+    // type has no pool, which means no entity has it either.
+    auto poolIter = mPools.find( Component::ID() );
+    if ( poolIter != mPools.end() )
+        if ( void* raw = poolIter->second.GetRaw( entity ) )
+            return *static_cast<Component*>( raw );
 
-    throw std::runtime_error( std::format( "GetComponent: Entity {} doesn't have component {}", (size_t)entity, Component::ID() ) );
+    throw std::runtime_error( std::format( "GetComponent: Entity {} doesn't have component {}", (size_t)entity, ComponentName<Component>() ) );
 }
 
 template <ComponentType Component>
@@ -239,7 +241,7 @@ template <ComponentType Component>
 bool Registry::HasComponent( Entity entity ) const
 {
     if ( entity == INVALID_ENTITY )
-        throw std::runtime_error( "HasComponent: Invalid entity" );
+        throw std::runtime_error( std::format( "HasComponent<{}>: Invalid entity", ComponentName<Component>() ) );
 
     return EntityHasComponent( entity, Component::ID() );
 }
@@ -258,7 +260,7 @@ template <ComponentType Component>
 void Registry::RemoveComponent( Entity entity )
 {
     if ( entity == INVALID_ENTITY )
-        throw std::runtime_error( "RemoveComponent: Invalid entity" );
+        throw std::runtime_error( std::format( "RemoveComponent<{}>: Invalid entity", ComponentName<Component>() ) );
 
     //ComponentTypeId component = GetComponentTypeId<Component>();
     if ( EntityHasComponent( entity, Component::ID() ) )
