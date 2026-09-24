@@ -25,8 +25,6 @@ public:
     // void SetSeleciton( const Ref<ProjectTreeNode>& node );
 
 protected:
-    bool mOpen = true;
-
     Window& mWindow;
     EditorMode& mEditorMode;
     Framebuffer& mSceneViewport;

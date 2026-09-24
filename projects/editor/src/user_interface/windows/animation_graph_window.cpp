@@ -3,6 +3,8 @@
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/components/animator_component.hpp"
 #include "engine/scene/components/model_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
+#include "engine/animation/animator.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include <imgui_node_editor.h>
 #include <nlohmann/json.hpp>
@@ -52,6 +54,25 @@ const ImVec4 cSatisfiedColor( 0.4f, 1.0f, 0.4f, 1.0f );
 const ImVec4 cLinkColor( 0.75f, 0.75f, 0.75f, 1.0f );
 const ImVec4 cAnyColor( 0.55f, 0.55f, 0.85f, 1.0f );
 
+// A state node's text is cut to this width, times the UI scale, so a long
+// clip name cannot stretch the node over its neighbours; the full text is in
+// the sidebar. The default layout's columns are spaced wider than this.
+constexpr f32 cNodeTextWidth = 190.0f;
+constexpr f32 cNodeColumn = 250.0f;
+constexpr f32 cNodeRow = 110.0f;
+
+// `text` cut to `width` pixels with an ellipsis, whole when it fits.
+string Fit( const string& text, f32 width )
+{
+    if ( ImGui::CalcTextSize( text.c_str() ).x <= width )
+        return text;
+    const f32 ellipsis = ImGui::CalcTextSize( "..." ).x;
+    string cut = text;
+    while ( not cut.empty() and ImGui::CalcTextSize( cut.c_str() ).x + ellipsis > width )
+        cut.pop_back();
+    return cut + "...";
+}
+
 string Join( const vector<string>& parts, const char* separator )
 {
     string out;
@@ -75,18 +96,25 @@ vector<string> Split( string_view text, char separator )
 }
 
 // A combo over names, with the current one shown; returns true and sets
-// `value` when another is picked. An empty list draws nothing.
+// `value` when another is picked. An empty list draws nothing. An empty
+// name - "none" - shows as "-"; ids come from the index, since ImGui cannot
+// take an empty label as an id.
 bool NameCombo( const char* label, string& value, const vector<string>& names )
 {
     bool changed = false;
     if ( ImGui::BeginCombo( label, value.empty() ? "-" : value.c_str() ) )
     {
-        for ( const string& name : names )
-            if ( ImGui::Selectable( name.c_str(), name == value ) and name != value )
+        for ( size_t i = 0; i < names.size(); i++ )
+        {
+            const string& name = names[i];
+            ImGui::PushID( static_cast<int>( i ) );
+            if ( ImGui::Selectable( name.empty() ? "-" : name.c_str(), name == value ) and name != value )
             {
                 value = name;
                 changed = true;
             }
+            ImGui::PopID();
+        }
         ImGui::EndCombo();
     }
     return changed;
@@ -97,7 +125,6 @@ bool NameCombo( const char* label, string& value, const vector<string>& names )
 AnimationGraphWindow::AnimationGraphWindow( BubbleEditor& editor )
     : UserInterfaceWindowBase( editor )
 {
-    mOpen = false;
 }
 
 AnimationGraphWindow::~AnimationGraphWindow()
@@ -112,6 +139,14 @@ string_view AnimationGraphWindow::Name()
 
 void AnimationGraphWindow::OnUpdate( DeltaTime )
 {
+    // Collected every frame, open or not, so the preview's list is complete.
+    if ( const AnimatorComponent* animator = LiveAnimator() )
+        for ( const string& event : animator->mFiredEvents )
+        {
+            mRecentEvents.push_back( event );
+            if ( mRecentEvents.size() > 8 )
+                mRecentEvents.pop_front();
+        }
 }
 
 
@@ -183,14 +218,16 @@ string AnimationGraphWindow::PositionKey( const string& state ) const
 void AnimationGraphWindow::PlaceNodes()
 {
     const StateMachine& machine = Machine();
-    ed::SetNodePosition( cAnyNode, ImVec2( -260, 0 ) );
-    ed::SetNodePosition( cReturnNode, ImVec2( -260, 140 ) );
+    const f32 scale = mWindow.GetUIScale();
+    ed::SetNodePosition( cAnyNode, ImVec2( -cNodeColumn * scale, 0.0f ) );
+    ed::SetNodePosition( cReturnNode, ImVec2( -cNodeColumn * scale, cNodeRow * scale ) );
     for ( size_t i = 0; i < machine.mStates.size(); i++ )
     {
         const auto saved = mDraft.mNodePositions.find( PositionKey( machine.mStates[i].mName ) );
         const ImVec2 position = saved != mDraft.mNodePositions.end()
                                 ? ImVec2( saved->second.x, saved->second.y )
-                                : ImVec2( 240.0f * ( i % 4 ), 140.0f * ( i / 4 ) );
+                                : ImVec2( cNodeColumn * scale * ( i % 4 ),
+                                          cNodeRow * scale * ( i / 4 ) );
         ed::SetNodePosition( StateNode( (i32)i ), position );
     }
 }
@@ -271,22 +308,36 @@ void AnimationGraphWindow::AddTransition( i32 from, i32 to )
 
 // ---------------------------------------------------------------- live --
 
-const AnimatorComponent* AnimationGraphWindow::LiveAnimator() const
+Entity AnimationGraphWindow::LiveEntity() const
 {
     if ( not mSource )
-        return nullptr;
-    const AnimatorComponent* found = nullptr;
-    mProject.mLevel.mScene.ForEach<AnimatorComponent>( [&]( Entity, const AnimatorComponent& animator )
+        return INVALID_ENTITY;
+    Scene& scene = mProject.mLevel.mScene;
+    if ( mSelection.IsSingleSelection() )
     {
-        if ( not found and animator.mController == mSource )
-            found = &animator;
+        const Entity selected = mSelection.GetSingleEntity();
+        if ( scene.HasComponent<AnimatorComponent>( selected ) and
+             scene.GetComponent<AnimatorComponent>( selected ).mController == mSource )
+            return selected;
+    }
+    Entity found = INVALID_ENTITY;
+    scene.ForEach<AnimatorComponent>( [&]( Entity entity, const AnimatorComponent& animator )
+    {
+        if ( found == INVALID_ENTITY and animator.mController == mSource )
+            found = entity;
     } );
     return found;
 }
 
-const Playback* AnimationGraphWindow::LivePlayback() const
+AnimatorComponent* AnimationGraphWindow::LiveAnimator() const
 {
-    const AnimatorComponent* animator = LiveAnimator();
+    const Entity entity = LiveEntity();
+    return entity == INVALID_ENTITY ? nullptr : &mProject.mLevel.mScene.GetComponent<AnimatorComponent>( entity );
+}
+
+Playback* AnimationGraphWindow::LivePlayback() const
+{
+    AnimatorComponent* animator = LiveAnimator();
     if ( not animator )
         return nullptr;
     if ( mTab < 0 )
@@ -344,20 +395,15 @@ vector<string> AnimationGraphWindow::JointNames() const
 
 void AnimationGraphWindow::OnDraw( DeltaTime )
 {
-    if ( not mUIGlobals.mShowAnimationGraph )
+    if ( not mUIGlobals.mShow.mAnimationGraph )
         return;
-    mOpen = true;
     ImGui::SetNextWindowSize( ImVec2( 1100, 650 ), ImGuiCond_FirstUseEver );
     const string title = std::format( "{}{}###AnimationGraph", Name(), mDirty ? " *" : "" );
-    if ( not ImGui::Begin( title.c_str(), &mOpen ) )
+    if ( not ImGui::Begin( title.c_str(), &mUIGlobals.mShow.mAnimationGraph ) )
     {
         ImGui::End();
-        if ( not mOpen )
-            mUIGlobals.mShowAnimationGraph = false;
         return;
     }
-    if ( not mOpen )
-        mUIGlobals.mShowAnimationGraph = false;
 
     // Nothing open: the selected entity's controller, if it has one, is the
     // obvious thing to be looking at.
@@ -583,7 +629,8 @@ void AnimationGraphWindow::DrawNode( i32 index )
     const ControllerState& state = Machine().mStates[index];
     ed::BeginNode( StateNode( index ) );
     ImGui::PushID( index );
-    ImGui::TextUnformatted( state.mName.c_str() );
+    const f32 width = cNodeTextWidth * mWindow.GetUIScale();
+    ImGui::TextUnformatted( Fit( state.mName, width ).c_str() );
     string detail;
     if ( state.IsBlend() )
         detail = std::format( "blend on {} ({} clips)", state.mBlendParameter, state.mBlend.mPoints.size() );
@@ -591,10 +638,13 @@ void AnimationGraphWindow::DrawNode( i32 index )
         detail = "nothing";
     else
         detail = state.mClip;
+    // The flags are kept whole; the clip name gives way to them.
+    string flags;
     if ( not state.mLoop )
-        detail += "  once";
+        flags += "  once";
     if ( state.mRootMotion )
-        detail += "  root";
+        flags += "  root";
+    detail = Fit( detail, width - ImGui::CalcTextSize( flags.c_str() ).x ) + flags;
     ImGui::TextDisabled( "%s", detail.c_str() );
     ed::BeginPin( InPin( index ), ed::PinKind::Input );
     ImGui::TextUnformatted( "> in" );
@@ -743,11 +793,106 @@ void AnimationGraphWindow::DrawSidebar()
     else
         ImGui::TextDisabled( "Select a state or a transition." );
 
-    if ( const AnimatorComponent* animator = LiveAnimator() )
+    if ( ImGui::CollapsingHeader( "Preview", ImGuiTreeNodeFlags_DefaultOpen ) )
+        DrawPreview();
+}
+
+void AnimationGraphWindow::DrawPreview()
+{
+    AnimatorComponent* animator = LiveAnimator();
+    if ( not animator or not animator->mController )
     {
-        ImGui::Separator();
-        ImGui::TextDisabled( "live: %s", string( animator->CurrentState() ).c_str() );
+        ImGui::TextDisabled( "No entity in the scene runs this controller." );
+        return;
     }
+    Scene& scene = mProject.mLevel.mScene;
+    const Entity entity = LiveEntity();
+    ImGui::Text( "%s", scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName.c_str() : "entity" );
+    if ( mDirty )
+        ImGui::TextDisabled( "Plays the saved file; Save to try the edits." );
+
+    // The values the entity runs on - what a script would set. The
+    // controller's defaults are above; these are live.
+    ImGui::TextDisabled( "parameters" );
+    for ( const auto& [name, declared] : animator->mController->mParameters )
+    {
+        auto iter = animator->mParameters.mValues.find( name );
+        if ( iter == animator->mParameters.mValues.end() )
+            continue;
+        Parameter& parameter = iter->second;
+        ImGui::PushID( name.c_str() );
+        ImGui::SetNextItemWidth( 120.0f * mWindow.GetUIScale() );
+        switch ( declared.mType )
+        {
+        case Parameter::Type::Float:
+            ImGui::DragFloat( "##p", &parameter.mValue, 0.05f );
+            break;
+        case Parameter::Type::Bool:
+        {
+            bool value = parameter.mValue != 0.0f;
+            if ( ImGui::Checkbox( "##p", &value ) )
+                parameter.mValue = value ? 1.0f : 0.0f;
+            break;
+        }
+        case Parameter::Type::Trigger:
+            if ( ImGui::SmallButton( "fire" ) )
+                parameter.mValue = 1.0f;
+            break;
+        }
+        ImGui::SameLine();
+        ImGui::TextUnformatted( name.c_str() );
+        ImGui::PopID();
+    }
+
+    // The current tab's stream.
+    Playback* playback = LivePlayback();
+    if ( not playback )
+        return;
+    ImGui::Separator();
+    ImGui::Text( "state: %s", playback->mStateName.empty() ? "-" : playback->mStateName.c_str() );
+    if ( not playback->IsEmpty() )
+        ImGui::TextDisabled( "%s %s", playback->IsBlend() ? "blend" : "clip", playback->mClip.c_str() );
+    if ( mTab >= 0 and mTab < (i32)animator->mLayers.size() )
+        ImGui::TextDisabled( "weight %.2f", animator->mLayers[mTab].mShownWeight );
+    const u32 slot = mTab < 0 ? 0 : mTab + 1;
+    if ( animator->mAnimator and animator->mAnimator->Track( slot ).InTransition() )
+        ImGui::TextDisabled( "transition %.0f%%", 100.0f * animator->mAnimator->Track( slot ).TransitionProgress() );
+
+    // Pausing stops every stream, so the pose can be looked at whole; the
+    // slider then scrubs this one.
+    const bool paused = not animator->mBase.mPlaying;
+    if ( ImGui::Button( paused ? "Play" : "Pause" ) )
+    {
+        animator->mBase.mPlaying = paused;
+        for ( OverlayLayer& layer : animator->mLayers )
+            layer.mPlayback.mPlaying = paused;
+    }
+    if ( not playback->IsEmpty() )
+    {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth( -1.0f );
+        if ( playback->IsBlend() )
+        {
+            ImGui::SliderFloat( "##time", &playback->mTime, 0.0f, 1.0f, "phase %.2f" );
+        }
+        else
+        {
+            f32 duration = 0.0f;
+            if ( scene.HasComponent<ModelComponent>( entity ) )
+                if ( const auto& model = scene.GetComponent<ModelComponent>( entity ).mModel )
+                    if ( const auto& clip = model->FindClip( playback->mClip ) )
+                        duration = clip->mDuration;
+            ImGui::SliderFloat( "##time", &playback->mTime, 0.0f, duration, "%.2f s" );
+        }
+    }
+
+    if ( animator->mBase.mRootMotion )
+        ImGui::TextDisabled( "root motion %.3f %.3f %.3f, yaw %.3f", animator->mRootDelta.x, animator->mRootDelta.y,
+                             animator->mRootDelta.z, animator->mRootYawDelta );
+
+    ImGui::TextDisabled( "events" );
+    for ( auto it = mRecentEvents.rbegin(); it != mRecentEvents.rend(); ++it )
+        ImGui::BulletText( "%s", it->c_str() );
 }
 
 void AnimationGraphWindow::DrawParameters()
@@ -883,8 +1028,8 @@ void AnimationGraphWindow::DrawStateProperties( i32 index )
     }
 
     int kind = state.IsBlend() ? 1 : state.mClip.empty() ? 2 : 0;
-    if ( ImGui::RadioButton( "clip", &kind, 0 ) or ( ImGui::SameLine(), ImGui::RadioButton( "blend", &kind, 1 ) )
-         or ( ImGui::SameLine(), ImGui::RadioButton( "nothing", &kind, 2 ) ) )
+    if ( ImGui::RadioButton( "clip##kind", &kind, 0 ) or ( ImGui::SameLine(), ImGui::RadioButton( "blend##kind", &kind, 1 ) )
+         or ( ImGui::SameLine(), ImGui::RadioButton( "nothing##kind", &kind, 2 ) ) )
     {
         if ( kind != 1 )
         {

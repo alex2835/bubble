@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/renderer/entity_id_picker.hpp"
+#include "utils/shown_windows.hpp"
 
 
 namespace bubble
@@ -15,8 +16,7 @@ struct UIGlobals
     bool mDrawBoundingBoxes = false;
     bool mDrawPhysicsShapes = false;
     bool mDrawSkeletons = false;
-    // Windows that are closed until asked for.
-    bool mShowAnimationGraph = false;
+    ShownWindows mShow;
 
     // Entity picking. Lives here because the viewport window asks for a read
     // while the editor's frame loop is what renders the id pass and starts the

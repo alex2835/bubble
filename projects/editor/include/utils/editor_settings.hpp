@@ -5,6 +5,7 @@
 #include "engine/utils/filesystem.hpp"
 #include "engine/renderer/camera.hpp"
 #include "engine/window/window.hpp"
+#include "utils/shown_windows.hpp"
 
 namespace bubble
 {
@@ -44,6 +45,8 @@ struct EditorSettings
     bool mDrawBoundingBoxes = false;
     bool mDrawPhysicsShapes = false;
     bool mDrawSkeletons = false;
+
+    ShownWindows mShownWindows;
 
     static path FilePath();
 

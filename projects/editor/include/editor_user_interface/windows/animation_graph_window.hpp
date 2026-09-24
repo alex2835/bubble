@@ -3,6 +3,7 @@
 #include "engine/animation/animation_controller.hpp"
 #include "engine/types/map.hpp"
 #include "engine/types/set.hpp"
+#include <deque>
 
 namespace ax::NodeEditor { struct EditorContext; }
 
@@ -55,6 +56,10 @@ private:
     void DrawLayerSettings();
     void DrawStateProperties( i32 state );
     void DrawTransitionProperties( i32 transition );
+    // The live entity's playback - parameters, state, time, pause, events -
+    // for trying the controller out. Runtime state only: nothing here is
+    // saved, to the .anim or to the scene.
+    void DrawPreview();
 
     void AddState( string name, const ImVec2& position );
     void RemoveState( i32 state );
@@ -63,10 +68,12 @@ private:
     // scene carries one: what the clip combos offer.
     vector<string> ClipNames() const;
     vector<string> JointNames() const;
-    // The Playback of an entity running this controller on the current tab,
-    // for the live view; null when none does.
-    const struct Playback* LivePlayback() const;
-    const struct AnimatorComponent* LiveAnimator() const;
+    // The entity the preview shows: the selected one if it runs this
+    // controller, otherwise the first in the scene that does.
+    Entity LiveEntity() const;
+    // Its Playback on the current tab; null when there is none.
+    struct Playback* LivePlayback() const;
+    struct AnimatorComponent* LiveAnimator() const;
 
     Ref<AnimationController> mSource;
     AnimationController mDraft;
@@ -86,6 +93,8 @@ private:
     string mNewLayer;
     string mRename;
     i32 mRenaming = -1;
+    // The live entity's latest clip events, newest last.
+    std::deque<string> mRecentEvents;
 };
 
 }

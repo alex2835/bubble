@@ -270,6 +270,13 @@ void Menubar::DrawMenubar()
             ImGui::EndMenu();
         }
 
+        if ( ImGui::BeginMenu( "Windows" ) )
+        {
+            for ( const WindowToggle& toggle : cWindowToggles )
+                ImGui::MenuItem( toggle.mLabel, nullptr, &( mUIGlobals.mShow.*toggle.mShown ) );
+            ImGui::EndMenu();
+        }
+
         if ( ImGui::BeginMenu( "Options" ) )
         {
             if ( ImGui::BeginMenu( "Camera" ) )
@@ -282,12 +289,6 @@ void Menubar::DrawMenubar()
                 ImGui::Checkbox( "BoundingBoxes", (bool*)&mUIGlobals.mDrawBoundingBoxes );
                 ImGui::Checkbox( "PhysicsShapse", (bool*)&mUIGlobals.mDrawPhysicsShapes );
                 ImGui::Checkbox( "Skeletons", (bool*)&mUIGlobals.mDrawSkeletons );
-                ImGui::EndMenu();
-            }
-
-            if ( ImGui::BeginMenu( "Windows" ) )
-            {
-                ImGui::MenuItem( "Animation Graph", nullptr, &mUIGlobals.mShowAnimationGraph );
                 ImGui::EndMenu();
             }
 

@@ -43,6 +43,10 @@ void EditorSettings::Save() const
     renderingJson["DrawPhysicsShapes"] = mDrawPhysicsShapes;
     renderingJson["DrawSkeletons"] = mDrawSkeletons;
 
+    json& windowsJson = settingsJson["Windows"];
+    for ( const WindowToggle& toggle : cWindowToggles )
+        windowsJson[toggle.mId] = mShownWindows.*toggle.mShown;
+
     const auto filePath = FilePath();
     std::ofstream settingsFile( filePath );
     if ( not settingsFile.is_open() )
@@ -100,6 +104,10 @@ void EditorSettings::Load()
             mDrawPhysicsShapes = renderingJson->value( "DrawPhysicsShapes", mDrawPhysicsShapes );
             mDrawSkeletons = renderingJson->value( "DrawSkeletons", mDrawSkeletons );
         }
+
+        if ( auto windowsJson = settingsJson.find( "Windows" ); windowsJson != settingsJson.end() )
+            for ( const WindowToggle& toggle : cWindowToggles )
+                mShownWindows.*toggle.mShown = windowsJson->value( toggle.mId, mShownWindows.*toggle.mShown );
     }
     catch ( const std::exception& e )
     {
@@ -136,6 +144,7 @@ void EditorSettings::Apply( Window& window, SceneCamera& camera, UIGlobals& uiGl
     uiGlobals.mDrawBoundingBoxes = mDrawBoundingBoxes;
     uiGlobals.mDrawPhysicsShapes = mDrawPhysicsShapes;
     uiGlobals.mDrawSkeletons = mDrawSkeletons;
+    uiGlobals.mShow = mShownWindows;
 }
 
 void EditorSettings::Capture( const Window& window, const SceneCamera& camera, const UIGlobals& uiGlobals )
@@ -161,6 +170,7 @@ void EditorSettings::Capture( const Window& window, const SceneCamera& camera, c
     mDrawBoundingBoxes = uiGlobals.mDrawBoundingBoxes;
     mDrawPhysicsShapes = uiGlobals.mDrawPhysicsShapes;
     mDrawSkeletons = uiGlobals.mDrawSkeletons;
+    mShownWindows = uiGlobals.mShow;
 }
 
 }

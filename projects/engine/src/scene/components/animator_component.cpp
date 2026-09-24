@@ -537,137 +537,10 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt, const mat4& en
 
 // Inspector
 
-namespace
-{
-// A stream's controls: what plays, speed, loop, scrub, pause. `label`
-// suffixes ImGui ids so several streams can sit in one inspector.
-// The stream at `slot`: the base, or an overlay.
-Playback* PlaybackAt( AnimatorComponent& component, u32 slot )
-{
-    if ( slot == 0 )
-        return &component.mBase;
-    if ( slot - 1 < component.mLayers.size() )
-        return &component.mLayers[slot - 1].mPlayback;
-    return nullptr;
-}
-
-void DrawPlayback( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component,
-                   Playback& playback, const Model& model, const char* label, Animator* animator, u32 slot )
-{
-    ImGui::PushID( label );
-
-    // Choosing a clip restarts it - the same as Play() from a script. The
-    // stream is found again by slot rather than held: the command may run
-    // on the component after an undo has replaced its layers.
-    const string clip = playback.IsEmpty() ? string() : playback.mClip;
-    ComboProperty<AnimatorComponent>( ctx, entity, "clip", clip, clip.empty() ? "None" : clip.c_str(),
-                                      model.mClips,
-                                      []( const auto& c ) { return c->mName; },
-                                      []( const auto& c ) { return c->mName; },
-                                      [slot]( AnimatorComponent& c, const string& v )
-    {
-        if ( Playback* p = PlaybackAt( c, slot ) )
-            p->Play( v, 0.2f );
-    } );
-
-    if ( playback.IsBlend() )
-    {
-        // A blend space is authored by a script or a controller; the
-        // inspector shows it and drives its parameter.
-        ImGui::TextDisabled( "blend '%s':", playback.mClip.c_str() );
-        for ( const BlendPoint& point : playback.mBlend.mPoints )
-            ImGui::TextDisabled( "  %s at %.2f", point.mClip.c_str(), point.mValue );
-        const f32 lo = playback.mBlend.mPoints.front().mValue;
-        const f32 hi = playback.mBlend.mPoints.back().mValue;
-        ImGui::SliderFloat( "Blend", &playback.mBlendValue, lo, hi );
-    }
-
-    // Playback is not an edit: scrubbing, speed and pausing are how a clip
-    // is looked at, and none of it belongs in the history.
-    ImGui::DragFloat( "Speed", &playback.mSpeed, 0.01f, -10.0f, 10.0f );
-    ImGui::Checkbox( "Loop", &playback.mLoop );
-    if ( playback.IsBlend() )
-    {
-        ImGui::SliderFloat( "Phase", &playback.mTime, 0.0f, 1.0f, "%.2f" );
-    }
-    else
-    {
-        const auto& current = model.FindClip( playback.mClip );
-        const f32 duration = current ? current->mDuration : 0.0f;
-        ImGui::SliderFloat( "Time", &playback.mTime, 0.0f, duration, "%.2f s" );
-    }
-    if ( animator and animator->Track( slot ).InTransition() )
-        ImGui::TextDisabled( "transition %.0f%%", 100.0f * animator->Track( slot ).TransitionProgress() );
-    if ( playback.mPlaying )
-    {
-        if ( ImGui::Button( "Pause" ) )
-            playback.mPlaying = false;
-    }
-    else if ( ImGui::Button( "Play" ) )
-    {
-        playback.mPlaying = true;
-    }
-    ImGui::PopID();
-}
-
-// A state machine's live view: the state, and the transitions out of it
-// with whether each would fire now.
-void DrawMachine( const StateMachine& machine, const Playback& playback, const Parameters& parameters )
-{
-    const ControllerRuntime& runtime = playback.mRuntime;
-    if ( runtime.mCurrent < 0 )
-        return;
-    ImGui::Text( "state: %s", machine.mStates[runtime.mCurrent].mName.c_str() );
-    for ( const Transition& transition : machine.mTransitions )
-    {
-        if ( transition.mFrom != Transition::cAnyState and transition.mFrom != runtime.mCurrent )
-            continue;
-        const string to = transition.mTo == Transition::cReturn ? "return" : machine.mStates[transition.mTo].mName;
-        string when;
-        for ( const Condition& condition : transition.mConditions )
-            when += ( when.empty() ? "" : " and " ) + condition.ToString();
-        if ( transition.mExitTime )
-            when += std::format( "{}exit {:.2f}", when.empty() ? "" : ", ", *transition.mExitTime );
-        const bool conditionsHold = std::ranges::all_of( transition.mConditions,
-            [&]( const Condition& c ) { return c.Holds( parameters ); } );
-        ImGui::TextColored( conditionsHold ? ImVec4( 0.4f, 1.0f, 0.4f, 1.0f ) : ImVec4( 0.6f, 0.6f, 0.6f, 1.0f ),
-                            "%s-> %s  [%s]", transition.mFrom == Transition::cAnyState ? "* " : "", to.c_str(), when.c_str() );
-    }
-}
-
-// Every parameter, editable - a tweak while watching, not an edit of the
-// scene.
-void DrawParameters( AnimatorComponent& component )
-{
-    for ( const auto& [name, declared] : component.mController->mParameters )
-    {
-        auto iter = component.mParameters.mValues.find( name );
-        if ( iter == component.mParameters.mValues.end() )
-            continue;
-        Parameter& parameter = iter->second;
-        switch ( declared.mType )
-        {
-        case Parameter::Type::Float:
-            ImGui::DragFloat( name.c_str(), &parameter.mValue, 0.01f );
-            break;
-        case Parameter::Type::Bool:
-        {
-            bool value = parameter.mValue != 0.0f;
-            if ( ImGui::Checkbox( name.c_str(), &value ) )
-                parameter.mValue = value ? 1.0f : 0.0f;
-            break;
-        }
-        case Parameter::Type::Trigger:
-            if ( ImGui::Button( name.c_str() ) )
-                parameter.mValue = 1.0f;
-            ImGui::SameLine();
-            ImGui::TextDisabled( parameter.mValue != 0.0f ? "(set)" : "trigger" );
-            break;
-        }
-    }
-}
-}
-
+// What the component is set to, and nothing else. Watching it play - live
+// parameters, the current state, scrubbing, pausing, events - is the
+// Animation Graph window's preview: none of it is a setting, and none of it
+// belongs in the scene.
 void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "AnimatorComponent" );
@@ -680,7 +553,6 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
         return;
     }
 
-    // The controller, if any: which one, where it is, and what it reads.
     const auto& controller = component.mController;
     ComboProperty<AnimatorComponent>( ctx, entity, "controller", controller,
                                       controller ? controller->mName.c_str() : "None",
@@ -690,27 +562,23 @@ void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& en
                                       []( AnimatorComponent& c, const Ref<AnimationController>& v ) { c.SetController( v ); } );
     if ( controller )
     {
-        DrawParameters( component );
-        DrawMachine( *controller, component.mBase, component.mParameters );
+        ImGui::TextDisabled( "Preview it in the Animation Graph window" );
+        return;
     }
-    DrawPlayback( ctx, entity, component, component.mBase, *model, "base", component.mAnimator.get(), 0 );
-    if ( component.mBase.mRootMotion )
-        ImGui::TextDisabled( "root motion on '%s': %.3f %.3f %.3f, yaw %.3f", component.mRootJoint.c_str(),
-                             component.mRootDelta.x, component.mRootDelta.y, component.mRootDelta.z, component.mRootYawDelta );
 
-    for ( size_t i = 0; i < component.mLayers.size(); i++ )
-    {
-        OverlayLayer& layer = component.mLayers[i];
-        ImGui::Separator();
-        string mask;
-        for ( const string& joint : layer.mMask )
-            mask += ( mask.empty() ? "" : ", " ) + joint;
-        ImGui::Text( "%slayer '%s' on [%s]  weight %.2f (shown %.2f)", layer.mAdditive ? "additive " : "",
-                     layer.mName.c_str(), mask.c_str(), layer.mWeight, layer.mShownWeight );
-        if ( controller and i < controller->mLayers.size() )
-            DrawMachine( controller->mLayers[i].mMachine, layer.mPlayback, component.mParameters );
-        DrawPlayback( ctx, entity, component, layer.mPlayback, *model, layer.mName.c_str(), component.mAnimator.get(), static_cast<u32>( i + 1 ) );
-    }
+    // Without a controller: the clip the entity plays from the start.
+    const string clip = component.mBase.IsEmpty() ? string() : component.mBase.mClip;
+    ComboProperty<AnimatorComponent>( ctx, entity, "clip", clip, clip.empty() ? "None" : clip.c_str(),
+                                      model->mClips,
+                                      []( const auto& c ) { return c->mName; },
+                                      []( const auto& c ) { return c->mName; },
+                                      []( AnimatorComponent& c, const string& v ) { c.mBase.Play( v ); } );
+    EditProperty<AnimatorComponent>( ctx, entity, "Speed", component.mBase.mSpeed,
+                                     []( f32& v ) { return ImGui::DragFloat( "Speed", &v, 0.01f, -10.0f, 10.0f ); },
+                                     []( AnimatorComponent& c, const f32& v ) { c.mBase.mSpeed = v; } );
+    EditProperty<AnimatorComponent>( ctx, entity, "Loop", component.mBase.mLoop,
+                                     []( bool& v ) { return ImGui::Checkbox( "Loop", &v ); },
+                                     []( AnimatorComponent& c, const bool& v ) { c.mBase.mLoop = v; } );
 }
 
 
@@ -723,7 +591,6 @@ void PlaybackToJson( json& j, const Playback& playback )
     j["Clip"] = playback.mClip;
     j["Speed"] = playback.mSpeed;
     j["Loop"] = playback.mLoop;
-    j["Playing"] = playback.mPlaying;
     if ( playback.IsBlend() )
     {
         auto& points = j["Blend"] = json::array();
@@ -741,8 +608,6 @@ void PlaybackFromJson( const json& j, Playback& playback )
         playback.mSpeed = j["Speed"];
     if ( j.contains( "Loop" ) )
         playback.mLoop = j["Loop"];
-    if ( j.contains( "Playing" ) )
-        playback.mPlaying = j["Playing"];
     if ( j.contains( "Blend" ) )
     {
         playback.mBlend = {};

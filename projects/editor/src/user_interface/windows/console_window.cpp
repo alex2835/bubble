@@ -46,7 +46,9 @@ int RecallCallback( ImGuiInputTextCallbackData* data )
 
 void ConsoleWindow::OnDraw( DeltaTime )
 {
-    ImGui::Begin( Name().data(), &mOpen );
+    if ( not mUIGlobals.mShow.mConsole )
+        return;
+    ImGui::Begin( Name().data(), &mUIGlobals.mShow.mConsole );
 
     if ( ImGui::SmallButton( "Clear" ) )
         mLua.ClearLog();

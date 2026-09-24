@@ -310,7 +310,9 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 
 void ProjectTreeWindow::OnDraw( DeltaTime )
 {
-    ImGui::Begin( Name().data(), &mOpen );
+    if ( not mUIGlobals.mShow.mEntities )
+        return;
+    ImGui::Begin( Name().data(), &mUIGlobals.mShow.mEntities );
     {
         DrawEntities();
         ImGui::Separator();

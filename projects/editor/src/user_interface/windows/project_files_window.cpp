@@ -235,8 +235,10 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
 
 void ProjectFilesWindow::OnDraw( DeltaTime )
 {
+    if ( not mUIGlobals.mShow.mProject )
+        return;
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
-    ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
+    ImGui::Begin( Name().data(), &mUIGlobals.mShow.mProject, ImGuiWindowFlags_NoCollapse );
     if ( mEditorMode == EditorMode::Editing )
     {
         ImGui::BeginChild( "Project tree", ImVec2( 250, 0 ), true );

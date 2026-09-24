@@ -233,17 +233,21 @@ void BubbleEditor::RegisterEditorOperators()
                                                              : mProject.CurrentLevel();
         } } );
 
-    // args: window ("animation_graph"), show (default true). Windows that
-    // start closed; the menu's checkbox goes through the same flag.
+    // args: window ("entities", "viewport", "project", "console",
+    // "animation_graph"), show (default true). The Windows menu's checkboxes
+    // go through the same flags.
     registry.Register( { "window.show", "Show window", nullptr,
         [this]( OperatorContext&, const json& args )
         {
             const string window = args.at( "window" ).get<string>();
             const bool show = args.value( "show", true );
-            if ( window == "animation_graph" )
-                mUIGlobals.mShowAnimationGraph = show;
-            else
-                throw std::runtime_error( std::format( "window.show: no window '{}'", window ) );
+            for ( const WindowToggle& toggle : cWindowToggles )
+                if ( window == toggle.mId )
+                {
+                    mUIGlobals.mShow.*toggle.mShown = show;
+                    return;
+                }
+            throw std::runtime_error( std::format( "window.show: no window '{}'", window ) );
         } } );
 
     registry.Register( { "game.run", "Run", projectOpen,

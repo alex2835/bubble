@@ -79,7 +79,7 @@ stays until it is fixed.
 ### Parameters
 
 `name: default`. A number is a float, `true`/`false` a bool, `"trigger"` a
-trigger. A script writes them with `set` and `trigger`; the inspector shows
+trigger. A script writes them with `set` and `trigger`; the graph window's Preview shows
 and edits them live.
 
 A **trigger** is set by the script and cleared by the controller: the
@@ -204,7 +204,7 @@ ones follow.
 
 ### The graph window
 
-`Options → Windows → Animation Graph` (or `window.show` from an editor
+`Windows → Animation Graph` (or `window.show` from an editor
 script) shows a controller as a graph: states are nodes, transitions are
 links, an *any state* node stands for `"from": "*"` and a *return* node for
 `"to": "return"`; one tab per machine, the base and each layer. It opens the
@@ -219,7 +219,13 @@ selected entity's controller, or the first in the project.
   the parameters, the root joint, and the layer's mask, weight and kind.
 - The entry state has a green border. While an entity in the scene runs the
   controller, its current state is orange and the transitions out of it
-  whose conditions hold are green - the inspector's view, on the graph.
+  whose conditions hold are green.
+- **Preview** plays with that entity - the selected one if it runs the
+  controller, otherwise the first that does: its live parameters (drag a
+  float, tick a bool, fire a trigger), the current tab's state and clip,
+  transition progress, a layer's weight, Pause and a time slider to scrub,
+  root motion, and the last clip events. None of it is saved; the preview
+  runs the saved file, so Save first to try an edit.
 
 The window edits a draft; **Save** writes the `.anim` file, and the hot
 reloader hands it to every animator on it. Node positions are saved in the
@@ -227,7 +233,6 @@ file under `"editor"`, which the runtime ignores.
 
 ### What the inspector shows
 
-The current state, every parameter (editable), and each transition out of the
-current state with its conditions - green while they hold. That is the whole
-debugging story: if a character will not leave a state, the reason is on
-screen.
+Only settings, each an undoable edit: the controller; without one, the clip
+the entity plays, its speed and loop. Watching it play is the graph window's
+Preview.

@@ -50,7 +50,7 @@ Where an argument is optional, the default comes from the selection.
 | `level.new` | `name` | Enqueue it. |
 | `level.set_startup` | `file?` | Default: the open level. |
 | `game.run`, `game.stop` | | F5 / F6. |
-| `window.show` | `window` (`animation_graph`), `show?` bool | Opens (or closes) an editor window that starts closed. |
+| `window.show` | `window` (`entities`, `viewport`, `project`, `console`, `animation_graph`), `show?` bool | Opens (or closes) an editor window, as its checkbox in the Windows menu does. |
 
 Every edit an operator makes is one step in the undo history; an operator
 that makes none (`scene.copy`, `game.run`) leaves no step.

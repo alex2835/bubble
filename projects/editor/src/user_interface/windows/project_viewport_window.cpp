@@ -384,8 +384,14 @@ bool ProjectViewportWindow::DrawViewManipulator()
 
 void ProjectViewportWindow::OnDraw( DeltaTime )
 {
+    if ( not mUIGlobals.mShow.mViewport )
+    {
+        // Nothing under the mouse to fly the camera or pick with.
+        mUIGlobals.mIsViewportHovered = false;
+        return;
+    }
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
-    ImGui::Begin( Name().data(), &mOpen, ImGuiWindowFlags_NoCollapse );
+    ImGui::Begin( Name().data(), &mUIGlobals.mShow.mViewport, ImGuiWindowFlags_NoCollapse );
     {
         mUIGlobals.mIsViewportHovered = ImGui::IsWindowHovered();
         DrawViewport();
