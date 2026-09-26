@@ -21,9 +21,9 @@ void CameraComponent::UpdateOrbit( TransformComponent& transform )
     // mCenter - not from mYaw/mPitch, which are the place on the sphere and
     // face the other way. This is the inverse of VectorsFromEuler, so the
     // propagation reproduces mForward exactly.
-    transform.mPosition   = mPosition;
-    transform.mRotation.x = std::asin( glm::clamp( mForward.y, -1.0f, 1.0f ) );
-    transform.mRotation.y = std::atan2( mForward.z, mForward.x );
+    transform.mPosition = mPosition;
+    transform.SetLookAngles( std::asin( glm::clamp( mForward.y, -1.0f, 1.0f ) ),
+                             std::atan2( mForward.z, mForward.x ) );
 }
 
 void CameraComponent::OrbitFromTransform( const TransformComponent& transform )

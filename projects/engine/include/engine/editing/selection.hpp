@@ -50,7 +50,6 @@ public:
     void UpdateGroupTransform( const Scene& scene );
 
     // Apply transform delta to all selected entities
-    void ApplyTransformDelta( const vec3& positionDelta, const vec3& rotationDelta, const vec3& scaleDelta, Scene& scene );
 
 private:
     Ref<ProjectTreeNode> mProjectTreeNode;

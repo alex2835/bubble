@@ -30,8 +30,8 @@ public:
     void SetKinematic( bool kinematic );
     bool IsKinematic() const;
 
-    void SetTransform( const vec3& pos, const vec3& rot );
-    void GetTransform( vec3& pos, vec3& rot ) const;
+    void SetTransform( const vec3& pos, const quat& rot );
+    void GetTransform( vec3& pos, quat& rot ) const;
 
     void ClearForces();
 

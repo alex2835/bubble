@@ -280,14 +280,19 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
         "apply_torque_impulse",  &RigidBody::ApplyTorqueImpulse,
         "set_kinematic",         &RigidBody::SetKinematic,
         "is_kinematic",          &RigidBody::IsKinematic,
-        "set_transform",         &RigidBody::SetTransform,
+        // Rotations cross to Lua as Euler radians, like Transform's.
+        "set_transform",         []( RigidBody& body, const vec3& position, const vec3& rotation )
+        {
+            body.SetTransform( position, Transform::FromEuler( rotation ) );
+        },
         // GetTransform fills two out-params, which has no sensible Lua shape.
         // Returned as a pair instead: local pos, rot = body:get_transform()
         "get_transform",         []( const RigidBody& body )
         {
-            vec3 position, rotation;
+            vec3 position;
+            quat rotation;
             body.GetTransform( position, rotation );
-            return std::make_tuple( position, rotation );
+            return std::make_tuple( position, Transform::ToEuler( rotation ) );
         }
     );
 

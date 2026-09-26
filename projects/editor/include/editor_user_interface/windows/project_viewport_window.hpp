@@ -40,6 +40,11 @@ private:
     uvec2 mSize;
     ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
+    // The mode the gizmo is drawn in: the one above, or world while Shift is
+    // held - decided when a drag starts and kept to its end, so pressing or
+    // releasing Shift mid drag does not swing the axes under the mouse.
+    ImGuizmo::MODE GizmoMode();
+    ImGuizmo::MODE mDragGizmoMode = ImGuizmo::MODE::LOCAL;
 
     // Top left of the viewport image in screen coordinates, captured when it is
     // drawn. Picking maps mouse positions through this.

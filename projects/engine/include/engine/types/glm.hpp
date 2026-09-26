@@ -2,6 +2,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include "glm/gtx/transform.hpp"
 #include <glm-aabb/AABB.hpp>
 
@@ -22,6 +23,8 @@ using glm::uvec4;
 using glm::mat2;
 using glm::mat3;
 using glm::mat4;
+
+using glm::quat;
 
 using CPM_GLM_AABB_NS::AABB;
 

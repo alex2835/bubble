@@ -8,8 +8,9 @@ namespace bubble
 // A camera on an entity.
 //
 // The entity's TransformComponent is where the camera is and where it looks:
-// mPosition and mRotation (pitch, yaw) there are the truth, authored by the
-// gizmo, by a script moving the entity, or by UpdateOrbit below. The Camera
+// mPosition and mRotation (read as pitch and yaw, Transform::LookAngles) there
+// are the truth, authored by the gizmo, by a script moving the entity, or by
+// UpdateOrbit below. The Camera
 // fields this inherits - mPosition, mForward, mRight, mUp - are a cache that
 // Engine::PropagateCameraTransforms fills from the transform every frame, for
 // the renderer and for scripts that want the basis vectors. Writing them

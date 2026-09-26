@@ -339,8 +339,8 @@ void CreateSceneBindings( Scene& scene,
         ),
         "rotation",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).mRotation; },
-            [&]( const Entity& entity, const vec3& v ) { scene.GetComponent<TransformComponent>( entity ).mRotation = v; }
+            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).Euler(); },
+            [&]( const Entity& entity, const vec3& v ) { scene.GetComponent<TransformComponent>( entity ).SetEuler( v ); }
         ),
         "scale",
         sol::property(

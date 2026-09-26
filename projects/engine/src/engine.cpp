@@ -370,7 +370,8 @@ void Engine::PropagateCameraTransforms( Scene& scene )
         const TransformComponent& transform )
     {
         camera.mPosition = transform.mPosition;
-        camera.VectorsFromEuler( transform.mRotation.y, transform.mRotation.x );
+        const vec2 look = transform.LookAngles();
+        camera.VectorsFromEuler( look.y, look.x );
     } );
 }
 
@@ -438,8 +439,9 @@ void Engine::PropagateAudioTransforms( Scene& scene )
 
         // Same euler convention the camera uses, so a listener parented to the
         // player hears what the camera looks at.
-        const f32 yaw = transform.mRotation.y;
-        const f32 pitch = transform.mRotation.x;
+        const vec2 look = transform.LookAngles();
+        const f32 pitch = look.x;
+        const f32 yaw = look.y;
         const vec3 forward = normalize( vec3( cos( yaw ) * cos( pitch ),
                                               sin( pitch ),
                                               sin( yaw ) * cos( pitch ) ) );

@@ -170,6 +170,13 @@ void ProjectViewportWindow::DrawViewport()
 }
 
 
+ImGuizmo::MODE ProjectViewportWindow::GizmoMode()
+{
+    if ( not ImGuizmo::IsUsing() )
+        mDragGizmoMode = ImGui::GetIO().KeyShift ? ImGuizmo::WORLD : mCurrentGizmoMode;
+    return mDragGizmoMode;
+}
+
 void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 {
     if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
@@ -185,12 +192,10 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
         mGizmoStartTransform = entityTransform;
     }
 
-    auto rotaion = glm::degrees( entityTransform.mRotation );
-    mat4 transformNew;
-    ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( entityTransform.mPosition ),
-                                             glm::value_ptr( rotaion ),
-                                             glm::value_ptr( entityTransform.mScale ),
-                                             glm::value_ptr( transformNew ) );
+    // The gizmo moves a matrix; the transform is taken back out of it. Only
+    // what the gizmo changed is written, so an untouched part keeps its
+    // exact value rather than a round trip through the matrix.
+    mat4 transformNew = entityTransform.TransformMat();
 
 
     const auto lookAt = mSceneCamera.GetLookatMat();
@@ -199,16 +204,20 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,
-                          mCurrentGizmoMode,
+                          GizmoMode(),
                           glm::value_ptr( transformNew ) );
 
 
-    ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
-                                           glm::value_ptr( entityTransform.mPosition ),
-                                           glm::value_ptr( rotaion ),
-                                           glm::value_ptr( entityTransform.mScale ) );
-
-    entityTransform.mRotation = glm::radians( rotaion );
+    if ( ImGuizmo::IsUsing() )
+    {
+        const Transform moved = Transform::FromMatrix( transformNew );
+        if ( mCurrentGizmoOperation & ImGuizmo::TRANSLATE )
+            entityTransform.mPosition = moved.mPosition;
+        if ( mCurrentGizmoOperation & ImGuizmo::ROTATE )
+            entityTransform.mRotation = moved.mRotation;
+        if ( mCurrentGizmoOperation & ImGuizmo::SCALE )
+            entityTransform.mScale = moved.mScale;
+    }
 
     // Check if gizmo just stopped being used
     if ( not isUsing and mGizmoWasUsing )
@@ -239,39 +248,34 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
         }
     }
 
-    mat4 transformNew;
-    ImGuizmo::RecomposeMatrixFromComponents( glm::value_ptr( transform.mPosition ),
-                                             glm::value_ptr( glm::degrees( transform.mRotation ) ),
-                                             glm::value_ptr( transform.mScale ),
-                                             glm::value_ptr( transformNew ) );
+    mat4 transformNew = transform.TransformMat();
 
     auto lookAt = mSceneCamera.GetLookatMat();
     auto projection = mSceneCamera.GetProjectionMat( mSize.x, mSize.y );
     ImGuizmo::Manipulate( glm::value_ptr( lookAt ),
                           glm::value_ptr( projection ),
                           mCurrentGizmoOperation,
-                          mCurrentGizmoMode,
+                          GizmoMode(),
                           glm::value_ptr( transformNew ) );
 
-    vec3 posNew, rotNew, scaleNew;
-    ImGuizmo::DecomposeMatrixToComponents( glm::value_ptr( transformNew ),
-                                           glm::value_ptr( posNew ),
-                                           glm::value_ptr( rotNew ),
-                                           glm::value_ptr( scaleNew ) );
+    // What the gizmo did to the group this frame, laid onto each entity: the
+    // move and the scale added, the turn applied on top of its own rotation.
+    const Transform moved = ImGuizmo::IsUsing() ? Transform::FromMatrix( transformNew ) : transform;
+    const vec3 positionDelta = moved.mPosition - transform.mPosition;
+    const quat rotationDelta = moved.mRotation * glm::inverse( transform.mRotation );
+    const vec3 scaleDelta = moved.mScale - transform.mScale;
 
     for ( auto entity : entities )
     {
         if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             continue;
         auto& trans = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
-        trans.mPosition += posNew - mSelection.GetGroupTransform().mPosition;
-        trans.mRotation += glm::radians( rotNew ) - mSelection.GetGroupTransform().mRotation;
-        trans.mScale += scaleNew - mSelection.GetGroupTransform().mScale;
+        trans.mPosition += positionDelta;
+        trans.mRotation = glm::normalize( rotationDelta * trans.mRotation );
+        trans.mScale += scaleDelta;
     }
 
-    mSelection.GetGroupTransform().mPosition = posNew;
-    mSelection.GetGroupTransform().mRotation = glm::radians( rotNew );
-    mSelection.GetGroupTransform().mScale = scaleNew;
+    transform = moved;
 
     // Check if gizmo just stopped being used
     if ( not isUsing and mGizmoWasUsing )

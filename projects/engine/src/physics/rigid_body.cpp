@@ -84,20 +84,17 @@ bool RigidBody::IsKinematic() const
     return mBody->isKinematicObject();
 }
 
-void RigidBody::SetTransform( const vec3& pos, const vec3& rot )
+void RigidBody::SetTransform( const vec3& pos, const quat& rot )
 {
     btTransform transform;
     transform.setOrigin( btVector3( pos.x, pos.y, pos.z ) );
-
-    btQuaternion q;
-    q.setEulerZYX( rot.z, rot.y, rot.x );
-    transform.setRotation( q );
+    transform.setRotation( btQuaternion( rot.x, rot.y, rot.z, rot.w ) );
 
     mBody->setWorldTransform( transform );
     mBody->getMotionState()->setWorldTransform( transform );
 }
 
-void RigidBody::GetTransform( vec3& pos, vec3& rot ) const
+void RigidBody::GetTransform( vec3& pos, quat& rot ) const
 {
     btTransform transform;
     mBody->getMotionState()->getWorldTransform( transform );
@@ -105,9 +102,8 @@ void RigidBody::GetTransform( vec3& pos, vec3& rot ) const
                 transform.getOrigin().getY(),
                 transform.getOrigin().getZ() );
 
-    btScalar x, y, z;
-    transform.getRotation().getEulerZYX( x, y, z );
-    rot = vec3( z, y, x );
+    const btQuaternion q = transform.getRotation();
+    rot = quat( q.getW(), q.getX(), q.getY(), q.getZ() );
 }
 
 void RigidBody::ClearForces()

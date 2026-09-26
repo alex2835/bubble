@@ -378,15 +378,22 @@ Constructible: `Transform()`, `Transform( position )`,
 Fields: `position`, `rotation`, `scale` — all `vec3`, read as copies. Has
 `tostring`.
 
+The rotation is held as a quaternion; `rotation` is its Euler angles in
+radians, applied X, then Y, then Z. Reading it back gives *a* spelling of the
+rotation, not necessarily the one set: Y comes back within ±90°, so a yaw of
+120° reads as (180°, 60°, 180°). Keep your own angle in the script state when
+you accumulate one (as `player_mesh.lua` does with `state.yaw`) and set it,
+rather than reading `rotation.y` back and adding to it.
+
 | Method | Notes |
 |---|---|
 | `t:translate( x, y, z )` | Adds to `position`. Scalar args allocate nothing — use this in hot loops. |
 | `t:translate( vec3 )` | Same, for when you already hold a `vec3`. |
 | `t:set_position( x, y, z )` | Replaces `position`. Allocates nothing. |
 | `t:set_position( vec3 )` | Same. |
-| `t:rotate( x, y, z )` | Adds to `rotation` (euler, radians). Allocates nothing. |
+| `t:rotate( x, y, z )` | Turns by these Euler radians about the transform's own axes. Allocates nothing. |
 | `t:rotate( vec3 )` | Same. |
-| `t:set_rotation( x, y, z )` | Replaces `rotation` (euler, radians). Allocates nothing. |
+| `t:set_rotation( x, y, z )` | Replaces the rotation (Euler radians). Allocates nothing. |
 | `t:set_rotation( vec3 )` | Same. |
 | `t:set_scale( x, y, z )` | Replaces `scale`. Allocates nothing. |
 | `t:set_scale( vec3 )` | Same. |
@@ -444,7 +451,9 @@ uniform set). `tostring` gives the shader name, or `null`.
 
 `RigidBody` methods: `get_mass()`, `set_mass( mass )`, `set_friction( f )`,
 `get_friction()`, `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`,
-`set_transform( position, rotation )`, `set_kinematic( bool )`, `is_kinematic()`.
+`set_transform( position, rotation )` (rotation in Euler radians, as
+`Transform`'s), `get_transform()` → `position, rotation`, `set_kinematic( bool )`,
+`is_kinematic()`.
 
 A kinematic body is driven by `set_transform` instead of by forces, and pushes
 the dynamic bodies it meets. Bullet only treats a massless body as kinematic, so

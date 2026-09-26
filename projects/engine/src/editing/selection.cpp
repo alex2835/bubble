@@ -111,23 +111,4 @@ void Selection::UpdateGroupTransform( const Scene& scene )
     }
 }
 
-void Selection::ApplyTransformDelta( const vec3& positionDelta, const vec3& rotationDelta, const vec3& scaleDelta, Scene& scene )
-{
-    for ( auto entity : mEntities )
-    {
-        if ( scene.HasComponent<TransformComponent>( entity ) )
-        {
-            auto& trans = scene.GetComponent<TransformComponent>( entity );
-            trans.mPosition += positionDelta;
-            trans.mRotation += rotationDelta;
-            trans.mScale += scaleDelta;
-        }
-    }
-
-    // Update group transform to match new position
-    mGroupTransform.mPosition += positionDelta;
-    mGroupTransform.mRotation += rotationDelta;
-    mGroupTransform.mScale += scaleDelta;
-}
-
 } // namespace bubble
