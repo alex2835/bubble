@@ -6,11 +6,8 @@
 namespace bubble
 {
 // Selection implementation
-void Selection::Prune( const Scene& scene, const Ref<ProjectTreeNode>& root )
+void Selection::Prune( const Scene& scene )
 {
-    if ( mProjectTreeNode and mProjectTreeNode != root and not FindNodeById( mProjectTreeNode->ID(), root ) )
-        mProjectTreeNode = nullptr;
-
     bool dropped = false;
     for ( auto it = mEntities.begin(); it != mEntities.end(); )
     {
@@ -28,33 +25,18 @@ void Selection::Prune( const Scene& scene, const Ref<ProjectTreeNode>& root )
 
 void Selection::Clear()
 {
-    mProjectTreeNode.reset();
     mEntities.clear();
     mGroupTransform = Transform{};
 }
 
-void Selection::SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& scene )
+void Selection::Select( Entity entity, const Scene& scene )
 {
     Clear();
-    mProjectTreeNode = node;
-
-    if ( not node )
-        return;
-    // An entity node is that entity: what hangs under it follows it through
-    // the hierarchy, and moving them too would move them twice. A folder is
-    // the entities at its top, each with what is under it.
-    std::function<void( const Ref<ProjectTreeNode>& )> collect = [&]( const Ref<ProjectTreeNode>& n )
+    if ( scene.HasEntity( entity ) )
     {
-        if ( const auto entity = n->TryGetEntity() )
-        {
-            mEntities.insert( *entity );
-            return;
-        }
-        for ( const auto& child : n->mChildren )
-            collect( child );
-    };
-    collect( node );
-    UpdateGroupTransform( scene );
+        mEntities.insert( entity );
+        UpdateGroupTransform( scene );
+    }
 }
 
 void Selection::AddEntity( Entity entity, const Scene& scene )

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <span>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
@@ -16,10 +17,16 @@ namespace recs
 /**
  * @brief Store sorted components data
  *
- * Components are stored unboxed in one buffer, kept sorted by entity id, and
- * relocated with memmove. A component type must therefore be trivially
- * relocatable: no self-references and no pointers registered elsewhere that
- * point back into the object. std::string / std::vector members are fine.
+ * Components are stored unboxed in one buffer, kept sorted by entity id. When
+ * the buffer grows or an insert or erase shifts it, a component is moved to
+ * its new slot and the old one destroyed; only trivially copyable types are
+ * moved bytewise. Standard containers are not safe to memmove: MSVC's checked
+ * iterators keep a pointer from a proxy back to the container, and libstdc++'s
+ * std::string points into itself.
+ *
+ * A component type needs a noexcept move constructor. One with only a copy
+ * constructor would be copied on every shift - for a deep copy, wrong as well
+ * as slow - so it does not compile.
  */
 class RECS_EXPORT Pool
 {
@@ -47,7 +54,20 @@ public:
         {
             new ( to ) T( *static_cast<const T*>( from ) );
         };
-        return Pool( sizeof( T ), init_func, delete_func, copy_func );
+        static_assert( std::is_nothrow_move_constructible_v<T>,
+                       "recs: components are relocated by moving them; give the type a noexcept move constructor" );
+        // Null for a trivially copyable type: a memmove relocates it.
+        void( *relocate_func )( void*, void* ) = nullptr;
+        if constexpr ( !std::is_trivially_copyable_v<T> )
+        {
+            relocate_func = []( void* from, void* to )
+            {
+                T* source = static_cast<T*>( from );
+                new ( to ) T( std::move( *source ) );
+                source->~T();
+            };
+        }
+        return Pool( sizeof( T ), init_func, delete_func, copy_func, relocate_func );
     }
 
     Pool( const Pool& );
@@ -111,9 +131,13 @@ private:
     Pool( size_t component_size,
           void( *init_func )( void* ),
           void( *delete_func )( void* ),
-          void( *copy_func )( const void*, void* ) );
+          void( *copy_func )( const void*, void* ),
+          void( *relocate_func )( void*, void* ) );
 
     void Clear();
+    // Moves `count` components starting at `from` to raw storage at `to`,
+    // leaving raw storage behind. The ranges may overlap.
+    void Relocate( char* to, char* from, size_t count );
     void Clone( Pool& pool ) const;
     void Realloc( size_t new_capacity );
     size_t GallopTo( size_t from, size_t entityId ) const noexcept;
@@ -134,6 +158,7 @@ private:
     void( *mDoInit )( void* component ) = nullptr;
     void( *mDoDelete )( void* component ) = nullptr;
     void( *mDoCopy )( const void* from, void* to ) = nullptr;
+    void( *mDoRelocate )( void* from, void* to ) = nullptr;
 
     friend class Registry;
 };
@@ -162,7 +187,7 @@ T& Pool::Push( Entity entity, Args&& ...args )
     if ( iterator != mEntities.end() )
     {
         position = iterator - mEntities.begin();
-        std::memmove( GetElemAddress( position + 1 ), GetElemAddress( position ), mComponentSize * ( mSize - position ) );
+        Relocate( (char*)GetElemAddress( position + 1 ), (char*)GetElemAddress( position ), mSize - position );
     }
     mEntities.insert( iterator, entity );
     void* new_elem_mem = GetElemAddress( position );

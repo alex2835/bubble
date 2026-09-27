@@ -74,9 +74,7 @@ void BubbleEditor::Run()
                     mSceneCamera.OnUpdate( deltaTime );
                 mEngine.mCamera = (Camera)mSceneCamera;
 
-                // The tree is where parents are set while editing; the scene
-                // follows it, and the world transforms follow the scene.
-                SyncHierarchy( mProject.mLevel.mScene, mProject.mLevel.mTreeRoot );
+                // What was moved in the tree or the inspector, into the world.
                 UpdateWorldTransforms( mProject.mLevel.mScene );
 
                 // Draw project scene
@@ -195,7 +193,7 @@ void BubbleEditor::OnUpdate()
     // Whatever ran this frame - a hotkey, a queued operator, a script -
     // must not leave the windows a selection that points at nothing.
     if ( mProject.IsValid() )
-        mSelection.Prune( mProject.mLevel.mScene, mProject.mLevel.mTreeRoot );
+        mSelection.Prune( mProject.mLevel.mScene );
 }
 
 void BubbleEditor::RegisterEditorOperators()

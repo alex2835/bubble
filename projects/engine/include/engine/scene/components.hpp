@@ -16,3 +16,5 @@
 #include "engine/scene/components/audio_listener_component.hpp"
 #include "engine/scene/components/animator_component.hpp"
 #include "engine/scene/components/hierarchy_component.hpp"
+#include "engine/scene/components/folder_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"

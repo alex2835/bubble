@@ -10,8 +10,8 @@
 
 namespace bubble
 {
-// Read only: the links are made in the tree - drag a node onto another - and
-// a field here that edited one side of a link would break the other.
+// Read only: the links are made in the Entities tree - drag an entity onto
+// another - and a field here that edited one side would break the other.
 void HierarchyComponent::OnComponentDraw( InspectorContext& ctx, const Entity&, HierarchyComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "HierarchyComponent" );
@@ -24,21 +24,26 @@ void HierarchyComponent::OnComponentDraw( InspectorContext& ctx, const Entity&, 
     };
     ImGui::Text( "parent: %s", name( component.mParent ).c_str() );
     ImGui::Text( "children: %zu", component.mChildren.size() );
-    ImGui::TextDisabled( "Parent in the Entities tree: drag a node onto another." );
+    ImGui::TextDisabled( "Parent in the Entities tree: drag an entity onto another." );
 }
 
-// The parent only; the children are rebuilt from the parents (and, in the
-// editor, from the tree) whenever a scene is loaded.
+// Both sides, the children in their order.
 void HierarchyComponent::ToJson( json& json, const Project&, const HierarchyComponent& component )
 {
     json["Parent"] = (u64)component.mParent;
+    json["Children"] = json::array();
+    for ( const Entity child : component.mChildren )
+        json["Children"].push_back( (u64)child );
 }
 
 void HierarchyComponent::FromJson( const json& json, Project&, HierarchyComponent& component )
 {
-    const u64 id = json.value( "Parent", u64( 0 ) );
-    component.mParent = *(const Entity*)&id;
+    const auto entity = []( u64 id ) { return *(const Entity*)&id; };
+    component.mParent = entity( json.value( "Parent", u64( 0 ) ) );
     component.mChildren.clear();
+    if ( const auto children = json.find( "Children" ); children != json.end() and children->is_array() )
+        for ( const auto& id : *children )
+            component.mChildren.push_back( entity( id.get<u64>() ) );
 }
 
 void HierarchyComponent::CreateLuaBinding( sol::state& )

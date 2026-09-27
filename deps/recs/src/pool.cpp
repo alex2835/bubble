@@ -7,11 +7,13 @@ namespace recs
 Pool::Pool( size_t component_size,
             void( *init_func )( void* ),
             void( *delete_func )( void* ),
-            void( *copy_func )( const void*, void* ) )
+            void( *copy_func )( const void*, void* ),
+            void( *relocate_func )( void*, void* ) )
     : mComponentSize( component_size ),
       mDoInit( init_func ),
       mDoDelete( delete_func ),
-      mDoCopy( copy_func )
+      mDoCopy( copy_func ),
+      mDoRelocate( relocate_func )
 {
     Realloc( 10 );
 }
@@ -38,6 +40,7 @@ void Pool::Clone( Pool& pool ) const
     pool.mDoInit = mDoInit;
     pool.mDoDelete = mDoDelete;
     pool.mDoCopy = mDoCopy;
+    pool.mDoRelocate = mDoRelocate;
 
     pool.mComponentSize = mComponentSize;
     pool.mSize = 0;
@@ -58,7 +61,8 @@ Pool::Pool( Pool&& other ) noexcept
       mEntities( std::move( other.mEntities ) ),
       mDoInit( other.mDoInit ),
       mDoDelete( other.mDoDelete ),
-      mDoCopy( other.mDoCopy )
+      mDoCopy( other.mDoCopy ),
+      mDoRelocate( other.mDoRelocate )
 {
     // The moved-from pool no longer owns any storage, so its size has to follow.
     // Otherwise its destructor walks a null buffer calling component destructors.
@@ -81,6 +85,7 @@ Pool& Pool::operator=( Pool&& other ) noexcept
     mDoInit = other.mDoInit;
     mDoDelete = other.mDoDelete;
     mDoCopy = other.mDoCopy;
+    mDoRelocate = other.mDoRelocate;
 
     other.mSize = 0;
     other.mCapacity = 0;
@@ -119,7 +124,7 @@ void* Pool::PushEmpty( Entity entity )
     size_t position = iterator != mEntities.end() ? iterator - mEntities.begin() : mSize;
 
     mEntities.insert( iterator, entity );
-    std::memmove( GetElemAddress( position + 1 ), GetElemAddress( position ), mComponentSize * ( mSize - position ) );
+    Relocate( (char*)GetElemAddress( position + 1 ), (char*)GetElemAddress( position ), mSize - position );
     void* new_elem_address = GetElemAddress( position );
     mDoInit( new_elem_address );
 
@@ -147,7 +152,7 @@ void Pool::Remove( Entity entity )
     const auto position = std::distance( mEntities.begin(), iterator );
     mEntities.erase( iterator );
     mDoDelete( GetElemAddress( position ) );
-    std::memmove( GetElemAddress( position ), GetElemAddress( position + 1 ), mComponentSize * ( mSize - position - 1 ) );
+    Relocate( (char*)GetElemAddress( position ), (char*)GetElemAddress( position + 1 ), mSize - position - 1 );
     mSize--;
 }
 
@@ -176,7 +181,7 @@ void Pool::Remove( std::span<const Entity> entities )
 
         if ( write != read )
         {
-            std::memmove( GetElemAddress( write ), GetElemAddress( read ), mComponentSize );
+            Relocate( (char*)GetElemAddress( write ), (char*)GetElemAddress( read ), 1 );
             mEntities[write] = mEntities[read];
         }
         write++;
@@ -239,9 +244,32 @@ void Pool::Realloc( size_t new_capacity )
 {
     char* new_data = new char[new_capacity * mComponentSize];
     if ( mData )
-        std::memmove( new_data, mData.get(), mComponentSize * mSize );
+        Relocate( new_data, mData.get(), mSize );
     mData.reset( new_data );
     mCapacity = new_capacity;
+}
+
+void Pool::Relocate( char* to, char* from, size_t count )
+{
+    if ( count == 0 || to == from )
+        return;
+    if ( !mDoRelocate )
+    {
+        std::memmove( to, from, mComponentSize * count );
+        return;
+    }
+    // One at a time, in the order that never writes over a component not yet
+    // moved: from the front when moving down, from the back when moving up.
+    if ( to < from )
+    {
+        for ( size_t i = 0; i < count; i++ )
+            mDoRelocate( from + i * mComponentSize, to + i * mComponentSize );
+    }
+    else
+    {
+        for ( size_t i = count; i-- > 0; )
+            mDoRelocate( from + i * mComponentSize, to + i * mComponentSize );
+    }
 }
 
 } // namespace recs

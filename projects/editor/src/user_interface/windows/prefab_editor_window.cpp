@@ -139,7 +139,7 @@ void PrefabEditorWindow::New( const path& relFile )
         return;
     }
     Level empty;
-    empty.mTreeRoot->mState = abs.stem().string();
+    empty.SetRootName( abs.stem().string() );
     filesystem::create_directories( abs.parent_path() );
     empty.Save( abs, mProject );
     Open( file );
@@ -186,7 +186,7 @@ void PrefabEditorWindow::OnUpdate( DeltaTime dt )
     if ( not HasDocument() or not mUIGlobals.mShow.mPrefabEditor )
         return;
     mViewport->OnUpdate( dt );
-    mDocSelection.Prune( mDoc.mScene, mDoc.mTreeRoot );
+    mDocSelection.Prune( mDoc.mScene );
 }
 
 void PrefabEditorWindow::Render( Engine& engine, DeltaTime dt )
@@ -194,7 +194,6 @@ void PrefabEditorWindow::Render( Engine& engine, DeltaTime dt )
     if ( not HasDocument() or not mUIGlobals.mShow.mPrefabEditor )
         return;
     Scene& scene = mDoc.mScene;
-    SyncHierarchy( scene, mDoc.mTreeRoot );
     UpdateWorldTransforms( scene );
 
     if ( not mDocViewManipulating )

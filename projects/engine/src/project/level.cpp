@@ -5,30 +5,51 @@
 #include "engine/scene/hierarchy.hpp"
 #include "engine/project/prefab.hpp"
 #include "engine/types/set.hpp"
+#include "engine/scene/components/folder_component.hpp"
+#include "engine/scene/components/hierarchy_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 #include <nlohmann/json.hpp>
 #include <fstream>
 
 namespace bubble
 {
 Level::Level()
-    : mTreeRoot( CreateRef<ProjectTreeNode>( mNodeIDCounter ) )
 {
+    MakeRoot( "Level" );
 }
 
 void Level::Clear()
 {
     // Scene first - see the header.
     mScene = Scene();
-    mNodeIDCounter = 0;
-    mTreeRoot = CreateRef<ProjectTreeNode>( mNodeIDCounter );
+    MakeRoot( "Level" );
     mName.clear();
     mFile.clear();
+}
+
+Entity Level::MakeRoot( const string& name )
+{
+    const Entity root = mScene.CreateEntity();
+    mScene.AddComponent<TagComponent>( root, name );
+    mScene.AddComponent<TransformComponent>( root );
+    mScene.AddComponent<FolderComponent>( root );
+    mScene.AddComponent<HierarchyComponent>( root );
+    mScene.SetRoot( root );
+    return root;
+}
+
+void Level::SetRootName( const string& name )
+{
+    if ( mScene.HasEntity( Root() ) and mScene.HasComponent<TagComponent>( Root() ) )
+        mScene.GetComponent<TagComponent>( Root() ).mName = name;
 }
 
 json Level::SaveScene( const Project& project ) const
 {
     json j;
     j["Entity counter"] = mScene.mEntityCounter;
+    j["Root"] = (u64)mScene.Root();
     // Entity components
     auto& entityComponentsJson = j["Entity components"];
     for ( const auto& [entity, componentTypeIds] : mScene.mEntitiesComponentTypeIds )
@@ -87,7 +108,7 @@ void Level::LoadScene( const json& j, Project& project )
         const auto& componentFromJson = ComponentManager::GetFromJson( componentID );
 
         // json object keys are strings, so items() yields "1", "10", "100", "2"...
-        // Feeding a sorted pool in that order makes every insert memmove the tail
+        // Feeding a sorted pool in that order makes every insert shift the tail
         // (O(n^2) load). Sort numerically first so each push appends instead.
         std::vector<std::pair<u64, const json*>> ordered;
         ordered.reserve( poolJson.size() );
@@ -103,66 +124,70 @@ void Level::LoadScene( const json& j, Project& project )
 }
 
 
-json Level::SaveTreeNode( const Ref<ProjectTreeNode>& node ) const
+void Level::MigrateTree( const json& tree )
 {
-    json j;
-    j["ID"] = node->mID;
-    j["Type"] = magic_enum::enum_name( node->mType );
+    // The links the file may have had (a Hierarchy pool from before the tree
+    // moved into the scene) are rebuilt from the tree, which was the truth.
+    mScene.ForEach<HierarchyComponent>( []( Entity, HierarchyComponent& h )
+    {
+        h.mParent = INVALID_ENTITY;
+        h.mChildren.clear();
+    } );
 
-    if ( node->mType == ProjectTreeNodeType::Root or
-         node->mType == ProjectTreeNodeType::Folder )
-        j["State"] = std::get<string>( node->mState );
-    else
-        j["State"] = (u64)std::get<Entity>( node->mState );
-
-    json& children = j["Children"];
-    for ( const auto& child : node->mChildren )
-        children.push_back( SaveTreeNode( child ) );
-
-    return j;
+    std::function<void( const json&, Entity )> walk = [&]( const json& node, Entity parent )
+    {
+        const string type = node.value( "Type", string() );
+        Entity entity = INVALID_ENTITY;
+        if ( type == "Root" or type == "Level" )
+            entity = MakeRoot( node["State"].get<string>() );
+        else if ( type == "Folder" )
+        {
+            entity = CreateChildEntity( mScene, parent );
+            mScene.AddComponent<TagComponent>( entity, node["State"].get<string>() );
+            mScene.AddComponent<TransformComponent>( entity );
+            mScene.AddComponent<FolderComponent>( entity );
+        }
+        else
+        {
+            entity = mScene.GetEntityById( node["State"].get<u64>() );
+            if ( not mScene.HasEntity( entity ) )
+                return;
+            AttachChild( mScene, entity, parent );
+        }
+        if ( const auto children = node.find( "Children" ); children != node.end() and children->is_array() )
+            for ( const auto& child : *children )
+                walk( child, entity );
+    };
+    walk( tree["Tree"], INVALID_ENTITY );
 }
 
-json Level::SaveTree() const
+void Level::AdoptStrays()
 {
-    json j;
-    j["Counter"] = mNodeIDCounter;
-    j["Tree"] = SaveTreeNode( mTreeRoot );
-    return j;
-}
-
-
-Ref<ProjectTreeNode> Level::LoadTreeNode( const json& j, const Ref<ProjectTreeNode>& parent )
-{
-    auto node = CreateRef<ProjectTreeNode>( mNodeIDCounter );
-
-    node->mID = j["ID"];
-    const string typeName = j["Type"];
-    auto optType = magic_enum::enum_cast<ProjectTreeNodeType>( typeName );
-    // The root used to be called "Level" before a level became a file of its own.
-    if ( not optType and typeName == "Level" )
-        optType = ProjectTreeNodeType::Root;
-    if ( not optType )
-        throw std::runtime_error( std::format( "Failed to read project tree node type: {}", typeName ) );
-    node->mType = *optType;
-
-    if ( node->mType == ProjectTreeNodeType::Root or
-         node->mType == ProjectTreeNodeType::Folder )
-        node->mState = string( j["State"] );
-    else
-        node->mState = mScene.GetEntityById( j["State"] );
-
-    const json& children = j["Children"];
-    for ( const auto& child : children )
-        node->mChildren.emplace_back( LoadTreeNode( child, node ) );
-
-    node->mParent = parent;
-    return node;
-}
-
-void Level::LoadTree( const json& j )
-{
-    mNodeIDCounter = j["Counter"];
-    mTreeRoot = LoadTreeNode( j["Tree"], nullptr );
+    const Entity root = Root();
+    if ( not mScene.HasEntity( root ) )
+        return;
+    vector<Entity> strays;
+    vector<Entity> empty;
+    mScene.ForEachEntity( [&]( Entity entity )
+    {
+        if ( entity == root )
+            return;
+        const Entity parent = ParentOf( mScene, entity );
+        if ( parent != INVALID_ENTITY and mScene.HasEntity( parent ) )
+            return;
+        // Old files kept entities with nothing on them that no tree node
+        // named; there is nothing to keep.
+        if ( mScene.EntityComponentTypeIds( entity ).empty() )
+            empty.push_back( entity );
+        else
+            strays.push_back( entity );
+    } );
+    mScene.RemoveEntities( empty );
+    for ( const Entity entity : strays )
+    {
+        DetachFromParent( mScene, entity );
+        AttachChild( mScene, entity, root );
+    }
 }
 
 
@@ -170,17 +195,21 @@ json Level::ToJson( const Project& project ) const
 {
     json j;
     j["Scene"] = SaveScene( project );
-    j["ProjectTree"] = SaveTree();
     return j;
 }
 
 void Level::FromJson( const json& j, Project& project )
 {
+    // Loaded into an empty scene: the default root goes, the file brings one.
+    mScene = Scene();
     LoadScene( j["Scene"], project );
-    LoadTree( j["ProjectTree"] );
-    // The tree says who hangs under whom; a file from before the hierarchy
-    // has no Hierarchy components at all, and gets them here.
-    SyncHierarchy( mScene, mTreeRoot );
+    if ( j.contains( "ProjectTree" ) )
+        MigrateTree( j["ProjectTree"] );
+    else
+        mScene.SetRoot( mScene.GetEntityById( j["Scene"].value( "Root", u64( 0 ) ) ) );
+    if ( not mScene.HasEntity( Root() ) )
+        MakeRoot( "Level" );
+    AdoptStrays();
     UpdateWorldTransforms( mScene );
 }
 
@@ -196,9 +225,9 @@ void Level::Load( const path& absFile, Project& project )
     FromJson( json::parse( stream ), project );
     mFile = absFile;
     mName = absFile.stem().string();
-    // The root node is labeled after the file, so the tree says which level
-    // it is showing.
-    mTreeRoot->mState = mName;
+    // The root is labeled after the file, so the tree says which level it is
+    // showing.
+    SetRootName( mName );
     LogInfo( "{} opened: {}", absFile.extension() == PREFAB_FILE_EXT ? "Prefab" : "Level", absFile.string() );
 }
 

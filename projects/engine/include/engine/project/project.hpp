@@ -4,7 +4,7 @@
 #include "engine/loader/loader.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/types/any.hpp"
-#include "project_tree.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "level.hpp"
 
 namespace bubble

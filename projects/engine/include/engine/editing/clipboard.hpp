@@ -1,47 +1,36 @@
 #pragma once
-#include "engine/project/project_tree.hpp"
+#include "engine/scene/scene.hpp"
 
 namespace bubble
 {
-
+// The entity cut or copied, to be pasted with what is under it.
 class Clipboard
 {
 public:
-    void Cut( Ref<ProjectTreeNode> node )
+    void Cut( Entity entity )
     {
-        mNode = node;
+        mEntity = entity;
         mIsCut = true;
     }
 
-    void Copy( Ref<ProjectTreeNode> node )
+    void Copy( Entity entity )
     {
-        mNode = node;
+        mEntity = entity;
         mIsCut = false;
     }
 
     void Clear()
     {
-        mNode = nullptr;
+        mEntity = INVALID_ENTITY;
         mIsCut = false;
     }
 
-    bool IsEmpty() const
-    {
-        return mNode == nullptr;
-    }
-
-    bool IsCut() const
-    {
-        return mIsCut;
-    }
-
-    Ref<ProjectTreeNode> GetNode() const
-    {
-        return mNode;
-    }
+    bool IsEmpty() const { return mEntity == INVALID_ENTITY; }
+    bool IsCut() const { return mIsCut; }
+    Entity GetEntity() const { return mEntity; }
 
 private:
-    Ref<ProjectTreeNode> mNode;
+    Entity mEntity = INVALID_ENTITY;
     bool mIsCut = false;
 };
 

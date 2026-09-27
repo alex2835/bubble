@@ -110,9 +110,9 @@ struct AnimatorComponent
 public:
     AnimatorComponent();
     ~AnimatorComponent();
-    // Note that recs relocates components with memmove (recs/pool.hpp), so the
-    // move operations below only run for explicit moves in engine code. The
-    // Animator is held by pointer, which relocates bitwise.
+    // The pool relocates components with the move constructor
+    // (recs/pool.hpp). The Animator is held by pointer, so a move hands it
+    // over as it is.
     AnimatorComponent( const AnimatorComponent& );
     AnimatorComponent& operator=( const AnimatorComponent& );
     AnimatorComponent( AnimatorComponent&& ) noexcept;

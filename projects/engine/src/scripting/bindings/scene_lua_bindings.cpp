@@ -381,9 +381,10 @@ void CreateSceneBindings( Scene& scene,
             const Entity parent = ParentOf( scene, entity );
             return parent == INVALID_ENTITY ? std::nullopt : opt<Entity>( parent );
         },
-        // nil makes it a root. keep_world (default true) leaves it where it
-        // is in the world; false keeps its local transform, so it jumps to
-        // the same place relative to the new parent. False on a loop.
+        // nil puts it under the level's root. keep_world (default true)
+        // leaves it where it is in the world; false keeps its local
+        // transform, so it jumps to the same place relative to the new
+        // parent. False on a loop.
         "set_parent",
         [&]( const Entity& entity, sol::object parent, sol::optional<bool> keepWorld ) -> bool
         {
@@ -399,7 +400,8 @@ void CreateSceneBindings( Scene& scene,
     );
 
     // Scene
-    lua["create_entity"] = [&](){ return scene.CreateEntity(); };
+    // Made under the level's root, so it is in the tree like everything else.
+    lua["create_entity"] = [&](){ return CreateChildEntity( scene ); };
 
 
     lua["remove_entity"] = [&]( Entity entity ) {
@@ -408,9 +410,18 @@ void CreateSceneBindings( Scene& scene,
         if ( not scene.HasEntity( entity ) )
             throw std::runtime_error( std::format( "remove_entity: no such entity {}", (size_t)entity ) );
 
-        DetachRigidBody( scene, physicsEngine, entity );
-        DetachCharacterController( scene, physicsEngine, entity );
-        scene.RemoveEntity( entity );
+        if ( entity == scene.Root() )
+            throw std::runtime_error( "remove_entity: the level's root stays" );
+
+        // With everything under it, as deleting it in the editor does.
+        const vector<Entity> subtree = Subtree( scene, entity );
+        DetachFromParent( scene, entity );
+        for ( const Entity e : subtree )
+        {
+            DetachRigidBody( scene, physicsEngine, e );
+            DetachCharacterController( scene, physicsEngine, e );
+        }
+        scene.RemoveEntities( subtree );
     };
 
 }

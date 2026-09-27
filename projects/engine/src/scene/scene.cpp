@@ -17,6 +17,7 @@
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/scene/components/hierarchy_component.hpp"
 #include "engine/scene/components/prefab_instance_component.hpp"
+#include "engine/scene/components/folder_component.hpp"
 
 namespace bubble
 {
@@ -37,6 +38,7 @@ Scene::Scene()
     AddComponent<AnimatorComponent>();
     AddComponent<HierarchyComponent>();
     AddComponent<PrefabInstanceComponent>();
+    AddComponent<FolderComponent>();
 
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
@@ -53,6 +55,7 @@ Scene::Scene()
     ComponentManager::Add<AnimatorComponent>();
     ComponentManager::Add<HierarchyComponent>();
     ComponentManager::Add<PrefabInstanceComponent>();
+    ComponentManager::Add<FolderComponent>();
 }
 
 }

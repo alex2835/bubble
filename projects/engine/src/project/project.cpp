@@ -96,7 +96,7 @@ void Project::Open( const path& rootFile, bool openStartupLevel )
         mLevel.mName = DEFAULT_LEVEL_NAME;
         mLevel.mFile = LevelsDir() / mLevel.mName;
         mLevel.mFile.replace_extension( LEVEL_FILE_EXT );
-        mLevel.mTreeRoot->mState = mLevel.mName;
+        mLevel.SetRootName( mLevel.mName );
         mStartupLevel = CurrentLevel();
 
         filesystem::create_directories( LevelsDir() );
@@ -159,7 +159,7 @@ void Project::NewLevel( const string& name )
     mLevel.Clear();
     mLevel.mName = name;
     mLevel.mFile = file;
-    mLevel.mTreeRoot->mState = name;
+    mLevel.SetRootName( name );
     mLevel.Save( file, *this );
 }
 

@@ -23,8 +23,8 @@ editor.undo()
 | `editor.operators()` | Every registered name. |
 | `editor.undo()`, `editor.redo()`, `editor.undo_name()` | |
 | `editor.selection()` | Selected entity ids. |
-| `editor.select( id, ... )`, `editor.select_node( node_id )`, `editor.deselect()` | |
-| `editor.tree()` | `{ id, type, name | entity, children = {…} }` from the root. Node ids are what `parent` arguments take. |
+| `editor.select( id, ... )`, `editor.deselect()` | |
+| `editor.tree()` | `{ entity, name, folder, children = {…} }` from the level's root. Entity ids are what `parent` arguments take. |
 | `editor.entities_by_tag( name )` | Entity ids. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
@@ -51,10 +51,11 @@ Where an argument is optional, the default comes from the selection.
 
 | Operator | Arguments | |
 |---|---|---|
-| `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`, `Audio`), `parent?` node id, `spawn_at?` vec3 | Creates and selects. |
+| `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`, `Audio`), `parent?` entity id, `spawn_at?` vec3 | Creates and selects. Without `parent`: into the selected folder, next to another selected entity, else under the root. |
 | `scene.delete` | | The selection. |
-| `scene.cut`, `scene.copy` | | The selected tree node. |
-| `scene.paste` | `parent?` node id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |
+| `scene.cut`, `scene.copy` | | The selected entity and what is under it. Not the root. |
+| `scene.paste` | `parent?` entity id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |
+| `scene.move` | `entity`, `parent` (entity id), `index?` | Reparents, or reorders among the same siblings; stays where it is in the world. |
 | `entity.add_component`, `entity.remove_component` | `component` name, `entity?` id | Tag cannot be removed. |
 | `history.undo`, `history.redo` | | |
 | `project.open` | `path` | Enqueue it. |
@@ -64,8 +65,8 @@ Where an argument is optional, the default comes from the selection.
 | `level.set_startup` | `file?` | Default: the open level. |
 | `game.run`, `game.stop` | | F5 / F6. |
 | `window.show` | `window` (`entities`, `viewport`, `project`, `console`, `animation_graph`, `prefab_editor`), `show?` bool | Opens (or closes) an editor window, as its checkbox in the Windows menu does. |
-| `prefab.save` | `file` (relative; `.prefab` added), `node?` id | Writes the node and what is under it as a prefab. No undo step: the level is not changed. |
-| `prefab.instantiate` | `file`, `parent?` node id, `spawn_at?` vec3 | Places an instance and selects its root. |
+| `prefab.save` | `file` (relative; `.prefab` added), `entity?` id | Writes the entity and what is under it as a prefab, the entity its root. No undo step: the level is not changed. |
+| `prefab.instantiate` | `file`, `parent?` entity id, `spawn_at?` vec3 | Places an instance and selects its root. |
 | `prefab.update_instances` | `file?` | Makes the instances again from their files, as one step. Default: every prefab used. |
 | `prefab.edit`, `prefab.new` | `file` | Open a prefab in the Prefab Editor; make an empty one and open it. Enqueue them. |
 

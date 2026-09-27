@@ -37,6 +37,10 @@ TEST( BlendSpace_Weights )
     w = space.Weights( 0.75f );
     CHECK( w.size() == 2 and w[0].mPoint == 0 and Near( w[0].mWeight, 0.5f ) and w[1].mPoint == 1 );
 
+    // NaN, as a script's 0/0 gives: the first point, not a read past the end.
+    w = space.Weights( std::numeric_limits<f32>::quiet_NaN() );
+    CHECK( w.size() == 1 and w[0].mPoint == 0 );
+
     CHECK( BlendSpace{}.Weights( 0.0f ).empty() );
     BlendSpace one;
     one.Add( "idle", 3.0f );

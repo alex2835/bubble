@@ -1,292 +1,90 @@
 #include "engine/pch/pch.hpp"
 #include "engine/editing/commands/tree_commands.hpp"
 #include "engine/project/project.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include <sol/sol.hpp>
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/camera_component.hpp"
 #include "engine/scene/components/character_controller_component.hpp"
+#include "engine/scene/components/folder_component.hpp"
+#include "engine/scene/components/hierarchy_component.hpp"
 #include "engine/scene/components/light_component.hpp"
 #include "engine/scene/components/model_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
 #include "engine/scene/components/rigid_body_component.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/shader_component.hpp"
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
-#include "engine/scene/hierarchy.hpp"
-#include "engine/scene/components/prefab_instance_component.hpp"
 
 namespace bubble
 {
 namespace
 {
-size_t IndexIn( const Ref<ProjectTreeNode>& parent, const Ref<ProjectTreeNode>& node )
+// An entity and what is under it, out of the scene into `backup` under their
+// own ids. Detached from its parent first; the caller notes where it was.
+void Park( Scene& scene, Entity entity, Scene& backup )
 {
-    const auto& children = parent->mChildren;
-    const auto it = std::ranges::find( children, node );
-    return it == children.end() ? children.size() : std::distance( children.begin(), it );
-}
-
-void EraseFrom( const Ref<ProjectTreeNode>& parent, const Ref<ProjectTreeNode>& node )
-{
-    auto& children = parent->mChildren;
-    const auto it = std::ranges::find( children, node );
-    if ( it != children.end() )
-        children.erase( it );
-}
-
-void InsertAt( const Ref<ProjectTreeNode>& parent, const Ref<ProjectTreeNode>& node, size_t index )
-{
-    auto& children = parent->mChildren;
-    if ( index < children.size() )
-        children.insert( children.begin() + index, node );
-    else
-        children.push_back( node );
-}
-
-Ref<ProjectTreeNode> TreeRootOf( Ref<ProjectTreeNode> node )
-{
-    while ( node )
+    const vector<Entity> subtree = Subtree( scene, entity );
+    for ( const Entity e : subtree )
     {
-        auto parent = node->mParent.lock();
-        if ( not parent )
-            return node;
-        node = parent;
+        // Parked again after a redo: the stale copy goes first, or its
+        // components are pushed twice.
+        if ( backup.HasEntity( e ) )
+            backup.RemoveEntity( e );
+        scene.CopyEntityIntoWithId( backup, e, (size_t)e );
     }
-    return nullptr;
+    scene.RemoveEntities( subtree );
 }
 
-// Every command that changes the tree ends with the scene's links matching
-// it again. (The editor also does this every frame; a test or a script
-// between two frames sees the result at once.)
-void Resync( const Ref<ProjectTreeNode>& anyNode, Scene& scene )
+// The inverse; the links inside came along, the caller attaches the top.
+void Unpark( Scene& scene, Entity entity, Scene& backup )
 {
-    if ( auto root = TreeRootOf( anyNode ) )
-        SyncHierarchy( scene, root );
-}
-
-// The entities of a subtree that hang from something outside it - the ones a
-// move or a paste actually re-parents. Their descendants follow them.
-void TopEntities( const Ref<ProjectTreeNode>& node, vector<Entity>& out )
-{
-    if ( const auto entity = node->TryGetEntity() )
-    {
-        out.push_back( *entity );
-        return;
-    }
-    for ( const auto& child : node->mChildren )
-        TopEntities( child, out );
-}
-
-map<Entity, mat4> WorldsOf( const Scene& scene, const vector<Entity>& entities )
-{
-    map<Entity, mat4> worlds;
-    for ( const Entity entity : entities )
-        if ( scene.HasEntity( entity ) )
-            worlds[entity] = ComputeWorldMatrix( scene, entity );
-    return worlds;
-}
-
-// Every entity of the subtree into `backup` under its own id, then out of
-// `scene`. Deleting in one batch is what keeps a big selection O(n).
-void ParkSubtreeEntities( const Ref<ProjectTreeNode>& node, Scene& scene, Scene& backup, map<Entity, Entity>& mapping )
-{
-    set<Entity> entities;
-    FillEntitiesInSubTree( entities, node );
-    for ( const auto entity : entities )
-    {
-        // Redo after undo parks the same id again; the stale copy has to go
-        // first or its components get pushed twice.
-        if ( backup.HasEntity( entity ) )
-            backup.RemoveEntity( entity );
-        mapping[entity] = scene.CopyEntityIntoWithId( backup, entity, (size_t)entity );
-    }
-    const vector<Entity> removeList( entities.begin(), entities.end() );
-    scene.RemoveEntities( removeList );
-}
-
-// The inverse: back under the same id, node by node so the node's Entity
-// state is refreshed as it goes.
-void UnparkSubtreeEntities( Ref<ProjectTreeNode>& node, Scene& scene, Scene& backup, map<Entity, Entity>& mapping )
-{
-    if ( node->IsEntity() )
-    {
-        const Entity original = node->AsEntity();
-        if ( const auto it = mapping.find( original ); it != mapping.end() )
-            node->mState = backup.CopyEntityIntoWithId( scene, it->second, (size_t)original );
-    }
-    for ( auto& child : node->mChildren )
-    {
-        child->mParent = node;
-        UnparkSubtreeEntities( child, scene, backup, mapping );
-    }
+    const vector<Entity> subtree = Subtree( backup, entity );
+    for ( const Entity e : subtree )
+        backup.CopyEntityIntoWithId( scene, e, (size_t)e );
+    backup.RemoveEntities( subtree );
 }
 }
 
-/// DeleteNodeCommand
+/// CreateEntityCommand
 
-DeleteNodeCommand::DeleteNodeCommand( Ref<ProjectTreeNode> node, Scene& scene )
-    : mNode( node ),
-      mParent( node->mParent.lock() ),
-      mScene( scene )
-{
-    if ( mParent )
-        mIndexInParent = IndexIn( mParent, mNode );
-}
-
-void DeleteNodeCommand::Execute()
-{
-    if ( not mParent )
-        return;
-    ParkSubtreeEntities( mNode, mScene, mBackupScene, mEntityMapping );
-    EraseFrom( mParent, mNode );
-    Resync( mParent, mScene );
-}
-
-void DeleteNodeCommand::Undo()
-{
-    if ( not mParent )
-        return;
-    RestoreNodeEntities( mNode );
-    InsertAt( mParent, mNode, mIndexInParent );
-    Resync( mParent, mScene );
-}
-
-void DeleteNodeCommand::RestoreNodeEntities( Ref<ProjectTreeNode>& node )
-{
-    UnparkSubtreeEntities( node, mScene, mBackupScene, mEntityMapping );
-}
-
-/// DeleteMultipleNodesCommand
-
-DeleteMultipleNodesCommand::DeleteMultipleNodesCommand( const vector<Ref<ProjectTreeNode>>& nodes, Scene& scene )
-    : mScene( scene )
-{
-    for ( const auto& node : nodes )
-    {
-        auto parent = node->mParent.lock();
-        if ( not parent )
-            continue;
-        mNodeInfos.push_back( { node, parent, IndexIn( parent, node ) } );
-    }
-}
-
-void DeleteMultipleNodesCommand::Execute()
-{
-    for ( const auto& info : mNodeInfos )
-        ParkSubtreeEntities( info.mNode, mScene, mBackupScene, mEntityMapping );
-    for ( const auto& info : mNodeInfos )
-        EraseFrom( info.mParent, info.mNode );
-    if ( not mNodeInfos.empty() )
-        Resync( mNodeInfos.front().mParent, mScene );
-}
-
-void DeleteMultipleNodesCommand::Undo()
-{
-    // Reverse order so the stored indices are right as the siblings fill in.
-    for ( auto it = mNodeInfos.rbegin(); it != mNodeInfos.rend(); ++it )
-    {
-        RestoreNodeEntities( it->mNode );
-        InsertAt( it->mParent, it->mNode, it->mIndexInParent );
-    }
-    if ( not mNodeInfos.empty() )
-        Resync( mNodeInfos.front().mParent, mScene );
-}
-
-void DeleteMultipleNodesCommand::RestoreNodeEntities( Ref<ProjectTreeNode>& node )
-{
-    UnparkSubtreeEntities( node, mScene, mBackupScene, mEntityMapping );
-}
-
-/// CopyNodeCommand
-
-CopyNodeCommand::CopyNodeCommand( Ref<ProjectTreeNode> sourceNode, Ref<ProjectTreeNode> targetParent, Scene& scene )
-    : mSourceNode( sourceNode ),
-      mTargetParent( targetParent ),
-      mScene( scene )
-{
-}
-
-void CopyNodeCommand::Execute()
-{
-    vector<Entity> sources;
-    TopEntities( mSourceNode, sources );
-    const auto worlds = WorldsOf( mScene, sources );
-
-    mCopiedNode = ProjectTreeNode::CopyNode( mSourceNode, mScene );
-    mCopiedNode->mParent = mTargetParent;
-    mTargetParent->mChildren.push_back( mCopiedNode );
-    Resync( mTargetParent, mScene );
-
-    // TopEntities walks both subtrees in the same order.
-    vector<Entity> copies;
-    TopEntities( mCopiedNode, copies );
-    for ( size_t i = 0; i < copies.size() and i < sources.size(); i++ )
-        if ( const auto it = worlds.find( sources[i] ); it != worlds.end() )
-            SetWorldTransform( mScene, copies[i], Transform::FromMatrix( it->second ) );
-}
-
-void CopyNodeCommand::Undo()
-{
-    if ( not mCopiedNode or not mTargetParent )
-        return;
-    ParkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
-    EraseFrom( mTargetParent, mCopiedNode );
-    Resync( mTargetParent, mScene );
-}
-
-void CopyNodeCommand::Redo()
-{
-    if ( not mCopiedNode or not mTargetParent )
-        return;
-    UnparkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
-    mCopiedNode->mParent = mTargetParent;
-    mTargetParent->mChildren.push_back( mCopiedNode );
-    Resync( mTargetParent, mScene );
-}
-
-/// CreateNodeCommand
-
-CreateNodeCommand::CreateNodeCommand( Ref<ProjectTreeNode> parent,
-                                      ProjectTreeNodeType type,
-                                      Project& project,
-                                      Level& level,
-                                      const Transform& spawnAt )
-    : mParent( parent ),
-      mType( type ),
-      mProject( project ),
-      mLevel( level ),
+CreateEntityCommand::CreateEntityCommand( Project& project, Scene& scene, Entity parent, EntityKind kind, const Transform& spawnAt )
+    : mProject( project ),
+      mScene( scene ),
+      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
+      mKind( kind ),
       mSpawnAt( spawnAt ),
-      mName( std::format( "Create {}", magic_enum::enum_name( type ) ) )
+      mName( std::format( "Create {}", magic_enum::enum_name( kind ) ) )
 {
 }
 
-Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& project, Scene& scene, const Transform& spawnAt )
+Entity CreateEntityCommand::MakeEntity( EntityKind kind, Project& project, Scene& scene, const Transform& spawnAt )
 {
-    switch ( type )
+    const Entity entity = scene.CreateEntity();
+    scene.AddComponent<HierarchyComponent>( entity );
+    switch ( kind )
     {
-        case ProjectTreeNodeType::ModelObject:
-        {
-            const auto entity = scene.CreateEntity();
+        case EntityKind::Folder:
+            scene.AddComponent<TagComponent>( entity, "folder" );
+            scene.AddComponent<TransformComponent>( entity );
+            scene.AddComponent<FolderComponent>( entity );
+            break;
+        case EntityKind::ModelObject:
             scene.AddComponent<TagComponent>( entity, "Model object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
             scene.AddComponent<ShaderComponent>( entity );
-            return entity;
-        }
-        case ProjectTreeNodeType::PhysicsObject:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::PhysicsObject:
             scene.AddComponent<TagComponent>( entity, "Physics object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
             scene.AddComponent<ShaderComponent>( entity );
             scene.AddComponent<RigidBodyComponent>( entity );
-            return entity;
-        }
-        case ProjectTreeNodeType::GameObject:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::GameObject:
             scene.AddComponent<TagComponent>( entity, "Game object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
@@ -294,172 +92,188 @@ Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& pr
             scene.AddComponent<CharacterControllerComponent>( entity );
             scene.AddComponent<StateComponent>( entity, project.mScriptingEngine.CreateTable() );
             scene.AddComponent<ScriptComponent>( entity );
-            return entity;
-        }
-        case ProjectTreeNodeType::Script:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::Script:
             scene.AddComponent<TagComponent>( entity, "Script" );
             scene.AddComponent<StateComponent>( entity, project.mScriptingEngine.CreateTable() );
             scene.AddComponent<ScriptComponent>( entity );
-            return entity;
-        }
-        case ProjectTreeNodeType::Light:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::Light:
             scene.AddComponent<TagComponent>( entity, "Light" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<LightComponent>( entity )
                  .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );
-            return entity;
-        }
-        case ProjectTreeNodeType::Camera:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::Camera:
             scene.AddComponent<TagComponent>( entity, "Camera" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<CameraComponent>( entity );
-            return entity;
-        }
-        case ProjectTreeNodeType::Audio:
-        {
-            const auto entity = scene.CreateEntity();
+            break;
+        case EntityKind::Audio:
             scene.AddComponent<TagComponent>( entity, "Audio" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<AudioSourceComponent>( entity )
                  .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );
-            return entity;
-        }
-        case ProjectTreeNodeType::Root:
-        case ProjectTreeNodeType::Folder:
-        case ProjectTreeNodeType::Prefab:
-            return INVALID_ENTITY;
+            break;
     }
-    return INVALID_ENTITY;
+    return entity;
 }
 
-void CreateNodeCommand::Execute()
+void CreateEntityCommand::Execute()
 {
-    if ( not mParent )
-        return;
-
-    mCreatedNode = CreateRef<ProjectTreeNode>( mLevel.mNodeIDCounter );
-    mCreatedNode->mType = mType;
-    if ( mType == ProjectTreeNodeType::Folder )
-        mCreatedNode->mState = "folder"s;
-    else
-        mCreatedNode->mState = CreateEntityFor( mType, mProject, mLevel.mScene, mSpawnAt );
-
-    mCreatedNode->mParent = mParent;
-    mParent->mChildren.push_back( mCreatedNode );
-    Resync( mParent, mLevel.mScene );
-    // Made under an entity, it is still made at the spot asked for, which
-    // is a place in the world.
-    if ( const auto entity = mCreatedNode->TryGetEntity(); entity and ParentOf( mLevel.mScene, *entity ) != INVALID_ENTITY )
-        SetWorldTransform( mLevel.mScene, *entity, mSpawnAt );
+    mEntity = MakeEntity( mKind, mProject, mScene, mSpawnAt );
+    AttachChild( mScene, mEntity, mParent );
+    mIndex = IndexInParent( mScene, mEntity );
+    // Under an entity, the spot asked for is still a place in the world.
+    if ( mKind != EntityKind::Folder and mParent != mScene.Root() )
+        SetWorldTransform( mScene, mEntity, mSpawnAt );
 }
 
-void CreateNodeCommand::Redo()
+void CreateEntityCommand::Undo()
 {
-    if ( not mCreatedNode or not mParent )
+    if ( not mScene.HasEntity( mEntity ) )
         return;
+    mIndex = DetachFromParent( mScene, mEntity );
+    Park( mScene, mEntity, mBackup );
+}
 
-    if ( mBackupEntity != INVALID_ENTITY )
+void CreateEntityCommand::Redo()
+{
+    if ( not mBackup.HasEntity( mEntity ) )
+        return;
+    Unpark( mScene, mEntity, mBackup );
+    AttachChild( mScene, mEntity, mParent, mIndex );
+}
+
+/// DeleteEntitiesCommand
+
+DeleteEntitiesCommand::DeleteEntitiesCommand( Scene& scene, vector<Entity> entities )
+    : mScene( scene )
+{
+    // Not the root, and not what goes anyway with an ancestor that is taken.
+    for ( const Entity entity : entities )
     {
-        // The entity waited in the backup under its original id.
-        Scene& scene = mLevel.mScene;
-        mCreatedNode->mState = mBackupScene.CopyEntityIntoWithId( scene, mBackupEntity, (size_t)mBackupEntity );
-        mBackupScene.RemoveEntity( mBackupEntity );
-        mBackupEntity = INVALID_ENTITY;
+        if ( entity == scene.Root() or not scene.HasEntity( entity ) )
+            continue;
+        const bool underAnother = std::ranges::any_of( entities, [&]( Entity other )
+        {
+            return other != entity and IsAncestor( scene, other, entity );
+        } );
+        if ( not underAnother and std::ranges::find( mEntities, entity ) == mEntities.end() )
+            mEntities.push_back( entity );
     }
-
-    mCreatedNode->mParent = mParent;
-    mParent->mChildren.push_back( mCreatedNode );
-    Resync( mParent, mLevel.mScene );
 }
 
-void CreateNodeCommand::Undo()
+void DeleteEntitiesCommand::Execute()
 {
-    if ( not mCreatedNode or not mParent )
-        return;
-    EraseFrom( mParent, mCreatedNode );
-
-    if ( mCreatedNode->IsEntity() )
+    mTaken.clear();
+    for ( const Entity entity : mEntities )
     {
-        Scene& scene = mLevel.mScene;
-        const Entity entity = mCreatedNode->AsEntity();
-        mBackupEntity = scene.CopyEntityIntoWithId( mBackupScene, entity, (size_t)entity );
-        scene.RemoveEntity( entity );
+        if ( not mScene.HasEntity( entity ) )
+            continue;
+        const Entity parent = ParentOf( mScene, entity );
+        const size_t index = DetachFromParent( mScene, entity );
+        mTaken.push_back( { entity, parent, index } );
+        Park( mScene, entity, mBackup );
     }
-    Resync( mParent, mLevel.mScene );
 }
 
-CreateNodeCommand::~CreateNodeCommand()
+void DeleteEntitiesCommand::Undo()
 {
-    if ( mBackupEntity != INVALID_ENTITY )
-        mBackupScene.RemoveEntity( mBackupEntity );
+    // Back in reverse, so the noted indices hold as the siblings fill in.
+    for ( auto it = mTaken.rbegin(); it != mTaken.rend(); ++it )
+    {
+        Unpark( mScene, it->mEntity, mBackup );
+        if ( mScene.HasEntity( it->mParent ) )
+            AttachChild( mScene, it->mEntity, it->mParent, it->mIndex );
+    }
 }
 
-/// MoveNodeCommand
+/// CopyEntityCommand
 
-MoveNodeCommand::MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode> newParent, Scene& scene )
-    : mNode( node ),
-      mOldParent( node->mParent.lock() ),
-      mNewParent( newParent ),
-      mScene( scene )
+CopyEntityCommand::CopyEntityCommand( Scene& scene, Entity source, Entity parent )
+    : mScene( scene ),
+      mSource( source ),
+      mParent( parent == INVALID_ENTITY ? scene.Root() : parent )
 {
-    if ( mOldParent )
-        mOldIndexInParent = IndexIn( mOldParent, mNode );
 }
 
-void MoveNodeCommand::Execute()
+void CopyEntityCommand::Execute()
 {
-    if ( not mOldParent or not mNewParent or IsInSubtree( mNewParent, mNode ) )
+    if ( not mScene.HasEntity( mSource ) or mSource == mScene.Root() )
         return;
-
-    vector<Entity> moved;
-    TopEntities( mNode, moved );
-    const auto worlds = WorldsOf( mScene, moved );
-    mOldLocals.clear();
-    for ( const Entity entity : moved )
-        if ( mScene.HasComponent<TransformComponent>( entity ) )
-            mOldLocals[entity] = mScene.GetComponent<TransformComponent>( entity );
-
-    EraseFrom( mOldParent, mNode );
-    mNode->mParent = mNewParent;
-    mNewParent->mChildren.push_back( mNode );
-    Resync( mNewParent, mScene );
-
-    for ( const auto& [entity, world] : worlds )
-        SetWorldTransform( mScene, entity, Transform::FromMatrix( world ) );
+    const mat4 world = ComputeWorldMatrix( mScene, mSource );
+    map<Entity, Entity> copied;
+    mCopy = CopySubtree( mScene, mSource, mScene, copied );
+    AttachChild( mScene, mCopy, mParent );
+    mIndex = IndexInParent( mScene, mCopy );
+    SetWorldTransform( mScene, mCopy, Transform::FromMatrix( world ) );
 }
 
-void MoveNodeCommand::Undo()
+void CopyEntityCommand::Undo()
 {
-    if ( not mOldParent or not mNewParent or mNode->mParent.lock() != mNewParent )
+    if ( not mScene.HasEntity( mCopy ) )
         return;
-    EraseFrom( mNewParent, mNode );
-    mNode->mParent = mOldParent;
-    InsertAt( mOldParent, mNode, mOldIndexInParent );
-    Resync( mOldParent, mScene );
+    mIndex = DetachFromParent( mScene, mCopy );
+    Park( mScene, mCopy, mBackup );
+}
 
-    for ( const auto& [entity, local] : mOldLocals )
-        if ( mScene.HasComponent<TransformComponent>( entity ) )
-            static_cast<Transform&>( mScene.GetComponent<TransformComponent>( entity ) ) = local;
+void CopyEntityCommand::Redo()
+{
+    if ( not mBackup.HasEntity( mCopy ) )
+        return;
+    Unpark( mScene, mCopy, mBackup );
+    AttachChild( mScene, mCopy, mParent, mIndex );
+}
+
+/// MoveEntityCommand
+
+MoveEntityCommand::MoveEntityCommand( Scene& scene, Entity entity, Entity parent, size_t index )
+    : mScene( scene ),
+      mEntity( entity ),
+      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
+      mIndex( index )
+{
+}
+
+void MoveEntityCommand::Execute()
+{
+    if ( not mScene.HasEntity( mEntity ) or mEntity == mScene.Root() or mEntity == mParent or
+         IsAncestor( mScene, mEntity, mParent ) )
+        return;
+    mOldParent = ParentOf( mScene, mEntity );
+    mOldIndex = IndexInParent( mScene, mEntity );
+    if ( mScene.HasComponent<TransformComponent>( mEntity ) )
+        mOldLocal = mScene.GetComponent<TransformComponent>( mEntity );
+    // Moving down among the same siblings, the gap it leaves shifts the rest.
+    size_t index = mIndex;
+    if ( mOldParent == mParent and index != cAtEnd and mOldIndex < index )
+        index--;
+    SetParent( mScene, mEntity, mParent, /*keepWorld*/ true, index );
+}
+
+void MoveEntityCommand::Undo()
+{
+    if ( mOldParent == INVALID_ENTITY or not mScene.HasEntity( mEntity ) )
+        return;
+    DetachFromParent( mScene, mEntity );
+    AttachChild( mScene, mEntity, mOldParent, mOldIndex );
+    if ( mScene.HasComponent<TransformComponent>( mEntity ) )
+        static_cast<Transform&>( mScene.GetComponent<TransformComponent>( mEntity ) ) = mOldLocal;
 }
 
 /// InstantiatePrefabCommand
 
 InstantiatePrefabCommand::InstantiatePrefabCommand( Project& project,
-                                                    Level& level,
-                                                    Ref<ProjectTreeNode> parent,
+                                                    Scene& scene,
+                                                    Entity parent,
                                                     path relPrefab,
                                                     PrefabPlacement placement,
                                                     size_t index,
                                                     std::optional<size_t> rootId )
     : mProject( project ),
-      mLevel( level ),
-      mParent( std::move( parent ) ),
+      mScene( scene ),
+      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
       mPrefab( std::move( relPrefab ) ),
       mPlacement( std::move( placement ) ),
       mIndex( index ),
@@ -469,53 +283,41 @@ InstantiatePrefabCommand::InstantiatePrefabCommand( Project& project,
 
 void InstantiatePrefabCommand::Execute()
 {
-    mRoot = InstantiatePrefab( mProject, mLevel, mParent, mIndex, mPrefab, mPlacement, mRootId );
-    mIndex = IndexIn( mParent, mRoot );
+    mRoot = InstantiatePrefab( mProject, mScene, mParent, mIndex, mPrefab, mPlacement, mRootId );
+    mIndex = IndexInParent( mScene, mRoot );
 }
 
 void InstantiatePrefabCommand::Undo()
 {
-    if ( not mRoot )
+    if ( not mScene.HasEntity( mRoot ) )
         return;
-    ParkSubtreeEntities( mRoot, mLevel.mScene, mBackupScene, mEntityMapping );
-    EraseFrom( mParent, mRoot );
-    Resync( mParent, mLevel.mScene );
+    mIndex = DetachFromParent( mScene, mRoot );
+    Park( mScene, mRoot, mBackup );
 }
 
 void InstantiatePrefabCommand::Redo()
 {
-    if ( not mRoot )
+    if ( not mBackup.HasEntity( mRoot ) )
         return;
-    UnparkSubtreeEntities( mRoot, mLevel.mScene, mBackupScene, mEntityMapping );
-    mRoot->mParent = mParent;
-    InsertAt( mParent, mRoot, mIndex );
-    Resync( mParent, mLevel.mScene );
+    Unpark( mScene, mRoot, mBackup );
+    AttachChild( mScene, mRoot, mParent, mIndex );
 }
 
-Command MakeRefreshPrefabInstance( Project& project, Level& level, const Ref<ProjectTreeNode>& instance )
+Command MakeRefreshPrefabInstance( Project& project, Scene& scene, Entity instance )
 {
-    const auto parent = instance->mParent.lock();
-    const Entity root = instance->AsEntity();
-    if ( not parent or not level.mScene.HasComponent<PrefabInstanceComponent>( root ) )
+    if ( not scene.HasEntity( instance ) or not scene.HasComponent<PrefabInstanceComponent>( instance ) )
         throw std::runtime_error( "Not a prefab instance" );
 
     PrefabPlacement placement;
-    placement.mLocal = static_cast<const Transform&>( level.mScene.GetComponent<TransformComponent>( root ) );
-    const path prefab = level.mScene.GetComponent<PrefabInstanceComponent>( root ).mPrefab;
+    placement.mLocal = static_cast<const Transform&>( scene.GetComponent<TransformComponent>( instance ) );
+    const path prefab = scene.GetComponent<PrefabInstanceComponent>( instance ).mPrefab;
+    const Entity parent = ParentOf( scene, instance );
 
     auto step = CreateScope<CompositeCommand>( "Update prefab instance" );
-    step->Add( CreateScope<DeleteNodeCommand>( instance, level.mScene ) );
-    step->Add( CreateScope<InstantiatePrefabCommand>( project, level, parent, prefab, placement,
-                                                      IndexIn( parent, instance ), (size_t)root ) );
+    step->Add( CreateScope<DeleteEntitiesCommand>( scene, vector<Entity>{ instance } ) );
+    step->Add( CreateScope<InstantiatePrefabCommand>( project, scene, parent, prefab, placement,
+                                                      IndexInParent( scene, instance ), (size_t)instance ) );
     return step;
-}
-
-bool IsInSubtree( const Ref<ProjectTreeNode>& node, const Ref<ProjectTreeNode>& ancestor )
-{
-    for ( auto current = node; current; current = current->mParent.lock() )
-        if ( current == ancestor )
-            return true;
-    return false;
 }
 
 }

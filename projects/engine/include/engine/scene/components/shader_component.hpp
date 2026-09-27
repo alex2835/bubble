@@ -36,6 +36,10 @@ public:
 	ShaderComponent( const Ref<Shader>& shader );
     ShaderComponent( const ShaderComponent& shaderComponent );
     ShaderComponent& operator= ( const ShaderComponent& shaderComponent );
+    // A copy deep copies the uniform table; a move - which is also how the
+    // pool relocates the component - hands the same table over.
+    ShaderComponent( ShaderComponent&& ) noexcept = default;
+    ShaderComponent& operator= ( ShaderComponent&& ) noexcept = default;
     ~ShaderComponent();
 
     // Rebuild mUniforms so its keys are exactly the shader's active uniforms,

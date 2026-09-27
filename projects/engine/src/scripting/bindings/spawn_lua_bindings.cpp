@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scripting/bindings/spawn_lua_bindings.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
@@ -169,7 +170,7 @@ void CreateSpawnBindings( Scene& scene,
     //   }
     lua["spawn"] = [&]( const sol::table& description ) -> Entity
     {
-        const Entity entity = scene.CreateEntity();
+        const Entity entity = CreateChildEntity( scene );
 
         if ( const auto tag = Field<string>( description, "tag" ) )
             scene.AddComponent<TagComponent>( entity, *tag );

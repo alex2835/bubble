@@ -7,8 +7,7 @@
 TEST( LuaValue )
 {
     Fixture f;
-    auto node = f.Create( ProjectTreeNodeType::Script );
-    const Entity entity = node->AsEntity();
+    const Entity entity = f.Create( EntityKind::Script );
     const LuaTableRoot root = StateComponent::StateTableRoot( f.scene, entity );
     auto state = [&]() { return *root.Get(); };
 
@@ -49,7 +48,7 @@ TEST( LuaValue )
 
     // On a deleted entity the step is a no-op, and lands again once restored
     f.history.Execute( CreateScope<SetLuaValueCommand>( root, LuaPath{ "hp"s }, Any( 10 ), Any( 20 ) ) );
-    f.history.Execute( CreateScope<DeleteNodeCommand>( node, f.scene ) );
+    f.history.Execute( CreateScope<DeleteEntitiesCommand>( f.scene, vector{ entity } ) );
     CHECK( not root.Get() );
     f.history.Undo(); // restore entity
     CHECK( state()["hp"].get<int>() == 20 );

@@ -14,7 +14,9 @@ vector<BlendSpace::Weight> BlendSpace::Weights( f32 value ) const
 {
     if ( mPoints.empty() )
         return {};
-    if ( mPoints.size() == 1 or value <= mPoints.front().mValue )
+    // NaN compares false to everything and would search past the front; a
+    // script's 0/0 gets the first point rather than a crash.
+    if ( mPoints.size() == 1 or std::isnan( value ) or value <= mPoints.front().mValue )
         return { { 0, 1.0f } };
     if ( value >= mPoints.back().mValue )
         return { { static_cast<u32>( mPoints.size() - 1 ), 1.0f } };

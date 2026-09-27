@@ -25,27 +25,28 @@ TEST( Operators )
 
     // Create by name with arguments; the result is selected
     CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Light" }, { "spawn_at", vec3( 4, 5, 6 ) } } ) );
-    CHECK( f.root->mChildren.size() == 1 );
-    const auto light = f.root->mChildren[0];
-    CHECK( selection.GetTreeNode() == light );
-    CHECK( f.scene.GetComponent<TransformComponent>( light->AsEntity() ).mPosition == vec3( 4, 5, 6 ) );
+    CHECK( f.Top().size() == 1 );
+    const Entity light = f.Top()[0];
+    CHECK( selection.IsSingleSelection() and selection.GetSingleEntity() == light );
+    CHECK( f.scene.GetComponent<TransformComponent>( light ).mPosition == vec3( 4, 5, 6 ) );
 
-    // A folder, then a node under it by parent id
+    // A folder, then an entity under it by parent id
+    selection.Clear();
     CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Folder" } } ) );
-    const auto folder = f.root->mChildren[1];
-    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Camera" }, { "parent", folder->ID() } } ) );
-    CHECK( folder->mChildren.size() == 1 );
+    const Entity folder = f.Top()[1];
+    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Camera" }, { "parent", (u64)folder } } ) );
+    CHECK( f.Children( folder ).size() == 1 );
     // With the folder selected, no parent given lands inside it
-    selection.SelectTreeNode( folder, f.scene );
+    selection.Select( folder, f.scene );
     CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Script" } } ) );
-    CHECK( folder->mChildren.size() == 2 );
+    CHECK( f.Children( folder ).size() == 2 );
 
     // Components on the selected entity
-    selection.SelectTreeNode( light, f.scene );
+    selection.Select( light, f.scene );
     CHECK( InvokeOperator( "entity.add_component", ctx, { { "component", "State" } } ) );
-    CHECK( f.scene.HasComponent<StateComponent>( light->AsEntity() ) );
+    CHECK( f.scene.HasComponent<StateComponent>( light ) );
     CHECK( InvokeOperator( "entity.remove_component", ctx, { { "component", "State" } } ) );
-    CHECK( not f.scene.HasComponent<StateComponent>( light->AsEntity() ) );
+    CHECK( not f.scene.HasComponent<StateComponent>( light ) );
     threw = false;
     try { InvokeOperator( "entity.remove_component", ctx, { { "component", "Tag" } } ); } catch ( const std::exception& ) { threw = true; }
     CHECK( threw );
@@ -54,28 +55,31 @@ TEST( Operators )
     selection.Clear();
     CHECK( not PollOperator( "scene.delete", ctx ) );
     CHECK( not InvokeOperator( "scene.delete", ctx ) );
-    CHECK( f.root->mChildren.size() == 2 );
-    selection.SelectTreeNode( folder, f.scene );
+    CHECK( f.Top().size() == 2 );
+    selection.Select( folder, f.scene );
     CHECK( InvokeOperator( "scene.delete", ctx ) );
-    CHECK( f.root->mChildren.size() == 1 and selection.IsEmpty() );
+    CHECK( f.Top().size() == 1 and selection.IsEmpty() );
     CHECK( InvokeOperator( "history.undo", ctx ) );
-    CHECK( f.root->mChildren.size() == 2 and folder->mChildren.size() == 2 );
+    CHECK( f.Top().size() == 2 and f.Children( folder ).size() == 2 );
 
     // Cut / paste moves; copy / paste duplicates
-    selection.SelectTreeNode( light, f.scene );
+    selection.Select( light, f.scene );
     CHECK( InvokeOperator( "scene.cut", ctx ) );
-    CHECK( InvokeOperator( "scene.paste", ctx, { { "parent", folder->ID() } } ) );
-    CHECK( f.root->mChildren.size() == 1 and folder->mChildren.size() == 3 );
+    CHECK( InvokeOperator( "scene.paste", ctx, { { "parent", (u64)folder } } ) );
+    CHECK( f.Top().size() == 1 and f.Children( folder ).size() == 3 );
     CHECK( not PollOperator( "scene.paste", ctx ) ); // clipboard spent by the move
-    selection.SelectTreeNode( light, f.scene );
+    selection.Select( light, f.scene );
     CHECK( InvokeOperator( "scene.copy", ctx ) );
-    CHECK( InvokeOperator( "scene.paste", ctx, { { "parent", f.root->ID() } } ) );
-    CHECK( f.root->mChildren.size() == 2 );
-    CHECK( f.root->mChildren[1]->AsEntity() != light->AsEntity() );
+    CHECK( InvokeOperator( "scene.paste", ctx, { { "parent", (u64)f.Root() } } ) );
+    CHECK( f.Top().size() == 2 );
+    CHECK( f.Top()[1] != light );
     CHECK( PollOperator( "scene.paste", ctx ) ); // a copy can be pasted again
+    // Not into itself, and the root cannot be cut.
+    selection.Select( f.Root(), f.scene );
+    CHECK( not PollOperator( "scene.cut", ctx ) );
 
     // Everything above is undoable in order
     while ( f.history.CanUndo() )
         f.history.Undo();
-    CHECK( f.root->mChildren.empty() and f.scene.Size() == 0 );
+    CHECK( f.Top().empty() and f.scene.Size() == 1 );
 }

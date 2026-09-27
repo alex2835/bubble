@@ -43,31 +43,32 @@ TEST( Prefab_SaveInstantiateUpdate )
     OperatorRegistry::RegisterBuiltins();
     PrefabFixture f;
     // A body with a part under it; the body placed away from the origin.
-    auto body = f.Create( ProjectTreeNodeType::ModelObject );
-    auto part = f.Create( ProjectTreeNodeType::Light );
-    f.history.Execute( CreateScope<MoveNodeCommand>( part, body, f.scene ) );
-    f.scene.GetComponent<TagComponent>( body->AsEntity() ).mName = "body";
-    f.scene.GetComponent<TransformComponent>( part->AsEntity() ).mPosition = vec3( 0, 2, 0 );
+    const Entity body = f.Create( EntityKind::ModelObject );
+    const Entity part = f.Create( EntityKind::Light, body );
+    f.scene.GetComponent<TagComponent>( body ).mName = "body";
+    f.scene.GetComponent<TransformComponent>( part ).mPosition = vec3( 0, 2, 0 );
     // The body's state names the part, which has to be carried over.
-    f.scene.AddComponent<StateComponent>( body->AsEntity(), f.project.mScriptingEngine.CreateTable() );
-    f.scene.GetComponent<StateComponent>( body->AsEntity() ).mState->as<Table>()["part"] = part->AsEntity();
+    f.scene.AddComponent<StateComponent>( body, f.project.mScriptingEngine.CreateTable() );
+    f.scene.GetComponent<StateComponent>( body ).mState->as<Table>()["part"] = part;
 
     auto ctx = f.Ctx();
-    CHECK( InvokeOperator( "prefab.save", ctx, { { "file", "prefabs/thing" }, { "node", body->ID() } } ) );
+    CHECK( InvokeOperator( "prefab.save", ctx, { { "file", "prefabs/thing" }, { "entity", (u64)body } } ) );
     CHECK( filesystem::is_regular_file( f.mDir / "prefabs/thing.prefab" ) );
 
     CHECK( InvokeOperator( "prefab.instantiate", ctx, { { "file", "prefabs/thing.prefab" }, { "spawn_at", vec3( 10, 0, 0 ) } } ) );
-    auto instance = f.mSelection.GetTreeNode();
-    CHECK( instance and instance->IsEntity() );
-    if ( not instance )
+    CHECK( f.mSelection.IsSingleSelection() );
+    if ( not f.mSelection.IsSingleSelection() )
         return;
-    const Entity root = instance->AsEntity();
-    // One entity at the top: it is the root, with the link to the file.
-    CHECK( f.scene.GetComponent<TagComponent>( root ).mName == "body" );
+    const Entity root = f.mSelection.GetSingleEntity();
+    // The prefab's root copied, linked to the file, and named after it.
+    CHECK( f.scene.GetComponent<TagComponent>( root ).mName == "thing" );
     CHECK( f.scene.GetComponent<PrefabInstanceComponent>( root ).mPrefab == "prefabs/thing.prefab" );
-    CHECK( instance->mChildren.size() == 1 );
-    const Entity copiedPart = instance->mChildren[0]->AsEntity();
-    CHECK( ParentOf( f.scene, copiedPart ) == root );
+    CHECK( ParentOf( f.scene, root ) == f.Root() );
+    const auto children = f.Children( root );
+    CHECK( children.size() == 1 );
+    if ( children.empty() )
+        return;
+    const Entity copiedPart = children[0];
     UpdateWorldTransforms( f.scene );
     CHECK( Near( f.scene.GetComponent<TransformComponent>( copiedPart ).World().mPosition, vec3( 10, 2, 0 ) ) );
     // The reference in the state followed the copy.
@@ -83,29 +84,31 @@ TEST( Prefab_SaveInstantiateUpdate )
     // The instance is moved; then the prefab changes; an update keeps the
     // placement and the root's id, and takes the new content.
     f.scene.GetComponent<TransformComponent>( root ).mPosition = vec3( 20, 0, 0 );
-    f.scene.GetComponent<TransformComponent>( part->AsEntity() ).mPosition = vec3( 0, 5, 0 );
-    f.scene.GetComponent<TransformComponent>( body->AsEntity() ).mScale = vec3( 2 );
-    CHECK( InvokeOperator( "prefab.save", ctx, { { "file", "prefabs/thing.prefab" }, { "node", body->ID() } } ) );
+    f.scene.GetComponent<TransformComponent>( part ).mPosition = vec3( 0, 5, 0 );
+    f.scene.GetComponent<TransformComponent>( body ).mScale = vec3( 2 );
+    CHECK( InvokeOperator( "prefab.save", ctx, { { "file", "prefabs/thing.prefab" }, { "entity", (u64)body } } ) );
     CHECK( InvokeOperator( "prefab.update_instances", ctx, { { "file", "prefabs/thing.prefab" } } ) );
-    CHECK( f.scene.HasEntity( root ) );
+    CHECK( f.scene.HasEntity( root ) and ParentOf( f.scene, root ) == f.Root() );
     // Where it was is the instance's; the scale is the prefab's.
     CHECK( Near( f.scene.GetComponent<TransformComponent>( root ).mPosition, vec3( 20, 0, 0 ) ) );
     CHECK( Near( f.scene.GetComponent<TransformComponent>( root ).mScale, vec3( 2 ) ) );
-    const auto refreshed = FindNodeByEntity( root, f.root );
-    CHECK( refreshed and refreshed->mChildren.size() == 1 );
-    if ( refreshed and not refreshed->mChildren.empty() )
+    const auto refreshed = f.Children( root );
+    CHECK( refreshed.size() == 1 );
+    if ( not refreshed.empty() )
     {
         UpdateWorldTransforms( f.scene );
-        CHECK( Near( f.scene.GetComponent<TransformComponent>( refreshed->mChildren[0]->AsEntity() ).World().mPosition, vec3( 20, 10, 0 ) ) );
+        CHECK( Near( f.scene.GetComponent<TransformComponent>( refreshed[0] ).World().mPosition, vec3( 20, 10, 0 ) ) );
     }
     // One step to undo: the old content back.
     f.history.Undo();
     CHECK( f.scene.HasEntity( copiedPart ) and ParentOf( f.scene, copiedPart ) == root );
 
-    // A prefab file is a level: it opens as one, and cannot hold itself.
+    // A prefab file is a level whose root is the prefab; and it cannot hold
+    // itself.
     Level opened;
     opened.Load( f.mDir / "prefabs/thing.prefab", f.project );
-    CHECK( opened.mTreeRoot->mChildren.size() == 1 );
+    CHECK( opened.mScene.GetComponent<TagComponent>( opened.Root() ).mName == "thing" );
+    CHECK( ChildrenOf( opened.mScene, opened.Root() ).size() == 1 );
     OperatorContext inPrefab{ f.project, opened, f.history, f.mSelection, f.mClipboard };
     bool refused = false;
     try { InvokeOperator( "prefab.instantiate", inPrefab, { { "file", "prefabs/thing.prefab" } } ); }
@@ -116,25 +119,25 @@ TEST( Prefab_SaveInstantiateUpdate )
 TEST( Prefab_SpawnAtRunTime )
 {
     PrefabFixture f;
-    auto a = f.Create( ProjectTreeNodeType::ModelObject );
-    auto b = f.Create( ProjectTreeNodeType::ModelObject );
-    auto folder = f.Create( ProjectTreeNodeType::Folder );
-    f.history.Execute( CreateScope<MoveNodeCommand>( a, folder, f.scene ) );
-    f.history.Execute( CreateScope<MoveNodeCommand>( b, folder, f.scene ) );
-    f.scene.GetComponent<TransformComponent>( b->AsEntity() ).mPosition = vec3( 4, 2, 3 );
-    SavePrefab( folder, f.scene, f.mDir / "two.prefab", f.project );
+    const Entity folder = f.Create( EntityKind::Folder );
+    const Entity a = f.Create( EntityKind::ModelObject, folder );
+    const Entity b = f.Create( EntityKind::ModelObject, folder );
+    f.scene.GetComponent<TransformComponent>( b ).mPosition = vec3( 4, 2, 3 );
+    SavePrefab( f.scene, folder, f.mDir / "two.prefab", f.project );
 
-    // Two at the top: a root is made to hold them, placed where asked.
-    Scene running;
-    const auto spawned = SpawnPrefab( f.project, running, "two.prefab", vec3( 0, 100, 0 ) );
+    // Spawned under the running level's root, placed where asked.
+    Level running;
+    const auto spawned = SpawnPrefab( f.project, running.mScene, "two.prefab", vec3( 0, 100, 0 ) );
     CHECK( spawned.size() == 3 );
     const Entity root = spawned.front();
-    CHECK( running.HasComponent<PrefabInstanceComponent>( root ) );
-    CHECK( ChildrenOf( running, root ).size() == 2 );
-    // b sat at (3, 0, 0) from a; a is the origin of the prefab.
-    bool found = false;
-    for ( const Entity child : ChildrenOf( running, root ) )
-        if ( Near( running.GetComponent<TransformComponent>( child ).World().mPosition, vec3( 3, 100, 0 ) ) )
-            found = true;
-    CHECK( found );
+    CHECK( ParentOf( running.mScene, root ) == running.Root() );
+    CHECK( running.mScene.HasComponent<PrefabInstanceComponent>( root ) );
+    const auto children = ChildrenOf( running.mScene, root );
+    CHECK( children.size() == 2 );
+    if ( children.size() == 2 )
+    {
+        CHECK( Near( running.mScene.GetComponent<TransformComponent>( children[0] ).World().mPosition, vec3( 1, 102, 3 ) ) );
+        CHECK( Near( running.mScene.GetComponent<TransformComponent>( children[1] ).World().mPosition, vec3( 4, 102, 3 ) ) );
+    }
+    (void)a;
 }

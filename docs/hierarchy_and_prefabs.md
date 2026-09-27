@@ -2,15 +2,25 @@
 
 ## Hierarchy
 
-An entity can hang under another. Its `TransformComponent` is then relative
-to its parent: moving, turning or scaling the parent carries the child with
-it.
+The scene is one tree of entities. Every entity has a `HierarchyComponent`
+and hangs under exactly one parent, up to a single **root** - the entity that
+stands for the level (a folder named after the level file). The *Entities*
+window draws this tree straight from the scene; there is no second tree.
+
+An entity's `TransformComponent` is relative to its parent: moving, turning or
+scaling the parent carries the child with it.
 
 | Piece | Where | What |
 |---|---|---|
-| `HierarchyComponent` | `scene/components/hierarchy_component.hpp` | `mParent`, `mChildren`. Only on entities that have either. The parent is saved; the children are rebuilt. |
+| `HierarchyComponent` | `scene/components/hierarchy_component.hpp` | `mParent`, `mChildren` (in order). Both are saved. |
+| `FolderComponent` | `scene/components/folder_component.hpp` | Marks a folder: an entity with a Tag and a Transform and nothing else to do. The root is one too. |
+| `Scene::Root()` | `scene/scene.hpp` | The root entity. Saved as `"Root"` in the scene. |
 | world cache | `TransformComponent::World()`, `WorldMatrix()` | Where the entity is in the world. Filled by `UpdateWorldTransforms`. Not saved. |
-| functions | `engine/scene/hierarchy.hpp` | `SetParent`, `ParentOf`, `ChildrenOf`, `IsAncestor`, `ComputeWorldMatrix`, `SetWorldTransform`, `UpdateWorldTransforms`, `SyncHierarchy` |
+| functions | `engine/scene/hierarchy.hpp` | `ParentOf`, `ChildrenOf`, `IndexInParent`, `IsAncestor`, `Subtree`, `SetParent`, `AttachChild`, `DetachFromParent`, `CreateChildEntity`, `CopySubtree`, `ComputeWorldMatrix`, `SetWorldTransform`, `UpdateWorldTransforms` |
+
+**Folders are groups.** A folder is an entity with a transform, so moving a
+folder moves what is in it. A new folder sits at the origin, so what goes in
+it does not move.
 
 **Local vs world.** The transform's own fields - what the inspector, the
 gizmo's result, files and scripts' `position`/`rotation`/`scale` read and
@@ -19,23 +29,23 @@ cache: drawing, picking, physics, lights, audio, cameras, IK targets, the
 skeleton overlay. The engine refreshes the cache after physics and again
 after the scripts; the editor refreshes it every frame.
 
-**In the editor the tree is the truth.** An entity node under another
-entity's node is that entity's child - folders in between are see-through, so
-an entity in a folder under an entity is still its child. `SyncHierarchy`
-writes the tree into the components every frame; a loaded level gets its
-components from its tree the same way, so levels saved before the hierarchy
-open unchanged.
-
-- **Parent** by dragging a node onto another in *Entities* (or cut and paste
-  into it). The dragged entity keeps its place in the world; its local
-  transform is worked out against the new parent. Dropping onto the level's
-  root makes it a root again. Undo puts the local transform back.
+- **Parent** by dragging an entity onto another in *Entities* (or cut and
+  paste into it), or with `scene.move{ entity, parent, index }`. The moved
+  entity keeps its place in the world; its local transform is worked out
+  against the new parent. Undo puts the local transform back. The root cannot
+  be moved, deleted or cut, and nothing goes under itself.
 - **Selecting** an entity selects that entity only; what hangs under it
-  follows. Selecting a folder selects the entities at its top.
+  follows.
 - **The gizmo** moves the entity in the world (Shift for world axes) and
   writes the local transform back.
-- New entities made under an entity land where they were asked to in the
-  world, as before.
+- New entities land where they were asked to in the world, whatever their
+  parent.
+
+**Older files.** Levels saved before the tree moved into the scene kept a
+`ProjectTree` beside it, with folders that were not entities. On load that
+tree is turned into folder entities and hierarchy links; entities left with
+no components at all, which such files could hold, are dropped. The next save
+writes the new format.
 
 **Physics.** Bodies and character controllers live in the world: they start
 at the entity's world transform, and what they move to is written back as
@@ -48,8 +58,8 @@ children of a body follow the body.
 | | |
 |---|---|
 | `entity.world_position`, `entity.world_rotation` | Read only, as of the last world update. |
-| `entity:get_parent()` | `Entity` or `nil`. |
-| `entity:set_parent( other, keep_world )` | `nil` makes it a root. `keep_world` (default `true`) keeps it where it is; `false` keeps its local transform. `false` on a loop. |
+| `entity:get_parent()` | `Entity`; the root's parent is `nil`. |
+| `entity:set_parent( other, keep_world )` | `nil` puts it under the level's root. `keep_world` (default `true`) keeps it where it is; `false` keeps its local transform. `false` on a loop or for the root. |
 | `entity:get_children()` | Array of `Entity`. |
 
 A script that places a child by the world position of something else - the
@@ -60,29 +70,28 @@ code, or set the local position relative to the parent.
 
 A prefab is a group of entities kept in a file of its own
 (`something.prefab`) and placed into levels as often as wanted. The file is
-the same format as a level - scene and tree - and is edited the same way, in
-its own window.
+the same format as a level and is edited the same way, in its own window. Its
+root is the prefab: on load it is named after the file.
 
 ### Making one
 
-- *Entities* → right click a node → **Save as prefab** → a path relative to
-  the project (`prefabs/crate`; `.prefab` is added). The node and everything
-  under it are written, moved so that the first entity sits at the prefab's
-  origin. The level is not changed.
+- *Entities* → right click an entity → **Save as prefab** → a path relative
+  to the project (`prefabs/crate`; `.prefab` is added). The entity becomes the
+  prefab's root, moved to its origin, and everything under it comes along.
+  The level is not changed. A folder works as well as any entity.
 - Or in the **Prefab Editor**, type a path next to **New**.
 
 ### Placing one
 
-- Drag a `.prefab` from the *Project* window onto a node in *Entities* (it
-  goes under that node) or onto a viewport (in front of the camera).
-- Operator `prefab.instantiate{ file = ..., parent = node id, spawn_at = {x, y, z} }`.
+- Drag a `.prefab` from the *Project* window onto an entity in *Entities* (it
+  goes under that entity) or onto a viewport (in front of the camera).
+- Operator `prefab.instantiate{ file = ..., parent = entity id, spawn_at = {x, y, z} }`.
 - At run time: `spawn_prefab( "prefabs/crate.prefab", vec3( 0, 5, 0 ) )` →
-  the root `Entity`. Bodies join the physics world, sounds set to play on
+  the root `Entity`, under the level's root. Bodies join the physics world, sounds set to play on
   start play, scripts get `on_start` - as for a level being loaded.
 
-An instance is a copy, with a root: when the prefab has one entity at its
-top, that entity is the root; otherwise an entity named after the prefab is
-made to hold them. The root carries a `PrefabInstanceComponent` naming the
+An instance is a copy of the prefab's root and everything under it. The root
+carries a `PrefabInstanceComponent` naming the
 file, and shows `[prefab]` in the tree. References between the prefab's
 entities in their State tables point at the copies.
 

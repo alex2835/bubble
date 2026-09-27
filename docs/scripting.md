@@ -110,8 +110,8 @@ Obtained from `create_entity()`, from an `on_update` argument, from
 
 | Function | Returns | Notes |
 |---|---|---|
-| `create_entity()` | `Entity` | |
-| `remove_entity( entity )` | | Errors if the entity does not exist — test with `entity:is_valid()`. Also removes it from the physics world. |
+| `create_entity()` | `Entity` | Under the level's root. |
+| `remove_entity( entity )` | | Errors if the entity does not exist — test with `entity:is_valid()`. Removes what hangs under it too, and all of it from the physics world. The root cannot be removed. |
 | `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `Component.*` values; `fn` is `function( entity, components )`. |
 
 `components` is keyed by the component's **snake_case name**, not by the

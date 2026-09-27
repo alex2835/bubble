@@ -18,6 +18,12 @@ public:
     RigidBodyComponent();
     RigidBodyComponent( RigidBody rigidBody );
     ~RigidBodyComponent();
+    // Copying makes a new Bullet body; moving - which is also how the pool
+    // relocates the component - keeps the one the physics world holds.
+    RigidBodyComponent( const RigidBodyComponent& ) = default;
+    RigidBodyComponent& operator=( const RigidBodyComponent& ) = default;
+    RigidBodyComponent( RigidBodyComponent&& ) noexcept = default;
+    RigidBodyComponent& operator=( RigidBodyComponent&& ) noexcept = default;
 
     RigidBody mRigidBody;
 };

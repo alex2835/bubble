@@ -9,46 +9,47 @@
 #include "engine/editing/commands/tree_commands.hpp"
 #include "engine/editing/commands/component_commands.hpp"
 #include "engine/project/project.hpp"
-#include "engine/scene/component_manager.hpp"
-#include "engine/serialization/types_serialization.hpp"
-#include <nlohmann/json.hpp>
-#include "engine/scene/components/tag_component.hpp"
-#include "engine/scene/components/prefab_instance_component.hpp"
 #include "engine/project/prefab.hpp"
+#include "engine/scene/component_manager.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include "engine/serialization/types_serialization.hpp"
 #include "engine/types/set.hpp"
+#include <nlohmann/json.hpp>
+#include "engine/scene/components/folder_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
 
 namespace bubble
 {
 namespace
 {
 Scene& SceneOf( const OperatorContext& ctx ) { return ctx.mLevel.mScene; }
-const Ref<ProjectTreeNode>& RootOf( const OperatorContext& ctx ) { return ctx.mLevel.mTreeRoot; }
 
-// A node named in args by id, or the fallback when the key is absent.
-Ref<ProjectTreeNode> NodeArg( const OperatorContext& ctx, const json& args, const char* key, Ref<ProjectTreeNode> fallback )
+// An entity named in args by id, or the fallback when the key is absent.
+Entity EntityArg( const OperatorContext& ctx, const json& args, const char* key, Entity fallback )
 {
     if ( not args.contains( key ) )
         return fallback;
-    auto node = FindNodeById( args.at( key ).get<u64>(), RootOf( ctx ) );
-    if ( not node )
-        throw std::runtime_error( std::format( "{}: no node with id {}", key, args.at( key ).get<u64>() ) );
-    return node;
+    const auto id = args.at( key ).get<u64>();
+    const Entity entity = SceneOf( ctx ).GetEntityById( id );
+    if ( not SceneOf( ctx ).HasEntity( entity ) )
+        throw std::runtime_error( std::format( "{}: no entity {}", key, id ) );
+    return entity;
 }
 
-// An entity named in args by id, or the single selected one.
-Entity EntityArg( const OperatorContext& ctx, const json& args, const char* key )
+// The single selected entity, or INVALID_ENTITY.
+Entity SelectedOne( const OperatorContext& ctx )
 {
-    if ( args.contains( key ) )
-    {
-        const auto id = args.at( key ).get<u64>();
-        const Entity entity = SceneOf( ctx ).GetEntityById( id );
-        if ( not SceneOf( ctx ).HasEntity( entity ) )
-            throw std::runtime_error( std::format( "{}: no entity {}", key, id ) );
-        return entity;
-    }
-    if ( not ctx.mSelection.IsSingleSelection() )
+    return ctx.mSelection.IsSingleSelection() ? ctx.mSelection.GetSingleEntity() : INVALID_ENTITY;
+}
+
+// An entity named in args, or the single selected one - required.
+Entity RequiredEntity( const OperatorContext& ctx, const json& args, const char* key )
+{
+    const Entity entity = EntityArg( ctx, args, key, SelectedOne( ctx ) );
+    if ( entity == INVALID_ENTITY )
         throw std::runtime_error( std::format( "{}: not given and the selection is not one entity", key ) );
-    return ctx.mSelection.GetSingleEntity();
+    return entity;
 }
 
 ComponentTypeId ComponentArg( const json& args )
@@ -58,36 +59,24 @@ ComponentTypeId ComponentArg( const json& args )
 }
 
 // Where a paste or a create lands when no parent is named: inside the
-// selected folder, next to the selected entity, or at the root.
-Ref<ProjectTreeNode> TargetParent( const OperatorContext& ctx )
+// selected folder, next to the selected entity, or under the root.
+Entity TargetParent( const OperatorContext& ctx )
 {
-    const auto& selected = ctx.mSelection.GetTreeNode();
-    if ( not selected )
-        return RootOf( ctx );
-    if ( not selected->IsEntity() )
+    const Scene& scene = SceneOf( ctx );
+    const Entity selected = SelectedOne( ctx );
+    if ( selected == INVALID_ENTITY )
+        return scene.Root();
+    if ( selected == scene.Root() or scene.HasComponent<FolderComponent>( selected ) )
         return selected;
-    auto parent = selected->mParent.lock();
-    return parent ? parent : RootOf( ctx );
-}
-
-// The nodes the selection stands for: the tree node if one was picked in
-// the tree, otherwise the node of each entity picked in the viewport.
-vector<Ref<ProjectTreeNode>> SelectedNodes( const OperatorContext& ctx )
-{
-    vector<Ref<ProjectTreeNode>> nodes;
-    if ( ctx.mSelection.GetTreeNode() )
-    {
-        nodes.push_back( ctx.mSelection.GetTreeNode() );
-        return nodes;
-    }
-    for ( const auto entity : ctx.mSelection.GetEntities() )
-        if ( auto node = FindNodeByEntity( entity, RootOf( ctx ) ) )
-            nodes.push_back( node );
-    return nodes;
+    const Entity parent = ParentOf( scene, selected );
+    return parent != INVALID_ENTITY ? parent : scene.Root();
 }
 
 bool HasSelection( const OperatorContext& ctx, const json& ) { return not ctx.mSelection.IsEmpty(); }
-bool HasTreeSelection( const OperatorContext& ctx, const json& ) { return ctx.mSelection.GetTreeNode() != nullptr; }
+bool HasOneSelected( const OperatorContext& ctx, const json& )
+{
+    return ctx.mSelection.IsSingleSelection() and ctx.mSelection.GetSingleEntity() != SceneOf( ctx ).Root();
+}
 }
 
 void OperatorRegistry::RegisterBuiltins()
@@ -103,77 +92,98 @@ void OperatorRegistry::RegisterBuiltins()
         []( OperatorContext& ctx, const json& )
         {
             ctx.mHistory.Undo();
-            ctx.mSelection.Prune( SceneOf( ctx ), RootOf( ctx ) );
+            ctx.mSelection.Prune( SceneOf( ctx ) );
         } } );
     registry.Register( { "history.redo", "Redo",
         []( const OperatorContext& ctx, const json& ) { return ctx.mHistory.CanRedo(); },
         []( OperatorContext& ctx, const json& )
         {
             ctx.mHistory.Redo();
-            ctx.mSelection.Prune( SceneOf( ctx ), RootOf( ctx ) );
+            ctx.mSelection.Prune( SceneOf( ctx ) );
         } } );
 
     /// Scene tree
-    // args: type (ProjectTreeNodeType name), parent (node id, default: by
-    // selection), spawn_at (vec3, default: origin). Selects what it made.
-    registry.Register( { "scene.create_node", "Create node", nullptr,
+    // args: type (EntityKind name: Folder, ModelObject, PhysicsObject,
+    // GameObject, Script, Light, Camera, Audio), parent (entity id, default:
+    // by selection), spawn_at (vec3, default: origin). Selects what it made.
+    registry.Register( { "scene.create_node", "Create", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
             const string typeName = args.at( "type" ).get<string>();
-            const auto type = magic_enum::enum_cast<ProjectTreeNodeType>( typeName );
-            if ( not type or *type == ProjectTreeNodeType::Root or *type == ProjectTreeNodeType::Prefab )
+            const auto kind = magic_enum::enum_cast<EntityKind>( typeName );
+            if ( not kind )
                 throw std::runtime_error( std::format( "type: cannot create a '{}'", typeName ) );
 
-            const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
+            const Entity parent = EntityArg( ctx, args, "parent", TargetParent( ctx ) );
             const Transform spawnAt( args.value( "spawn_at", vec3( 0 ) ) );
 
-            auto command = CreateScope<CreateNodeCommand>( parent, *type, ctx.mProject, ctx.mLevel, spawnAt );
+            auto command = CreateScope<CreateEntityCommand>( ctx.mProject, SceneOf( ctx ), parent, *kind, spawnAt );
             auto* raw = command.get();
             ctx.mHistory.Execute( std::move( command ) );
-            ctx.mSelection.SelectTreeNode( raw->GetCreatedNode(), SceneOf( ctx ) );
+            ctx.mSelection.Select( raw->Created(), SceneOf( ctx ) );
         } } );
 
-    // Deletes the selection. args: none.
+    // Deletes the selection, with what is under it. args: none.
     registry.Register( { "scene.delete", "Delete", HasSelection,
         []( OperatorContext& ctx, const json& )
         {
-            const auto nodes = SelectedNodes( ctx );
+            const vector<Entity> entities( ctx.mSelection.GetEntities().begin(), ctx.mSelection.GetEntities().end() );
             ctx.mSelection.Clear();
-            if ( nodes.empty() )
-                return;
-            if ( nodes.size() == 1 )
-                ctx.mHistory.Execute( CreateScope<DeleteNodeCommand>( nodes[0], SceneOf( ctx ) ) );
-            else
-                ctx.mHistory.Execute( CreateScope<DeleteMultipleNodesCommand>( nodes, SceneOf( ctx ) ) );
+            auto command = CreateScope<DeleteEntitiesCommand>( SceneOf( ctx ), entities );
+            ctx.mHistory.Execute( std::move( command ) );
         } } );
 
-    // Clipboard. Cut and copy only note the node; paste is the edit.
-    registry.Register( { "scene.cut", "Cut", HasTreeSelection,
+    // Clipboard. Cut and copy only note the entity; paste is the edit.
+    registry.Register( { "scene.cut", "Cut", HasOneSelected,
         []( OperatorContext& ctx, const json& )
         {
-            ctx.mClipboard.Cut( ctx.mSelection.GetTreeNode() );
+            ctx.mClipboard.Cut( ctx.mSelection.GetSingleEntity() );
             ctx.mSelection.Clear();
         } } );
-    registry.Register( { "scene.copy", "Copy", HasTreeSelection,
+    registry.Register( { "scene.copy", "Copy", HasOneSelected,
         []( OperatorContext& ctx, const json& )
         {
-            ctx.mClipboard.Copy( ctx.mSelection.GetTreeNode() );
+            ctx.mClipboard.Copy( ctx.mSelection.GetSingleEntity() );
         } } );
-    // args: parent (node id, default: by selection).
+    // args: parent (entity id, default: by selection). Either way the pasted
+    // entity stays where it was in the world.
     registry.Register( { "scene.paste", "Paste",
         []( const OperatorContext& ctx, const json& ) { return not ctx.mClipboard.IsEmpty(); },
         []( OperatorContext& ctx, const json& args )
         {
-            const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
+            Scene& scene = SceneOf( ctx );
+            const Entity source = ctx.mClipboard.GetEntity();
+            if ( not scene.HasEntity( source ) )
+                throw std::runtime_error( "paste: what was cut or copied is gone" );
+            const Entity parent = EntityArg( ctx, args, "parent", TargetParent( ctx ) );
             if ( ctx.mClipboard.IsCut() )
             {
-                if ( IsInSubtree( parent, ctx.mClipboard.GetNode() ) )
-                    throw std::runtime_error( "paste: cannot move a node into itself" );
-                ctx.mHistory.Execute( CreateScope<MoveNodeCommand>( ctx.mClipboard.GetNode(), parent, SceneOf( ctx ) ) );
+                if ( parent == source or IsAncestor( scene, source, parent ) )
+                    throw std::runtime_error( "paste: cannot move an entity into itself" );
+                ctx.mHistory.Execute( CreateScope<MoveEntityCommand>( scene, source, parent ) );
                 ctx.mClipboard.Clear();
+                ctx.mSelection.Select( source, scene );
             }
             else
-                ctx.mHistory.Execute( CreateScope<CopyNodeCommand>( ctx.mClipboard.GetNode(), parent, SceneOf( ctx ) ) );
+            {
+                auto command = CreateScope<CopyEntityCommand>( scene, source, parent );
+                auto* raw = command.get();
+                ctx.mHistory.Execute( std::move( command ) );
+                ctx.mSelection.Select( raw->Copy(), scene );
+            }
+        } } );
+
+    // args: entity (id), parent (entity id, default: the root), index
+    // (default: last). Keeps it where it is in the world.
+    registry.Register( { "scene.move", "Move", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            Scene& scene = SceneOf( ctx );
+            const Entity entity = RequiredEntity( ctx, args, "entity" );
+            const Entity parent = EntityArg( ctx, args, "parent", scene.Root() );
+            if ( entity == scene.Root() or parent == entity or IsAncestor( scene, entity, parent ) )
+                throw std::runtime_error( "move: not into itself, and not the root" );
+            ctx.mHistory.Execute( CreateScope<MoveEntityCommand>( scene, entity, parent, args.value( "index", size_t( -1 ) ) ) );
         } } );
 
     /// Components
@@ -181,7 +191,7 @@ void OperatorRegistry::RegisterBuiltins()
     registry.Register( { "entity.add_component", "Add component", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
-            const Entity entity = EntityArg( ctx, args, "entity" );
+            const Entity entity = RequiredEntity( ctx, args, "entity" );
             const auto componentId = ComponentArg( args );
             if ( SceneOf( ctx ).EntityComponentTypeIds( entity ).contains( componentId ) )
                 return;
@@ -190,7 +200,7 @@ void OperatorRegistry::RegisterBuiltins()
     registry.Register( { "entity.remove_component", "Remove component", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
-            const Entity entity = EntityArg( ctx, args, "entity" );
+            const Entity entity = RequiredEntity( ctx, args, "entity" );
             const auto componentId = ComponentArg( args );
             if ( componentId == TagComponent::ID() )
                 throw std::runtime_error( "component: the Tag component cannot be removed" );
@@ -200,7 +210,7 @@ void OperatorRegistry::RegisterBuiltins()
         } } );
 
     /// Prefabs
-    // args: file (.prefab, relative to the project root), parent (node id,
+    // args: file (.prefab, relative to the project root), parent (entity id,
     // default: by selection), spawn_at (vec3, default: origin). Selects the
     // instance.
     registry.Register( { "prefab.instantiate", "Instantiate prefab", nullptr,
@@ -211,28 +221,26 @@ void OperatorRegistry::RegisterBuiltins()
                 throw std::runtime_error( "file: a prefab cannot contain itself" );
             PrefabPlacement placement;
             placement.mWorldPosition = args.value( "spawn_at", vec3( 0 ) );
-            const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
-            auto command = CreateScope<InstantiatePrefabCommand>( ctx.mProject, ctx.mLevel, parent, file, placement );
+            const Entity parent = EntityArg( ctx, args, "parent", TargetParent( ctx ) );
+            auto command = CreateScope<InstantiatePrefabCommand>( ctx.mProject, SceneOf( ctx ), parent, file, placement );
             auto* raw = command.get();
             ctx.mHistory.Execute( std::move( command ) );
-            ctx.mSelection.SelectTreeNode( raw->GetRoot(), SceneOf( ctx ) );
+            ctx.mSelection.Select( raw->Root(), SceneOf( ctx ) );
         } } );
 
-    // Writes a node and what is under it to a prefab file. Not an edit of the
-    // level, so no step. args: file (relative, .prefab), node (id, default:
-    // the selected tree node).
+    // Writes an entity and what is under it to a prefab file. Not an edit of
+    // the level, so no step. args: file (relative, .prefab added), entity
+    // (id, default: the single selected one).
     registry.Register( { "prefab.save", "Save as prefab", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
             path file = args.at( "file" ).get<string>();
             if ( file.extension() != PREFAB_FILE_EXT )
                 file += PREFAB_FILE_EXT;
-            auto node = NodeArg( ctx, args, "node", ctx.mSelection.GetTreeNode() );
-            if ( not node and ctx.mSelection.IsSingleSelection() )
-                node = FindNodeByEntity( ctx.mSelection.GetSingleEntity(), RootOf( ctx ) );
-            if ( not node or node == RootOf( ctx ) )
-                throw std::runtime_error( "node: pick a node other than the root" );
-            SavePrefab( node, SceneOf( ctx ), ctx.mProject.RootDir() / file, ctx.mProject );
+            const Entity entity = RequiredEntity( ctx, args, "entity" );
+            if ( entity == SceneOf( ctx ).Root() )
+                throw std::runtime_error( "entity: pick one other than the root" );
+            SavePrefab( SceneOf( ctx ), entity, ctx.mProject.RootDir() / file, ctx.mProject );
         } } );
 
     // Makes every instance of a prefab in the open document again from the
@@ -240,21 +248,22 @@ void OperatorRegistry::RegisterBuiltins()
     registry.Register( { "prefab.update_instances", "Update prefab instances", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
+            Scene& scene = SceneOf( ctx );
             vector<string> files;
             if ( args.contains( "file" ) )
                 files.push_back( path( args.at( "file" ).get<string>() ).generic_string() );
             else
             {
                 set<string> used;
-                for ( const auto& node : FindPrefabInstances( ctx.mLevel, "" ) )
-                    used.insert( SceneOf( ctx ).GetComponent<PrefabInstanceComponent>( node->AsEntity() ).mPrefab );
+                for ( const Entity instance : FindPrefabInstances( scene, "" ) )
+                    used.insert( scene.GetComponent<PrefabInstanceComponent>( instance ).mPrefab );
                 files.assign( used.begin(), used.end() );
             }
 
             auto step = CreateScope<CompositeCommand>( "Update prefab instances" );
             for ( const string& file : files )
-                for ( const auto& node : FindPrefabInstances( ctx.mLevel, file ) )
-                    step->Add( MakeRefreshPrefabInstance( ctx.mProject, ctx.mLevel, node ) );
+                for ( const Entity instance : FindPrefabInstances( scene, file ) )
+                    step->Add( MakeRefreshPrefabInstance( ctx.mProject, scene, instance ) );
             if ( step->Empty() )
                 return;
             ctx.mSelection.Clear();

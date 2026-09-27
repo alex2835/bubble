@@ -1,19 +1,17 @@
 #pragma once
 #include "engine/project/level.hpp"
 #include "engine/renderer/transform.hpp"
-#include "engine/types/map.hpp"
+#include "engine/types/array.hpp"
 #include <optional>
 
 // Prefabs: a group of entities saved to a file of its own and placed into
 // levels as many times as wanted.
 //
-// A .prefab file is a level file - the same scene and tree, the same
-// serialization - so the prefab editor opens one the way the editor opens a
-// level, as a document of its own. What makes it a prefab is how it is used:
-// its content is copied into a level under an instance root, an entity with a
-// PrefabInstanceComponent naming the file. When the prefab has exactly one
-// entity at the top, that entity is the root; otherwise one is made to hold
-// them.
+// A .prefab file is a level file - the same scene, the same serialization -
+// so the prefab editor opens one the way the editor opens a level, as a
+// document of its own. Its root is the prefab: an instance is a copy of that
+// root and everything under it, with a PrefabInstanceComponent naming the
+// file put on the copy of the root.
 namespace bubble
 {
 class Project;
@@ -32,45 +30,29 @@ struct PrefabPlacement
     std::optional<Transform> mLocal;
 };
 
-// A copy of `node`'s subtree from `from` into `to`: new tree nodes, numbered
-// by `to`'s counter, and new entities, noted in `copied` (old -> new). With
-// `rootId` the top entity is made under that id. The copy is not attached to
-// anything.
-Ref<ProjectTreeNode> CopySubtreeInto( const Ref<ProjectTreeNode>& node,
-                                      Scene& from,
-                                      Level& to,
-                                      map<Entity, Entity>& copied,
-                                      std::optional<size_t> rootId = std::nullopt );
+// `relPrefab` (relative to the project root) instantiated into `scene` under
+// `parent`, as its `index`th child: the instance's root. With `rootId` the
+// root is made under that id. Throws if the file cannot be read.
+Entity InstantiatePrefab( Project& project,
+                          Scene& scene,
+                          Entity parent,
+                          size_t index,
+                          const path& relPrefab,
+                          const PrefabPlacement& placement,
+                          std::optional<size_t> rootId = std::nullopt );
 
-// State tables of the entities just copied may name entities of the scene
-// they were copied from. Those that were copied along are pointed at their
-// copies; the rest name nothing in this scene, and are cleared.
-void RemapEntityReferences( Scene& scene, const map<Entity, Entity>& copied );
+// Writes `entity` and everything under it as a prefab, `entity` its root:
+// placed at the origin, turned and scaled as it is in the world.
+void SavePrefab( Scene& scene, Entity entity, const path& absFile, Project& project );
 
-// `relPrefab` (relative to the project root) instantiated into `level`
-// under `parent`, as its `index`th child: the instance's root node. Throws
-// if the file cannot be read.
-Ref<ProjectTreeNode> InstantiatePrefab( Project& project,
-                                        Level& level,
-                                        const Ref<ProjectTreeNode>& parent,
-                                        size_t index,
-                                        const path& relPrefab,
-                                        const PrefabPlacement& placement,
-                                        std::optional<size_t> rootId = std::nullopt );
-
-// Writes `node` and everything under it as a prefab: its entities moved so
-// the first of them sits at the origin, keeping how they are turned and
-// scaled in the world.
-void SavePrefab( const Ref<ProjectTreeNode>& node, Scene& scene, const path& absFile, Project& project );
-
-// The instance roots of `relPrefab` in the level, in tree order; of every
+// The instance roots of `relPrefab` in the scene, in tree order; of every
 // prefab when it is empty. Not looked for inside an instance of the same
 // prefab (which cannot contain itself).
-vector<Ref<ProjectTreeNode>> FindPrefabInstances( const Level& level, const string& relPrefab );
+vector<Entity> FindPrefabInstances( const Scene& scene, const string& relPrefab );
 
-// A prefab's content spawned into a running scene, with no tree: the same
-// entities and links, placed at `position`. Returns every entity made, the
-// root first - the caller wires physics and scripts up for them.
+// A prefab spawned into a running scene, under its root, at `position`.
+// Returns every entity made, the instance's root first - the caller wires
+// physics and scripts up for them.
 vector<Entity> SpawnPrefab( Project& project, Scene& scene, const path& relPrefab, const vec3& position );
 
 }

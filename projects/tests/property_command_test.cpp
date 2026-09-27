@@ -8,8 +8,7 @@
 TEST( SetProperty )
 {
     Fixture f;
-    auto node = f.Create( ProjectTreeNodeType::Camera );
-    const Entity entity = node->AsEntity();
+    const Entity entity = f.Create( EntityKind::Camera );
 
     using SetPos = SetPropertyCommand<TransformComponent, vec3>;
     f.history.Execute( CreateScope<SetPos>( f.scene, entity, "Transform.Position", vec3( 1, 2, 3 ), vec3( 9, 9, 9 ),
@@ -33,7 +32,7 @@ TEST( SetProperty )
     CHECK( f.scene.GetComponent<TagComponent>( entity ).mName == "typed" );
 
     // A property step on an entity that is deleted and restored still lands.
-    f.history.Execute( CreateScope<DeleteNodeCommand>( node, f.scene ) );
+    f.history.Execute( CreateScope<DeleteEntitiesCommand>( f.scene, vector{ entity } ) );
     f.history.Undo(); // restore
     f.history.Undo(); // name back to Camera
     CHECK( f.scene.GetComponent<TagComponent>( entity ).mName == "Camera" );

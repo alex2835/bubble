@@ -7,6 +7,7 @@
 #include "engine/project/project.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/editing/commands/tree_commands.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include <print>
 
 using namespace bubble;
@@ -27,20 +28,29 @@ struct Fixture
     Project project;
     History history;
     Scene& scene = project.mLevel.mScene;
-    Ref<ProjectTreeNode>& root = project.mLevel.mTreeRoot;
 
     Fixture()
     {
         project.mScriptingEngine.SetCurrentState();
     }
 
-    // A node of `type` under the root, at (1, 2, 3), through the history.
-    Ref<ProjectTreeNode> Create( ProjectTreeNodeType type )
+    Entity Root() const { return scene.Root(); }
+    // A copy: the tree may change under a span into it.
+    vector<Entity> Children( Entity entity ) const
     {
-        auto command = CreateScope<CreateNodeCommand>( root, type, project, project.mLevel, Transform( vec3( 1, 2, 3 ) ) );
+        const auto children = ChildrenOf( scene, entity );
+        return vector<Entity>( children.begin(), children.end() );
+    }
+    vector<Entity> Top() const { return Children( Root() ); }
+
+    // An entity of `kind` under `parent` (the root), at (1, 2, 3), through
+    // the history.
+    Entity Create( EntityKind kind, Entity parent = INVALID_ENTITY )
+    {
+        auto command = CreateScope<CreateEntityCommand>( project, scene, parent, kind, Transform( vec3( 1, 2, 3 ) ) );
         auto* raw = command.get();
         history.Execute( std::move( command ) );
-        return raw->GetCreatedNode();
+        return raw->Created();
     }
 };
 }

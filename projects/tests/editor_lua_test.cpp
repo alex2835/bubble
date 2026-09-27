@@ -34,8 +34,8 @@ TEST( EditorLua )
 
     // The sugar form, with a vec3 argument; the result is selected
     CHECK( lua.Run( "assert( editor.ops.scene.create_node{ type = 'Light', spawn_at = vec3( 4, 5, 6 ) } )" ).empty() );
-    CHECK( f.root->mChildren.size() == 1 );
-    const Entity light = f.root->mChildren[0]->AsEntity();
+    CHECK( f.Top().size() == 1 );
+    const Entity light = f.Top()[0];
     CHECK( f.scene.GetComponent<TransformComponent>( light ).mPosition == vec3( 4, 5, 6 ) );
     CHECK( lua.Run( "assert( editor.selection()[1] == " + std::to_string( (u64)light ) + " )" ).empty() );
 
@@ -46,14 +46,14 @@ TEST( EditorLua )
     CHECK( not f.scene.HasComponent<StateComponent>( light ) );
     // Undoing the create takes the selected entity away with it
     CHECK( lua.Run( "editor.undo(); assert( #editor.selection() == 0 )" ).empty() );
-    CHECK( selection.IsEmpty() and not selection.GetTreeNode() );
+    CHECK( selection.IsEmpty() );
     CHECK( lua.Run( "editor.redo(); assert( #editor.selection() == 0 )" ).empty() );
     CHECK( f.scene.HasEntity( light ) );
     CHECK( lua.Run( "editor.select( " + std::to_string( (u64)light ) + " )" ).empty() );
 
     // Reading the document
-    CHECK( f.root->ID() == 0 and f.root->mChildren[0]->ID() == 1 ); // ids are handed out from the level's counter
-    CHECK( lua.Run( "local t = editor.tree(); assert( t.type == 'Root' and #t.children == 1 and t.children[1].type == 'Light' )" ).empty() );
+    CHECK( lua.Run( std::format( "local t = editor.tree(); assert( t.entity == {} and t.folder and #t.children == 1 and t.children[1].entity == {} and t.children[1].name == 'Light' )",
+                                 (u64)f.Root(), (u64)light ) ).empty() );
     CHECK( lua.Run( "assert( editor.entities_by_tag( 'Light' )[1] == " + std::to_string( (u64)light ) + " )" ).empty() );
     CHECK( lua.Run( "assert( #editor.operators() > 5 )" ).empty() );
     CHECK( lua.Run( "assert( editor.poll( 'scene.delete' ) )" ).empty() );
@@ -68,10 +68,10 @@ TEST( EditorLua )
     lua.ClearLog();
     CHECK( lua.Run( "print( 'hello', 42 ); editor.enqueue( 'scene.delete' )" ).empty() );
     CHECK( lua.Log().size() == 1 and lua.Log()[0] == "hello	42" );
-    CHECK( f.root->mChildren.size() == 1 );
+    CHECK( f.Top().size() == 1 );
     OperatorContext ctx{ f.project, f.project.mLevel, f.history, selection, clipboard };
     queue.Flush( ctx );
-    CHECK( f.root->mChildren.empty() );
+    CHECK( f.Top().empty() );
     CHECK( queue.Empty() );
 }
 

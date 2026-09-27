@@ -22,12 +22,10 @@ public:
 
     // Copying carries the settings and not the voice - see VoiceHandle.
     //
-    // Note that recs relocates components with memmove and requires them to be
-    // trivially relocatable (recs/pool.hpp), so neither of the move operations
-    // below runs when a pool grows - the handle is carried bitwise, which is
-    // what we want. They exist for explicit moves in engine code. This is also
-    // why the ma_sound itself lives in the AudioEngine and not in here: a
-    // ma_sound points back into itself, and memmove would quietly corrupt it.
+    // The pool relocates components with the move constructor
+    // (recs/pool.hpp), which carries the voice over. The ma_sound itself lives
+    // in the AudioEngine and not in here: it points back into itself and
+    // cannot move at all.
     AudioSourceComponent( const AudioSourceComponent& ) = default;
     AudioSourceComponent& operator=( const AudioSourceComponent& ) = default;
     AudioSourceComponent( AudioSourceComponent&& ) noexcept;

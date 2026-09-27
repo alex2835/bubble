@@ -19,6 +19,12 @@ public:
     CharacterControllerComponent( f32 radius, f32 height, f32 stepHeight = 0.35f );
     explicit CharacterControllerComponent( CharacterController controller );
     ~CharacterControllerComponent();
+    // Copying makes a new Bullet controller; moving - which is also how the pool
+    // relocates the component - keeps the one the physics world holds.
+    CharacterControllerComponent( const CharacterControllerComponent& ) = default;
+    CharacterControllerComponent& operator=( const CharacterControllerComponent& ) = default;
+    CharacterControllerComponent( CharacterControllerComponent&& ) noexcept = default;
+    CharacterControllerComponent& operator=( CharacterControllerComponent&& ) noexcept = default;
 
     CharacterController mController;
 };

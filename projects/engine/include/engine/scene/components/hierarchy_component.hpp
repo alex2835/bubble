@@ -5,15 +5,14 @@
 
 namespace bubble
 {
-// Where an entity hangs in the scene's hierarchy: its parent, and its
-// children in order. An entity with neither has no component at all - it is
-// a root with nothing under it, and most entities are that.
+// Where an entity hangs in the scene's tree: its parent, and its children in
+// the order the Entities window lists them. Every entity has one; only the
+// scene's root has no parent.
 //
-// The parent is the truth and is what a file stores; the children are kept
-// alongside so the world transforms can be computed from the roots down and
-// a subtree walked without a search. Both are written by the functions in
+// Both sides of every link are kept - the parent to go up, the children to
+// go down and to keep the order - and both are written by the functions in
 // engine/scene/hierarchy.hpp and nowhere else, which is what keeps them in
-// step.
+// step. A file stores both.
 //
 // With a parent, the entity's TransformComponent is relative to the parent's;
 // its place in the world is the parent's world transform times its own.

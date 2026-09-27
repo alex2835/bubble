@@ -11,6 +11,8 @@
 #include <sstream>
 #include <set>
 #include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/folder_component.hpp"
+#include "engine/scene/hierarchy.hpp"
 
 namespace bubble
 {
@@ -222,13 +224,6 @@ void EditorLua::Bind()
             ids[i++] = (u64)entity;
         return ids;
     } );
-    editor.set_function( "select_node", [this]( u64 id )
-    {
-        auto node = FindNodeById( id, mCtx.mLevel.mTreeRoot );
-        if ( not node )
-            throw std::runtime_error( std::format( "select_node: no node with id {}", id ) );
-        mCtx.mSelection.SelectTreeNode( node, mCtx.mLevel.mScene );
-    } );
     editor.set_function( "select", [this]( sol::variadic_args ids )
     {
         Scene& scene = mCtx.mLevel.mScene;
@@ -246,25 +241,23 @@ void EditorLua::Bind()
     /// The document, read-only
     editor.set_function( "tree", [this]()
     {
-        // { id, type, name | entity, children = { ... } }
-        std::function<sol::table( const Ref<ProjectTreeNode>& )> describe;
-        describe = [&]( const Ref<ProjectTreeNode>& node )
+        // { entity, name, folder, children = { ... } } from the root. The
+        // entity ids are what `parent` and `entity` arguments take.
+        Scene& scene = mCtx.mLevel.mScene;
+        std::function<sol::table( Entity )> describe = [&]( Entity entity )
         {
             sol::table t = mLua->create_table();
-            t["id"] = node->ID();
-            t["type"] = string( magic_enum::enum_name( node->Type() ) );
-            if ( node->IsEntity() )
-                t["entity"] = (u64)node->AsEntity();
-            else
-                t["name"] = std::get<string>( node->State() );
+            t["entity"] = (u64)entity;
+            t["name"] = scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName : string();
+            t["folder"] = scene.HasComponent<FolderComponent>( entity );
             sol::table children = mLua->create_table();
             int i = 1;
-            for ( const auto& child : node->mChildren )
+            for ( const Entity child : ChildrenOf( scene, entity ) )
                 children[i++] = describe( child );
             t["children"] = children;
             return t;
         };
-        return describe( mCtx.mLevel.mTreeRoot );
+        return describe( scene.Root() );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {

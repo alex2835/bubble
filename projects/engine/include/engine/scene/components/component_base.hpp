@@ -39,7 +39,8 @@ enum class ComponentID
 	// Appended, never inserted: these numbers are what a level file lists
 	// under "Entity components".
 	Hierarchy,
-	PrefabInstance
+	PrefabInstance,
+	Folder
 };
 
 }

@@ -1,6 +1,7 @@
 #pragma once
-#include "engine/project/project_tree.hpp"
+#include "engine/scene/scene.hpp"
 #include "engine/renderer/transform.hpp"
+#include "engine/types/set.hpp"
 
 
 namespace bubble
@@ -14,13 +15,12 @@ public:
     // Clear all selection
     void Clear();
 
-    // Drop whatever no longer exists: an entity gone from the scene, a node
-    // gone from the tree. Undo and redo move things in and out of the level
-    // under the selection, so this runs after each of them.
-    void Prune( const Scene& scene, const Ref<ProjectTreeNode>& root );
+    // Drop whatever is gone from the scene. Undo and redo move things in and
+    // out of the level under the selection, so this runs after each of them.
+    void Prune( const Scene& scene );
 
-    // Select a tree node (clears previous selection and fills entities from node)
-    void SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& scene );
+    // Just this one. What is under it follows it through the hierarchy.
+    void Select( Entity entity, const Scene& scene );
 
     // Add entity to selection (updates group transform)
     void AddEntity( Entity entity, const Scene& scene );
@@ -33,7 +33,6 @@ public:
 
     // Query methods
     const set<Entity>& GetEntities() const { return mEntities; }
-    const Ref<ProjectTreeNode>& GetTreeNode() const { return mProjectTreeNode; }
 
     const Transform& GetGroupTransform() const { return mGroupTransform; }
     Transform& GetGroupTransform() { return mGroupTransform; }
@@ -52,7 +51,6 @@ public:
     // Apply transform delta to all selected entities
 
 private:
-    Ref<ProjectTreeNode> mProjectTreeNode;
     set<Entity> mEntities;
     Transform mGroupTransform;
 };

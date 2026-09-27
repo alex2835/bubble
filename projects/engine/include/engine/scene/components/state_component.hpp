@@ -22,6 +22,11 @@ public:
     StateComponent( const Any& any );
     StateComponent( const StateComponent& );
     StateComponent& operator=( const StateComponent& );
+    // A copy deep copies the table; a move - which is also how the pool
+    // relocates the component - hands the same table over, so what scripts
+    // hold of it stays this entity's.
+    StateComponent( StateComponent&& ) noexcept = default;
+    StateComponent& operator=( StateComponent&& ) noexcept = default;
     Scope<Any> mState;
 };
 

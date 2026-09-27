@@ -2,64 +2,37 @@
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/editing/operators/operator.hpp"
+#include "engine/editing/commands/property_command.hpp"
+#include "engine/editing/commands/tree_commands.hpp"
 #include "engine/serialization/types_serialization.hpp"
+#include "engine/utils/imgui_utils.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include <imgui.h>
-#include <cstring>
-#include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/audio_source_component.hpp"
+#include "engine/scene/components/camera_component.hpp"
+#include "engine/scene/components/character_controller_component.hpp"
+#include "engine/scene/components/folder_component.hpp"
 #include "engine/scene/components/hierarchy_component.hpp"
+#include "engine/scene/components/light_component.hpp"
+#include "engine/scene/components/model_component.hpp"
 #include "engine/scene/components/prefab_instance_component.hpp"
-#include "engine/utils/imgui_utils.hpp"
-#include "engine/editing/commands/tree_commands.hpp"
+#include "engine/scene/components/rigid_body_component.hpp"
+#include "engine/scene/components/script_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
 
 
 namespace bubble
 {
-constexpr auto PROJECT_TREE_NODE_FLAGS = ImGuiTreeNodeFlags_DefaultOpen |
-                                         ImGuiTreeNodeFlags_SpanAllColumns |
-                                         ImGuiTreeNodeFlags_OpenOnDoubleClick |
-                                         ImGuiTreeNodeFlags_OpenOnArrow;
-
-constexpr auto SELECTED_PROJECT_TREE_NODE_FLAGS = PROJECT_TREE_NODE_FLAGS | ImGuiTreeNodeFlags_Framed;
-
-bool RenamableTreeNode( string& name,
-                        bool& editing,
-                        ImGuiTreeNodeFlags treeFlags )
+namespace
 {
-    constexpr size_t bufferSize = 128;
-    static char nameBuffer[bufferSize];
-
-    if ( ImGui::TreeNodeEx( name.c_str(), treeFlags, "%s", editing ? "" : name.c_str() ) )
-    {
-        auto isNodeHovered = ImGui::IsItemHovered();
-        if ( isNodeHovered and ImGui::IsKeyPressed( ImGuiKey_F2 ) )
-        {
-            editing = true;
-            std::strncpy( nameBuffer, name.data(), bufferSize );
-            ImGui::SetKeyboardFocusHere();
-        }
-
-        if ( editing )
-        {
-            ImGui::SameLine();
-            auto inputFlags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
-            if ( ImGui::InputText( "##rename", nameBuffer, bufferSize, inputFlags ) )
-            {
-                name = nameBuffer;
-                editing = false;
-            }
-            auto isInputTextHovered = ImGui::IsItemHovered();
-            if ( not isInputTextHovered and not isNodeHovered )
-                editing = false;
-        }
-        return true;
-    }
-    editing = false;
-    return false;
+constexpr auto cTreeNodeFlags = ImGuiTreeNodeFlags_DefaultOpen |
+                                ImGuiTreeNodeFlags_SpanAllColumns |
+                                ImGuiTreeNodeFlags_OpenOnDoubleClick |
+                                ImGuiTreeNodeFlags_OpenOnArrow;
 }
-
 
 
 ProjectTreeWindow::ProjectTreeWindow( BubbleEditor& editor )
@@ -83,10 +56,9 @@ ProjectTreeWindow::ProjectTreeWindow( BubbleEditor& editor, const EditorDocument
 
 ProjectTreeWindow::~ProjectTreeWindow()
 {
-
 }
 
-magic_enum::string_view ProjectTreeWindow::Name()
+string_view ProjectTreeWindow::Name()
 {
     return "Entities"sv;
 }
@@ -95,44 +67,38 @@ void ProjectTreeWindow::OnUpdate( DeltaTime )
 {
 }
 
-const Ref<Texture2D>& ProjectTreeWindow::GetProjectTreeNodeIcon( const Ref<ProjectTreeNode>& node )
+// What an entity is, by what it has - the first that applies.
+const Ref<Texture2D>& ProjectTreeWindow::IconOf( Entity entity ) const
 {
-    switch ( node->Type() )
-    {
-        case ProjectTreeNodeType::Root:
-            return mLevelIcon;
-        case ProjectTreeNodeType::Folder:
-            return mFolerIcon;
-        case ProjectTreeNodeType::ModelObject:
-            return mObjectIcon;
-        case ProjectTreeNodeType::PhysicsObject:
-            return mPhysicsObjectIcon;
-        case ProjectTreeNodeType::GameObject:
-            return mPlayerIcon;
-        case ProjectTreeNodeType::Camera:
-            return mCameraIcon;
-        case ProjectTreeNodeType::Light:
-            return mLightIcon;
-        case ProjectTreeNodeType::Script:
-            return mScriptIcon;
-        case ProjectTreeNodeType::Audio:
-            return mAudioIcon;
-        case ProjectTreeNodeType::Prefab:
-            return mObjectIcon;
-    }
-    throw std::runtime_error( std::format( "Invalid enum type {}", (u32)node->Type() ) );
+    const Scene& scene = mLevel.mScene;
+    if ( entity == scene.Root() )
+        return mLevelIcon;
+    if ( scene.HasComponent<FolderComponent>( entity ) )
+        return mFolerIcon;
+    if ( scene.HasComponent<CameraComponent>( entity ) )
+        return mCameraIcon;
+    if ( scene.HasComponent<LightComponent>( entity ) )
+        return mLightIcon;
+    if ( scene.HasComponent<CharacterControllerComponent>( entity ) )
+        return mPlayerIcon;
+    if ( scene.HasComponent<RigidBodyComponent>( entity ) )
+        return mPhysicsObjectIcon;
+    if ( scene.HasComponent<AudioSourceComponent>( entity ) )
+        return mAudioIcon;
+    if ( scene.HasComponent<ScriptComponent>( entity ) and not scene.HasComponent<ModelComponent>( entity ) )
+        return mScriptIcon;
+    return mObjectIcon;
 }
 
-
-void ProjectTreeWindow::SetSelectionByNode( const Ref<ProjectTreeNode>& node )
+string ProjectTreeWindow::NameOf( Entity entity ) const
 {
-    mSelection.SelectTreeNode( node, mLevel.mScene );
+    const Scene& scene = mLevel.mScene;
+    return scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName : string();
 }
 
-
-// Deferred to the end of DrawEntities: most of these change the tree, and
-// the tree is being walked - by reference, down vectors a move or a delete
-// would shift - while they are asked for.
+// Deferred to the end of DrawEntities: most of these change the scene, and
+// the tree is being walked - down children vectors a move or a delete would
+// shift - while they are asked for.
 void ProjectTreeWindow::Invoke( const char* op, const json& args )
 {
     mDeferred.push_back( [this, name = string( op ), args]()
@@ -157,60 +123,86 @@ void ProjectTreeWindow::RunDeferred()
         action();
 }
 
-void ProjectTreeWindow::DrawCreateEntityPopup( Ref<ProjectTreeNode>& node )
-{
-    // Create entities popup
-    if ( ImGui::BeginPopup( "Create entity popup" ) )
-    {
-        const vec3 spawnAt = SpawnPoint();
-
-        // What each kind starts with is the operator's business; the menu only
-        // names the kinds.
-        static constexpr std::pair<const char*, ProjectTreeNodeType> kinds[] = {
-            { "Create folder",         ProjectTreeNodeType::Folder },
-            { "Create Model Object",   ProjectTreeNodeType::ModelObject },
-            { "Create Physics Object", ProjectTreeNodeType::PhysicsObject },
-            { "Create Game Object",    ProjectTreeNodeType::GameObject },
-            { "Create Script",         ProjectTreeNodeType::Script },
-            { "Create Light",          ProjectTreeNodeType::Light },
-            { "Create Camera",         ProjectTreeNodeType::Camera },
-            { "Create Audio",          ProjectTreeNodeType::Audio },
-        };
-        for ( const auto& [label, type] : kinds )
-        {
-            if ( ImGui::MenuItem( label ) )
-                Invoke( "scene.create_node", { { "type", magic_enum::enum_name( type ) },
-                                               { "parent", node->ID() },
-                                               { "spawn_at", spawnAt } } );
-        }
-        DrawPrefabMenu( node );
-        ImGui::EndPopup();
-    }
-}
-
 vec3 ProjectTreeWindow::SpawnPoint() const
 {
     // TODO: raycast into the scene.
     return mEditableWhileRunning ? vec3( 0 ) : mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
 }
 
-void ProjectTreeWindow::DrawPrefabMenu( const Ref<ProjectTreeNode>& node )
+void ProjectTreeWindow::Rename( Entity entity, const string& name )
 {
-    if ( node->Type() == ProjectTreeNodeType::Root )
+    Scene& scene = mLevel.mScene;
+    if ( not scene.HasComponent<TagComponent>( entity ) or name.empty() )
         return;
+    const string old = scene.GetComponent<TagComponent>( entity ).mName;
+    if ( old == name )
+        return;
+    mDeferred.push_back( [this, entity, old, name]()
+    {
+        mHistory.Execute( CreateScope<SetPropertyCommand<TagComponent, string>>(
+            mLevel.mScene, entity, "Rename", old, name,
+            []( TagComponent& tag, const string& value ) { tag.mName = value; } ) );
+    } );
+}
+
+void ProjectTreeWindow::DrawContextMenu( Entity entity )
+{
+    if ( not ImGui::BeginPopup( "Entity popup" ) )
+        return;
+
+    // What each kind starts with is the operator's business; the menu only
+    // names the kinds.
+    static constexpr std::pair<const char*, EntityKind> kinds[] = {
+        { "Create folder",         EntityKind::Folder },
+        { "Create Model Object",   EntityKind::ModelObject },
+        { "Create Physics Object", EntityKind::PhysicsObject },
+        { "Create Game Object",    EntityKind::GameObject },
+        { "Create Script",         EntityKind::Script },
+        { "Create Light",          EntityKind::Light },
+        { "Create Camera",         EntityKind::Camera },
+        { "Create Audio",          EntityKind::Audio },
+    };
+    const vec3 spawnAt = SpawnPoint();
+    for ( const auto& [label, kind] : kinds )
+        if ( ImGui::MenuItem( label ) )
+            Invoke( "scene.create_node", { { "type", magic_enum::enum_name( kind ) },
+                                           { "parent", (u64)entity },
+                                           { "spawn_at", spawnAt } } );
+
+    if ( entity != mLevel.mScene.Root() )
+    {
+        ImGui::Separator();
+        if ( ImGui::MenuItem( "Rename", "F2" ) )
+        {
+            mRenaming = entity;
+            mRenameText = NameOf( entity );
+            mFocusRename = true;
+        }
+        if ( ImGui::MenuItem( "Delete", "Del" ) )
+            mDeferred.push_back( [this, entity]()
+            {
+                mSelection.Clear();
+                mHistory.Execute( CreateScope<DeleteEntitiesCommand>( mLevel.mScene, vector<Entity>{ entity } ) );
+            } );
+        DrawPrefabMenu( entity );
+    }
+    ImGui::EndPopup();
+}
+
+void ProjectTreeWindow::DrawPrefabMenu( Entity entity )
+{
+    Scene& scene = mLevel.mScene;
     ImGui::Separator();
     if ( ImGui::BeginMenu( "Save as prefab" ) )
     {
         if ( mPrefabName.empty() )
-            mPrefabName = std::format( "prefabs/{}", node->IsEntity() and mLevel.mScene.HasComponent<TagComponent>( node->AsEntity() )
-                                                     ? mLevel.mScene.GetComponent<TagComponent>( node->AsEntity() ).mName
-                                                     : std::get<string>( node->State() ) );
+            mPrefabName = std::format( "prefabs/{}", NameOf( entity ) );
         ImGui::SetNextItemWidth( 220.0f * mWindow.GetUIScale() );
         ImGui::InputText( "##prefab", mPrefabName );
         ImGui::SameLine();
         if ( ImGui::Button( "Save" ) and not mPrefabName.empty() )
         {
-            Invoke( "prefab.save", { { "file", mPrefabName }, { "node", node->ID() } } );
+            Invoke( "prefab.save", { { "file", mPrefabName }, { "entity", (u64)entity } } );
             mUIGlobals.mNeedUpdateProjectFilesWindow = true;
             mPrefabName.clear();
             ImGui::CloseCurrentPopup();
@@ -219,155 +211,129 @@ void ProjectTreeWindow::DrawPrefabMenu( const Ref<ProjectTreeNode>& node )
         ImGui::EndMenu();
     }
 
-    const auto entity = node->TryGetEntity();
-    if ( not entity or not mLevel.mScene.HasComponent<PrefabInstanceComponent>( *entity ) )
+    if ( not scene.HasComponent<PrefabInstanceComponent>( entity ) )
         return;
-    const string prefab = mLevel.mScene.GetComponent<PrefabInstanceComponent>( *entity ).mPrefab;
+    const string prefab = scene.GetComponent<PrefabInstanceComponent>( entity ).mPrefab;
     if ( ImGui::MenuItem( std::format( "Open {}", prefab ).c_str() ) )
         mOperatorQueue.Enqueue( "prefab.edit", { { "file", prefab } } );
     if ( ImGui::MenuItem( "Update from prefab" ) )
         Invoke( "prefab.update_instances", { { "file", prefab } } );
 }
 
-
-void ProjectTreeWindow::DrawSceneTreeNode( Ref<ProjectTreeNode>& node, bool isSelected )
+// Drag an entity onto another to put it under it; the dragged one keeps its
+// place in the world. A prefab dragged in from the Project window is an
+// instance under the one it is dropped on.
+void ProjectTreeWindow::DragDrop( Entity entity )
 {
-    // Selected by parent / selected in project tree / entities that were selected on screen
-    isSelected = isSelected or 
-                mSelection.GetTreeNode() == node or
-                ( node->IsEntity() and mSelection.GetEntities().contains( node->AsEntity() ) );
-
-    const auto& icon = GetProjectTreeNodeIcon( node );
-    switch ( node->Type() )
+    Scene& scene = mLevel.mScene;
+    if ( entity != scene.Root() and ImGui::BeginDragDropSource() )
     {
-        case ProjectTreeNodeType::Root:
-        case ProjectTreeNodeType::Folder:
-        {
-            ImGui::Dummy( ImVec2( 0, 0 ) );
-
-            ImGui::Image( (ImTextureID)icon->ImTextureId(), ImVec2{ 18, 18 } );
-            ImGui::SameLine();
-
-            string& name = std::get<string>( node->State() );
-            const auto flags = isSelected ? SELECTED_PROJECT_TREE_NODE_FLAGS : PROJECT_TREE_NODE_FLAGS;
-            if ( RenamableTreeNode( name, node->mIsEditingInUI, flags ) )
-            {
-                if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
-                     ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-                    SetSelectionByNode( node );
-                DragDropNode( node );
-
-                if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
-                    ImGui::OpenPopup( "Create entity popup" );
-                DrawCreateEntityPopup( node );
-
-                for ( auto& child : node->mChildren )
-                {
-                    ImGui::PushID( &child );
-                    DrawSceneTreeNode( child, isSelected );
-                    ImGui::PopID();
-                }
-                ImGui::TreePop();
-            }
-        }break;
-        case ProjectTreeNodeType::ModelObject:
-        case ProjectTreeNodeType::PhysicsObject:
-        case ProjectTreeNodeType::GameObject:
-        case ProjectTreeNodeType::Camera:
-        case ProjectTreeNodeType::Script:
-        case ProjectTreeNodeType::Light:
-        case ProjectTreeNodeType::Audio:
-        case ProjectTreeNodeType::Prefab:
-        {
-            ImGui::Image( (ImTextureID)icon->ImTextureId(), ImVec2{ 18, 18 } );
-            ImGui::SameLine();
-
-            auto entity = std::get<Entity>( node->State() );
-            auto& tag = mLevel.mScene.GetComponent<TagComponent>( entity );
-            auto displayEntity = std::format( "{} (Enity:{}){}", tag.mName, (u64)entity,
-                                              mLevel.mScene.HasComponent<PrefabInstanceComponent>( entity ) ? "  [prefab]" : "" );
-
-            // An entity with children is a tree node of its own; one without
-            // is a leaf, as before.
-            const bool hasChildren = not node->mChildren.empty();
-            const auto flags = ( isSelected ? SELECTED_PROJECT_TREE_NODE_FLAGS : PROJECT_TREE_NODE_FLAGS ) |
-                               ( hasChildren ? 0 : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen );
-            const bool open = ImGui::TreeNodeEx( (void*)node.get(), flags, "%s", displayEntity.c_str() );
-            if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or
-                 ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
-                SetSelectionByNode( node );
-            DragDropNode( node );
-
-            if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
-                ImGui::OpenPopup( "Create entity popup" );
-            DrawCreateEntityPopup( node );
-
-            if ( open and hasChildren )
-            {
-                for ( auto& child : node->mChildren )
-                {
-                    ImGui::PushID( &child );
-                    // Selecting an entity does not select what is under it.
-                    DrawSceneTreeNode( child, false );
-                    ImGui::PopID();
-                }
-                ImGui::TreePop();
-            }
-        }break;
-    }
-}
-
-
-// Drag a node onto another to put it under it: for an entity onto an
-// entity, that is parenting, and the one dragged keeps its place in the
-// world. Onto the root, it goes back to the top.
-void ProjectTreeWindow::DragDropNode( const Ref<ProjectTreeNode>& node )
-{
-    if ( node->Type() != ProjectTreeNodeType::Root and ImGui::BeginDragDropSource() )
-    {
-        const u64 id = node->ID();
-        ImGui::SetDragDropPayload( "TREE_NODE", &id, sizeof( id ) );
-        ImGui::Text( "%s", node->IsEntity() ? "entity" : std::get<string>( node->State() ).c_str() );
+        const u64 id = (u64)entity;
+        ImGui::SetDragDropPayload( "SCENE_ENTITY", &id, sizeof( id ) );
+        ImGui::Text( "%s", NameOf( entity ).c_str() );
         ImGui::EndDragDropSource();
     }
     if ( ImGui::BeginDragDropTarget() )
     {
-        // A prefab from the Project window: an instance under this node.
         if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "PREFAB_FILE" ) )
             Invoke( "prefab.instantiate", { { "file", string( (const char*)payload->Data ) },
-                                            { "parent", node->ID() },
+                                            { "parent", (u64)entity },
                                             { "spawn_at", SpawnPoint() } } );
-        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "TREE_NODE" ) )
+        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "SCENE_ENTITY" ) )
         {
-            const u64 id = *(const u64*)payload->Data;
-            auto dragged = FindNodeById( id, mLevel.mTreeRoot );
-            if ( dragged and dragged != node and not IsInSubtree( node, dragged ) and dragged->mParent.lock() != node )
-                mDeferred.push_back( [this, dragged, target = node]()
+            const Entity dragged = scene.GetEntityById( *(const u64*)payload->Data );
+            if ( scene.HasEntity( dragged ) and dragged != entity and not IsAncestor( scene, dragged, entity ) and
+                 ParentOf( scene, dragged ) != entity )
+                mDeferred.push_back( [this, dragged, entity]()
                 {
-                    mHistory.Execute( CreateScope<MoveNodeCommand>( dragged, target, mLevel.mScene ) );
+                    mHistory.Execute( CreateScope<MoveEntityCommand>( mLevel.mScene, dragged, entity ) );
                 } );
         }
         ImGui::EndDragDropTarget();
     }
 }
 
+void ProjectTreeWindow::DrawEntity( Entity entity )
+{
+    Scene& scene = mLevel.mScene;
+    const bool isRoot = entity == scene.Root();
+    const bool selected = mSelection.GetEntities().contains( entity );
+    const auto children = ChildrenOf( scene, entity );
+
+    ImGui::PushID( (int)(u64)entity );
+    ImGui::Image( (ImTextureID)IconOf( entity )->ImTextureId(), ImVec2{ 18, 18 } );
+    ImGui::SameLine();
+
+    ImGuiTreeNodeFlags flags = cTreeNodeFlags;
+    if ( selected )
+        flags |= ImGuiTreeNodeFlags_Selected;
+    if ( children.empty() )
+        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+
+    string label = NameOf( entity );
+    if ( not isRoot and scene.HasComponent<PrefabInstanceComponent>( entity ) )
+        label += "  [prefab]";
+    const bool renaming = mRenaming == entity;
+    const bool open = ImGui::TreeNodeEx( "node", flags, "%s", renaming ? "" : label.c_str() );
+
+    if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) or ImGui::IsItemClicked( ImGuiMouseButton_Right ) )
+        mSelection.Select( entity, scene );
+    if ( ImGui::IsItemHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
+        ImGui::OpenPopup( "Entity popup" );
+    if ( not isRoot and ImGui::IsItemHovered() and ImGui::IsKeyPressed( ImGuiKey_F2 ) )
+    {
+        mRenaming = entity;
+        mRenameText = NameOf( entity );
+        mFocusRename = true;
+    }
+    DragDrop( entity );
+    DrawContextMenu( entity );
+
+    if ( renaming )
+    {
+        ImGui::SameLine();
+        if ( mFocusRename )
+        {
+            ImGui::SetKeyboardFocusHere();
+            mFocusRename = false;
+        }
+        ImGui::SetNextItemWidth( 180.0f * mWindow.GetUIScale() );
+        const auto inputFlags = ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll;
+        if ( ImGui::InputText( "##rename", mRenameText, inputFlags ) )
+        {
+            Rename( entity, mRenameText );
+            mRenaming = INVALID_ENTITY;
+        }
+        else if ( ImGui::IsItemDeactivated() )
+            mRenaming = INVALID_ENTITY;
+    }
+
+    if ( open and not children.empty() )
+    {
+        // Copied: the list must not be looked into while it may change -
+        // changes are deferred, but a span into it would dangle all the same.
+        const vector<Entity> list( children.begin(), children.end() );
+        for ( const Entity child : list )
+            DrawEntity( child );
+        ImGui::TreePop();
+    }
+    ImGui::PopID();
+}
+
 void ProjectTreeWindow::DrawEntities()
 {
     ImGui::BeginChild( "Entities", ImVec2( 0, 400 ), ImGuiChildFlags_ResizeY );
-    if ( Editable() )
-    {
-        DrawSceneTreeNode( mLevel.mTreeRoot );
-    }
+    if ( Editable() and mLevel.mScene.HasEntity( mLevel.mScene.Root() ) )
+        DrawEntity( mLevel.mScene.Root() );
     ImGui::EndChild();
     RunDeferred();
 }
-
 
 void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
     BUBBLE_ASSERT( mSelection.GetEntities().size() == 1, "Draw only one entity selected" );
     auto selectedEntity = *mSelection.GetEntities().begin();
-    if ( selectedEntity == INVALID_ENTITY )
+    if ( selectedEntity == INVALID_ENTITY or not mLevel.mScene.HasEntity( selectedEntity ) )
         return;
 
     ImGui::BeginChild( "Components" );
@@ -386,7 +352,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
             {
                 for ( const auto componentId : componentIDs )
                 {
-                    // The hierarchy is set in the tree, not added by hand.
+                    // The tree's own: set by moving and instantiating, not by hand.
                     if ( entityComponents.contains( componentId ) or componentId == HierarchyComponent::ID() or
                          componentId == PrefabInstanceComponent::ID() )
                         continue;
@@ -397,7 +363,6 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
                 }
                 ImGui::EndMenu();
             }
-
 
             if ( entityComponents.size() > 1 and // More then tag component
                  ImGui::BeginMenu( "Remove component" ) )
@@ -420,8 +385,8 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 
         // Entity components
         InspectorContext ctx{ mProject, mLevel.mScene, mHistory };
-        mLevel.mScene.ForEachEntityComponentRaw( selectedEntity, 
-                                                   [&]( recs::ComponentTypeId componentID, void* componentRaw )
+        mLevel.mScene.ForEachEntityComponentRaw( selectedEntity,
+                                                 [&]( recs::ComponentTypeId componentID, void* componentRaw )
         {
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
