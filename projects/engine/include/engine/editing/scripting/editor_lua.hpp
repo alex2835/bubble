@@ -4,6 +4,7 @@
 #include "engine/editing/operators/operator_queue.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/utils/filesystem.hpp"
+#include "engine/types/any.hpp"
 
 // The editor's scripting: a Lua state of its own - never the game's - whose
 // `editor` table is the operator registry and the selection. What a menu
@@ -57,11 +58,5 @@ private:
 // and for any other binding that takes a JSON argument.
 json LuaToJson( const sol::object& value );
 sol::object JsonToLua( sol::state_view lua, const json& value );
-
-// A Lua value as text for a person: tables opened up to `depth` levels,
-// keys sorted, a table met twice shown as <cycle>, userdata by its
-// __tostring. `multiline` lays a table that does not fit one line out one
-// entry per line, indented; otherwise all on one line.
-string DescribeLuaValue( const sol::object& value, int depth = 3, bool multiline = true );
 
 }

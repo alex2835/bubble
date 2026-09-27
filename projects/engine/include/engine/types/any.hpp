@@ -20,6 +20,13 @@ string AnyValueToString( const Any& value );
 void PrintAnyValue( const Any& value );
 
 Any AnyDeepCopy( const Any& any );
+
+// A Lua value as text for a person: tables opened up to `depth` levels,
+// keys sorted, a table met twice shown as <cycle>, userdata by its
+// __tostring. `multiline` lays a table that does not fit one line out one
+// entry per line, indented; otherwise all on one line. What print and
+// dump show, in the game's scripts and the editor's console alike.
+string DescribeLuaValue( const sol::object& value, int depth = 3, bool multiline = true );
 Scope<Any> AnyDeepCopy( const Scope<Any>& any );
 
 }

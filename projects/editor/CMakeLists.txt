@@ -13,6 +13,18 @@ target_include_directories(${TARGET_NAME} PUBLIC
 add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
 add_definitions(-DSOL_ALL_SAFETIES_ON)
 
+# A windowed application: no terminal window opens beside the editor. What it
+# logs is in its Console window and in bubble_editor.log next to it. For a
+# terminal while debugging, configure with -DBUBBLE_EDITOR_CONSOLE=ON.
+option(BUBBLE_EDITOR_CONSOLE "Open a terminal window with the editor" OFF)
+if(WIN32 AND NOT BUBBLE_EDITOR_CONSOLE)
+    set_target_properties(${TARGET_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
+    if(MSVC)
+        # main(), not WinMain.
+        target_link_options(${TARGET_NAME} PRIVATE /ENTRY:mainCRTStartup)
+    endif()
+endif()
+
 target_link_libraries(${TARGET_NAME} bubble_engine)
 target_link_libraries(${TARGET_NAME} argagg)
 target_link_libraries(${TARGET_NAME} imgui_node_editor)

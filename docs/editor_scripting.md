@@ -30,6 +30,14 @@ editor.undo()
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
 | `dump( value, depth )` | A value laid out over several lines, tables to `depth` levels (default 4), keys sorted, a cycle shown as `<cycle>`. |
 
+The **Console** window is the engine's log - everything logged, the game's
+output while it runs, and what scripts print - coloured by level (Info,
+Warnings, Errors, Scripts), with a filter, Copy and Clear. It stays at the end
+until you scroll up. The same log goes to `bubble_editor.log` next to the
+editor's executable: the editor has no terminal window (configure with
+`-DBUBBLE_EDITOR_CONSOLE=ON` to get one back). In game scripts `print` and
+`dump` write to this log too.
+
 At the console a line that is an expression - `editor.tree()`, `editor.selection()`,
 `1 + 2` - shows its value, as the standalone Lua prompt does; anything else runs
 as a statement. ↑ / ↓ recall what was entered.

@@ -46,6 +46,25 @@ ScriptingEngine::ScriptingEngine()
 
     // General purpose free function
     CreateFreeFunctionBindings( *mLua );
+
+    // print into the engine's log - which the editor's Console shows - with
+    // tables opened up; dump( value, depth ) over several lines.
+    mLua->set_function( "print", []( sol::variadic_args args )
+    {
+        string line;
+        for ( const auto& arg : args )
+        {
+            if ( not line.empty() )
+                line += '\t';
+            const sol::object value = arg.get<sol::object>();
+            line += value.get_type() == sol::type::string ? value.as<string>() : DescribeLuaValue( value, 3, false );
+        }
+        LogMessage( LogLevel::Script, std::move( line ) );
+    } );
+    mLua->set_function( "dump", []( sol::object value, sol::optional<int> depth )
+    {
+        LogMessage( LogLevel::Script, DescribeLuaValue( value, depth.value_or( 4 ), true ) );
+    } );
 }
 
 ScriptingEngine::~ScriptingEngine()
