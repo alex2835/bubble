@@ -140,7 +140,10 @@ TEST( Paths_FromScripts )
         second = e2.name
         e2.name = "chair"; e2:set_parent( props )
         moved = e2.name
+        -- A missing component is reported by the entity's path.
+        ok, err = pcall( function() return chair:get_camera() end )
     )" );
+    CHECK( lua["err"].get<string>().contains( "'/props/chair' has no Camera component" ) );
     CHECK( lua["chair"].get<Entity>() == chair );
     CHECK( lua["props"].get<Entity>() == props );
     CHECK( not lua["missing"].valid() );

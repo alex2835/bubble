@@ -46,6 +46,10 @@ bool MakeNameUnique( Scene& scene, Entity entity );
 // name. For a file, which may come from before names were unique.
 void MakeNamesUnique( Scene& scene, Entity top );
 
+// An entity as a message names it: its path, '/player/camera'; one outside
+// the tree by its name and id; one that is gone by its id.
+string DescribeEntity( const Scene& scene, Entity entity );
+
 // INVALID_ENTITY when nothing is there.
 Entity FindByPath( const Scene& scene, Entity from, string_view path );
 // "/player/camera"; empty for an entity that is not under the root.

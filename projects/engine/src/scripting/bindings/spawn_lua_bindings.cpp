@@ -274,7 +274,7 @@ void CreateSpawnBindings( Scene& scene,
             auto callbacks = ExtractScriptCallbacks( lua, script );
             component.mOnStart = std::move( callbacks.mOnStart );
             component.mOnUpdate = std::move( callbacks.mOnUpdate );
-            CallScriptOnStart( component.mOnStart, script, entity,
+            CallScriptOnStart( component.mOnStart, script, scene, entity,
                                *scene.GetComponent<StateComponent>( entity ).mState );
         }
 

@@ -40,12 +40,15 @@ ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& scri
 // The copies are a second reference to the same Lua function and a second
 // count on the script, and they own their lifetime for the duration of the
 // call. A null callable is a script without that entry point, and a no-op.
+// `scene` is where the entity is, for naming it in an error.
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
+                        const Scene& scene,
                         recs::Entity entity,
                         const Any& state );
 void CallScriptOnUpdate( sol::protected_function onUpdate,
                          Ref<Script> script,
+                         const Scene& scene,
                          recs::Entity entity,
                          const Any& state,
                          f32 deltaSeconds );

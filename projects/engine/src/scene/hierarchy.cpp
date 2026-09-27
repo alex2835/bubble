@@ -470,4 +470,16 @@ string RelativePath( const Scene& scene, Entity from, Entity to )
     return path.empty() ? "." : path;
 }
 
+string DescribeEntity( const Scene& scene, Entity entity )
+{
+    if ( entity == INVALID_ENTITY or not scene.HasEntity( entity ) )
+        return std::format( "entity {} (removed)", (u64)entity );
+    const string path = PathOf( scene, entity );
+    if ( not path.empty() )
+        return std::format( "'{}'", path );
+    const string name = NameOf( scene, entity );
+    return name.empty() ? std::format( "entity {} (no name, not in the tree)", (u64)entity )
+                        : std::format( "'{}' (entity {}, not in the tree)", name, (u64)entity );
+}
+
 }

@@ -202,9 +202,9 @@ void Engine::LoadLevel( const path& relFile )
     // whatever the others put in global_state. An entity created by one of
     // them has already had its own on_start run by spawn, so the snapshot
     // leaving it out is correct.
-    ForEachScriptEntity( []( Entity entity, const StateComponent& state, const ScriptComponent& script )
+    ForEachScriptEntity( [this]( Entity entity, const StateComponent& state, const ScriptComponent& script )
     {
-        CallScriptOnStart( script.mOnStart, script.mScript, entity, *state.mState );
+        CallScriptOnStart( script.mOnStart, script.mScript, mProject.mLevel.mScene, entity, *state.mState );
     } );
 }
 
@@ -257,7 +257,7 @@ Entity Engine::SpawnPrefabAt( const path& relFile, const vec3& position )
     for ( const Entity entity : scripted )
     {
         const auto& script = scene.GetComponent<ScriptComponent>( entity );
-        CallScriptOnStart( script.mOnStart, script.mScript, entity, *scene.GetComponent<StateComponent>( entity ).mState );
+        CallScriptOnStart( script.mOnStart, script.mScript, scene, entity, *scene.GetComponent<StateComponent>( entity ).mState );
     }
     return spawned.front();
 }
@@ -447,7 +447,7 @@ void Engine::UpdateScripts( f32 deltaSeconds )
 {
     ForEachScriptEntity( [&]( Entity entity, const StateComponent& state, const ScriptComponent& script )
     {
-        CallScriptOnUpdate( script.mOnUpdate, script.mScript, entity, *state.mState, deltaSeconds );
+        CallScriptOnUpdate( script.mOnUpdate, script.mScript, mProject.mLevel.mScene, entity, *state.mState, deltaSeconds );
     } );
 }
 

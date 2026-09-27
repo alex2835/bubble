@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/scripting/script.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
@@ -166,18 +167,21 @@ namespace
 [[noreturn]] void ThrowScriptError( const sol::protected_function_result& result,
                                     string_view callback,
                                     const Ref<Script>& script,
+                                    const Scene& scene,
                                     recs::Entity entity )
 {
     const sol::error err = result;
     const string name = script ? script->mName : string( "<unknown>" );
     const string scriptPath = script ? script->mPath.string() : string( "<no path>" );
-    throw std::runtime_error( std::format( "Script '{}' failed in {} on entity {}.\n  {}\n  {}",
-                                           name, callback, (u64)entity, err.what(), scriptPath ) );
+    // By its place in the tree, as the Entities window shows it.
+    throw std::runtime_error( std::format( "Script '{}' failed in {} on {}.\n  {}\n  {}",
+                                           name, callback, DescribeEntity( scene, entity ), err.what(), scriptPath ) );
 }
 }
 
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
+                        const Scene& scene,
                         recs::Entity entity,
                         const Any& state )
 {
@@ -186,11 +190,12 @@ void CallScriptOnStart( sol::protected_function onStart,
 
     sol::protected_function_result result = onStart( entity, state );
     if ( not result.valid() )
-        ThrowScriptError( result, "on_start", script, entity );
+        ThrowScriptError( result, "on_start", script, scene, entity );
 }
 
 void CallScriptOnUpdate( sol::protected_function onUpdate,
                          Ref<Script> script,
+                         const Scene& scene,
                          recs::Entity entity,
                          const Any& state,
                          f32 deltaSeconds )
@@ -200,7 +205,7 @@ void CallScriptOnUpdate( sol::protected_function onUpdate,
 
     sol::protected_function_result result = onUpdate( entity, state, deltaSeconds );
     if ( not result.valid() )
-        ThrowScriptError( result, "on_update", script, entity );
+        ThrowScriptError( result, "on_update", script, scene, entity );
 }
 
 ScriptCallbacks ScriptingEngine::ExtractCallbacks( const Ref<Script>& script )

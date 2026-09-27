@@ -61,6 +61,22 @@ static void DetachCharacterController( Scene& scene, PhysicsEngine& physicsEngin
 }
 
 
+namespace
+{
+// A component a script reached for. Missing, the error says whose and which
+// - "'/player/player' has no Shader component" - where the registry's own
+// would give an id the editor does not show.
+template <typename Component>
+Component& Need( Scene& scene, Entity entity )
+{
+    if ( not scene.HasEntity( entity ) )
+        throw std::runtime_error( std::format( "{} is used after it was removed", DescribeEntity( scene, entity ) ) );
+    if ( not scene.HasComponent<Component>( entity ) )
+        throw std::runtime_error( std::format( "{} has no {} component", DescribeEntity( scene, entity ), Component::Name() ) );
+    return scene.GetComponent<Component>( entity );
+}
+}
+
 void CreateSceneBindings( Scene& scene,
                           Loader& loader,
                           PhysicsEngine& physicsEngine,
@@ -251,7 +267,7 @@ void CreateSceneBindings( Scene& scene,
         {
             auto controller = LoadOrThrow<Ref<AnimationController>>(
                 [&]( const path& p ){ return loader.LoadAnimationController( p ); }, "animation controller", controllerPath );
-            scene.GetComponent<AnimatorComponent>( entity ).SetController( controller );
+            Need<AnimatorComponent>( scene, entity ).SetController( controller );
         },
         "add_state",
         sol::overload(
@@ -274,8 +290,8 @@ void CreateSceneBindings( Scene& scene,
             auto callbacks = ExtractScriptCallbacks( lua, script );
             component.mOnStart = std::move( callbacks.mOnStart );
             component.mOnUpdate = std::move( callbacks.mOnUpdate );
-            CallScriptOnStart( component.mOnStart, script, entity,
-                               *scene.GetComponent<StateComponent>( entity ).mState );
+            CallScriptOnStart( component.mOnStart, script, scene, entity,
+                               *Need<StateComponent>( scene, entity ).mState );
         },
 
         // Get — one name per component. Each returns the type that actually
@@ -292,29 +308,29 @@ void CreateSceneBindings( Scene& scene,
         // holding jump(), set_walk_direction(), set_friction() - is what a script
         // needs.
         "get_tag",
-        [&]( const Entity& entity ) -> TagComponent& { return scene.GetComponent<TagComponent>( entity ); },
+        [&]( const Entity& entity ) -> TagComponent& { return Need<TagComponent>( scene, entity ); },
         "get_transform",
-        [&]( const Entity& entity ) -> TransformComponent& { return scene.GetComponent<TransformComponent>( entity ); },
+        [&]( const Entity& entity ) -> TransformComponent& { return Need<TransformComponent>( scene, entity ); },
         "get_model",
-        [&]( const Entity& entity ) -> ModelComponent& { return scene.GetComponent<ModelComponent>( entity ); },
+        [&]( const Entity& entity ) -> ModelComponent& { return Need<ModelComponent>( scene, entity ); },
         "get_shader",
-        [&]( const Entity& entity ) -> ShaderComponent& { return scene.GetComponent<ShaderComponent>( entity ); },
+        [&]( const Entity& entity ) -> ShaderComponent& { return Need<ShaderComponent>( scene, entity ); },
         "get_camera",
-        [&]( const Entity& entity ) -> CameraComponent& { return scene.GetComponent<CameraComponent>( entity ); },
+        [&]( const Entity& entity ) -> CameraComponent& { return Need<CameraComponent>( scene, entity ); },
         "get_light",
-        [&]( const Entity& entity ) -> LightComponent& { return scene.GetComponent<LightComponent>( entity ); },
+        [&]( const Entity& entity ) -> LightComponent& { return Need<LightComponent>( scene, entity ); },
         "get_rigid_body",
-        [&]( const Entity& entity ) -> RigidBody& { return scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody; },
+        [&]( const Entity& entity ) -> RigidBody& { return Need<RigidBodyComponent>( scene, entity ).mRigidBody; },
         "get_character_controller",
-        [&]( const Entity& entity ) -> CharacterController& { return scene.GetComponent<CharacterControllerComponent>( entity ).mController; },
+        [&]( const Entity& entity ) -> CharacterController& { return Need<CharacterControllerComponent>( scene, entity ).mController; },
         "get_audio_source",
-        [&]( const Entity& entity ) -> AudioSourceComponent& { return scene.GetComponent<AudioSourceComponent>( entity ); },
+        [&]( const Entity& entity ) -> AudioSourceComponent& { return Need<AudioSourceComponent>( scene, entity ); },
         "get_audio_listener",
-        [&]( const Entity& entity ) -> AudioListenerComponent& { return scene.GetComponent<AudioListenerComponent>( entity ); },
+        [&]( const Entity& entity ) -> AudioListenerComponent& { return Need<AudioListenerComponent>( scene, entity ); },
         "get_animator",
-        [&]( const Entity& entity ) -> AnimatorComponent& { return scene.GetComponent<AnimatorComponent>( entity ); },
+        [&]( const Entity& entity ) -> AnimatorComponent& { return Need<AnimatorComponent>( scene, entity ); },
         "get_state",
-        [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; },
+        [&]( const Entity& entity ) -> Any { return *Need<StateComponent>( scene, entity ).mState; },
 
         // Whether this handle still names a live entity.
         //
@@ -357,24 +373,24 @@ void CreateSceneBindings( Scene& scene,
         // three quarters of what a gameplay script does with an entity.
         "position",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).mPosition; },
-            [&]( const Entity& entity, const vec3& v ) { scene.GetComponent<TransformComponent>( entity ).mPosition = v; }
+            [&]( const Entity& entity ) { return Need<TransformComponent>( scene, entity ).mPosition; },
+            [&]( const Entity& entity, const vec3& v ) { Need<TransformComponent>( scene, entity ).mPosition = v; }
         ),
         "rotation",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).Euler(); },
-            [&]( const Entity& entity, const vec3& v ) { scene.GetComponent<TransformComponent>( entity ).SetEuler( v ); }
+            [&]( const Entity& entity ) { return Need<TransformComponent>( scene, entity ).Euler(); },
+            [&]( const Entity& entity, const vec3& v ) { Need<TransformComponent>( scene, entity ).SetEuler( v ); }
         ),
         "scale",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).mScale; },
-            [&]( const Entity& entity, const vec3& v ) { scene.GetComponent<TransformComponent>( entity ).mScale = v; }
+            [&]( const Entity& entity ) { return Need<TransformComponent>( scene, entity ).mScale; },
+            [&]( const Entity& entity, const vec3& v ) { Need<TransformComponent>( scene, entity ).mScale = v; }
         ),
         "uniforms",
         sol::property(
             [&]( const Entity& entity ) -> sol::object
             {
-                auto& component = scene.GetComponent<ShaderComponent>( entity );
+                auto& component = Need<ShaderComponent>( scene, entity );
                 component.EnsureUniforms( lua );
                 if ( not component.mUniforms )
                     return sol::make_object( lua, sol::lua_nil );
@@ -383,7 +399,7 @@ void CreateSceneBindings( Scene& scene,
         ),
         "state",
         sol::property(
-            [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; }
+            [&]( const Entity& entity ) -> Any { return *Need<StateComponent>( scene, entity ).mState; }
         ),
 
         // The hierarchy. position / rotation / scale above are relative to
@@ -391,11 +407,11 @@ void CreateSceneBindings( Scene& scene,
         // last world update (after physics, and again after the scripts).
         "world_position",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).World().mPosition; }
+            [&]( const Entity& entity ) { return Need<TransformComponent>( scene, entity ).World().mPosition; }
         ),
         "world_rotation",
         sol::property(
-            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).World().Euler(); }
+            [&]( const Entity& entity ) { return Need<TransformComponent>( scene, entity ).World().Euler(); }
         ),
         "get_parent",
         [&]( const Entity& entity ) -> opt<Entity>
@@ -441,7 +457,7 @@ void CreateSceneBindings( Scene& scene,
             {
                 if ( not scene.HasComponent<TagComponent>( entity ) )
                     scene.AddComponent<TagComponent>( entity );
-                scene.GetComponent<TagComponent>( entity ).mName = name;
+                Need<TagComponent>( scene, entity ).mName = name;
                 MakeNameUnique( scene, entity );
             }
         )
