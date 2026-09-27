@@ -31,6 +31,10 @@ public:
     // returned by Log(); the error is also returned. Empty means it ran.
     string Run( string_view code, string_view chunkName = "console" );
     string RunFile( const path& file );
+    // A line typed at the console. An expression - `editor.tree()`, `1 + 2`
+    // - is evaluated and what it gives is shown, as the standalone Lua
+    // prompt does; anything else runs as a statement.
+    string RunInteractive( string_view line );
 
     // What scripts printed, oldest first. A console echoes what it ran
     // into the same log through Print.
@@ -53,5 +57,11 @@ private:
 // and for any other binding that takes a JSON argument.
 json LuaToJson( const sol::object& value );
 sol::object JsonToLua( sol::state_view lua, const json& value );
+
+// A Lua value as text for a person: tables opened up to `depth` levels,
+// keys sorted, a table met twice shown as <cycle>, userdata by its
+// __tostring. `multiline` lays a table that does not fit one line out one
+// entry per line, indented; otherwise all on one line.
+string DescribeLuaValue( const sol::object& value, int depth = 3, bool multiline = true );
 
 }

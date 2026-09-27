@@ -27,7 +27,12 @@ editor.undo()
 | `editor.tree()` | `{ id, type, name | entity, children = {…} }` from the root. Node ids are what `parent` arguments take. |
 | `editor.entities_by_tag( name )` | Entity ids. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
-| `print( ... )` | To the console. |
+| `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
+| `dump( value, depth )` | A value laid out over several lines, tables to `depth` levels (default 4), keys sorted, a cycle shown as `<cycle>`. |
+
+At the console a line that is an expression - `editor.tree()`, `editor.selection()`,
+`1 + 2` - shows its value, as the standalone Lua prompt does; anything else runs
+as a statement. ↑ / ↓ recall what was entered.
 
 Arguments cross as JSON: numbers, strings, booleans, nested tables (an array
 when its keys are `1..n`), and `vec2` / `vec3` / `vec4` (as `[x, y, z]`).

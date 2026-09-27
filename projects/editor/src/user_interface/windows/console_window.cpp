@@ -53,7 +53,7 @@ void ConsoleWindow::OnDraw( DeltaTime )
     if ( ImGui::SmallButton( "Clear" ) )
         mLua.ClearLog();
     ImGui::SameLine();
-    ImGui::TextDisabled( "editor.ops.<group>.<verb>{ ... }   editor.operators()   editor.tree()" );
+    ImGui::TextDisabled( "editor.ops.<group>.<verb>{ ... }   editor.operators()   editor.tree()   dump( value, depth )" );
 
     const float inputHeight = ImGui::GetFrameHeightWithSpacing();
     ImGui::BeginChild( "log", ImVec2( 0, -inputHeight ), true );
@@ -91,7 +91,7 @@ void ConsoleWindow::OnDraw( DeltaTime )
             mEntered.push_back( line );
             mRecall = -1;
             mLua.Print( "> " + line );
-            mLua.Run( line );
+            mLua.RunInteractive( line );
             mScrollToBottom = true;
         }
         mInput.clear();

@@ -9,6 +9,7 @@
 #include <sol/sol.hpp>
 #include <fstream>
 #include <sstream>
+#include <set>
 #include "engine/scene/components/tag_component.hpp"
 
 namespace bubble
@@ -130,6 +131,130 @@ EditorLua::EditorLua( OperatorContext ctx, OperatorQueue& queue )
 
 EditorLua::~EditorLua() = default;
 
+namespace
+{
+string DescribeNumber( const sol::object& value )
+{
+    lua_State* L = value.lua_state();
+    value.push( L );
+    const bool integer = lua_isinteger( L, -1 );
+    const lua_Integer i = integer ? lua_tointeger( L, -1 ) : 0;
+    const lua_Number n = lua_tonumber( L, -1 );
+    lua_pop( L, 1 );
+    if ( integer )
+        return std::to_string( i );
+    string s = std::format( "{:.6f}", n );
+    // 1.500000 -> 1.5, 2.000000 -> 2.0
+    s.erase( s.find_last_not_of( '0' ) + 1 );
+    if ( s.back() == '.' )
+        s += '0';
+    return s;
+}
+
+bool IsIdentifier( const string& s )
+{
+    if ( s.empty() or std::isdigit( (unsigned char)s[0] ) )
+        return false;
+    return std::ranges::all_of( s, []( char c ) { return std::isalnum( (unsigned char)c ) or c == '_'; } );
+}
+
+string Describe( const sol::object& value, int depth, bool multiline, int indent, std::set<const void*>& open, bool quoteStrings )
+{
+    switch ( value.get_type() )
+    {
+        case sol::type::lua_nil:
+        case sol::type::none:
+            return "nil";
+        case sol::type::boolean:
+            return value.as<bool>() ? "true" : "false";
+        case sol::type::number:
+            return DescribeNumber( value );
+        case sol::type::string:
+            return quoteStrings ? std::format( "\"{}\"", value.as<string>() ) : value.as<string>();
+        case sol::type::table:
+            break;
+        default:
+        {
+            // userdata (vec3, ...), functions: what tostring says.
+            sol::state_view lua( value.lua_state() );
+            return lua["tostring"]( value ).get<string>();
+        }
+    }
+
+    const sol::table table = value.as<sol::table>();
+    const void* self = table.pointer();
+    if ( open.contains( self ) )
+        return "<cycle>";
+
+    // An array when the keys are 1..n; otherwise keys sorted, strings after
+    // numbers, so the same table always reads the same.
+    vector<std::pair<sol::object, sol::object>> entries;
+    for ( const auto& [k, v] : table )
+        entries.emplace_back( k, v );
+    if ( entries.empty() )
+        return "{}";
+    if ( depth <= 0 )
+        return std::format( "{{ ...{} }}", entries.size() );
+
+    bool isArray = true;
+    for ( const auto& [k, _] : entries )
+        if ( k.get_type() != sol::type::number )
+            isArray = false;
+    std::ranges::sort( entries, [&]( const auto& a, const auto& b )
+    {
+        const bool an = a.first.get_type() == sol::type::number, bn = b.first.get_type() == sol::type::number;
+        if ( an != bn )
+            return an;
+        if ( an )
+            return a.first.template as<double>() < b.first.template as<double>();
+        return Describe( a.first, 0, false, 0, open, false ) < Describe( b.first, 0, false, 0, open, false );
+    } );
+    if ( isArray )
+        for ( size_t i = 0; i < entries.size(); i++ )
+            if ( entries[i].first.as<double>() != double( i + 1 ) )
+                isArray = false;
+
+    open.insert( self );
+    vector<string> parts;
+    bool nested = false;
+    for ( const auto& [k, v] : entries )
+    {
+        nested = nested or v.get_type() == sol::type::table;
+        const string item = Describe( v, depth - 1, multiline, indent + 1, open, true );
+        if ( isArray )
+            parts.push_back( item );
+        else if ( k.get_type() == sol::type::string and IsIdentifier( k.as<string>() ) )
+            parts.push_back( std::format( "{} = {}", k.as<string>(), item ) );
+        else
+            parts.push_back( std::format( "[{}] = {}", Describe( k, 0, false, 0, open, true ), item ) );
+    }
+    open.erase( self );
+
+    size_t width = 4;
+    for ( const auto& p : parts )
+        width += p.size() + 2;
+    const bool fitsOneLine = width <= 80 and not ( nested and parts.size() > 1 );
+    if ( not multiline or fitsOneLine )
+    {
+        string s = "{ ";
+        for ( size_t i = 0; i < parts.size(); i++ )
+            s += ( i ? ", " : "" ) + parts[i];
+        return s + " }";
+    }
+    const string pad( 2 * ( indent + 1 ), ' ' );
+    string s = "{\n";
+    for ( const auto& p : parts )
+        s += pad + p + ",\n";
+    return s + string( 2 * indent, ' ' ) + "}";
+}
+}
+
+string DescribeLuaValue( const sol::object& value, int depth, bool multiline )
+{
+    std::set<const void*> open;
+    return Describe( value, depth, multiline, 0, open, true );
+}
+
 void EditorLua::Print( string line )
 {
     LogInfo( "[editor lua] {}", line );
@@ -154,7 +279,8 @@ void EditorLua::Bind()
     sol::state& lua = *mLua;
     sol::table editor = lua.create_named_table( "editor" );
 
-    // print goes to the console, not stdout
+    // print goes to the console, not stdout, and opens tables up on one
+    // line; dump( value, depth ) lays them out over several.
     lua.set_function( "print", [this]( sol::variadic_args args )
     {
         string line;
@@ -162,9 +288,14 @@ void EditorLua::Bind()
         {
             if ( not line.empty() )
                 line += '\t';
-            line += ( *mLua )["tostring"]( arg.get<sol::object>() ).get<string>();
+            const sol::object value = arg.get<sol::object>();
+            line += value.get_type() == sol::type::string ? value.as<string>() : DescribeLuaValue( value, 3, false );
         }
         Print( std::move( line ) );
+    } );
+    lua.set_function( "dump", [this]( sol::object value, sol::optional<int> depth )
+    {
+        Print( DescribeLuaValue( value, depth.value_or( 4 ), true ) );
     } );
 
     /// Operators
@@ -290,6 +421,31 @@ string EditorLua::Run( string_view code, string_view chunkName )
     string message = err.what();
     Print( "error: " + message );
     return message;
+}
+
+string EditorLua::RunInteractive( string_view line )
+{
+    // As an expression first; a statement does not compile after `return`.
+    const string asExpression = std::format( "return {}", line );
+    sol::load_result chunk = mLua->load( asExpression, "=console" );
+    if ( not chunk.valid() )
+        return Run( line );
+
+    sol::protected_function evaluate = chunk;
+    const sol::protected_function_result result = evaluate();
+    if ( not result.valid() )
+    {
+        const sol::error err = result;
+        Print( std::format( "error: {}", err.what() ) );
+        return err.what();
+    }
+    for ( int i = 0; i < result.return_count(); i++ )
+    {
+        const sol::object value = result.get<sol::object>( i );
+        if ( value.get_type() != sol::type::lua_nil and value.get_type() != sol::type::none )
+            Print( DescribeLuaValue( value, 4, true ) );
+    }
+    return {};
 }
 
 string EditorLua::RunFile( const path& file )

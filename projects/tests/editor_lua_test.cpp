@@ -74,3 +74,31 @@ TEST( EditorLua )
     CHECK( f.root->mChildren.empty() );
     CHECK( queue.Empty() );
 }
+
+TEST( EditorLua_Describe )
+{
+    OperatorRegistry::RegisterBuiltins();
+    Fixture f;
+    Selection selection;
+    Clipboard clipboard;
+    OperatorQueue queue;
+    EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
+    sol::state& L = lua.State();
+
+    // Arrays in order, maps by key, numbers as Lua shows them, a cycle named.
+    CHECK( DescribeLuaValue( L.script( "return { 3, 1.5, 'x' }" ), 3, false ) == "{ 3, 1.5, \"x\" }" );
+    CHECK( DescribeLuaValue( L.script( "return { b = 2, a = { 1, 2 } }" ), 3, false ) == "{ a = { 1, 2 }, b = 2 }" );
+    CHECK( DescribeLuaValue( L.script( "local t = { n = 1 }; t.self = t; return t" ), 3, false ) == "{ n = 1, self = <cycle> }" );
+    CHECK( DescribeLuaValue( L.script( "return { { { 1 } } }" ), 1, false ) == "{ { ...1 } }" );
+
+    // An expression at the console shows its value; a statement just runs.
+    lua.ClearLog();
+    CHECK( lua.RunInteractive( "1 + 2" ).empty() );
+    CHECK( lua.RunInteractive( "x = { 1 }" ).empty() );
+    CHECK( lua.RunInteractive( "x" ).empty() );
+    CHECK( lua.Log().size() == 2 and lua.Log()[0] == "3" and lua.Log()[1] == "{ 1 }" );
+    // print opens tables too.
+    lua.ClearLog();
+    CHECK( lua.Run( "print( 'n', { 1, 2 } )" ).empty() );
+    CHECK( lua.Log().size() == 1 and lua.Log()[0] == "n\t{ 1, 2 }" );
+}
