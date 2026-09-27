@@ -9,17 +9,18 @@ namespace bubble
 {
 /// AddComponentCommand
 
-AddComponentCommand::AddComponentCommand( Entity entity, ComponentTypeId componentId, Project& project )
+AddComponentCommand::AddComponentCommand( Entity entity, ComponentTypeId componentId, Project& project, Scene& scene )
     : mEntity( entity ),
       mComponentId( componentId ),
       mProject( project ),
+      mScene( scene ),
       mName( std::format( "Add {}", ComponentManager::GetName( componentId ) ) )
 {
 }
 
 void AddComponentCommand::Execute()
 {
-    Scene& scene = mProject.mLevel.mScene;
+    Scene& scene = mScene;
     if ( mComponentId == StateComponent::ID() )
         scene.AddComponent<StateComponent>( mEntity, mProject.mScriptingEngine.CreateTable() );
     else
@@ -28,7 +29,7 @@ void AddComponentCommand::Execute()
 
 void AddComponentCommand::Undo()
 {
-    mProject.mLevel.mScene.EntityRemoveComponentId( mEntity, mComponentId );
+    mScene.EntityRemoveComponentId( mEntity, mComponentId );
 }
 
 /// RemoveComponentCommand

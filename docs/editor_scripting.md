@@ -41,7 +41,7 @@ Where an argument is optional, the default comes from the selection.
 | `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`, `Audio`), `parent?` node id, `spawn_at?` vec3 | Creates and selects. |
 | `scene.delete` | | The selection. |
 | `scene.cut`, `scene.copy` | | The selected tree node. |
-| `scene.paste` | `parent?` node id | Cut moves, copy duplicates. |
+| `scene.paste` | `parent?` node id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |
 | `entity.add_component`, `entity.remove_component` | `component` name, `entity?` id | Tag cannot be removed. |
 | `history.undo`, `history.redo` | | |
 | `project.open` | `path` | Enqueue it. |
@@ -50,7 +50,15 @@ Where an argument is optional, the default comes from the selection.
 | `level.new` | `name` | Enqueue it. |
 | `level.set_startup` | `file?` | Default: the open level. |
 | `game.run`, `game.stop` | | F5 / F6. |
-| `window.show` | `window` (`entities`, `viewport`, `project`, `console`, `animation_graph`), `show?` bool | Opens (or closes) an editor window, as its checkbox in the Windows menu does. |
+| `window.show` | `window` (`entities`, `viewport`, `project`, `console`, `animation_graph`, `prefab_editor`), `show?` bool | Opens (or closes) an editor window, as its checkbox in the Windows menu does. |
+| `prefab.save` | `file` (relative; `.prefab` added), `node?` id | Writes the node and what is under it as a prefab. No undo step: the level is not changed. |
+| `prefab.instantiate` | `file`, `parent?` node id, `spawn_at?` vec3 | Places an instance and selects its root. |
+| `prefab.update_instances` | `file?` | Makes the instances again from their files, as one step. Default: every prefab used. |
+| `prefab.edit`, `prefab.new` | `file` | Open a prefab in the Prefab Editor; make an empty one and open it. Enqueue them. |
+
+Scripts run against the level. The Prefab Editor has its own history,
+selection and clipboard; the hotkeys act on it while it has the focus. See
+[hierarchy_and_prefabs.md](hierarchy_and_prefabs.md).
 
 Every edit an operator makes is one step in the undo history; an operator
 that makes none (`scene.copy`, `game.run`) leaves no step.

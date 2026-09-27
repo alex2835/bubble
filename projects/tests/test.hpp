@@ -37,7 +37,7 @@ struct Fixture
     // A node of `type` under the root, at (1, 2, 3), through the history.
     Ref<ProjectTreeNode> Create( ProjectTreeNodeType type )
     {
-        auto command = CreateScope<CreateNodeCommand>( root, type, project, Transform( vec3( 1, 2, 3 ) ) );
+        auto command = CreateScope<CreateNodeCommand>( root, type, project, project.mLevel, Transform( vec3( 1, 2, 3 ) ) );
         auto* raw = command.get();
         history.Execute( std::move( command ) );
         return raw->GetCreatedNode();

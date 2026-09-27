@@ -15,3 +15,4 @@
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/audio_listener_component.hpp"
 #include "engine/scene/components/animator_component.hpp"
+#include "engine/scene/components/hierarchy_component.hpp"

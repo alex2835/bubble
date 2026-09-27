@@ -134,7 +134,7 @@ void ShaderComponent::OnComponentDraw( InspectorContext& ctx, const Entity& enti
     } );
 
     // The keys are the shader's; only the values are the user's to edit.
-    DrawLuaTable( ctx, UniformsTableRoot( ctx.mProject.mLevel.mScene, entity ), /*fixedKeys*/ true );
+    DrawLuaTable( ctx, UniformsTableRoot( ctx.mScene, entity ), /*fixedKeys*/ true );
 }
 
 LuaTableRoot ShaderComponent::UniformsTableRoot( Scene& scene, Entity entity )

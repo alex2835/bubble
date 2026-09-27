@@ -3,6 +3,7 @@
 #include <sol/sol.hpp>
 #include <nlohmann/json.hpp>
 #include "engine/scene/components/state_component.hpp"
+#include "engine/scene/hierarchy.hpp"
 
 namespace bubble
 {
@@ -21,7 +22,7 @@ BubbleEditor::BubbleEditor()
       mEntityIdViewport( Framebuffer( Texture2DSpecification::CreateObjectId( VIEWPORT_SIZE ),
                                       Texture2DSpecification::CreateDepth( VIEWPORT_SIZE ) ) ),
       
-      mEditorLua( OperatorContext{ mProject, mHistory, mSelection, mClipboard }, mOperatorQueue ),
+      mEditorLua( OperatorContext{ mProject, mProject.mLevel, mHistory, mSelection, mClipboard }, mOperatorQueue ),
       mAutoBackup( mProject, 5.0f ), // Backup every 5 minutes
       mProjectResourcesHotReloader( mProject, mUIGlobals ),
       mEditorUserInterface( *this )
@@ -72,6 +73,11 @@ void BubbleEditor::Run()
                 if ( not mUIGlobals.mIsViewManipulatorUsing )
                     mSceneCamera.OnUpdate( deltaTime );
                 mEngine.mCamera = (Camera)mSceneCamera;
+
+                // The tree is where parents are set while editing; the scene
+                // follows it, and the world transforms follow the scene.
+                SyncHierarchy( mProject.mLevel.mScene, mProject.mLevel.mTreeRoot );
+                UpdateWorldTransforms( mProject.mLevel.mScene );
 
                 // Draw project scene
                 mEngine.PropagateCameraTransforms( mProject.mLevel.mScene );
@@ -128,6 +134,9 @@ void BubbleEditor::Run()
                 break;
             }
         }
+        // The prefab editor's view, whatever the level is doing.
+        mEditorUserInterface.Render( mEngine, deltaTime );
+
         mWindow.ImGuiBegin();
         mEditorUserInterface.OnDraw( deltaTime );
         mWindow.ImGuiEnd();
@@ -250,6 +259,20 @@ void BubbleEditor::RegisterEditorOperators()
             throw std::runtime_error( std::format( "window.show: no window '{}'", window ) );
         } } );
 
+    // args: file (.prefab, relative to the project root). Opens it in the
+    // prefab editor.
+    registry.Register( { "prefab.edit", "Edit prefab", projectOpen,
+        [this]( OperatorContext&, const json& args )
+        {
+            mEditorUserInterface.PrefabEditor().Open( path( args.at( "file" ).get<string>() ) );
+        } } );
+    // args: file (relative; .prefab is added). An empty prefab, opened.
+    registry.Register( { "prefab.new", "New prefab", projectOpen,
+        [this]( OperatorContext&, const json& args )
+        {
+            mEditorUserInterface.PrefabEditor().New( path( args.at( "file" ).get<string>() ) );
+        } } );
+
     registry.Register( { "game.run", "Run", projectOpen,
         [this]( OperatorContext&, const json& )
         {
@@ -299,13 +322,36 @@ void BubbleEditor::OnUpdateHotKeys()
             { KeyboardKey::DEL, "scene.delete" },
         };
 
+        // Ctrl+S saves what is being edited: the prefab, while its window
+        // has the focus.
+        const bool prefabFocused = mEditorUserInterface.FocusedPrefabDocument().has_value();
         for ( const auto& [key, op] : ctrlKeys )
             if ( ctrlPressed and input.IsKeyClicked( key ) )
-                Invoke( op );
+            {
+                if ( key == KeyboardKey::S and prefabFocused )
+                    mEditorUserInterface.PrefabEditor().Save();
+                else
+                    Invoke( op );
+            }
         for ( const auto& [key, op] : plainKeys )
             if ( not ctrlPressed and input.IsKeyClicked( key ) )
                 Invoke( op );
     }
+}
+
+EditorDocument BubbleEditor::MainDocument()
+{
+    return EditorDocument{ mProject.mLevel, mHistory, mSelection, mClipboard, mSceneCamera,
+                           mSceneViewport, mEntityIdViewport, mUIGlobals.mEntityIdPicker,
+                           mUIGlobals.mPendingRectSelect, mUIGlobals.mIsViewportHovered,
+                           mUIGlobals.mIsViewManipulatorUsing };
+}
+
+OperatorContext BubbleEditor::Operators()
+{
+    if ( auto prefab = mEditorUserInterface.FocusedPrefabDocument() )
+        return *prefab;
+    return OperatorContext{ mProject, mProject.mLevel, mHistory, mSelection, mClipboard };
 }
 
 void BubbleEditor::RunScript( const path& file )

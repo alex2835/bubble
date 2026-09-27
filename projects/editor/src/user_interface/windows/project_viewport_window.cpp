@@ -7,12 +7,23 @@
 #include <imgui.h>
 #include <cmath>
 #include "engine/scene/components/transform_component.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include <nlohmann/json.hpp>
+#include "engine/serialization/types_serialization.hpp"
+#include "engine/editing/operators/operator.hpp"
 
 namespace bubble
 {
 ProjectViewportWindow::ProjectViewportWindow( BubbleEditor& editorState )
-    : UserInterfaceWindowBase( editorState )
+    : ProjectViewportWindow( editorState, editorState.MainDocument() )
 {
+}
+
+ProjectViewportWindow::ProjectViewportWindow( BubbleEditor& editorState, const EditorDocument& document )
+    : UserInterfaceWindowBase( editorState, document )
+{
+    static int sGizmoIds = 0;
+    mGizmoId = ++sGizmoIds;
     mSize = mSceneViewport.Size();
 }
 
@@ -35,7 +46,7 @@ void ProjectViewportWindow::OnUpdate( DeltaTime )
     {
         // Resizing recreates the id attachment, so anything reading from it is
         // now pointing at a texture that no longer exists.
-        mUIGlobals.mEntityIdPicker.Cancel();
+        mPicker.Cancel();
         mEntityIdViewport.Resize( mSize );
         mSceneViewport.Resize( mSize );
     }
@@ -51,14 +62,14 @@ void ProjectViewportWindow::ResolvePendingSelection()
 {
     vector<u32> pixels;
     uvec2 size( 0u );
-    if ( not mUIGlobals.mEntityIdPicker.TakeResult( pixels, size ) )
+    if ( not mPicker.TakeResult( pixels, size ) )
         return;
     if ( pixels.empty() )
         return;
 
     mSelection.Clear();
 
-    if ( mUIGlobals.mPendingRectSelect )
+    if ( mPendingRectSelect )
     {
         set<Entity> entities;
         // Every pixel, not every third. The attachment is single channel
@@ -67,13 +78,13 @@ void ProjectViewportWindow::ResolvePendingSelection()
         for ( u64 i = 0; i < pixels.size(); i++ )
         {
             if ( pixels[i] > 0 )
-                entities.insert( mProject.mLevel.mScene.GetEntityById( pixels[i] ) );
+                entities.insert( mLevel.mScene.GetEntityById( pixels[i] ) );
         }
-        mSelection.AddEntities( entities, mProject.mLevel.mScene );
+        mSelection.AddEntities( entities, mLevel.mScene );
     }
     else if ( pixels[0] > 0 )
     {
-        mSelection.AddEntity( mProject.mLevel.mScene.GetEntityById( pixels[0] ), mProject.mLevel.mScene );
+        mSelection.AddEntity( mLevel.mScene.GetEntityById( pixels[0] ), mLevel.mScene );
     }
 }
 
@@ -103,8 +114,8 @@ void ProjectViewportWindow::ProcessScreenSelectedEntity()
         // Only asks for the read. The id pass is rendered next frame and the
         // result arrives after that, through ResolvePendingSelection.
         const auto clickPos = CaptureWidnowMousePos();
-        mUIGlobals.mPendingRectSelect = false;
-        mUIGlobals.mEntityIdPicker.Request( clickPos, clickPos );
+        mPendingRectSelect = false;
+        mPicker.Request( clickPos, clickPos );
     }
 }
 
@@ -127,8 +138,8 @@ void ProjectViewportWindow::ProcessSreenSelectionRect()
         mIsSelecting = false;
         auto startPos = GlobalToWindowPos( mStartSelection );
         auto endPos = GlobalToWindowPos( ImGui::GetMousePos() );
-        mUIGlobals.mPendingRectSelect = true;
-        mUIGlobals.mEntityIdPicker.Request( startPos, endPos );
+        mPendingRectSelect = true;
+        mPicker.Request( startPos, endPos );
     }
 
     // selection rect
@@ -165,6 +176,26 @@ void ProjectViewportWindow::DrawViewport()
     mViewportScreenMin = ImGui::GetItemRectMin();
     mSize = ivec2( imguiViewportSize.x, imguiViewportSize.y );
 
+    // A prefab dropped on the view lands in front of the camera - at the
+    // origin, in the prefab editor.
+    if ( Editable() and ImGui::BeginDragDropTarget() )
+    {
+        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "PREFAB_FILE" ) )
+        {
+            const vec3 spawnAt = mEditableWhileRunning ? vec3( 0 ) : mSceneCamera.mPosition + mSceneCamera.mForward * 30.0f;
+            try
+            {
+                OperatorContext ctx = Operators();
+                InvokeOperator( "prefab.instantiate", ctx, { { "file", string( (const char*)payload->Data ) }, { "spawn_at", spawnAt } } );
+            }
+            catch ( const std::exception& e )
+            {
+                LogError( "prefab.instantiate: {}", e.what() );
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
     if ( ImGui::IsItemHovered() )
         mSceneCamera.mIsActive = mWindow.IsKeyPressed( MouseKey::RIGHT );
 }
@@ -179,10 +210,10 @@ ImGuizmo::MODE ProjectViewportWindow::GizmoMode()
 
 void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 {
-    if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
+    if ( not mLevel.mScene.HasComponent<TransformComponent>( entity ) )
         return;
 
-    auto& entityTransform = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
+    auto& entityTransform = mLevel.mScene.GetComponent<TransformComponent>( entity );
 
     // Check if gizmo just started being used
     bool isUsing = ImGuizmo::IsUsing();
@@ -192,10 +223,12 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
         mGizmoStartTransform = entityTransform;
     }
 
-    // The gizmo moves a matrix; the transform is taken back out of it. Only
-    // what the gizmo changed is written, so an untouched part keeps its
-    // exact value rather than a round trip through the matrix.
-    mat4 transformNew = entityTransform.TransformMat();
+    // The gizmo moves the world matrix; the local transform is worked back
+    // out of it against the parent. Only what the gizmo changed is written,
+    // so an untouched part keeps its exact value rather than a round trip
+    // through the matrix.
+    Scene& scene = mLevel.mScene;
+    mat4 transformNew = ComputeWorldMatrix( scene, entity );
 
 
     const auto lookAt = mSceneCamera.GetLookatMat();
@@ -210,7 +243,10 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
 
     if ( ImGuizmo::IsUsing() )
     {
-        const Transform moved = Transform::FromMatrix( transformNew );
+        const Entity parent = ParentOf( scene, entity );
+        const Transform moved = Transform::FromMatrix( parent == INVALID_ENTITY
+                                                       ? transformNew
+                                                       : glm::inverse( ComputeWorldMatrix( scene, parent ) ) * transformNew );
         if ( mCurrentGizmoOperation & ImGuizmo::TRANSLATE )
             entityTransform.mPosition = moved.mPosition;
         if ( mCurrentGizmoOperation & ImGuizmo::ROTATE )
@@ -223,7 +259,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
     if ( not isUsing and mGizmoWasUsing )
     {
         // The gizmo already moved it; the step is recorded, not re-applied.
-        mHistory.Record( CreateScope<TransformChangeCommand>( entity, mProject.mLevel.mScene,
+        mHistory.Record( CreateScope<TransformChangeCommand>( entity, mLevel.mScene,
                                                               mGizmoStartTransform, Transform( entityTransform ) ) );
     }
 
@@ -241,9 +277,9 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
         mGizmoStartTransforms.clear();
         for ( auto entity : entities )
         {
-            if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
+            if ( mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             {
-                mGizmoStartTransforms[entity] = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
+                mGizmoStartTransforms[entity] = mLevel.mScene.GetComponent<TransformComponent>( entity );
             }
         }
     }
@@ -258,8 +294,11 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
                           GizmoMode(),
                           glm::value_ptr( transformNew ) );
 
-    // What the gizmo did to the group this frame, laid onto each entity: the
-    // move and the scale added, the turn applied on top of its own rotation.
+    // What the gizmo did to the group this frame, laid onto each entity in
+    // the world: the move added, the turn applied on top of its own
+    // rotation; the scale is added to its local one. An entity whose parent
+    // is selected too is left to follow that parent, or it would move twice.
+    Scene& scene = mLevel.mScene;
     const Transform moved = ImGuizmo::IsUsing() ? Transform::FromMatrix( transformNew ) : transform;
     const vec3 positionDelta = moved.mPosition - transform.mPosition;
     const quat rotationDelta = moved.mRotation * glm::inverse( transform.mRotation );
@@ -267,12 +306,20 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
 
     for ( auto entity : entities )
     {
-        if ( not mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
+        if ( not scene.HasComponent<TransformComponent>( entity ) )
             continue;
-        auto& trans = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
-        trans.mPosition += positionDelta;
-        trans.mRotation = glm::normalize( rotationDelta * trans.mRotation );
-        trans.mScale += scaleDelta;
+        const bool ancestorSelected = std::ranges::any_of( entities, [&]( Entity other )
+        {
+            return other != entity and IsAncestor( scene, other, entity );
+        } );
+        if ( ancestorSelected )
+            continue;
+        Transform world = Transform::FromMatrix( ComputeWorldMatrix( scene, entity ) );
+        world.mPosition += positionDelta;
+        world.mRotation = glm::normalize( rotationDelta * world.mRotation );
+        const vec3 localScale = scene.GetComponent<TransformComponent>( entity ).mScale + scaleDelta;
+        SetWorldTransform( scene, entity, world );
+        scene.GetComponent<TransformComponent>( entity ).mScale = localScale;
     }
 
     transform = moved;
@@ -284,13 +331,13 @@ void ProjectViewportWindow::DrawGizmoManyEntities( const set<Entity>& entities, 
         map<Entity, Transform> endTransforms;
         for ( auto entity : entities )
         {
-            if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
+            if ( mLevel.mScene.HasComponent<TransformComponent>( entity ) )
             {
-                endTransforms[entity] = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
+                endTransforms[entity] = mLevel.mScene.GetComponent<TransformComponent>( entity );
             }
         }
 
-        mHistory.Record( CreateScope<MultiTransformChangeCommand>( entities, mProject.mLevel.mScene,
+        mHistory.Record( CreateScope<MultiTransformChangeCommand>( entities, mLevel.mScene,
                                                                    mGizmoStartTransforms, endTransforms ) );
     }
 
@@ -306,9 +353,9 @@ bool ProjectViewportWindow::DrawViewManipulator()
     if ( mSelection.IsSingleSelection() )
     {
         auto entity = mSelection.GetSingleEntity();
-        if ( mProject.mLevel.mScene.HasComponent<TransformComponent>( entity ) )
+        if ( mLevel.mScene.HasComponent<TransformComponent>( entity ) )
         {
-            const auto& entityTransform = mProject.mLevel.mScene.GetComponent<TransformComponent>( entity );
+            const auto& entityTransform = mLevel.mScene.GetComponent<TransformComponent>( entity );
             distance = std::round( glm::distance( entityTransform.mPosition, mSceneCamera.mPosition ) );
         }
     }
@@ -391,17 +438,27 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
     if ( not mUIGlobals.mShow.mViewport )
     {
         // Nothing under the mouse to fly the camera or pick with.
-        mUIGlobals.mIsViewportHovered = false;
+        mViewportHovered = false;
         return;
     }
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 } );
     ImGui::Begin( Name().data(), &mUIGlobals.mShow.mViewport, ImGuiWindowFlags_NoCollapse );
+    DrawContent();
+    ImGui::End();
+    ImGui::PopStyleVar();
+}
+
+void ProjectViewportWindow::DrawContent()
+{
     {
-        mUIGlobals.mIsViewportHovered = ImGui::IsWindowHovered();
+        mViewportHovered = ImGui::IsWindowHovered();
         DrawViewport();
 
-        if ( mEditorMode == EditorMode::Editing )
+        if ( Editable() )
         {
+            // Every viewport's gizmo under its own id: the main one and the
+            // prefab editor's are both live in one frame.
+            ImGuizmo::SetID( mGizmoId );
             /// Gizmo
             ImGuizmo::SetDrawlist();
             auto windowPos = ImGui::GetWindowPos();
@@ -426,7 +483,7 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
                 DrawGizmoManyEntities( mSelection.GetEntities(), mSelection.GetGroupTransform() );
 
             bool viewManipulatorUsing = DrawViewManipulator();
-            mUIGlobals.mIsViewManipulatorUsing = viewManipulatorUsing;
+            mViewManipulatorUsing = viewManipulatorUsing;
 
             if ( not viewManipulatorUsing )
             {
@@ -435,8 +492,6 @@ void ProjectViewportWindow::OnDraw( DeltaTime )
             }
         }
     }
-    ImGui::End();
-    ImGui::PopStyleVar();
 }
 
 }

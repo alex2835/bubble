@@ -15,6 +15,8 @@
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
+#include "engine/scene/components/hierarchy_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
 
 namespace bubble
 {
@@ -33,6 +35,8 @@ Scene::Scene()
     AddComponent<AudioSourceComponent>();
     AddComponent<AudioListenerComponent>();
     AddComponent<AnimatorComponent>();
+    AddComponent<HierarchyComponent>();
+    AddComponent<PrefabInstanceComponent>();
 
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
@@ -47,6 +51,8 @@ Scene::Scene()
     ComponentManager::Add<AudioSourceComponent>();
     ComponentManager::Add<AudioListenerComponent>();
     ComponentManager::Add<AnimatorComponent>();
+    ComponentManager::Add<HierarchyComponent>();
+    ComponentManager::Add<PrefabInstanceComponent>();
 }
 
 }

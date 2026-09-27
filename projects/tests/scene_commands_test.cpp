@@ -48,8 +48,8 @@ TEST( FolderAndDelete )
     CHECK( not folder->IsEntity() );
 
     // Two objects inside the folder
-    auto a = CreateScope<CreateNodeCommand>( folder, ProjectTreeNodeType::Light, f.project, Transform() );
-    auto b = CreateScope<CreateNodeCommand>( folder, ProjectTreeNodeType::Camera, f.project, Transform() );
+    auto a = CreateScope<CreateNodeCommand>( folder, ProjectTreeNodeType::Light, f.project, f.project.mLevel, Transform() );
+    auto b = CreateScope<CreateNodeCommand>( folder, ProjectTreeNodeType::Camera, f.project, f.project.mLevel, Transform() );
     auto* aRaw = a.get(); auto* bRaw = b.get();
     f.history.Execute( std::move( a ) );
     f.history.Execute( std::move( b ) );
@@ -105,7 +105,7 @@ TEST( AddRemoveComponent )
     auto node = f.Create( ProjectTreeNodeType::ModelObject );
     const Entity entity = node->AsEntity();
 
-    f.history.Execute( CreateScope<AddComponentCommand>( entity, StateComponent::ID(), f.project ) );
+    f.history.Execute( CreateScope<AddComponentCommand>( entity, StateComponent::ID(), f.project, f.scene ) );
     CHECK( f.scene.HasComponent<StateComponent>( entity ) );
     CHECK( f.scene.GetComponent<StateComponent>( entity ).mState->is<Table>() );
     CHECK( f.history.NextUndoName() == "Add State" );

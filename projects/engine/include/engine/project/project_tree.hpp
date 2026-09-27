@@ -21,6 +21,9 @@ enum class ProjectTreeNodeType
     Script,
     Light,
     Audio,
+    // The root of a prefab instance that the prefab's content did not bring
+    // itself - see prefab.hpp. Made by instantiating, never from the menu.
+    Prefab,
 };
 
 struct ProjectTreeNode : std::enable_shared_from_this<ProjectTreeNode>

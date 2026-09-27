@@ -30,8 +30,12 @@ class BubbleEditor
 public:
     BubbleEditor();
     ~BubbleEditor();
-    // What an operator runs against: the editor's document and its state.
-    OperatorContext Operators() { return OperatorContext{ mProject, mHistory, mSelection, mClipboard }; }
+    // What an operator runs against: the editor's document and its state -
+    // the prefab being edited while the prefab editor has the focus, the
+    // project's open level otherwise.
+    OperatorContext Operators();
+    // The project's open level, as the main windows see it.
+    EditorDocument MainDocument();
     // Run one now, logging a failure instead of throwing. For hotkeys.
     bool Invoke( const char* op, const json& args );
     bool Invoke( const char* op ) { return Invoke( op, json::object() ); }

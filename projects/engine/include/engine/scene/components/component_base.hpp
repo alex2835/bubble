@@ -35,7 +35,11 @@ enum class ComponentID
 	State,
 	AudioSource,
 	AudioListener,
-	Animator
+	Animator,
+	// Appended, never inserted: these numbers are what a level file lists
+	// under "Entity components".
+	Hierarchy,
+	PrefabInstance
 };
 
 }

@@ -45,7 +45,7 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
 void StateComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, StateComponent& component )
 {
     ImGui::TextColored( TEXT_COLOR, "State component" );
-    DrawLuaTable( ctx, StateTableRoot( ctx.mProject.mLevel.mScene, entity ) );
+    DrawLuaTable( ctx, StateTableRoot( ctx.mScene, entity ) );
 }
 
 LuaTableRoot StateComponent::StateTableRoot( Scene& scene, Entity entity )

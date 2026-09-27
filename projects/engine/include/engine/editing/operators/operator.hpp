@@ -18,19 +18,23 @@
 namespace bubble
 {
 class Project;
+class Level;
 class History;
 class Selection;
 class Clipboard;
 
-// What an operator runs against. The editor builds one from its own state.
+// What an operator runs against. The editor builds one from its own state:
+// the project's open level, or a prefab being edited - the same verbs work
+// on either, each with its own history, selection and clipboard.
 struct OperatorContext
 {
     Project& mProject;
+    Level& mLevel;
     History& mHistory;
     Selection& mSelection;
     Clipboard& mClipboard;
 
-    InspectorContext Edit() const { return InspectorContext{ mProject, mHistory }; }
+    InspectorContext Edit() const;
 };
 
 struct Operator

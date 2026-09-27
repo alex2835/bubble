@@ -38,11 +38,23 @@ void Selection::SelectTreeNode( const Ref<ProjectTreeNode>& node, const Scene& s
     Clear();
     mProjectTreeNode = node;
 
-    if ( node )
+    if ( not node )
+        return;
+    // An entity node is that entity: what hangs under it follows it through
+    // the hierarchy, and moving them too would move them twice. A folder is
+    // the entities at its top, each with what is under it.
+    std::function<void( const Ref<ProjectTreeNode>& )> collect = [&]( const Ref<ProjectTreeNode>& n )
     {
-        FillEntitiesInSubTree( mEntities, node );
-        UpdateGroupTransform( scene );
-    }
+        if ( const auto entity = n->TryGetEntity() )
+        {
+            mEntities.insert( *entity );
+            return;
+        }
+        for ( const auto& child : n->mChildren )
+            collect( child );
+    };
+    collect( node );
+    UpdateGroupTransform( scene );
 }
 
 void Selection::AddEntity( Entity entity, const Scene& scene )
@@ -96,7 +108,7 @@ void Selection::UpdateGroupTransform( const Scene& scene )
         if ( scene.HasComponent<TransformComponent>( entity ) )
         {
             const auto& trans = scene.GetComponent<TransformComponent>( entity );
-            avgPos += trans.mPosition;
+            avgPos += trans.World().mPosition;
             count++;
         }
     }

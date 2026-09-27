@@ -13,6 +13,8 @@
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
 
 namespace bubble
 {
@@ -40,6 +42,49 @@ void InsertAt( const Ref<ProjectTreeNode>& parent, const Ref<ProjectTreeNode>& n
         children.insert( children.begin() + index, node );
     else
         children.push_back( node );
+}
+
+Ref<ProjectTreeNode> TreeRootOf( Ref<ProjectTreeNode> node )
+{
+    while ( node )
+    {
+        auto parent = node->mParent.lock();
+        if ( not parent )
+            return node;
+        node = parent;
+    }
+    return nullptr;
+}
+
+// Every command that changes the tree ends with the scene's links matching
+// it again. (The editor also does this every frame; a test or a script
+// between two frames sees the result at once.)
+void Resync( const Ref<ProjectTreeNode>& anyNode, Scene& scene )
+{
+    if ( auto root = TreeRootOf( anyNode ) )
+        SyncHierarchy( scene, root );
+}
+
+// The entities of a subtree that hang from something outside it - the ones a
+// move or a paste actually re-parents. Their descendants follow them.
+void TopEntities( const Ref<ProjectTreeNode>& node, vector<Entity>& out )
+{
+    if ( const auto entity = node->TryGetEntity() )
+    {
+        out.push_back( *entity );
+        return;
+    }
+    for ( const auto& child : node->mChildren )
+        TopEntities( child, out );
+}
+
+map<Entity, mat4> WorldsOf( const Scene& scene, const vector<Entity>& entities )
+{
+    map<Entity, mat4> worlds;
+    for ( const Entity entity : entities )
+        if ( scene.HasEntity( entity ) )
+            worlds[entity] = ComputeWorldMatrix( scene, entity );
+    return worlds;
 }
 
 // Every entity of the subtree into `backup` under its own id, then out of
@@ -95,6 +140,7 @@ void DeleteNodeCommand::Execute()
         return;
     ParkSubtreeEntities( mNode, mScene, mBackupScene, mEntityMapping );
     EraseFrom( mParent, mNode );
+    Resync( mParent, mScene );
 }
 
 void DeleteNodeCommand::Undo()
@@ -103,6 +149,7 @@ void DeleteNodeCommand::Undo()
         return;
     RestoreNodeEntities( mNode );
     InsertAt( mParent, mNode, mIndexInParent );
+    Resync( mParent, mScene );
 }
 
 void DeleteNodeCommand::RestoreNodeEntities( Ref<ProjectTreeNode>& node )
@@ -130,6 +177,8 @@ void DeleteMultipleNodesCommand::Execute()
         ParkSubtreeEntities( info.mNode, mScene, mBackupScene, mEntityMapping );
     for ( const auto& info : mNodeInfos )
         EraseFrom( info.mParent, info.mNode );
+    if ( not mNodeInfos.empty() )
+        Resync( mNodeInfos.front().mParent, mScene );
 }
 
 void DeleteMultipleNodesCommand::Undo()
@@ -140,6 +189,8 @@ void DeleteMultipleNodesCommand::Undo()
         RestoreNodeEntities( it->mNode );
         InsertAt( it->mParent, it->mNode, it->mIndexInParent );
     }
+    if ( not mNodeInfos.empty() )
+        Resync( mNodeInfos.front().mParent, mScene );
 }
 
 void DeleteMultipleNodesCommand::RestoreNodeEntities( Ref<ProjectTreeNode>& node )
@@ -158,9 +209,21 @@ CopyNodeCommand::CopyNodeCommand( Ref<ProjectTreeNode> sourceNode, Ref<ProjectTr
 
 void CopyNodeCommand::Execute()
 {
+    vector<Entity> sources;
+    TopEntities( mSourceNode, sources );
+    const auto worlds = WorldsOf( mScene, sources );
+
     mCopiedNode = ProjectTreeNode::CopyNode( mSourceNode, mScene );
     mCopiedNode->mParent = mTargetParent;
     mTargetParent->mChildren.push_back( mCopiedNode );
+    Resync( mTargetParent, mScene );
+
+    // TopEntities walks both subtrees in the same order.
+    vector<Entity> copies;
+    TopEntities( mCopiedNode, copies );
+    for ( size_t i = 0; i < copies.size() and i < sources.size(); i++ )
+        if ( const auto it = worlds.find( sources[i] ); it != worlds.end() )
+            SetWorldTransform( mScene, copies[i], Transform::FromMatrix( it->second ) );
 }
 
 void CopyNodeCommand::Undo()
@@ -169,6 +232,7 @@ void CopyNodeCommand::Undo()
         return;
     ParkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
     EraseFrom( mTargetParent, mCopiedNode );
+    Resync( mTargetParent, mScene );
 }
 
 void CopyNodeCommand::Redo()
@@ -178,6 +242,7 @@ void CopyNodeCommand::Redo()
     UnparkSubtreeEntities( mCopiedNode, mScene, mBackupScene, mEntityMapping );
     mCopiedNode->mParent = mTargetParent;
     mTargetParent->mChildren.push_back( mCopiedNode );
+    Resync( mTargetParent, mScene );
 }
 
 /// CreateNodeCommand
@@ -185,18 +250,19 @@ void CopyNodeCommand::Redo()
 CreateNodeCommand::CreateNodeCommand( Ref<ProjectTreeNode> parent,
                                       ProjectTreeNodeType type,
                                       Project& project,
+                                      Level& level,
                                       const Transform& spawnAt )
     : mParent( parent ),
       mType( type ),
       mProject( project ),
+      mLevel( level ),
       mSpawnAt( spawnAt ),
       mName( std::format( "Create {}", magic_enum::enum_name( type ) ) )
 {
 }
 
-Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& project, const Transform& spawnAt )
+Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& project, Scene& scene, const Transform& spawnAt )
 {
-    Scene& scene = project.mLevel.mScene;
     switch ( type )
     {
         case ProjectTreeNodeType::ModelObject:
@@ -266,6 +332,7 @@ Entity CreateNodeCommand::CreateEntityFor( ProjectTreeNodeType type, Project& pr
         }
         case ProjectTreeNodeType::Root:
         case ProjectTreeNodeType::Folder:
+        case ProjectTreeNodeType::Prefab:
             return INVALID_ENTITY;
     }
     return INVALID_ENTITY;
@@ -276,15 +343,20 @@ void CreateNodeCommand::Execute()
     if ( not mParent )
         return;
 
-    mCreatedNode = CreateRef<ProjectTreeNode>( mProject.mLevel.mNodeIDCounter );
+    mCreatedNode = CreateRef<ProjectTreeNode>( mLevel.mNodeIDCounter );
     mCreatedNode->mType = mType;
     if ( mType == ProjectTreeNodeType::Folder )
         mCreatedNode->mState = "folder"s;
     else
-        mCreatedNode->mState = CreateEntityFor( mType, mProject, mSpawnAt );
+        mCreatedNode->mState = CreateEntityFor( mType, mProject, mLevel.mScene, mSpawnAt );
 
     mCreatedNode->mParent = mParent;
     mParent->mChildren.push_back( mCreatedNode );
+    Resync( mParent, mLevel.mScene );
+    // Made under an entity, it is still made at the spot asked for, which
+    // is a place in the world.
+    if ( const auto entity = mCreatedNode->TryGetEntity(); entity and ParentOf( mLevel.mScene, *entity ) != INVALID_ENTITY )
+        SetWorldTransform( mLevel.mScene, *entity, mSpawnAt );
 }
 
 void CreateNodeCommand::Redo()
@@ -295,7 +367,7 @@ void CreateNodeCommand::Redo()
     if ( mBackupEntity != INVALID_ENTITY )
     {
         // The entity waited in the backup under its original id.
-        Scene& scene = mProject.mLevel.mScene;
+        Scene& scene = mLevel.mScene;
         mCreatedNode->mState = mBackupScene.CopyEntityIntoWithId( scene, mBackupEntity, (size_t)mBackupEntity );
         mBackupScene.RemoveEntity( mBackupEntity );
         mBackupEntity = INVALID_ENTITY;
@@ -303,6 +375,7 @@ void CreateNodeCommand::Redo()
 
     mCreatedNode->mParent = mParent;
     mParent->mChildren.push_back( mCreatedNode );
+    Resync( mParent, mLevel.mScene );
 }
 
 void CreateNodeCommand::Undo()
@@ -313,11 +386,12 @@ void CreateNodeCommand::Undo()
 
     if ( mCreatedNode->IsEntity() )
     {
-        Scene& scene = mProject.mLevel.mScene;
+        Scene& scene = mLevel.mScene;
         const Entity entity = mCreatedNode->AsEntity();
         mBackupEntity = scene.CopyEntityIntoWithId( mBackupScene, entity, (size_t)entity );
         scene.RemoveEntity( entity );
     }
+    Resync( mParent, mLevel.mScene );
 }
 
 CreateNodeCommand::~CreateNodeCommand()
@@ -328,10 +402,11 @@ CreateNodeCommand::~CreateNodeCommand()
 
 /// MoveNodeCommand
 
-MoveNodeCommand::MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode> newParent )
+MoveNodeCommand::MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode> newParent, Scene& scene )
     : mNode( node ),
       mOldParent( node->mParent.lock() ),
-      mNewParent( newParent )
+      mNewParent( newParent ),
+      mScene( scene )
 {
     if ( mOldParent )
         mOldIndexInParent = IndexIn( mOldParent, mNode );
@@ -339,20 +414,108 @@ MoveNodeCommand::MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode
 
 void MoveNodeCommand::Execute()
 {
-    if ( not mOldParent or not mNewParent )
+    if ( not mOldParent or not mNewParent or IsInSubtree( mNewParent, mNode ) )
         return;
+
+    vector<Entity> moved;
+    TopEntities( mNode, moved );
+    const auto worlds = WorldsOf( mScene, moved );
+    mOldLocals.clear();
+    for ( const Entity entity : moved )
+        if ( mScene.HasComponent<TransformComponent>( entity ) )
+            mOldLocals[entity] = mScene.GetComponent<TransformComponent>( entity );
+
     EraseFrom( mOldParent, mNode );
     mNode->mParent = mNewParent;
     mNewParent->mChildren.push_back( mNode );
+    Resync( mNewParent, mScene );
+
+    for ( const auto& [entity, world] : worlds )
+        SetWorldTransform( mScene, entity, Transform::FromMatrix( world ) );
 }
 
 void MoveNodeCommand::Undo()
 {
-    if ( not mOldParent or not mNewParent )
+    if ( not mOldParent or not mNewParent or mNode->mParent.lock() != mNewParent )
         return;
     EraseFrom( mNewParent, mNode );
     mNode->mParent = mOldParent;
     InsertAt( mOldParent, mNode, mOldIndexInParent );
+    Resync( mOldParent, mScene );
+
+    for ( const auto& [entity, local] : mOldLocals )
+        if ( mScene.HasComponent<TransformComponent>( entity ) )
+            static_cast<Transform&>( mScene.GetComponent<TransformComponent>( entity ) ) = local;
+}
+
+/// InstantiatePrefabCommand
+
+InstantiatePrefabCommand::InstantiatePrefabCommand( Project& project,
+                                                    Level& level,
+                                                    Ref<ProjectTreeNode> parent,
+                                                    path relPrefab,
+                                                    PrefabPlacement placement,
+                                                    size_t index,
+                                                    std::optional<size_t> rootId )
+    : mProject( project ),
+      mLevel( level ),
+      mParent( std::move( parent ) ),
+      mPrefab( std::move( relPrefab ) ),
+      mPlacement( std::move( placement ) ),
+      mIndex( index ),
+      mRootId( rootId )
+{
+}
+
+void InstantiatePrefabCommand::Execute()
+{
+    mRoot = InstantiatePrefab( mProject, mLevel, mParent, mIndex, mPrefab, mPlacement, mRootId );
+    mIndex = IndexIn( mParent, mRoot );
+}
+
+void InstantiatePrefabCommand::Undo()
+{
+    if ( not mRoot )
+        return;
+    ParkSubtreeEntities( mRoot, mLevel.mScene, mBackupScene, mEntityMapping );
+    EraseFrom( mParent, mRoot );
+    Resync( mParent, mLevel.mScene );
+}
+
+void InstantiatePrefabCommand::Redo()
+{
+    if ( not mRoot )
+        return;
+    UnparkSubtreeEntities( mRoot, mLevel.mScene, mBackupScene, mEntityMapping );
+    mRoot->mParent = mParent;
+    InsertAt( mParent, mRoot, mIndex );
+    Resync( mParent, mLevel.mScene );
+}
+
+Command MakeRefreshPrefabInstance( Project& project, Level& level, const Ref<ProjectTreeNode>& instance )
+{
+    const auto parent = instance->mParent.lock();
+    const Entity root = instance->AsEntity();
+    if ( not parent or not level.mScene.HasComponent<PrefabInstanceComponent>( root ) )
+        throw std::runtime_error( "Not a prefab instance" );
+
+    PrefabPlacement placement;
+    placement.mLocal = static_cast<const Transform&>( level.mScene.GetComponent<TransformComponent>( root ) );
+    const path prefab = level.mScene.GetComponent<PrefabInstanceComponent>( root ).mPrefab;
+
+    auto step = CreateScope<CompositeCommand>( "Update prefab instance" );
+    step->Add( CreateScope<DeleteNodeCommand>( instance, level.mScene ) );
+    step->Add( CreateScope<InstantiatePrefabCommand>( project, level, parent, prefab, placement,
+                                                      IndexIn( parent, instance ), (size_t)root ) );
+    return step;
+}
+
+bool IsInSubtree( const Ref<ProjectTreeNode>& node, const Ref<ProjectTreeNode>& ancestor )
+{
+    for ( auto current = node; current; current = current->mParent.lock() )
+        if ( current == ancestor )
+            return true;
+    return false;
 }
 
 }

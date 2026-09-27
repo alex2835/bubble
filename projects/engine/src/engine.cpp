@@ -1,5 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/engine.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include "engine/project/prefab.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/renderer/helpers/create_billboard.hpp"
@@ -104,6 +106,13 @@ void Engine::OnStart( const path& projectRootFile, const path& levelRel )
         return mProject.CurrentLevel().generic_string();
     } );
 
+    // spawn_prefab( "prefabs/crate.prefab", vec3( 0, 5, 0 ) ) -> the root entity
+    mProject.mScriptingEngine.mLua->set_function( "spawn_prefab",
+        [this]( const string& relFile, sol::optional<vec3> position ) -> Entity
+    {
+        return SpawnPrefabAt( relFile, position.value_or( vec3( 0 ) ) );
+    } );
+
     // The startup level, unless the caller picked one - the editor runs
     // whatever level it has open.
     LoadLevel( levelRel.empty() ? mProject.mStartupLevel : levelRel );
@@ -119,11 +128,14 @@ void Engine::LoadLevel( const path& relFile )
     UnloadLevel();
     mProject.OpenLevel( relFile );
 
+    // Bodies start where the entities are in the world, children included.
+    UpdateWorldTransforms( mProject.mLevel.mScene );
+
     // Add RigidBody components to physics world
     mProject.mLevel.mScene.ForEach<TransformComponent, RigidBodyComponent>(
     [&]( Entity entity, TransformComponent& transform, RigidBodyComponent& rigidBody )
     {
-        rigidBody.mRigidBody.SetTransform( transform.mPosition, transform.mRotation );
+        rigidBody.mRigidBody.SetTransform( transform.World().mPosition, transform.World().mRotation );
         rigidBody.mRigidBody.ClearForces();
         mPhysicsEngine.Add( rigidBody.mRigidBody, entity );
     } );
@@ -132,7 +144,7 @@ void Engine::LoadLevel( const path& relFile )
     mProject.mLevel.mScene.ForEach<TransformComponent, CharacterControllerComponent>(
     [&]( Entity entity, TransformComponent& transform, CharacterControllerComponent& controller )
     {
-        controller.mController.Warp( transform.mPosition );
+        controller.mController.Warp( transform.World().mPosition );
         mPhysicsEngine.Add( controller.mController, entity );
     } );
 
@@ -191,6 +203,56 @@ void Engine::LoadLevel( const path& relFile )
     } );
 }
 
+Entity Engine::SpawnPrefabAt( const path& relFile, const vec3& position )
+{
+    Scene& scene = mProject.mLevel.mScene;
+    const vector<Entity> spawned = SpawnPrefab( mProject, scene, relFile, position );
+
+    for ( const Entity entity : spawned )
+    {
+        if ( scene.HasComponent<TransformComponent>( entity ) and scene.HasComponent<RigidBodyComponent>( entity ) )
+        {
+            const auto& world = scene.GetComponent<TransformComponent>( entity ).World();
+            auto& body = scene.GetComponent<RigidBodyComponent>( entity ).mRigidBody;
+            body.SetTransform( world.mPosition, world.mRotation );
+            body.ClearForces();
+            mPhysicsEngine.Add( body, entity );
+        }
+        if ( scene.HasComponent<TransformComponent>( entity ) and scene.HasComponent<CharacterControllerComponent>( entity ) )
+        {
+            auto& controller = scene.GetComponent<CharacterControllerComponent>( entity ).mController;
+            controller.Warp( scene.GetComponent<TransformComponent>( entity ).World().mPosition );
+            mPhysicsEngine.Add( controller, entity );
+        }
+        if ( scene.HasComponent<AudioSourceComponent>( entity ) and scene.GetComponent<AudioSourceComponent>( entity ).mPlayOnStart )
+            scene.GetComponent<AudioSourceComponent>( entity ).Play();
+        if ( scene.HasComponent<ScriptComponent>( entity ) and not scene.HasComponent<StateComponent>( entity ) )
+            scene.AddComponent<StateComponent>( entity );
+    }
+
+    // Every script extracted before any starts, as for a level: one of them
+    // may look at another in on_start.
+    vector<Entity> scripted;
+    for ( const Entity entity : spawned )
+    {
+        if ( not scene.HasComponent<ScriptComponent>( entity ) )
+            continue;
+        auto& script = scene.GetComponent<ScriptComponent>( entity );
+        if ( not script.mScript )
+            continue;
+        auto callbacks = mProject.mScriptingEngine.ExtractCallbacks( script.mScript );
+        script.mOnStart = std::move( callbacks.mOnStart );
+        script.mOnUpdate = std::move( callbacks.mOnUpdate );
+        scripted.push_back( entity );
+    }
+    for ( const Entity entity : scripted )
+    {
+        const auto& script = scene.GetComponent<ScriptComponent>( entity );
+        CallScriptOnStart( script.mOnStart, script.mScript, entity, *scene.GetComponent<StateComponent>( entity ).mState );
+    }
+    return spawned.front();
+}
+
 void Engine::UnloadLevel()
 {
     mPendingLevel.reset();
@@ -239,6 +301,9 @@ void Engine::OnUpdate()
     // Propagations that end at a transform: gameplay inputs, so they run first
     // and a script reads this frame's values.
     PropagatePhysicsTransforms( scene );
+    // What physics moved, into the world cache, for the scripts to read -
+    // and for the sources below, which play from where they are in it.
+    UpdateWorldTransforms( scene );
     PropagateAudioSourcePositions( scene );
 
     // Reaping finished voices before the scripts run means is_playing() answers
@@ -248,6 +313,8 @@ void Engine::OnUpdate()
     mAudioEngine.OnUpdate();
 
     UpdateScripts( deltaSeconds );
+    // What the scripts moved. Everything below places things in the world.
+    UpdateWorldTransforms( scene );
 
     // Propagations that start at a transform: consumers, so they run after the
     // scripts. Anything here that ran before them was reading transforms one
@@ -276,22 +343,37 @@ void Engine::OnUpdate()
 
 void Engine::PropagatePhysicsTransforms( Scene& scene )
 {
-    // Update transforms from RigidBody components
+    // Physics works in the world. A root's local transform is its world one;
+    // a child's is worked out back from its parent's.
     scene.ForEach<TransformComponent, RigidBodyComponent>(
-        []( Entity,
-            TransformComponent& transform,
-            const RigidBodyComponent& rigidBody )
+        [&scene]( Entity entity,
+                  TransformComponent& transform,
+                  const RigidBodyComponent& rigidBody )
     {
-        rigidBody.mRigidBody.GetTransform( transform.mPosition, transform.mRotation );
+        Transform world = transform.World();
+        rigidBody.mRigidBody.GetTransform( world.mPosition, world.mRotation );
+        if ( ParentOf( scene, entity ) == INVALID_ENTITY )
+        {
+            transform.mPosition = world.mPosition;
+            transform.mRotation = world.mRotation;
+        }
+        else
+            SetWorldTransform( scene, entity, world );
     } );
 
-    // Update transforms from CharacterController components
     scene.ForEach<TransformComponent, CharacterControllerComponent>(
-        []( Entity,
-            TransformComponent& transform,
-            const CharacterControllerComponent& controller )
+        [&scene]( Entity entity,
+                  TransformComponent& transform,
+                  const CharacterControllerComponent& controller )
     {
-        transform.mPosition = controller.mController.GetPosition();
+        if ( ParentOf( scene, entity ) == INVALID_ENTITY )
+        {
+            transform.mPosition = controller.mController.GetPosition();
+            return;
+        }
+        Transform world = transform.World();
+        world.mPosition = controller.mController.GetPosition();
+        SetWorldTransform( scene, entity, world );
     } );
 }
 
@@ -369,8 +451,8 @@ void Engine::PropagateCameraTransforms( Scene& scene )
         CameraComponent& camera,
         const TransformComponent& transform )
     {
-        camera.mPosition = transform.mPosition;
-        const vec2 look = transform.LookAngles();
+        camera.mPosition = transform.World().mPosition;
+        const vec2 look = transform.World().LookAngles();
         camera.VectorsFromEuler( look.y, look.x );
     } );
 }
@@ -395,7 +477,7 @@ void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
     [&]( Entity entity, const ModelComponent& modelComponent, AnimatorComponent& animator )
     {
         const mat4 world = scene.HasComponent<TransformComponent>( entity )
-                           ? scene.GetComponent<TransformComponent>( entity ).TransformMat()
+                           ? scene.GetComponent<TransformComponent>( entity ).WorldMatrix()
                            : glm::identity<mat4>();
         animator.Advance( modelComponent.mModel, deltaSeconds, world );
     } );
@@ -439,13 +521,13 @@ void Engine::PropagateAudioTransforms( Scene& scene )
 
         // Same euler convention the camera uses, so a listener parented to the
         // player hears what the camera looks at.
-        const vec2 look = transform.LookAngles();
+        const vec2 look = transform.World().LookAngles();
         const f32 pitch = look.x;
         const f32 yaw = look.y;
         const vec3 forward = normalize( vec3( cos( yaw ) * cos( pitch ),
                                               sin( pitch ),
                                               sin( yaw ) * cos( pitch ) ) );
-        mAudioEngine.SetListener( transform.mPosition, forward, vec3( 0.0f, 1.0f, 0.0f ) );
+        mAudioEngine.SetListener( transform.World().mPosition, forward, vec3( 0.0f, 1.0f, 0.0f ) );
     } );
 
     // Without a listener entity the camera is the ear. This is what makes sound
@@ -503,7 +585,7 @@ void Engine::DrawScene( Framebuffer& framebuffer )
 }
 
 
-void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
+void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene, bool previewLight )
 {
     // Set up lights.
     //
@@ -522,10 +604,19 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
              const LightComponent& lightComponent )
     {
         Light& light = lights.emplace_back( (Light)lightComponent );
-        light.mPosition = transformComponent.mPosition;
-        light.mDirection = transformComponent.RotationMat() * vec4( 0, -1, 0, 0 );
+        light.mPosition = transformComponent.World().mPosition;
+        light.mDirection = transformComponent.World().RotationMat() * vec4( 0, -1, 0, 0 );
         light.Update();
     } );
+
+    if ( previewLight )
+    {
+        Light light = Light::CreateDirLight();
+        light.mDirection = normalize( vec3( -0.4f, -1.0f, -0.6f ) );
+        light.mBrightness = 0.8f;
+        light.Update();
+        lights.push_back( light );
+    }
 
     if ( lights.size() > Renderer::cMaxLights )
         throw std::runtime_error( std::format( "Max lights overflow {}/{}", lights.size(), Renderer::cMaxLights ) );
@@ -552,7 +643,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
             if ( not modelComponent.mModel )
             {
                 mRenderer.DrawModel( target, mErrorModel, mWhiteShader,
-                                     transformComponent.TranslationRotationMat() );
+                                     transformComponent.World().TranslationRotationMat() );
                 return;
             }
 
@@ -567,7 +658,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
             if ( not shader )
             {
                 mRenderer.DrawModel( target, mErrorModel, mWhiteShader,
-                                     transformComponent.TranslationRotationMat() );
+                                     transformComponent.World().TranslationRotationMat() );
                 return;
             }
 
@@ -583,7 +674,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene )
             }
 
             mRenderer.DrawModel( target, modelComponent.mModel, shader,
-                                 transformComponent.TransformMat(),
+                                 transformComponent.WorldMatrix(),
                                  DrawingPrimitive::Triangles, 0, SkinOf( scene, entity ) );
         } );
     } );
@@ -607,7 +698,7 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
         if ( not model.mModel )
             return;
 
-        const mat4 trans = transform.TransformMat();
+        const mat4 trans = transform.WorldMatrix();
         const AABB box = CalculateTransformedBBox( model.mModel->mBBox, trans );
         const auto [vertices, indices] = CalculateBBoxShapeData( box );
         for ( vec3 vertex : vertices )
@@ -648,7 +739,7 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
              const RigidBodyComponent& rigidBody,
              const TransformComponent& transform )
     {
-        const mat4 trans = transform.TranslationRotationMat();
+        const mat4 trans = transform.World().TranslationRotationMat();
         const auto& [vertices, indices] = rigidBody.mRigidBody.GetShapeData();
         for ( auto vertex : vertices )
             mPhysicsShapes.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
@@ -663,7 +754,7 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
              const CharacterControllerComponent& controller,
              const TransformComponent& transform )
     {
-        const mat4 trans = transform.TranslationRotationMat();
+        const mat4 trans = transform.World().TranslationRotationMat();
         const auto& [vertices, indices] = controller.mController.GetShapeData();
         for ( auto vertex : vertices )
             mPhysicsShapes.mVertices.mPositions.push_back( vec3( trans * vec4( vertex, 1 ) ) );
@@ -705,7 +796,7 @@ void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
              const CameraComponent& camera,
              const TransformComponent& transform )
     {
-        const mat4 trans = transform.TranslationRotationMat();
+        const mat4 trans = transform.World().TranslationRotationMat();
         const f32 cameraFarPlane = camera.mNear + 20.0f;
         const auto& [vertices, indices] = GenerateFrustumLinesShape( camera.mFov, aspectRatio, camera.mNear, cameraFarPlane );
 
@@ -750,7 +841,7 @@ void Engine::DrawSkeletons( Framebuffer& framebuffer, const Scene& scene )
             return;
         const auto joints = animator->JointMatrices();
         const auto parents = animator->GetModel()->mSkeleton->mSkeleton->joint_parents();
-        const mat4 trans = transform.TransformMat();
+        const mat4 trans = transform.WorldMatrix();
 
         // Joint positions first, then a line from each joint to its parent.
         // A root has no parent and no line; it still gets a vertex, so the
@@ -850,7 +941,7 @@ void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene 
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, mSceneCameraTexture, mBillboardShader,
-                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+                           transformComponent.World().mPosition, cBillboardSize, cBillboardTint );
         } );
 
         // Light icons (billboards)
@@ -861,7 +952,7 @@ void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene 
         {
             const auto& lightTexture = GetLightTexture( lightComponent.mType );
             DrawBillboard( target, lightTexture, mBillboardShader,
-                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+                           transformComponent.World().mPosition, cBillboardSize, cBillboardTint );
         } );
 
         // Audio source icons (billboards)
@@ -871,7 +962,7 @@ void Engine::DrawEditorBillboards( Framebuffer& framebuffer, const Scene& scene 
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, mSceneAudioTexture, mBillboardShader,
-                           transformComponent.mPosition, cBillboardSize, cBillboardTint );
+                           transformComponent.World().mPosition, cBillboardSize, cBillboardTint );
         } );
     } );
 }
@@ -898,8 +989,8 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
         {
             const bool valid = modelComponent.mModel != nullptr;
             const auto& model = valid ? modelComponent.mModel : mErrorModel;
-            const auto tansform = valid ? transformComponent.TransformMat()
-                                        : transformComponent.TranslationRotationMat();
+            const auto tansform = valid ? transformComponent.WorldMatrix()
+                                        : transformComponent.World().TranslationRotationMat();
             mRenderer.DrawModel( target, model, mEntityIdShader, tansform,
                                  DrawingPrimitive::Triangles, (u32)entity, SkinOf( scene, entity ) );
         } );
@@ -911,7 +1002,7 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, nullptr, mEntityIdBillboardShader,
-                           transformComponent.mPosition, cBillboardSize,
+                           transformComponent.World().mPosition, cBillboardSize,
                            vec4( 1.0f ), (u32)entity );
         } );
 
@@ -922,7 +1013,7 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, nullptr, mEntityIdBillboardShader,
-                           transformComponent.mPosition, cBillboardSize,
+                           transformComponent.World().mPosition, cBillboardSize,
                            vec4( 1.0f ), (u32)entity );
         } );
 
@@ -933,7 +1024,7 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
                  const TransformComponent& transformComponent )
         {
             DrawBillboard( target, nullptr, mEntityIdBillboardShader,
-                           transformComponent.mPosition, cBillboardSize,
+                           transformComponent.World().mPosition, cBillboardSize,
                            vec4( 1.0f ), (u32)entity );
         } );
     } );

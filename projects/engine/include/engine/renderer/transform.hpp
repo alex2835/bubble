@@ -29,10 +29,6 @@ struct Transform
     {
     }
 
-    vec3 mPosition = vec3( 0 );
-    quat mRotation = quat( 1.0f, 0.0f, 0.0f, 0.0f );
-    vec3 mScale = vec3( 1 );
-
     // Radians, X then Y then Z. Reading angles back from a rotation gives
     // one of its spellings, not necessarily the one it was set with: Y
     // comes back within +-90 degrees.
@@ -57,6 +53,11 @@ struct Transform
     mat4 TranslationMat() const;
     mat4 RotationMat() const;
     mat4 TranslationRotationMat() const;
+
+public:
+    vec3 mPosition = vec3( 0 );
+    quat mRotation = quat( 1.0f, 0.0f, 0.0f, 0.0f );
+    vec3 mScale = vec3( 1 );
 };
 
 } // namespace bubble

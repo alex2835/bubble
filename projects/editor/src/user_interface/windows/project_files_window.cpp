@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/project/prefab.hpp"
 #include "editor_user_interface/windows/project_files_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/editing/operators/operator.hpp"
@@ -86,6 +87,8 @@ FilesystemNodeType DetectItemType( const filesystem::directory_entry& item )
             return FilesystemNodeType::AnimationController;
         else if ( item.path().extension() == LEVEL_FILE_EXT )
             return FilesystemNodeType::Level;
+        else if ( item.path().extension() == PREFAB_FILE_EXT )
+            return FilesystemNodeType::Prefab;
     }
     return FilesystemNodeType::Unknown;
 }
@@ -218,6 +221,11 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
                 const path rel = filesystem::relative( child.mPath, mProject.RootDir() );
                 mOperatorQueue.Enqueue( "level.open", { { "file", rel.generic_string() } } );
             }
+            if ( child.mType == FilesystemNodeType::Prefab and doubleClicked )
+            {
+                const path rel = filesystem::relative( child.mPath, mProject.RootDir() );
+                mOperatorQueue.Enqueue( "prefab.edit", { { "file", rel.generic_string() } } );
+            }
 
             // Draw
             Ref<Texture2D> texture = mFileIcon;
@@ -227,6 +235,15 @@ void ProjectFilesWindow::DrawSelectedFolderItems()
                 texture = mProject.mLoader.LoadTexture2D( child.mPath );
 
             ImGui::Image( (ImTextureID)texture->ImTextureId(), elemSize );
+            // A prefab is dragged into the Entities tree or a viewport to
+            // place an instance.
+            if ( child.mType == FilesystemNodeType::Prefab and ImGui::BeginDragDropSource( ImGuiDragDropFlags_SourceAllowNullID ) )
+            {
+                const string rel = filesystem::relative( child.mPath, mProject.RootDir() ).generic_string();
+                ImGui::SetDragDropPayload( "PREFAB_FILE", rel.c_str(), rel.size() + 1 );
+                ImGui::Text( "%s", rel.c_str() );
+                ImGui::EndDragDropSource();
+            }
             ImGui::Text( "%s", child.mPath.stem().string().c_str() );
         }
         ImGui::EndChild();

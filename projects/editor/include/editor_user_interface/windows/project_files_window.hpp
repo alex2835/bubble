@@ -15,7 +15,8 @@ enum class FilesystemNodeType
     Shader,
     Level,
     Sound,
-    AnimationController
+    AnimationController,
+    Prefab
 };
 
 struct FilesystemNode

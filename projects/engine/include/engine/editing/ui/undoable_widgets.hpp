@@ -24,7 +24,7 @@ namespace bubble
 template <typename Component, typename T, typename Widget, typename Apply>
 bool EditProperty( InspectorContext& ctx, Entity entity, string_view name, T value, Widget&& widget, Apply&& apply )
 {
-    Scene& scene = ctx.mProject.mLevel.mScene;
+    Scene& scene = ctx.mScene;
     const T before = value;
     const bool changed = widget( value );
     if ( changed )
@@ -47,7 +47,7 @@ template <typename Component, typename Base, typename T, typename Widget>
     requires std::derived_from<Component, Base>
 bool EditField( InspectorContext& ctx, Entity entity, string_view name, T Base::* member, Widget&& widget )
 {
-    const T& current = ctx.mProject.mLevel.mScene.GetComponent<Component>( entity ).*member;
+    const T& current = ctx.mScene.GetComponent<Component>( entity ).*member;
     return EditProperty<Component>( ctx, entity, name, current, std::forward<Widget>( widget ),
                                     [member]( Component& c, const T& v ) { c.*member = v; } );
 }

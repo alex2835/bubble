@@ -13,13 +13,16 @@
 #include "engine/serialization/types_serialization.hpp"
 #include <nlohmann/json.hpp>
 #include "engine/scene/components/tag_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
+#include "engine/project/prefab.hpp"
+#include "engine/types/set.hpp"
 
 namespace bubble
 {
 namespace
 {
-Scene& SceneOf( const OperatorContext& ctx ) { return ctx.mProject.mLevel.mScene; }
-const Ref<ProjectTreeNode>& RootOf( const OperatorContext& ctx ) { return ctx.mProject.mLevel.mTreeRoot; }
+Scene& SceneOf( const OperatorContext& ctx ) { return ctx.mLevel.mScene; }
+const Ref<ProjectTreeNode>& RootOf( const OperatorContext& ctx ) { return ctx.mLevel.mTreeRoot; }
 
 // A node named in args by id, or the fallback when the key is absent.
 Ref<ProjectTreeNode> NodeArg( const OperatorContext& ctx, const json& args, const char* key, Ref<ProjectTreeNode> fallback )
@@ -118,13 +121,13 @@ void OperatorRegistry::RegisterBuiltins()
         {
             const string typeName = args.at( "type" ).get<string>();
             const auto type = magic_enum::enum_cast<ProjectTreeNodeType>( typeName );
-            if ( not type or *type == ProjectTreeNodeType::Root )
+            if ( not type or *type == ProjectTreeNodeType::Root or *type == ProjectTreeNodeType::Prefab )
                 throw std::runtime_error( std::format( "type: cannot create a '{}'", typeName ) );
 
             const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
             const Transform spawnAt( args.value( "spawn_at", vec3( 0 ) ) );
 
-            auto command = CreateScope<CreateNodeCommand>( parent, *type, ctx.mProject, spawnAt );
+            auto command = CreateScope<CreateNodeCommand>( parent, *type, ctx.mProject, ctx.mLevel, spawnAt );
             auto* raw = command.get();
             ctx.mHistory.Execute( std::move( command ) );
             ctx.mSelection.SelectTreeNode( raw->GetCreatedNode(), SceneOf( ctx ) );
@@ -164,7 +167,9 @@ void OperatorRegistry::RegisterBuiltins()
             const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
             if ( ctx.mClipboard.IsCut() )
             {
-                ctx.mHistory.Execute( CreateScope<MoveNodeCommand>( ctx.mClipboard.GetNode(), parent ) );
+                if ( IsInSubtree( parent, ctx.mClipboard.GetNode() ) )
+                    throw std::runtime_error( "paste: cannot move a node into itself" );
+                ctx.mHistory.Execute( CreateScope<MoveNodeCommand>( ctx.mClipboard.GetNode(), parent, SceneOf( ctx ) ) );
                 ctx.mClipboard.Clear();
             }
             else
@@ -180,7 +185,7 @@ void OperatorRegistry::RegisterBuiltins()
             const auto componentId = ComponentArg( args );
             if ( SceneOf( ctx ).EntityComponentTypeIds( entity ).contains( componentId ) )
                 return;
-            ctx.mHistory.Execute( CreateScope<AddComponentCommand>( entity, componentId, ctx.mProject ) );
+            ctx.mHistory.Execute( CreateScope<AddComponentCommand>( entity, componentId, ctx.mProject, SceneOf( ctx ) ) );
         } } );
     registry.Register( { "entity.remove_component", "Remove component", nullptr,
         []( OperatorContext& ctx, const json& args )
@@ -192,6 +197,68 @@ void OperatorRegistry::RegisterBuiltins()
             if ( not SceneOf( ctx ).EntityComponentTypeIds( entity ).contains( componentId ) )
                 return;
             ctx.mHistory.Execute( CreateScope<RemoveComponentCommand>( entity, componentId, SceneOf( ctx ) ) );
+        } } );
+
+    /// Prefabs
+    // args: file (.prefab, relative to the project root), parent (node id,
+    // default: by selection), spawn_at (vec3, default: origin). Selects the
+    // instance.
+    registry.Register( { "prefab.instantiate", "Instantiate prefab", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            const path file = args.at( "file" ).get<string>();
+            if ( filesystem::weakly_canonical( ctx.mProject.RootDir() / file ) == filesystem::weakly_canonical( ctx.mLevel.mFile ) )
+                throw std::runtime_error( "file: a prefab cannot contain itself" );
+            PrefabPlacement placement;
+            placement.mWorldPosition = args.value( "spawn_at", vec3( 0 ) );
+            const auto parent = NodeArg( ctx, args, "parent", TargetParent( ctx ) );
+            auto command = CreateScope<InstantiatePrefabCommand>( ctx.mProject, ctx.mLevel, parent, file, placement );
+            auto* raw = command.get();
+            ctx.mHistory.Execute( std::move( command ) );
+            ctx.mSelection.SelectTreeNode( raw->GetRoot(), SceneOf( ctx ) );
+        } } );
+
+    // Writes a node and what is under it to a prefab file. Not an edit of the
+    // level, so no step. args: file (relative, .prefab), node (id, default:
+    // the selected tree node).
+    registry.Register( { "prefab.save", "Save as prefab", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            path file = args.at( "file" ).get<string>();
+            if ( file.extension() != PREFAB_FILE_EXT )
+                file += PREFAB_FILE_EXT;
+            auto node = NodeArg( ctx, args, "node", ctx.mSelection.GetTreeNode() );
+            if ( not node and ctx.mSelection.IsSingleSelection() )
+                node = FindNodeByEntity( ctx.mSelection.GetSingleEntity(), RootOf( ctx ) );
+            if ( not node or node == RootOf( ctx ) )
+                throw std::runtime_error( "node: pick a node other than the root" );
+            SavePrefab( node, SceneOf( ctx ), ctx.mProject.RootDir() / file, ctx.mProject );
+        } } );
+
+    // Makes every instance of a prefab in the open document again from the
+    // file, as one step. args: file (relative; default: every prefab used).
+    registry.Register( { "prefab.update_instances", "Update prefab instances", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            vector<string> files;
+            if ( args.contains( "file" ) )
+                files.push_back( path( args.at( "file" ).get<string>() ).generic_string() );
+            else
+            {
+                set<string> used;
+                for ( const auto& node : FindPrefabInstances( ctx.mLevel, "" ) )
+                    used.insert( SceneOf( ctx ).GetComponent<PrefabInstanceComponent>( node->AsEntity() ).mPrefab );
+                files.assign( used.begin(), used.end() );
+            }
+
+            auto step = CreateScope<CompositeCommand>( "Update prefab instances" );
+            for ( const string& file : files )
+                for ( const auto& node : FindPrefabInstances( ctx.mLevel, file ) )
+                    step->Add( MakeRefreshPrefabInstance( ctx.mProject, ctx.mLevel, node ) );
+            if ( step->Empty() )
+                return;
+            ctx.mSelection.Clear();
+            ctx.mHistory.Execute( std::move( step ) );
         } } );
 }
 

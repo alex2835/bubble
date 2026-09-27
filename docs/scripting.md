@@ -157,6 +157,13 @@ end )
 for _, e in ipairs( dead ) do remove_entity( e ) end
 ```
 
+### spawn_prefab
+
+`spawn_prefab( "prefabs/crate.prefab", vec3( 0, 5, 0 ) )` places a prefab's
+entities in the running level and returns the root: bodies join the physics
+world, sounds set to play on start play, scripts get `on_start`. See
+[hierarchy_and_prefabs.md](hierarchy_and_prefabs.md).
+
 ### spawn
 
 `spawn{ ... }` creates an entity and adds every component the table describes,
@@ -377,6 +384,11 @@ Constructible: `Transform()`, `Transform( position )`,
 `Transform( position, rotation, scale )`.
 Fields: `position`, `rotation`, `scale` — all `vec3`, read as copies. Has
 `tostring`.
+
+They are relative to the entity's parent, when it has one. Where it is in
+the world: `entity.world_position`, `entity.world_rotation`; the hierarchy
+itself: `entity:get_parent()`, `entity:set_parent( other, keep_world )`,
+`entity:get_children()` - see [hierarchy_and_prefabs.md](hierarchy_and_prefabs.md).
 
 The rotation is held as a quaternion; `rotation` is its Euler angles in
 radians, applied X, then Y, then Z. Reading it back gives *a* spelling of the

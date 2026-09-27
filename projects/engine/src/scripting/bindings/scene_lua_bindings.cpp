@@ -3,6 +3,7 @@
 #include "binding_utils.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
@@ -361,7 +362,40 @@ void CreateSceneBindings( Scene& scene,
         "state",
         sol::property(
             [&]( const Entity& entity ) -> Any { return *scene.GetComponent<StateComponent>( entity ).mState; }
-        )
+        ),
+
+        // The hierarchy. position / rotation / scale above are relative to
+        // the parent; these are where the entity is in the world, as of the
+        // last world update (after physics, and again after the scripts).
+        "world_position",
+        sol::property(
+            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).World().mPosition; }
+        ),
+        "world_rotation",
+        sol::property(
+            [&]( const Entity& entity ) { return scene.GetComponent<TransformComponent>( entity ).World().Euler(); }
+        ),
+        "get_parent",
+        [&]( const Entity& entity ) -> opt<Entity>
+        {
+            const Entity parent = ParentOf( scene, entity );
+            return parent == INVALID_ENTITY ? std::nullopt : opt<Entity>( parent );
+        },
+        // nil makes it a root. keep_world (default true) leaves it where it
+        // is in the world; false keeps its local transform, so it jumps to
+        // the same place relative to the new parent. False on a loop.
+        "set_parent",
+        [&]( const Entity& entity, sol::object parent, sol::optional<bool> keepWorld ) -> bool
+        {
+            const Entity target = parent.is<Entity>() ? parent.as<Entity>() : INVALID_ENTITY;
+            return SetParent( scene, entity, target, keepWorld.value_or( true ) );
+        },
+        "get_children",
+        [&]( const Entity& entity )
+        {
+            const auto children = ChildrenOf( scene, entity );
+            return sol::as_table( vector<Entity>( children.begin(), children.end() ) );
+        }
     );
 
     // Scene

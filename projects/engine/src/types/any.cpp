@@ -110,15 +110,18 @@ void PrintAnyValue( const Any& value )
     std::println( "{}", AnyValueToString( value ) );
 }
 
+// By the value's Lua type, not is<Table>(): sol answers that yes for a
+// userdata too - an Entity, a vec3 - and those came out of the copy as
+// empty tables.
 Any AnyDeepCopy( const Any& any )
 {
-    if ( any.is<Table>() )
+    if ( any.value().get_type() == sol::type::table )
     {
         auto table = any.as<Table>();
         sol::state_view lua = table.lua_state();
         auto newTable = lua.create_table();
         for ( auto& [k, v] : table )
-            newTable[k] = v.is<Table>() ? AnyDeepCopy( v ) : v;
+            newTable[k] = v.get_type() == sol::type::table ? AnyDeepCopy( v ) : v;
         return newTable;
     }
     return any;

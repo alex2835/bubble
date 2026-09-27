@@ -16,7 +16,7 @@ TEST( EditorLua )
     Selection selection;
     Clipboard clipboard;
     OperatorQueue queue;
-    EditorLua lua( OperatorContext{ f.project, f.history, selection, clipboard }, queue );
+    EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
 
     // Conversions both ways
     {
@@ -69,7 +69,7 @@ TEST( EditorLua )
     CHECK( lua.Run( "print( 'hello', 42 ); editor.enqueue( 'scene.delete' )" ).empty() );
     CHECK( lua.Log().size() == 1 and lua.Log()[0] == "hello	42" );
     CHECK( f.root->mChildren.size() == 1 );
-    OperatorContext ctx{ f.project, f.history, selection, clipboard };
+    OperatorContext ctx{ f.project, f.project.mLevel, f.history, selection, clipboard };
     queue.Flush( ctx );
     CHECK( f.root->mChildren.empty() );
     CHECK( queue.Empty() );

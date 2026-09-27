@@ -1,9 +1,15 @@
 #include "engine/pch/pch.hpp"
 #include "engine/editing/operators/operator.hpp"
+#include "engine/project/level.hpp"
 #include <nlohmann/json.hpp>
 
 namespace bubble
 {
+InspectorContext OperatorContext::Edit() const
+{
+    return InspectorContext{ mProject, mLevel.mScene, mHistory };
+}
+
 OperatorRegistry& OperatorRegistry::Instance()
 {
     static OperatorRegistry registry;

@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/types/string.hpp"
 #include "engine/types/pointer.hpp"
+#include <vector>
 
 namespace bubble
 {
@@ -36,5 +37,45 @@ public:
 };
 
 using Command = Scope<ICommand>;
+
+// Several commands as one step: applied in order, undone in reverse. If one
+// fails on the way, the ones before it are undone again and the failure goes
+// on, so a half applied step never reaches the history.
+class CompositeCommand : public ICommand
+{
+public:
+    explicit CompositeCommand( string name ) : mName( std::move( name ) ) {}
+    void Add( Command command ) { mCommands.push_back( std::move( command ) ); }
+    bool Empty() const { return mCommands.empty(); }
+
+    string_view Name() const override { return mName; }
+    void Execute() override { Run( false ); }
+    void Redo() override { Run( true ); }
+    void Undo() override
+    {
+        for ( auto it = mCommands.rbegin(); it != mCommands.rend(); ++it )
+            ( *it )->Undo();
+    }
+
+private:
+    void Run( bool redo )
+    {
+        size_t done = 0;
+        try
+        {
+            for ( ; done < mCommands.size(); done++ )
+                redo ? mCommands[done]->Redo() : mCommands[done]->Execute();
+        }
+        catch ( ... )
+        {
+            while ( done > 0 )
+                mCommands[--done]->Undo();
+            throw;
+        }
+    }
+
+    string mName;
+    std::vector<Command> mCommands;
+};
 
 }

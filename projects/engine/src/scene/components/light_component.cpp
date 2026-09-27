@@ -15,9 +15,9 @@ namespace bubble
 {
 void LightComponent::SyncToTransform( const TransformComponent& transform )
 {
-    mPosition = transform.mPosition;
+    mPosition = transform.World().mPosition;
     // Forward is down in local space.
-    mDirection = transform.RotationMat() * vec4( 0, -1, 0, 0 );
+    mDirection = transform.World().RotationMat() * vec4( 0, -1, 0, 0 );
     Update();
 }
 

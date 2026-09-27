@@ -2,6 +2,8 @@
 #include "engine/project/level.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include "engine/project/prefab.hpp"
 #include "engine/types/set.hpp"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -176,12 +178,17 @@ void Level::FromJson( const json& j, Project& project )
 {
     LoadScene( j["Scene"], project );
     LoadTree( j["ProjectTree"] );
+    // The tree says who hangs under whom; a file from before the hierarchy
+    // has no Hierarchy components at all, and gets them here.
+    SyncHierarchy( mScene, mTreeRoot );
+    UpdateWorldTransforms( mScene );
 }
 
 
 void Level::Load( const path& absFile, Project& project )
 {
-    if ( not is_regular_file( absFile ) or absFile.extension() != LEVEL_FILE_EXT )
+    // A prefab is a level file under another extension.
+    if ( not is_regular_file( absFile ) or ( absFile.extension() != LEVEL_FILE_EXT and absFile.extension() != PREFAB_FILE_EXT ) )
         throw std::runtime_error( "Invalid level path: " + absFile.string() );
 
     Clear();
@@ -192,14 +199,14 @@ void Level::Load( const path& absFile, Project& project )
     // The root node is labeled after the file, so the tree says which level
     // it is showing.
     mTreeRoot->mState = mName;
-    LogInfo( "Level opened: {}", absFile.string() );
+    LogInfo( "{} opened: {}", absFile.extension() == PREFAB_FILE_EXT ? "Prefab" : "Level", absFile.string() );
 }
 
 void Level::Save( const path& absFile, const Project& project ) const
 {
     std::ofstream levelFile( absFile );
     levelFile << ToJson( project ).dump( 1 );
-    LogInfo( "Level saved: {}", absFile.string() );
+    LogInfo( "{} saved: {}", absFile.extension() == PREFAB_FILE_EXT ? "Prefab" : "Level", absFile.string() );
 }
 
 }

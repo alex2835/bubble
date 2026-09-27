@@ -14,4 +14,13 @@ inline bool InputText( std::string_view label, std::string& str, ImGuiInputTextF
     return changed;
 }
 
+inline bool InputTextWithHint( std::string_view label, const char* hint, std::string& str, ImGuiInputTextFlags flags = 0 )
+{
+    char buffer[128] = { 0 };
+    str.copy( buffer, sizeof( buffer ) - 1 );
+    const bool changed = ImGui::InputTextWithHint( label.data(), hint, buffer, sizeof( buffer ), flags );
+    str.assign( buffer );
+    return changed;
+}
+
 }

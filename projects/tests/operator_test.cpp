@@ -14,7 +14,7 @@ TEST( Operators )
     Fixture f;
     Selection selection;
     Clipboard clipboard;
-    OperatorContext ctx{ f.project, f.history, selection, clipboard };
+    OperatorContext ctx{ f.project, f.project.mLevel, f.history, selection, clipboard };
 
     // Unknown names throw, and every builtin is listed
     bool threw = false;

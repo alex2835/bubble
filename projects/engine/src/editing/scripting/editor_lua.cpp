@@ -215,14 +215,14 @@ void EditorLua::Bind()
     } );
     editor.set_function( "select_node", [this]( u64 id )
     {
-        auto node = FindNodeById( id, mCtx.mProject.mLevel.mTreeRoot );
+        auto node = FindNodeById( id, mCtx.mLevel.mTreeRoot );
         if ( not node )
             throw std::runtime_error( std::format( "select_node: no node with id {}", id ) );
-        mCtx.mSelection.SelectTreeNode( node, mCtx.mProject.mLevel.mScene );
+        mCtx.mSelection.SelectTreeNode( node, mCtx.mLevel.mScene );
     } );
     editor.set_function( "select", [this]( sol::variadic_args ids )
     {
-        Scene& scene = mCtx.mProject.mLevel.mScene;
+        Scene& scene = mCtx.mLevel.mScene;
         mCtx.mSelection.Clear();
         for ( const auto& arg : ids )
         {
@@ -255,13 +255,13 @@ void EditorLua::Bind()
             t["children"] = children;
             return t;
         };
-        return describe( mCtx.mProject.mLevel.mTreeRoot );
+        return describe( mCtx.mLevel.mTreeRoot );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {
         sol::table ids = mLua->create_table();
         int i = 1;
-        mCtx.mProject.mLevel.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& t )
+        mCtx.mLevel.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& t )
         {
             if ( t.mName == tag )
                 ids[i++] = (u64)entity;

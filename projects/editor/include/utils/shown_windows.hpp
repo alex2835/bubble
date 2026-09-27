@@ -12,6 +12,7 @@ struct ShownWindows
     bool mProject = true;
     bool mConsole = true;
     bool mAnimationGraph = false;
+    bool mPrefabEditor = false;
 };
 
 // Every window by its menu label and the id window.show and the settings
@@ -23,12 +24,13 @@ struct WindowToggle
     bool ShownWindows::* mShown;
 };
 
-inline constexpr std::array<WindowToggle, 5> cWindowToggles = { {
+inline constexpr std::array<WindowToggle, 6> cWindowToggles = { {
     { "Entities", "entities", &ShownWindows::mEntities },
     { "Viewport", "viewport", &ShownWindows::mViewport },
     { "Project", "project", &ShownWindows::mProject },
     { "Console", "console", &ShownWindows::mConsole },
     { "Animation Graph", "animation_graph", &ShownWindows::mAnimationGraph },
+    { "Prefab Editor", "prefab_editor", &ShownWindows::mPrefabEditor },
 } };
 
 }

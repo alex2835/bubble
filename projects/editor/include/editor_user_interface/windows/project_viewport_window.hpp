@@ -14,6 +14,7 @@ class ProjectViewportWindow : public UserInterfaceWindowBase
 {
 public:
     ProjectViewportWindow( BubbleEditor& editorState );
+    ProjectViewportWindow( BubbleEditor& editorState, const EditorDocument& document );
     ~ProjectViewportWindow();
 
     string_view Name();
@@ -33,11 +34,15 @@ public:
     void DrawGizmoManyEntities( const set<Entity>& entities, Transform& transform );
     bool DrawViewManipulator();
     void OnDraw( DeltaTime );
+    // The viewport into whatever window is current: its own, or the prefab
+    // editor's.
+    void DrawContent();
 
 
 private:
     // Size represent actual viewport size
     uvec2 mSize;
+    int mGizmoId = 0;
     ImGuizmo::OPERATION mCurrentGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
     ImGuizmo::MODE mCurrentGizmoMode = ImGuizmo::MODE::LOCAL;
     // The mode the gizmo is drawn in: the one above, or world while Shift is

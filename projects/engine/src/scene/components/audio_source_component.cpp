@@ -66,12 +66,12 @@ void AudioSourceComponent::Stop()
 
 void AudioSourceComponent::SyncToTransform( const TransformComponent& transform )
 {
-    mParams.mPosition = transform.mPosition;
+    mParams.mPosition = transform.World().mPosition;
 
     // Only a spatialized voice that is actually playing: a source whose sound
     // has finished has no voice to move, and the lookup would be pure overhead.
     if ( mParams.mSpatialized and mVoice.IsValid() and AudioEngine::Exists() )
-        AudioEngine::Get().SetVoicePosition( mVoice, transform.mPosition );
+        AudioEngine::Get().SetVoicePosition( mVoice, transform.World().mPosition );
 }
 
 bool AudioSourceComponent::IsPlaying() const

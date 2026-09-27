@@ -3,6 +3,7 @@
 #include "engine/project/project_tree.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/renderer/transform.hpp"
+#include "engine/project/prefab.hpp"
 #include "engine/types/map.hpp"
 #include "engine/types/set.hpp"
 
@@ -61,7 +62,8 @@ private:
 };
 
 // The copy is made once; undo parks its entities and redo brings them
-// back under their ids, like a delete in reverse.
+// back under their ids, like a delete in reverse. Pasted under another
+// parent, the copy stays where the original is in the world.
 class CopyNodeCommand : public ICommand
 {
 public:
@@ -92,6 +94,7 @@ public:
     CreateNodeCommand( Ref<ProjectTreeNode> parent,
                        ProjectTreeNodeType type,
                        Project& project,
+                       Level& level,
                        const Transform& spawnAt );
 
     string_view Name() const override { return mName; }
@@ -104,23 +107,27 @@ public:
 
     // What each kind starts with. Public because it is the one place that
     // knows, and the Lua bindings may want the same defaults.
-    static Entity CreateEntityFor( ProjectTreeNodeType type, Project& project, const Transform& spawnAt );
+    static Entity CreateEntityFor( ProjectTreeNodeType type, Project& project, Scene& scene, const Transform& spawnAt );
 
 private:
     Ref<ProjectTreeNode> mParent;
     Ref<ProjectTreeNode> mCreatedNode;
     ProjectTreeNodeType mType;
     Project& mProject;
+    Level& mLevel;
     Transform mSpawnAt;
     string mName;
     Scene mBackupScene;
     Entity mBackupEntity = INVALID_ENTITY;
 };
 
+// Moves a node under another - which, for an entity under an entity node,
+// is parenting it. The moved entities stay where they are in the world:
+// their local transforms are worked out again against the new parent.
 class MoveNodeCommand : public ICommand
 {
 public:
-    MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode> newParent );
+    MoveNodeCommand( Ref<ProjectTreeNode> node, Ref<ProjectTreeNode> newParent, Scene& scene );
 
     string_view Name() const override { return "Move node"sv; }
     void Execute() override;
@@ -130,7 +137,56 @@ private:
     Ref<ProjectTreeNode> mNode;
     Ref<ProjectTreeNode> mOldParent;
     Ref<ProjectTreeNode> mNewParent;
+    Scene& mScene;
     size_t mOldIndexInParent = 0;
+    // The local transforms the move replaced, for undo.
+    map<Entity, Transform> mOldLocals;
 };
+
+// A prefab instantiated under `parent` - see prefab.hpp. Undo parks the
+// instance, redo brings it back under the same ids, like a paste.
+class InstantiatePrefabCommand : public ICommand
+{
+public:
+    // `index` in the parent's children, the end by default; `rootId` makes
+    // the root under a given id, which is how an update keeps the one the
+    // old instance had.
+    InstantiatePrefabCommand( Project& project,
+                              Level& level,
+                              Ref<ProjectTreeNode> parent,
+                              path relPrefab,
+                              PrefabPlacement placement,
+                              size_t index = size_t( -1 ),
+                              std::optional<size_t> rootId = std::nullopt );
+
+    string_view Name() const override { return "Instantiate prefab"sv; }
+    void Execute() override;
+    void Undo() override;
+    void Redo() override;
+
+    Ref<ProjectTreeNode> GetRoot() const { return mRoot; }
+
+private:
+    Project& mProject;
+    Level& mLevel;
+    Ref<ProjectTreeNode> mParent;
+    path mPrefab;
+    PrefabPlacement mPlacement;
+    size_t mIndex;
+    std::optional<size_t> mRootId;
+    Ref<ProjectTreeNode> mRoot;
+    Scene mBackupScene;
+    map<Entity, Entity> mEntityMapping;
+};
+
+// An instance made again from its prefab as it is now: the old one deleted,
+// a new one put in its place, its root under the same id, where it was and
+// turned as it was - so what names the instance still does. The rest comes
+// from the prefab; what was changed under it by hand is replaced.
+Command MakeRefreshPrefabInstance( Project& project, Level& level, const Ref<ProjectTreeNode>& instance );
+
+// Whether `node` is `ancestor` or somewhere under it: what a node may not be
+// moved into.
+bool IsInSubtree( const Ref<ProjectTreeNode>& node, const Ref<ProjectTreeNode>& ancestor );
 
 }

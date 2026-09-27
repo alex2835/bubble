@@ -188,6 +188,11 @@ void Menubar::DrawLevelsMenu()
         ImGui::EndMenu();
     }
 
+    if ( ImGui::MenuItem( "Update prefab instances" ) )
+        mOperatorQueue.Enqueue( "prefab.update_instances" );
+    if ( ImGui::MenuItem( "Prefab editor" ) )
+        mUIGlobals.mShow.mPrefabEditor = true;
+
     const bool isStartup = current == mProject.mStartupLevel;
     if ( ImGui::MenuItem( "Set as startup level", nullptr, isStartup, not current.empty() ) )
         mOperatorQueue.Enqueue( "level.set_startup" );

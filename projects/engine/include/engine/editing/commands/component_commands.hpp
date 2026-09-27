@@ -13,7 +13,7 @@ class Project;
 class AddComponentCommand : public ICommand
 {
 public:
-    AddComponentCommand( Entity entity, ComponentTypeId componentId, Project& project );
+    AddComponentCommand( Entity entity, ComponentTypeId componentId, Project& project, Scene& scene );
 
     string_view Name() const override { return mName; }
     void Execute() override;
@@ -23,6 +23,7 @@ private:
     Entity mEntity;
     ComponentTypeId mComponentId;
     Project& mProject;
+    Scene& mScene;
     string mName;
 };
 

@@ -10,7 +10,8 @@ EditorUserInterface::EditorUserInterface( BubbleEditor& editorState )
        mSceneViewportWindow( editorState ),
        mProjectWindow( editorState ),
        mConsoleWindow( editorState ),
-       mAnimationGraphWindow( editorState )
+       mAnimationGraphWindow( editorState ),
+       mPrefabEditorWindow( editorState )
 {
 
 }
@@ -23,6 +24,12 @@ void EditorUserInterface::OnUpdate( DeltaTime dt )
     mProjectWindow.OnUpdate( dt );
     mConsoleWindow.OnUpdate( dt );
     mAnimationGraphWindow.OnUpdate( dt );
+    mPrefabEditorWindow.OnUpdate( dt );
+}
+
+void EditorUserInterface::Render( Engine& engine, DeltaTime dt )
+{
+    mPrefabEditorWindow.Render( engine, dt );
 }
 
 void EditorUserInterface::OnDraw( DeltaTime dt )
@@ -33,6 +40,7 @@ void EditorUserInterface::OnDraw( DeltaTime dt )
     mProjectWindow.OnDraw( dt );
     mConsoleWindow.OnDraw( dt );
     mAnimationGraphWindow.OnDraw( dt );
+    mPrefabEditorWindow.OnDraw( dt );
 }
 
 }

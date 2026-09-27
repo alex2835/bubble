@@ -30,6 +30,10 @@ struct Engine
     // scene are the level's and go with it.
     void LoadLevel( const path& relFile );
     void UnloadLevel();
+    // spawn_prefab: the prefab's entities into the running level, wired up
+    // the way a loaded level's are - bodies in the physics world, sounds
+    // that play on start playing, scripts started. Returns the root.
+    Entity SpawnPrefabAt( const path& relFile, const vec3& position );
     
     // The direction of the arrow is what decides where a pass runs in the frame.
     // Anything ending at a transform is an input to gameplay and runs before the
@@ -87,7 +91,10 @@ struct Engine
     void ForEachScriptEntity( const ScriptEntityFn& fn );
 
     void DrawScene( Framebuffer& framebuffer );
-    void DrawScene( Framebuffer& framebuffer, const Scene& scene );
+    // previewLight: a light from above on top of the scene's own - the prefab
+    // editor's, where what is being looked at is lit by whatever it brings,
+    // which is often nothing.
+    void DrawScene( Framebuffer& framebuffer, const Scene& scene, bool previewLight = false );
 
     // Helpers
     void DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene );

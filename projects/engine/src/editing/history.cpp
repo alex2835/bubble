@@ -8,6 +8,7 @@ void History::Push( Command command )
     // A new edit forks the timeline: what was undone can no longer be redone.
     mRedoStack.clear();
     mUndoStack.push_back( std::move( command ) );
+    mVersion++;
     if ( mUndoStack.size() > mMaxHistorySize )
         mUndoStack.erase( mUndoStack.begin() );
 }
@@ -31,6 +32,7 @@ void History::Undo()
     mUndoStack.pop_back();
     command->Undo();
     mRedoStack.push_back( std::move( command ) );
+    mVersion++;
 }
 
 void History::Redo()
@@ -41,6 +43,7 @@ void History::Redo()
     mRedoStack.pop_back();
     command->Redo();
     mUndoStack.push_back( std::move( command ) );
+    mVersion++;
 }
 
 string_view History::NextUndoName() const

@@ -1,6 +1,7 @@
 #pragma once
 #include "engine/editing/command.hpp"
 #include "engine/types/array.hpp"
+#include "engine/types/number.hpp"
 
 namespace bubble
 {
@@ -30,12 +31,17 @@ public:
 
     void SetMaxHistorySize( size_t size ) { mMaxHistorySize = size; }
 
+    // Moves on with every step taken, undone or redone: a document compares
+    // it with the value it had when saved to know whether it changed since.
+    u64 Version() const { return mVersion; }
+
 private:
     void Push( Command command );
 
     vector<Command> mUndoStack;
     vector<Command> mRedoStack;
     size_t mMaxHistorySize = 50;
+    u64 mVersion = 0;
 };
 
 }
