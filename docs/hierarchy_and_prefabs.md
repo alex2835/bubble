@@ -47,6 +47,55 @@ tree is turned into folder entities and hierarchy links; entities left with
 no components at all, which such files could hold, are dropped. The next save
 writes the new format.
 
+## Names and paths
+
+An entity's name is its Tag's name. **Among one parent's children no two
+names are the same**: a name that is taken gets a number - `chair`, `chair2`,
+`chair3` (a taken `chair2` becomes `chair3`). That happens wherever an entity
+arrives under a parent or is renamed: made, pasted, moved, instantiated,
+renamed in the tree or the inspector, spawned, `add_tag`, `set_parent`,
+`entity.name = ...`. Levels saved before this may repeat names; on load the
+later ones get numbers. A name cannot hold `/`, and cannot be empty, `.` or
+`..`. (Setting `get_tag().name` directly in a script is not checked.)
+
+So a **path** of names leads to one entity:
+
+| Path | From | Leads to |
+|---|---|---|
+| `"props/chair"` | an entity | its child `props`, and that one's child `chair` |
+| `"../door"` | an entity | its parent's child `door` - a sibling |
+| `"/player/camera"` | anywhere | from the level's root; `"/"` is the root |
+| `"."` | an entity | the entity itself |
+
+In scripts: `entity:find( path )` and `level:find( path )` (from the root)
+return the `Entity`, or `nil`; `entity:get_path()` gives `"/player/camera"`;
+`entity.name` reads and sets the name. In editor scripts `editor.find( path )`
+gives an id, and operators take a path (from the root) wherever they take an
+entity id. Functions: `FindByPath`, `PathOf`, `RelativePath`, `NameOf`,
+`UniqueChildName`, `MakeNameUnique` in `engine/scene/hierarchy.hpp`.
+
+### NodePath: references by path
+
+A **NodePath** is a value for State tables that names an entity by the way
+to it from the entity that owns the table: `"../door"`, `"part"`,
+`"/player"`. In the inspector add a field of type `NodePath` and pick the
+target from the tree; it shows `(nothing there)` when the path leads nowhere.
+Files keep it as `{ "__type": "NodePath", "path": "../door" }`.
+
+When the game starts, and for whatever `spawn` and `spawn_prefab` make, every
+NodePath in a State table (nested tables too) is **replaced by the entity it
+leads to**, before any `on_start` - scripts get entities. One that leads
+nowhere becomes `nil`, with a warning in the log. A script can make one too:
+`NodePath( "../door" )`, and turn it into an entity with `entity:find( p.path )`.
+
+Unlike an entity id, a path holds wherever the entities are copied: a prefab's
+NodePath to one of its own parts leads to that instance's part in every
+instance, and still does after the instance is updated from the prefab
+(its inner entities get new ids). An id reference to a part does not survive
+an update - use NodePath for that.
+
+Renaming or moving the target does not update NodePaths that lead to it.
+
 **Physics.** Bodies and character controllers live in the world: they start
 at the entity's world transform, and what they move to is written back as
 the local transform against the parent. A dynamic body under a moving parent
@@ -61,6 +110,7 @@ children of a body follow the body.
 | `entity:get_parent()` | `Entity`; the root's parent is `nil`. |
 | `entity:set_parent( other, keep_world )` | `nil` puts it under the level's root. `keep_world` (default `true`) keeps it where it is; `false` keeps its local transform. `false` on a loop or for the root. |
 | `entity:get_children()` | Array of `Entity`. |
+| `entity:find( path )`, `level:find( path )`, `entity:get_path()`, `entity.name` | See *Names and paths* above. |
 
 A script that places a child by the world position of something else - the
 old follow-the-capsule pattern - should either make it a child and drop that
@@ -133,3 +183,4 @@ entities from then on.
   (**Level → Update prefab instances** works in the Prefab Editor too).
 - A prefab cannot contain itself directly; a longer loop (A in B in A) is not
   caught.
+- NodePaths are not updated when what they lead to is renamed or moved.

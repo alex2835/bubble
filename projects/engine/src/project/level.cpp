@@ -210,6 +210,9 @@ void Level::FromJson( const json& j, Project& project )
     if ( not mScene.HasEntity( Root() ) )
         MakeRoot( "Level" );
     AdoptStrays();
+    // Files from before names were unique among siblings may repeat one; the
+    // second gets a number, so every path leads somewhere.
+    MakeNamesUnique( mScene, Root() );
     UpdateWorldTransforms( mScene );
 }
 

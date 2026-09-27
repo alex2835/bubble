@@ -259,6 +259,21 @@ void EditorLua::Bind()
         };
         return describe( scene.Root() );
     } );
+    // By a path of names from the root: editor.find( "ground/floor" ) -> id,
+    // or nil. Operators take the path itself too, wherever they take an id.
+    editor.set_function( "find", [this]( const string& path ) -> sol::object
+    {
+        Scene& scene = mCtx.mLevel.mScene;
+        const Entity found = FindByPath( scene, scene.Root(), path );
+        if ( found == INVALID_ENTITY )
+            return sol::make_object( *mLua, sol::lua_nil );
+        return sol::make_object( *mLua, (u64)found );
+    } );
+    editor.set_function( "path", [this]( u64 id )
+    {
+        Scene& scene = mCtx.mLevel.mScene;
+        return PathOf( scene, scene.GetEntityById( id ) );
+    } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {
         sol::table ids = mLua->create_table();

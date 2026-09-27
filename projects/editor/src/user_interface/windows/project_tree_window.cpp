@@ -4,7 +4,6 @@
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/hierarchy.hpp"
 #include "engine/editing/operators/operator.hpp"
-#include "engine/editing/commands/property_command.hpp"
 #include "engine/editing/commands/tree_commands.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include "engine/utils/imgui_utils.hpp"
@@ -134,14 +133,11 @@ void ProjectTreeWindow::Rename( Entity entity, const string& name )
     Scene& scene = mLevel.mScene;
     if ( not scene.HasComponent<TagComponent>( entity ) or name.empty() )
         return;
-    const string old = scene.GetComponent<TagComponent>( entity ).mName;
-    if ( old == name )
-        return;
-    mDeferred.push_back( [this, entity, old, name]()
+    // A name a sibling has gets a number.
+    mDeferred.push_back( [this, entity, name]()
     {
-        mHistory.Execute( CreateScope<SetPropertyCommand<TagComponent, string>>(
-            mLevel.mScene, entity, "Rename", old, name,
-            []( TagComponent& tag, const string& value ) { tag.mName = value; } ) );
+        if ( auto step = MakeRenameCommand( mLevel.mScene, entity, name ) )
+            mHistory.Execute( std::move( step ) );
     } );
 }
 

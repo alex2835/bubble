@@ -3,6 +3,7 @@
 #include <set>
 #include <algorithm>
 #include "engine/scene/scene.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/renderer/texture.hpp"
 #include <sol/sol.hpp>
 #include <print>
@@ -98,6 +99,8 @@ string AnyValueToString( const Any& value )
         return "(mat4)";
     else if ( value.is<Entity>() )
         return std::format( "(Entity)'{}'", (size_t)value.as<Entity>() );
+    else if ( value.is<NodePath>() )
+        return std::format( "(NodePath)'{}'", value.as<NodePath>().mPath );
     else if ( value.is<Ref<Texture2D>>() )
     {
         const auto& texture = value.as<Ref<Texture2D>>();

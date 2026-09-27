@@ -25,6 +25,7 @@ editor.undo()
 | `editor.selection()` | Selected entity ids. |
 | `editor.select( id, ... )`, `editor.deselect()` | |
 | `editor.tree()` | `{ entity, name, folder, children = {…} }` from the level's root. Entity ids are what `parent` arguments take. |
+| `editor.find( path )`, `editor.path( id )` | An id by a path of names from the root (`"ground/floor"`), or `nil`; the path of an id. |
 | `editor.entities_by_tag( name )` | Entity ids. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
@@ -47,7 +48,8 @@ when its keys are `1..n`), and `vec2` / `vec3` / `vec4` (as `[x, y, z]`).
 
 ## Operators
 
-Where an argument is optional, the default comes from the selection.
+Where an argument is optional, the default comes from the selection. Wherever
+an entity id is taken, a path from the root works too: `parent = "props"`.
 
 | Operator | Arguments | |
 |---|---|---|
@@ -55,6 +57,7 @@ Where an argument is optional, the default comes from the selection.
 | `scene.delete` | | The selection. |
 | `scene.cut`, `scene.copy` | | The selected entity and what is under it. Not the root. |
 | `scene.paste` | `parent?` entity id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |
+| `scene.rename` | `name`, `entity?` | A name a sibling has gets a number. |
 | `scene.move` | `entity`, `parent` (entity id), `index?` | Reparents, or reorders among the same siblings; stays where it is in the world. |
 | `entity.add_component`, `entity.remove_component` | `component` name, `entity?` id | Tag cannot be removed. |
 | `history.undo`, `history.redo` | | |

@@ -111,6 +111,7 @@ Obtained from `create_entity()`, from an `on_update` argument, from
 | Function | Returns | Notes |
 |---|---|---|
 | `create_entity()` | `Entity` | Under the level's root. |
+| `level:find( path )` | `Entity` or `nil` | By a path of names from the level's root: `"props/chair"`. `level:root()` is the root. |
 | `remove_entity( entity )` | | Errors if the entity does not exist — test with `entity:is_valid()`. Removes what hangs under it too, and all of it from the physics world. The root cannot be removed. |
 | `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `Component.*` values; `fn` is `function( entity, components )`. |
 
@@ -669,7 +670,18 @@ end
 
 ### StateComponent
 
-A plain Lua table. No usertype — it is the native type.
+A plain Lua table. No usertype — it is the native type. A `NodePath` put in it
+in the editor is an `Entity` (or `nil`) by the time scripts run - see
+[hierarchy_and_prefabs.md](hierarchy_and_prefabs.md#nodepath-references-by-path).
+
+### Names and paths
+
+| | |
+|---|---|
+| `entity.name` | The Tag's name. Set, a name a sibling has gets a number: `enemy`, `enemy2`. |
+| `entity:find( path )` | `Entity` or `nil`. `"wheel"`, `"../door"`, `"/player/camera"`. |
+| `entity:get_path()` | `"/player/camera"`. |
+| `NodePath( "../door" )` | A path value; `.path` reads it. |
 
 ## Physics
 

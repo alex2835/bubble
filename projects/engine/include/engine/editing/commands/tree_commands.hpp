@@ -110,7 +110,8 @@ private:
 
 // Moves an entity under another, at `index` among its children - which is
 // parenting it. It stays where it is in the world: its local transform is
-// worked out again against the new parent.
+// worked out again against the new parent. A name one of the new siblings
+// has gets a number.
 class MoveEntityCommand : public ICommand
 {
 public:
@@ -128,6 +129,7 @@ private:
     Entity mOldParent = INVALID_ENTITY;
     size_t mOldIndex = 0;
     Transform mOldLocal;
+    string mOldName;
 };
 
 // A prefab instantiated under `parent` - see prefab.hpp. Undo parks the
@@ -170,5 +172,9 @@ private:
 // turned as it was - so what names the instance still does. The rest comes
 // from the prefab; what was changed under it by hand is replaced.
 Command MakeRefreshPrefabInstance( Project& project, Scene& scene, Entity instance );
+
+// Renames an entity, to `wanted` or - when a sibling has that - to it with a
+// number. Null when the name would not change.
+Command MakeRenameCommand( Scene& scene, Entity entity, string_view wanted );
 
 }

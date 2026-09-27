@@ -1,6 +1,7 @@
 #include "engine/pch/pch.hpp"
 #include "engine/engine.hpp"
 #include "engine/scene/hierarchy.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/project/prefab.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scripting/scripting_engine.hpp"
@@ -177,6 +178,10 @@ void Engine::LoadLevel( const path& relFile )
             mProject.mLevel.mScene.AddComponent<StateComponent>( entity );
     }
 
+    // References by path in State tables become the entities they lead to,
+    // before any script looks at them.
+    ResolveAllNodePaths( mProject.mLevel.mScene );
+
     // Extract scripts functions
     mProject.mLevel.mScene.ForEach<ScriptComponent, StateComponent>( [&]( Entity entity,
                                                                    ScriptComponent& scriptComponent,
@@ -229,6 +234,10 @@ Entity Engine::SpawnPrefabAt( const path& relFile, const vec3& position )
         if ( scene.HasComponent<ScriptComponent>( entity ) and not scene.HasComponent<StateComponent>( entity ) )
             scene.AddComponent<StateComponent>( entity );
     }
+
+    // Paths in the copies' State lead inside the new instance.
+    for ( const Entity entity : spawned )
+        ResolveNodePaths( scene, entity );
 
     // Every script extracted before any starts, as for a level: one of them
     // may look at another in on_start.

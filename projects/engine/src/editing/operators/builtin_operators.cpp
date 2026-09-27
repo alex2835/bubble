@@ -30,6 +30,15 @@ Entity EntityArg( const OperatorContext& ctx, const json& args, const char* key,
 {
     if ( not args.contains( key ) )
         return fallback;
+    // A path, from the root: "props/chair".
+    if ( args.at( key ).is_string() )
+    {
+        const string path = args.at( key ).get<string>();
+        const Entity found = FindByPath( SceneOf( ctx ), SceneOf( ctx ).Root(), path );
+        if ( found == INVALID_ENTITY )
+            throw std::runtime_error( std::format( "{}: nothing at '{}'", key, path ) );
+        return found;
+    }
     const auto id = args.at( key ).get<u64>();
     const Entity entity = SceneOf( ctx ).GetEntityById( id );
     if ( not SceneOf( ctx ).HasEntity( entity ) )
@@ -184,6 +193,15 @@ void OperatorRegistry::RegisterBuiltins()
             if ( entity == scene.Root() or parent == entity or IsAncestor( scene, entity, parent ) )
                 throw std::runtime_error( "move: not into itself, and not the root" );
             ctx.mHistory.Execute( CreateScope<MoveEntityCommand>( scene, entity, parent, args.value( "index", size_t( -1 ) ) ) );
+        } } );
+
+    // args: name, entity (id or path, default: the single selected one). A
+    // name a sibling has gets a number.
+    registry.Register( { "scene.rename", "Rename", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            if ( auto step = MakeRenameCommand( SceneOf( ctx ), RequiredEntity( ctx, args, "entity" ), args.at( "name" ).get<string>() ) )
+                ctx.mHistory.Execute( std::move( step ) );
         } } );
 
     /// Components

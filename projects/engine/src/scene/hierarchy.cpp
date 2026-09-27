@@ -2,6 +2,7 @@
 #include "engine/scene/hierarchy.hpp"
 #include "engine/scene/components/hierarchy_component.hpp"
 #include "engine/scene/components/state_component.hpp"
+#include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/types/set.hpp"
 #include <sol/sol.hpp>
@@ -273,6 +274,200 @@ void UpdateWorldTransforms( Scene& scene )
     } );
     for ( const Entity top : tops )
         UpdateSubtree( scene, top, mat4( 1.0f ), false, 0 );
+}
+
+// Names and paths
+
+string NameOf( const Scene& scene, Entity entity )
+{
+    return scene.HasEntity( entity ) and scene.HasComponent<TagComponent>( entity )
+           ? scene.GetComponent<TagComponent>( entity ).mName : string();
+}
+
+namespace
+{
+string ValidName( string_view wanted )
+{
+    string name;
+    for ( const char c : wanted )
+        if ( c != '/' )
+            name += c;
+    if ( name.empty() or name == "." or name == ".." )
+        name = "Entity";
+    return name;
+}
+
+// "chair12" -> { "chair", 12 }; "chair" -> { "chair", 1 }.
+std::pair<string_view, u64> SplitNumber( string_view name )
+{
+    size_t digits = name.size();
+    while ( digits > 0 and std::isdigit( (unsigned char)name[digits - 1] ) )
+        digits--;
+    // All digits, or a number too long to count: the whole name is the base.
+    if ( digits == 0 or name.size() - digits > 9 )
+        return { name, 1 };
+    if ( digits == name.size() )
+        return { name, 1 };
+    return { name.substr( 0, digits ), std::stoull( string( name.substr( digits ) ) ) };
+}
+}
+
+string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self )
+{
+    const string name = ValidName( wanted );
+    str_hash_set taken;
+    for ( const Entity sibling : ChildrenOf( scene, parent ) )
+        if ( sibling != self and scene.HasComponent<TagComponent>( sibling ) )
+            taken.insert( scene.GetComponent<TagComponent>( sibling ).mName );
+    if ( not taken.contains( name ) )
+        return name;
+
+    const auto [base, number] = SplitNumber( name );
+    for ( u64 n = std::max<u64>( number, 1 ) + 1;; n++ )
+    {
+        string candidate = std::format( "{}{}", base, n );
+        if ( not taken.contains( candidate ) )
+            return candidate;
+    }
+}
+
+bool MakeNameUnique( Scene& scene, Entity entity )
+{
+    if ( not scene.HasEntity( entity ) or not scene.HasComponent<TagComponent>( entity ) )
+        return false;
+    const Entity parent = ParentOf( scene, entity );
+    auto& tag = scene.GetComponent<TagComponent>( entity );
+    // The root has no siblings; its name only has to be a valid one.
+    string name = parent == INVALID_ENTITY ? ValidName( tag.mName )
+                                           : UniqueChildName( scene, parent, tag.mName, entity );
+    if ( name == tag.mName )
+        return false;
+    scene.GetComponent<TagComponent>( entity ).mName = std::move( name );
+    return true;
+}
+
+void MakeNamesUnique( Scene& scene, Entity top )
+{
+    for ( const Entity entity : Subtree( scene, top ) )
+    {
+        // Siblings in order, each checked against the ones before it only,
+        // so the first of two keeps its name.
+        const vector<Entity> children( ChildrenOf( scene, entity ).begin(), ChildrenOf( scene, entity ).end() );
+        str_hash_set taken;
+        for ( const Entity child : children )
+        {
+            if ( not scene.HasComponent<TagComponent>( child ) )
+                continue;
+            string& name = scene.GetComponent<TagComponent>( child ).mName;
+            string fixed = ValidName( name );
+            if ( taken.contains( fixed ) )
+            {
+                const auto [base, number] = SplitNumber( fixed );
+                for ( u64 n = std::max<u64>( number, 1 ) + 1;; n++ )
+                {
+                    string candidate = std::format( "{}{}", base, n );
+                    // Not a name a later sibling has either, or that one
+                    // would be renamed in turn for no reason.
+                    const bool later = std::ranges::any_of( children, [&]( Entity other )
+                    {
+                        return other != child and scene.HasComponent<TagComponent>( other ) and
+                               scene.GetComponent<TagComponent>( other ).mName == candidate;
+                    } );
+                    if ( not taken.contains( candidate ) and not later )
+                    {
+                        fixed = std::move( candidate );
+                        break;
+                    }
+                }
+            }
+            if ( fixed != name )
+                name = fixed;
+            taken.insert( fixed );
+        }
+    }
+}
+
+Entity FindByPath( const Scene& scene, Entity from, string_view path )
+{
+    Entity at = from;
+    if ( path.starts_with( '/' ) )
+    {
+        at = scene.Root();
+        path.remove_prefix( 1 );
+    }
+    while ( at != INVALID_ENTITY and not path.empty() )
+    {
+        const size_t slash = path.find( '/' );
+        const string_view part = path.substr( 0, slash );
+        path = slash == string_view::npos ? string_view() : path.substr( slash + 1 );
+        if ( part.empty() or part == "." )
+            continue;
+        if ( part == ".." )
+        {
+            at = ParentOf( scene, at );
+            continue;
+        }
+        Entity found = INVALID_ENTITY;
+        for ( const Entity child : ChildrenOf( scene, at ) )
+            if ( scene.HasComponent<TagComponent>( child ) and scene.GetComponent<TagComponent>( child ).mName == part )
+            {
+                found = child;
+                break;
+            }
+        at = found;
+    }
+    return at != INVALID_ENTITY and scene.HasEntity( at ) ? at : INVALID_ENTITY;
+}
+
+namespace
+{
+// The entity and its ancestors, the root last; empty when it does not reach
+// the root.
+vector<Entity> ChainToRoot( const Scene& scene, Entity entity )
+{
+    vector<Entity> chain;
+    for ( Entity at = entity; at != INVALID_ENTITY and scene.HasEntity( at ); at = ParentOf( scene, at ) )
+    {
+        chain.push_back( at );
+        if ( chain.size() > cMaxDepth )
+            return {};
+    }
+    if ( chain.empty() or chain.back() != scene.Root() )
+        return {};
+    return chain;
+}
+}
+
+string PathOf( const Scene& scene, Entity entity )
+{
+    const vector<Entity> chain = ChainToRoot( scene, entity );
+    if ( chain.empty() )
+        return {};
+    if ( chain.size() == 1 )
+        return "/";
+    string path;
+    for ( auto it = chain.rbegin() + 1; it != chain.rend(); ++it )
+        path += "/" + NameOf( scene, *it );
+    return path;
+}
+
+string RelativePath( const Scene& scene, Entity from, Entity to )
+{
+    const vector<Entity> up = ChainToRoot( scene, from );
+    const vector<Entity> down = ChainToRoot( scene, to );
+    if ( up.empty() or down.empty() )
+        return {};
+    // Strip the shared part, from the root end.
+    size_t shared = 0;
+    while ( shared < up.size() and shared < down.size() and
+            up[up.size() - 1 - shared] == down[down.size() - 1 - shared] )
+        shared++;
+    string path;
+    for ( size_t i = 0; i < up.size() - shared; i++ )
+        path += path.empty() ? ".." : "/..";
+    for ( size_t i = down.size() - shared; i-- > 0; )
+        path += ( path.empty() ? "" : "/" ) + NameOf( scene, down[i] );
+    return path.empty() ? "." : path;
 }
 
 }

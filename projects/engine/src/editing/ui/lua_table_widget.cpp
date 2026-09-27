@@ -5,6 +5,8 @@
 #include "engine/editing/ui/interaction.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/hierarchy.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/project/project.hpp"
@@ -104,7 +106,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
     }
 
     ImGui::SetNextItemWidth( 100.0f );
-    constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0Entity\0"sv;
+    constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0Entity\0NodePath\0"sv;
     auto typeLabel = std::format( "##type_{}", scopeName );
     ImGui::Combo( typeLabel.c_str(), &selectedType, types.data() );
 
@@ -113,7 +115,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
 
     const LuaKey entryKey = isArray ? LuaKey( newId ) : LuaKey( fieldName );
 
-    enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, TableT, Texture2D, EntityT };
+    enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, TableT, Texture2D, EntityT, NodePathT };
     Any value = Nil();
     switch ( selectedType )
     {
@@ -131,6 +133,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
         // Nothing until picked from the combo. This used to create a bare
         // entity in the scene as a side effect of adding a field.
         case EntityT:   value = INVALID_ENTITY; break;
+        case NodePathT: value = NodePath(); break;
     }
     Set( c, Append( path, entryKey ), Nil(), value );
 }
@@ -266,7 +269,8 @@ void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const A
         // Build list of all entities that have a tag
         vector<Entity> entities;
         vector<string> entityNames;
-        c.Project().mLevel.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
+        // The scene being edited - the level's, or a prefab's in its editor.
+        c.mCtx.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
         {
             entities.push_back( entity );
             entityNames.push_back( std::format( "[{}] {}", (size_t)entity, tag.mName ) );
@@ -304,6 +308,51 @@ void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const A
         } );
         ImGui::SameLine();
         ImGui::Text( "(Entity)" );
+    }
+    else if ( any.is<NodePath>() )
+    {
+        // Picked from the tree, kept as the way there from the entity that
+        // owns the table - so it holds in every copy of a prefab.
+        const Scene& scene = c.mCtx.mScene;
+        const Entity owner = c.mRoot.mEntity;
+        const NodePath current = any.as<NodePath>();
+        Leaf( c, path, current, [&]( NodePath& picked )
+        {
+            bool changed = false;
+            const bool missing = not picked.mPath.empty() and FindByPath( scene, owner, picked.mPath ) == INVALID_ENTITY;
+            const string preview = picked.mPath.empty() ? "None"s
+                                   : missing ? std::format( "{} (nothing there)", picked.mPath ) : picked.mPath;
+            ImGui::SetNextItemWidth( 200.0f );
+            if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
+            {
+                if ( ImGui::Selectable( "None", picked.mPath.empty() ) and not picked.mPath.empty() )
+                {
+                    picked = NodePath();
+                    changed = true;
+                }
+                // The tree, indented, each entry naming where it leads from here.
+                std::function<void( Entity, int )> list = [&]( Entity entity, int depth )
+                {
+                    const string relative = RelativePath( scene, owner, entity );
+                    const string label = std::format( "{:{}}{}  {}", "", depth * 2, NameOf( scene, entity ), relative );
+                    ImGui::PushID( (int)(size_t)entity );
+                    if ( not relative.empty() and ImGui::Selectable( label.c_str(), relative == picked.mPath ) and
+                         relative != picked.mPath )
+                    {
+                        picked = NodePath( relative );
+                        changed = true;
+                    }
+                    ImGui::PopID();
+                    for ( const Entity child : ChildrenOf( scene, entity ) )
+                        list( child, depth + 1 );
+                };
+                list( scene.Root(), 0 );
+                ImGui::EndCombo();
+            }
+            return changed;
+        } );
+        ImGui::SameLine();
+        ImGui::Text( "(NodePath)" );
     }
     else if ( any.is<Ref<Texture2D>>() )
     {

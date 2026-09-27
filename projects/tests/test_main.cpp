@@ -27,11 +27,17 @@ void Register( const char* name, void ( *fn )() )
 }
 }
 
-int main()
+// bubble_tests [part of a name]: only the tests whose names contain it.
+int main( int argc, char** argv )
 {
+    const string_view only = argc > 1 ? argv[1] : "";
     for ( const auto& [name, fn] : test::Tests() )
     {
+        if ( not string_view( name ).contains( only ) )
+            continue;
+        // Flushed, so a test that crashes is the last name printed.
         std::println( "{}", name );
+        std::fflush( stdout );
         fn();
     }
 

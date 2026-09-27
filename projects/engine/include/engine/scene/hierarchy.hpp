@@ -26,6 +26,33 @@ bool IsAncestor( const Scene& scene, Entity ancestor, Entity entity );
 // `entity` and everything under it, parents before children, in tree order.
 vector<Entity> Subtree( const Scene& scene, Entity entity );
 
+// Names and paths. An entity's name is its Tag's; among one parent's
+// children no two are the same, so a path of names finds one entity. An
+// entity without a Tag has no name and no path.
+//
+// Paths are names joined with '/': "props/chair" from an entity down,
+// "../door" up to the parent first, "/player/camera" from the root (the root
+// itself is "/"). "." is where the path starts.
+string NameOf( const Scene& scene, Entity entity );
+// `wanted` fit to go under `parent`: '/' taken out, an empty name (or "."
+// or "..") made "Entity", and when a child other than `self` has it already,
+// a number at its end counted up past theirs: chair -> chair2, chair2 -> chair3.
+string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self = INVALID_ENTITY );
+// Renames `entity` if a sibling has its name (or the name is not a valid
+// one). What every place that puts an entity under a parent calls after.
+// Returns whether the name changed.
+bool MakeNameUnique( Scene& scene, Entity entity );
+// The same over a whole subtree, siblings in order - the first keeps its
+// name. For a file, which may come from before names were unique.
+void MakeNamesUnique( Scene& scene, Entity top );
+
+// INVALID_ENTITY when nothing is there.
+Entity FindByPath( const Scene& scene, Entity from, string_view path );
+// "/player/camera"; empty for an entity that is not under the root.
+string PathOf( const Scene& scene, Entity entity );
+// The path that leads from `from` to `to`: "camera", "../door", ".".
+string RelativePath( const Scene& scene, Entity from, Entity to );
+
 // The links alone - no transform changes. Attach puts an entity that hangs
 // from nothing under `parent`, at `index` among its children; Detach takes
 // one out and returns where it was. Both give the entity a

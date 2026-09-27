@@ -2,6 +2,7 @@
 #include "engine/serialization/any_serialization.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/renderer/texture.hpp"
 #include "engine/loader/loader.hpp"
 #include <nlohmann/json.hpp>
@@ -26,6 +27,8 @@ json SaveAnyValue( const Any& v )
         j["id"] = (size_t)v.as<Entity>();
         return j;
     }
+    else if ( v.is<NodePath>() )
+        return json{ { "__type", "NodePath" }, { "path", v.as<NodePath>().mPath } };
     else if ( v.is<Ref<Texture2D>>() )
     {
         json j;
@@ -109,6 +112,8 @@ Any LoadAnyValue( ScriptingEngine& se, const json& j )
             auto id = j["id"].get<size_t>();
             return *(Entity*)&id;
         }
+        else if ( type == "NodePath" )
+            return NodePath( j.value( "path", string() ) );
         else if ( type == "Texture2D" )
         {
             auto texPath = j["path"].get<string>();

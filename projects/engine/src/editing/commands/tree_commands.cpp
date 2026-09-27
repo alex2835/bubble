@@ -2,6 +2,7 @@
 #include "engine/editing/commands/tree_commands.hpp"
 #include "engine/project/project.hpp"
 #include "engine/scene/hierarchy.hpp"
+#include "engine/editing/commands/property_command.hpp"
 #include <sol/sol.hpp>
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/camera_component.hpp"
@@ -123,6 +124,7 @@ void CreateEntityCommand::Execute()
 {
     mEntity = MakeEntity( mKind, mProject, mScene, mSpawnAt );
     AttachChild( mScene, mEntity, mParent );
+    MakeNameUnique( mScene, mEntity );
     mIndex = IndexInParent( mScene, mEntity );
     // Under an entity, the spot asked for is still a place in the world.
     if ( mKind != EntityKind::Folder and mParent != mScene.Root() )
@@ -206,6 +208,7 @@ void CopyEntityCommand::Execute()
     map<Entity, Entity> copied;
     mCopy = CopySubtree( mScene, mSource, mScene, copied );
     AttachChild( mScene, mCopy, mParent );
+    MakeNameUnique( mScene, mCopy );
     mIndex = IndexInParent( mScene, mCopy );
     SetWorldTransform( mScene, mCopy, Transform::FromMatrix( world ) );
 }
@@ -250,6 +253,9 @@ void MoveEntityCommand::Execute()
     if ( mOldParent == mParent and index != cAtEnd and mOldIndex < index )
         index--;
     SetParent( mScene, mEntity, mParent, /*keepWorld*/ true, index );
+    // Among new siblings its name may be taken.
+    mOldName = NameOf( mScene, mEntity );
+    MakeNameUnique( mScene, mEntity );
 }
 
 void MoveEntityCommand::Undo()
@@ -260,6 +266,8 @@ void MoveEntityCommand::Undo()
     AttachChild( mScene, mEntity, mOldParent, mOldIndex );
     if ( mScene.HasComponent<TransformComponent>( mEntity ) )
         static_cast<Transform&>( mScene.GetComponent<TransformComponent>( mEntity ) ) = mOldLocal;
+    if ( mScene.HasComponent<TagComponent>( mEntity ) )
+        mScene.GetComponent<TagComponent>( mEntity ).mName = mOldName;
 }
 
 /// InstantiatePrefabCommand
@@ -310,6 +318,7 @@ Command MakeRefreshPrefabInstance( Project& project, Scene& scene, Entity instan
 
     PrefabPlacement placement;
     placement.mLocal = static_cast<const Transform&>( scene.GetComponent<TransformComponent>( instance ) );
+    placement.mName = NameOf( scene, instance );
     const path prefab = scene.GetComponent<PrefabInstanceComponent>( instance ).mPrefab;
     const Entity parent = ParentOf( scene, instance );
 
@@ -318,6 +327,20 @@ Command MakeRefreshPrefabInstance( Project& project, Scene& scene, Entity instan
     step->Add( CreateScope<InstantiatePrefabCommand>( project, scene, parent, prefab, placement,
                                                       IndexInParent( scene, instance ), (size_t)instance ) );
     return step;
+}
+
+Command MakeRenameCommand( Scene& scene, Entity entity, string_view wanted )
+{
+    if ( not scene.HasEntity( entity ) or not scene.HasComponent<TagComponent>( entity ) )
+        return nullptr;
+    const string old = scene.GetComponent<TagComponent>( entity ).mName;
+    const Entity parent = ParentOf( scene, entity );
+    const string name = parent == INVALID_ENTITY ? ( wanted.empty() ? old : string( wanted ) )
+                                                 : UniqueChildName( scene, parent, wanted, entity );
+    if ( name == old )
+        return nullptr;
+    return CreateScope<SetPropertyCommand<TagComponent, string>>(
+        scene, entity, "Rename", old, name, []( TagComponent& tag, const string& value ) { tag.mName = value; } );
 }
 
 }

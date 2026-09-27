@@ -28,6 +28,8 @@ struct PrefabPlacement
     // the instance's. Its scale is the prefab's, so a change of it in the
     // prefab reaches every instance.
     std::optional<Transform> mLocal;
+    // Refreshed: the old root's name, which is the instance's too.
+    std::optional<string> mName;
 };
 
 // `relPrefab` (relative to the project root) instantiated into `scene` under

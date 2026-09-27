@@ -2,6 +2,8 @@
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
+#include "engine/editing/commands/tree_commands.hpp"
+#include "engine/editing/history.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include "engine/types/array.hpp"
@@ -15,7 +17,24 @@ namespace bubble
 void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, TagComponent& )
 {
     ImGui::TextColored( TEXT_COLOR, "TagComponent" );
-    InputTextField<TagComponent>( ctx, entity, "Name", &TagComponent::mName );
+
+    // The name is a step in the tree: taken when the field is left, not per
+    // key, and made unique among the siblings then - "chair" typed next to a
+    // chair becomes chair2.
+    static Entity sEditing = INVALID_ENTITY;
+    static string sName;
+    if ( sEditing != entity )
+        sName = ctx.mScene.GetComponent<TagComponent>( entity ).mName;
+    ImGui::InputText( "Name", sName );
+    if ( ImGui::IsItemActivated() )
+        sEditing = entity;
+    if ( ImGui::IsItemDeactivated() and sEditing == entity )
+    {
+        sEditing = INVALID_ENTITY;
+        if ( auto step = MakeRenameCommand( ctx.mScene, entity, sName ) )
+            ctx.mHistory.Execute( std::move( step ) );
+    }
+
     InputTextField<TagComponent>( ctx, entity, "Class", &TagComponent::mClass );
 }
 

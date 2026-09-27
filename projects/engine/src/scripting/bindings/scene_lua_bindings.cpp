@@ -3,6 +3,7 @@
 #include "binding_utils.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/scene/hierarchy.hpp"
 #include "engine/loader/loader.hpp"
 #include "engine/physics/physics_engine.hpp"
@@ -71,6 +72,17 @@ void CreateSceneBindings( Scene& scene,
     for ( const auto& [name, compFuncTable] : ComponentManager::Instance() )
         compFuncTable.mCreateLuaBinding( lua );
 
+    // NodePath( "../door" ): an entity by its place in the tree, for State
+    // tables - see node_path.hpp. A level's are entities by the time scripts
+    // run; one made in a script is turned into an entity with entity:find().
+    lua.new_usertype<NodePath>(
+        "NodePath",
+        sol::call_constructor,
+        sol::constructors<NodePath(), NodePath( string )>(),
+        "path", sol::readonly( &NodePath::mPath ),
+        sol::meta_function::to_string,
+        []( const NodePath& p ) { return std::format( "NodePath({})", p.mPath ); } );
+
     // Entity
     lua.new_usertype<Entity>(
         "Entity",
@@ -80,8 +92,18 @@ void CreateSceneBindings( Scene& scene,
         // Add
         "add_tag",
         sol::overload(
-            [&]( const Entity& entity, const string& tag ) { scene.AddComponent<TagComponent>( entity, tag ); },
-            [&]( const Entity& entity, const TagComponent& c ) { scene.AddComponent<TagComponent>( entity, c ); }
+            // The name made unique among the entity's siblings, as in the
+            // editor: a second "enemy" is enemy2.
+            [&]( const Entity& entity, const string& tag )
+            {
+                scene.AddComponent<TagComponent>( entity, tag );
+                MakeNameUnique( scene, entity );
+            },
+            [&]( const Entity& entity, const TagComponent& c )
+            {
+                scene.AddComponent<TagComponent>( entity, c );
+                MakeNameUnique( scene, entity );
+            }
         ),
         // The no-argument and vec3 forms are additions: a transform is required
         // for an entity to be drawn at all, and spelling out
@@ -389,19 +411,55 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity, sol::object parent, sol::optional<bool> keepWorld ) -> bool
         {
             const Entity target = parent.is<Entity>() ? parent.as<Entity>() : INVALID_ENTITY;
-            return SetParent( scene, entity, target, keepWorld.value_or( true ) );
+            if ( not SetParent( scene, entity, target, keepWorld.value_or( true ) ) )
+                return false;
+            MakeNameUnique( scene, entity );
+            return true;
         },
         "get_children",
         [&]( const Entity& entity )
         {
             const auto children = ChildrenOf( scene, entity );
             return sol::as_table( vector<Entity>( children.begin(), children.end() ) );
-        }
+        },
+        // By a path of names from this entity: "wheel", "../door",
+        // "/player/camera" (from the level's root). nil when nothing is there.
+        "find",
+        [&]( const Entity& entity, const string& path ) -> opt<Entity>
+        {
+            const Entity found = FindByPath( scene, entity, path );
+            return found == INVALID_ENTITY ? std::nullopt : opt<Entity>( found );
+        },
+        // "/player/camera".
+        "get_path",
+        [&]( const Entity& entity ) { return PathOf( scene, entity ); },
+        // The Tag's name. Set, it is made unique among the siblings.
+        "name",
+        sol::property(
+            [&]( const Entity& entity ) { return NameOf( scene, entity ); },
+            [&]( const Entity& entity, const string& name )
+            {
+                if ( not scene.HasComponent<TagComponent>( entity ) )
+                    scene.AddComponent<TagComponent>( entity );
+                scene.GetComponent<TagComponent>( entity ).mName = name;
+                MakeNameUnique( scene, entity );
+            }
+        )
     );
 
     // Scene
     // Made under the level's root, so it is in the tree like everything else.
     lua["create_entity"] = [&](){ return CreateChildEntity( scene ); };
+
+    // The level's tree from the top: level:find( "props/chair" ),
+    // level:root().
+    lua["level"] = lua.create_table_with(
+        "find", [&]( sol::object, const string& path ) -> opt<Entity>
+        {
+            const Entity found = FindByPath( scene, scene.Root(), path );
+            return found == INVALID_ENTITY ? std::nullopt : opt<Entity>( found );
+        },
+        "root", [&]( sol::object ) { return scene.Root(); } );
 
 
     lua["remove_entity"] = [&]( Entity entity ) {

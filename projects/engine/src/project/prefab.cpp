@@ -52,6 +52,9 @@ Entity InstantiatePrefab( Project& project,
         transform.mRotation = placement.mLocal->mRotation;
     }
     AttachChild( scene, root, parent == INVALID_ENTITY ? scene.Root() : parent, index );
+    if ( placement.mName and scene.HasComponent<TagComponent>( root ) )
+        scene.GetComponent<TagComponent>( root ).mName = *placement.mName;
+    MakeNameUnique( scene, root );
 
     // Spawned at a point in the world, which under a parent is somewhere
     // else locally.
@@ -121,6 +124,7 @@ vector<Entity> SpawnPrefab( Project& project, Scene& scene, const path& relPrefa
     const Entity root = CopyPrefab( project, scene, relPrefab, copied, std::nullopt );
     if ( scene.HasEntity( scene.Root() ) )
         AttachChild( scene, root, scene.Root() );
+    MakeNameUnique( scene, root );
     scene.GetComponent<TransformComponent>( root ).mPosition = position;
     UpdateWorldTransforms( scene );
 

@@ -17,6 +17,7 @@
 #include "engine/scene/components/rigid_body_component.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/state_component.hpp"
+#include "engine/scene/node_path.hpp"
 
 namespace bubble
 {
@@ -173,7 +174,11 @@ void CreateSpawnBindings( Scene& scene,
         const Entity entity = CreateChildEntity( scene );
 
         if ( const auto tag = Field<string>( description, "tag" ) )
+        {
             scene.AddComponent<TagComponent>( entity, *tag );
+            // cube, cube2, cube3 ... under the root, so each has a path.
+            MakeNameUnique( scene, entity );
+        }
 
         // A transform always exists. Nothing without one is drawn, simulated or
         // picked, and defaulting it costs nothing.
@@ -259,6 +264,7 @@ void CreateSpawnBindings( Scene& scene,
         // State before script: on_start runs below and is handed this table.
         scene.AddComponent<StateComponent>(
             entity, Any( Field<Table>( description, "state" ).value_or( lua.create_table() ) ) );
+        ResolveNodePaths( scene, entity );
 
         if ( const auto script = ResourceField<Script>( description, "script",
                                                         [&]( const path& p ){ return loader.LoadScript( p ); },
