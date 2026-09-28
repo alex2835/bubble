@@ -188,8 +188,9 @@ void SetAt( entt::meta_any& owner, std::span<const Step> steps, entt::meta_any& 
 {
     const Step& step = steps.front();
     const entt::meta_data field = FieldOf( owner, step.mName, path );
-    if ( FieldInfoOf( field ).Has( FieldInfo::ReadOnly ) )
-        throw std::runtime_error( std::format( "'{}': {} is read only", path, step.mName ) );
+    if ( const FieldInfo& info = FieldInfoOf( field ); info.Has( FieldInfo::ReadOnly ) )
+        throw std::runtime_error( info.mTooltip ? std::format( "'{}': {} is read only - {}", path, step.mName, info.mTooltip )
+                                                : std::format( "'{}': {} is read only", path, step.mName ) );
 
     if ( steps.size() == 1 and not step.mIndex )
     {

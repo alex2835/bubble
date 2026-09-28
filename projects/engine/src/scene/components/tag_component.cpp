@@ -42,7 +42,11 @@ void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity,
 void TagComponent::Reflect()
 {
     TypeBuilder<TagComponent>( Name().data() )
-        .Field<&TagComponent::mName>( "name" )
+        // A name is unique among its siblings - paths lead through it - so it
+        // is changed where that is kept: the tree, scene.rename, entity.name.
+        .Field<&TagComponent::mName>( "name", {
+            .mFlags = FieldInfo::ReadOnly,
+            .mTooltip = "renamed with scene.rename or entity.name, which keep it unique among its siblings" } )
         .Field<&TagComponent::mClass>( "class" );
 }
 

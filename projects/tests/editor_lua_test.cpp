@@ -155,3 +155,21 @@ TEST( EditorLua_Properties )
     CHECK( fails( "editor.ops.property.set{ path = 'state.x', value = 1 }", "does not describe its fields yet" ) );
     CHECK( fails( "editor.get( 'Lamp', 'light.type' )", "nothing at 'Lamp'" ) );
 }
+
+// A name is unique among siblings; the field does not go around that.
+TEST( EditorLua_NamesThroughRename )
+{
+    OperatorRegistry::RegisterBuiltins();
+    Fixture f;
+    Selection selection;
+    Clipboard clipboard;
+    OperatorQueue queue;
+    EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
+    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'light' }" ).empty() );
+    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'light' }" ).empty() );
+    const string error = lua.Run( "editor.ops.property.set{ entity = 'Light2', path = 'tag.name', value = 'Light' }" );
+    CHECK( error.find( "name is read only - renamed with scene.rename" ) != string::npos );
+    // The operator for it keeps the names apart.
+    CHECK( lua.Run( "editor.ops.scene.rename{ entity = 'Light2', name = 'Light' }" ).empty() );
+    CHECK( lua.Run( "assert( editor.try_find( 'Light2' ) ~= nil )" ).empty() );
+}

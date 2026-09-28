@@ -396,7 +396,8 @@ a component derives from its fields follows at once: setting
 ### tag
 
 Constructible: `tag()`, `tag( name )`, `tag( name, class )`.
-Fields: `name`, `class`. Has `tostring`.
+Fields: `name` (read only: rename with `entity.name`, which keeps it unique
+among its siblings), `class`. Has `tostring`.
 
 ### transform
 
