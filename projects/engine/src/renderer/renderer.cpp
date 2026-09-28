@@ -112,11 +112,6 @@ void Renderer::FlushDrawUniforms()
     mDrawRing.Flush();
     mSkinRing.Flush();
     mUserRing.Flush();
-    // Flush is where a ring grows, and a new buffer needs a new group. The
-    // commands recorded this frame already point at the old one, which the
-    // old group keeps alive until they are done.
-    if ( mDrawRing.Generation() + mSkinRing.Generation() != mDrawBindGroupGeneration )
-        RebuildDrawBindGroup();
 }
 
 void Renderer::SetCameraUniformBuffers( const Camera& camera, const Framebuffer& framebuffer )
@@ -203,6 +198,12 @@ void Renderer::DrawMeshPrimitives( const RenderTarget& target,
         return;
 
     target.mPass.setPipeline( pipeline );
+
+    // A ring that grew for this draw has a new buffer, and the group is built
+    // from it. The commands recorded before keep the old group, and it keeps
+    // the old buffer alive until they are done.
+    if ( mDrawRing.Generation() + mSkinRing.Generation() != mDrawBindGroupGeneration )
+        RebuildDrawBindGroup();
 
     // The draw group is always bound, even for shaders that read nothing from
     // it - a pipeline layout entry has to be satisfied.

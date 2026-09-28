@@ -311,20 +311,36 @@ std::pair<string_view, u64> SplitNumber( string_view name )
 string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self )
 {
     const string name = ValidName( wanted );
-    str_hash_set taken;
-    for ( const Entity sibling : ChildrenOf( scene, parent ) )
-        if ( sibling != self and scene.HasComponent<TagComponent>( sibling ) )
-            taken.insert( scene.GetComponent<TagComponent>( sibling ).mName );
-    if ( not taken.contains( name ) )
+    const auto [base, number] = SplitNumber( name );
+    // One pass, no strings made: a spawn loop names hundreds of siblings
+    // alike, and each of them is checked against all the ones before it.
+    // The numbers after `base` its siblings have, and whether one is `name`.
+    // Of n siblings, the first free number is among the n after `number`.
+    const auto siblings = ChildrenOf( scene, parent );
+    const u64 first = std::max<u64>( number, 1 ) + 1;
+    bool nameTaken = false;
+    vector<bool> numbers( siblings.size() + 1 );
+    for ( const Entity sibling : siblings )
+    {
+        const TagComponent* tag = sibling != self ? scene.TryGetComponent<TagComponent>( sibling ) : nullptr;
+        if ( not tag )
+            continue;
+        const string_view other = tag->mName;
+        nameTaken = nameTaken or other == name;
+        if ( not other.starts_with( base ) )
+            continue;
+        const string_view digits = other.substr( base.size() );
+        u64 n = 0;
+        const auto [end, error] = std::from_chars( digits.data(), digits.data() + digits.size(), n );
+        if ( not digits.empty() and digits.front() != '0' and error == std::errc() and end == digits.data() + digits.size()
+             and n >= first and n - first < numbers.size() )
+            numbers[n - first] = true;
+    }
+    if ( not nameTaken )
         return name;
 
-    const auto [base, number] = SplitNumber( name );
-    for ( u64 n = std::max<u64>( number, 1 ) + 1;; n++ )
-    {
-        string candidate = std::format( "{}{}", base, n );
-        if ( not taken.contains( candidate ) )
-            return candidate;
-    }
+    const u64 free = std::ranges::find( numbers, false ) - numbers.begin();
+    return std::format( "{}{}", base, first + free );
 }
 
 bool MakeNameUnique( Scene& scene, Entity entity )

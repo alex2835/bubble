@@ -159,7 +159,9 @@ public:
 
     // Stages one block and returns the dynamic offset for it. A short block is
     // zero padded; a longer one is truncated, which Init's caller has already
-    // rejected at load time.
+    // rejected at load time. A full ring grows here, mid frame: Generation()
+    // moves, and a group built from GetBuffer() has to be built again before
+    // the offset is used.
     u32 Push( const void* data, u64 size );
 
     // Uploads everything staged so far. Must happen before the commands that
@@ -184,9 +186,6 @@ private:
     u64 mSlotSize = 0;   // mBlockSize rounded up to the offset alignment
     u64 mSlotCount = 0;
     u64 mUsed = 0;
-    // Growth is deferred to Flush: reallocating mid frame would orphan the bind
-    // group that already-recorded draw commands point at.
-    u64 mPendingGrowth = 0;
     u64 mGeneration = 0;
 };
 

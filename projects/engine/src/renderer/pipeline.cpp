@@ -184,7 +184,7 @@ void DynamicUniformRing::Init( u64 blockSize, wgpu::BindGroupLayout layout, stri
 void DynamicUniformRing::Reallocate( u64 slotCount )
 {
     mSlotCount = slotCount;
-    mStaging.assign( mSlotSize * mSlotCount, 0 );
+    mStaging.resize( mSlotSize * mSlotCount, 0 );
 
     wgpu::BufferDescriptor bufferDesc = wgpu::Default;
     bufferDesc.label = wgpu::StringView( mLabel );
@@ -225,12 +225,14 @@ u32 DynamicUniformRing::Push( const void* data, u64 size )
 {
     if ( mUsed >= mSlotCount )
     {
-        // Growing mid frame would orphan the bind group the already-recorded
-        // commands point at, so the extra room is taken on the next frame
-        // instead and this draw reuses the last slot.
-        LogWarning( "{} exhausted at {} slots, growing next frame", mLabel, mSlotCount );
-        mPendingGrowth = std::max( mPendingGrowth, mSlotCount * 2 );
-        return (u32)( ( mSlotCount - 1 ) * mSlotSize );
+        // Full: the draws recorded so far keep the buffer they were bound
+        // with, so what they read goes up to it now - queue writes land
+        // before the submit - and the rest of the frame goes on in a buffer
+        // twice the size. A shared last slot instead drew every draw past
+        // the end with the transform of the last of them, for a frame.
+        if ( mBuffer )
+            Gpu().Queue().writeBuffer( *mBuffer, 0, mStaging.data(), mUsed * mSlotSize );
+        Reallocate( mSlotCount * 2 );
     }
 
     const u64 offset = mUsed * mSlotSize;
@@ -247,12 +249,6 @@ void DynamicUniformRing::Flush()
 {
     if ( mUsed > 0 and mBuffer )
         Gpu().Queue().writeBuffer( *mBuffer, 0, mStaging.data(), mUsed * mSlotSize );
-
-    if ( mPendingGrowth > mSlotCount )
-    {
-        Reallocate( mPendingGrowth );
-        mPendingGrowth = 0;
-    }
 }
 
 
