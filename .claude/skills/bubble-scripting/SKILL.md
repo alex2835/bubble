@@ -83,11 +83,12 @@ The one thing that separates these from the rest of the API: breaking them
 corrupts memory rather than producing a wrong answer, and the damage usually
 surfaces frames later somewhere unrelated.
 
-The whole of it follows from one fact. **Components live in pooled arrays.**
-`Pool::Push` reallocates and frees the old buffer; `Pool::Remove` compacts every
-pool the entity touched and shifts everything after the hole. `spawn`, `add_*`
-and `remove_entity` all do one or the other, and scripts are now free to call
-them — so a reference taken on one line can be dangling on the next.
+The whole of it follows from one fact. **Components live in packed arrays, one
+per type (EnTT storages, behind `Scene`).** Removing a component destroys it and
+moves the last one of its type into the hole; removing an entity does that for
+every component it had, and `add_*` over an existing component replaces it.
+Scripts are free to call `remove_entity` and `add_*` — so a reference taken on
+one line can be dangling, or point at another entity's component, on the next.
 
 ### R1 — Do not keep anything `for_each_entity` hands you
 

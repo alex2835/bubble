@@ -77,14 +77,14 @@ void ProjectViewportWindow::ResolvePendingSelection()
         // from thinking in RGB and quietly dropped two thirds of a selection.
         for ( u64 i = 0; i < pixels.size(); i++ )
         {
-            if ( pixels[i] > 0 )
-                entities.insert( mLevel.mScene.GetEntityById( pixels[i] ) );
+            if ( Entity( pixels[i] ) != Entity::Null )
+                entities.insert( Entity( pixels[i] ) );
         }
         mSelection.AddEntities( entities, mLevel.mScene );
     }
-    else if ( pixels[0] > 0 )
+    else if ( Entity( pixels[0] ) != Entity::Null )
     {
-        mSelection.AddEntity( mLevel.mScene.GetEntityById( pixels[0] ), mLevel.mScene );
+        mSelection.AddEntity( Entity( pixels[0] ), mLevel.mScene );
     }
 }
 
@@ -244,7 +244,7 @@ void ProjectViewportWindow::DrawGizmoOneEntity( Entity entity )
     if ( ImGuizmo::IsUsing() )
     {
         const Entity parent = ParentOf( scene, entity );
-        const Transform moved = Transform::FromMatrix( parent == INVALID_ENTITY
+        const Transform moved = Transform::FromMatrix( parent == Entity::Null
                                                        ? transformNew
                                                        : glm::inverse( ComputeWorldMatrix( scene, parent ) ) * transformNew );
         if ( mCurrentGizmoOperation & ImGuizmo::TRANSLATE )

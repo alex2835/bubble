@@ -52,7 +52,7 @@ TEST( Hierarchy_WorldFollowsParents )
     CHECK( not SetParent( scene, scene.Root(), a ) );
 
     // Back under the root, keeping its place in the world.
-    CHECK( SetParent( scene, c, INVALID_ENTITY, true ) );
+    CHECK( SetParent( scene, c, Entity::Null, true ) );
     UpdateWorldTransforms( scene );
     CHECK( ParentOf( scene, c ) == scene.Root() );
     CHECK( Near( WorldPosition( scene, c ), vec3( 10, 6, -2 ) ) );
@@ -98,7 +98,8 @@ TEST( Hierarchy_SavedAndLoaded )
     const json saved = f.project.mLevel.ToJson( f.project );
     Level loaded;
     loaded.FromJson( saved, f.project );
-    const auto id = []( Scene& s, Entity e ) { return s.GetEntityById( (size_t)e ); };
+    // A load keeps every id.
+    const auto id = []( Scene&, Entity e ) { return e; };
     CHECK( loaded.Root() == id( loaded.mScene, f.Root() ) );
     CHECK( ParentOf( loaded.mScene, id( loaded.mScene, parent ) ) == loaded.Root() );
     // The children in their order.
@@ -107,4 +108,34 @@ TEST( Hierarchy_SavedAndLoaded )
     // World transforms are ready right after a load. `first` was made at
     // (1, 2, 3) in the world, where its parent then was, so it sits on it.
     CHECK( Near( WorldPosition( loaded.mScene, id( loaded.mScene, first ) ), vec3( 0, 10, 0 ) ) );
+}
+
+// Every id is an entity, 0 included: the root has no "Parent" in the file,
+// and a link to an id the file does not have is dropped on load rather than
+// left to name whatever entity is made under that id later.
+TEST( Hierarchy_NoIdMeansNothing )
+{
+    Fixture f;
+    const Entity child = f.Create( EntityKind::Light );
+    json saved = f.project.mLevel.ToJson( f.project );
+    json& pools = saved["Scene"]["Component pools"]["Hierarchy"];
+    CHECK( not pools[std::to_string( f.Root() )].contains( "Parent" ) );
+
+    // The root under a parent the file does not have, and a child that is
+    // not there: both dropped.
+    const u64 missing = 777;
+    pools[std::to_string( f.Root() )]["Parent"] = missing;
+    pools[std::to_string( f.Root() )]["Children"].push_back( missing );
+    Level loaded;
+    loaded.FromJson( saved, f.project );
+    CHECK( ParentOf( loaded.mScene, loaded.Root() ) == Entity::Null );
+    CHECK( ChildrenOf( loaded.mScene, loaded.Root() ).size() == 1 );
+
+    // An entity made afterwards under the id the root pointed at is not its
+    // parent, and has a path of its own.
+    const Entity made = loaded.mScene.CreateEntity( Entity::FromId( missing ) );
+    loaded.mScene.AddComponent<TagComponent>( made, "late" );
+    AttachChild( loaded.mScene, made, loaded.Root() );
+    CHECK( PathOf( loaded.mScene, made ) == "/late" );
+    CHECK( PathOf( loaded.mScene, child ) == "/Light" );
 }

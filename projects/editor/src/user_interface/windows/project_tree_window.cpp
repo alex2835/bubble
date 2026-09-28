@@ -92,7 +92,7 @@ const Ref<Texture2D>& ProjectTreeWindow::IconOf( Entity entity ) const
 string ProjectTreeWindow::NameOf( Entity entity ) const
 {
     const Scene& scene = mLevel.mScene;
-    return scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName : string();
+    return bubble::NameOf( scene, entity );
 }
 
 // Deferred to the end of DrawEntities: most of these change the scene, and
@@ -237,7 +237,7 @@ void ProjectTreeWindow::DragDrop( Entity entity )
                                             { "spawn_at", SpawnPoint() } } );
         if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "SCENE_ENTITY" ) )
         {
-            const Entity dragged = scene.GetEntityById( *(const u64*)payload->Data );
+            const Entity dragged = Entity::FromId( *(const u64*)payload->Data );
             if ( scene.HasEntity( dragged ) and dragged != entity and not IsAncestor( scene, dragged, entity ) and
                  ParentOf( scene, dragged ) != entity )
                 mDeferred.push_back( [this, dragged, entity]()
@@ -298,10 +298,10 @@ void ProjectTreeWindow::DrawEntity( Entity entity )
         if ( ImGui::InputText( "##rename", mRenameText, inputFlags ) )
         {
             Rename( entity, mRenameText );
-            mRenaming = INVALID_ENTITY;
+            mRenaming = Entity::Null;
         }
         else if ( ImGui::IsItemDeactivated() )
-            mRenaming = INVALID_ENTITY;
+            mRenaming = Entity::Null;
     }
 
     if ( open and not children.empty() )
@@ -329,14 +329,15 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 {
     BUBBLE_ASSERT( mSelection.GetEntities().size() == 1, "Draw only one entity selected" );
     auto selectedEntity = *mSelection.GetEntities().begin();
-    if ( selectedEntity == INVALID_ENTITY or not mLevel.mScene.HasEntity( selectedEntity ) )
+    if ( not mLevel.mScene.HasEntity( selectedEntity ) )
         return;
 
     ImGui::BeginChild( "Components" );
     if ( Editable() )
     {
-        const auto& componentIDs = mLevel.mScene.AllComponentTypeIds();
-        const auto& entityComponents = mLevel.mScene.EntityComponentTypeIds( selectedEntity );
+        Scene& scene = mLevel.mScene;
+        const auto& componentIDs = ComponentManager::Ids();
+        const vector<ComponentTypeId> entityComponents = scene.ComponentsOf( selectedEntity );
 
         // Entity components popups
         if ( ImGui::IsWindowHovered() and ImGui::IsMouseClicked( ImGuiMouseButton_Right ) )
@@ -349,7 +350,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
                 for ( const auto componentId : componentIDs )
                 {
                     // The tree's own: set by moving and instantiating, not by hand.
-                    if ( entityComponents.contains( componentId ) or componentId == HierarchyComponent::ID() or
+                    if ( scene.HasComponent( selectedEntity, componentId ) or componentId == HierarchyComponent::ID() or
                          componentId == PrefabInstanceComponent::ID() )
                         continue;
 
@@ -365,7 +366,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
             {
                 for ( auto componentID : componentIDs )
                 {
-                    if ( not entityComponents.contains( componentID ) or
+                    if ( not scene.HasComponent( selectedEntity, componentID ) or
                          componentID == TagComponent::ID() or // Can't remove tag
                          componentID == HierarchyComponent::ID() )
                         continue;
@@ -381,9 +382,13 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
 
         // Entity components
         InspectorContext ctx{ mProject, mLevel.mScene, mHistory };
-        mLevel.mScene.ForEachEntityComponentRaw( selectedEntity,
-                                                 [&]( recs::ComponentTypeId componentID, void* componentRaw )
+        for ( const ComponentTypeId componentID : entityComponents )
         {
+            // Looked up again for each: a component drawn before may have
+            // changed what the entity has.
+            void* componentRaw = scene.TryGetComponent( selectedEntity, componentID );
+            if ( not componentRaw )
+                continue;
             auto onDrawFunc = ComponentManager::GetOnDraw( componentID );
             if ( onDrawFunc )
                 onDrawFunc( ctx, selectedEntity, componentRaw );
@@ -391,7 +396,7 @@ void ProjectTreeWindow::DrawSelectedEntityComponents()
                 ImGui::Text( "%s", std::format( "Component {} not drawable", componentID ).c_str() );
             ImGui::Separator();
             ImGui::Dummy( ImVec2( 0, 10 ) );
-        } );
+        }
     }
     ImGui::EndChild();
 }

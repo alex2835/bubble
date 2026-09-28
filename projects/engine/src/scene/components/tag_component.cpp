@@ -21,7 +21,7 @@ void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity,
     // The name is a step in the tree: taken when the field is left, not per
     // key, and made unique among the siblings then - "chair" typed next to a
     // chair becomes chair2.
-    static Entity sEditing = INVALID_ENTITY;
+    static Entity sEditing = Entity::Null;
     static string sName;
     if ( sEditing != entity )
         sName = ctx.mScene.GetComponent<TagComponent>( entity ).mName;
@@ -30,7 +30,7 @@ void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity,
         sEditing = entity;
     if ( ImGui::IsItemDeactivated() and sEditing == entity )
     {
-        sEditing = INVALID_ENTITY;
+        sEditing = Entity::Null;
         if ( auto step = MakeRenameCommand( ctx.mScene, entity, sName ) )
             ctx.mHistory.Execute( std::move( step ) );
     }

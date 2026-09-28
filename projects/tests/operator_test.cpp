@@ -81,5 +81,5 @@ TEST( Operators )
     // Everything above is undoable in order
     while ( f.history.CanUndo() )
         f.history.Undo();
-    CHECK( f.Top().empty() and f.scene.Size() == 1 );
+    CHECK( f.Top().empty() and f.scene.EntityCount() == 1 );
 }

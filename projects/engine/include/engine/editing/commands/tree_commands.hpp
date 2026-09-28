@@ -56,7 +56,7 @@ private:
     EntityKind mKind;
     Transform mSpawnAt;
     string mName;
-    Entity mEntity = INVALID_ENTITY;
+    Entity mEntity = Entity::Null;
     size_t mIndex = 0;
     Scene mBackup;
 };
@@ -103,7 +103,7 @@ private:
     Scene& mScene;
     Entity mSource;
     Entity mParent;
-    Entity mCopy = INVALID_ENTITY;
+    Entity mCopy = Entity::Null;
     size_t mIndex = 0;
     Scene mBackup;
 };
@@ -126,7 +126,7 @@ private:
     Entity mEntity;
     Entity mParent;
     size_t mIndex;
-    Entity mOldParent = INVALID_ENTITY;
+    Entity mOldParent = Entity::Null;
     size_t mOldIndex = 0;
     Transform mOldLocal;
     string mOldName;
@@ -146,7 +146,7 @@ public:
                               path relPrefab,
                               PrefabPlacement placement,
                               size_t index = size_t( -1 ),
-                              std::optional<size_t> rootId = std::nullopt );
+                              Entity rootId = Entity::Null );
 
     string_view Name() const override { return "Instantiate prefab"sv; }
     void Execute() override;
@@ -162,8 +162,8 @@ private:
     path mPrefab;
     PrefabPlacement mPlacement;
     size_t mIndex;
-    std::optional<size_t> mRootId;
-    Entity mRoot = INVALID_ENTITY;
+    Entity mRootId;
+    Entity mRoot = Entity::Null;
     Scene mBackup;
 };
 

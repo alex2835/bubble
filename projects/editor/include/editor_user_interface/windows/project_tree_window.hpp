@@ -58,7 +58,7 @@ private:
     Ref<Texture2D> mAudioIcon;
 
     // F2: the entity being renamed and the text so far.
-    Entity mRenaming = INVALID_ENTITY;
+    Entity mRenaming = Entity::Null;
     string mRenameText;
     bool mFocusRename = false;
 

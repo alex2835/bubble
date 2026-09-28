@@ -25,10 +25,10 @@ void ResolveIn( Scene& scene, Entity owner, Table table, int depth )
         {
             const string& path = value.as<NodePath>().mPath;
             const Entity found = FindByPath( scene, owner, path );
-            if ( found == INVALID_ENTITY )
+            if ( found == Entity::Null )
                 LogWarning( "State of {}: NodePath '{}' leads nowhere - {}", DescribeEntity( scene, owner ), path,
                             WhyPathFails( scene, owner, path ) );
-            changes.emplace_back( key, found == INVALID_ENTITY ? sol::make_object( table.lua_state(), sol::lua_nil )
+            changes.emplace_back( key, found == Entity::Null ? sol::make_object( table.lua_state(), sol::lua_nil )
                                                                : sol::make_object( table.lua_state(), found ) );
         }
     }

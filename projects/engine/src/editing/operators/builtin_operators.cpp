@@ -35,29 +35,29 @@ Entity EntityArg( const OperatorContext& ctx, const json& args, const char* key,
     {
         const string path = args.at( key ).get<string>();
         const Entity found = FindByPath( SceneOf( ctx ), SceneOf( ctx ).Root(), path );
-        if ( found == INVALID_ENTITY )
+        if ( found == Entity::Null )
             throw std::runtime_error( std::format( "{}: nothing at '{}' - {}", key, path,
                                                    WhyPathFails( SceneOf( ctx ), SceneOf( ctx ).Root(), path ) ) );
         return found;
     }
     const auto id = args.at( key ).get<u64>();
-    const Entity entity = SceneOf( ctx ).GetEntityById( id );
+    const Entity entity = Entity::FromId( id );
     if ( not SceneOf( ctx ).HasEntity( entity ) )
         throw std::runtime_error( std::format( "{}: no entity {}", key, id ) );
     return entity;
 }
 
-// The single selected entity, or INVALID_ENTITY.
+// The single selected entity, or Entity::Null.
 Entity SelectedOne( const OperatorContext& ctx )
 {
-    return ctx.mSelection.IsSingleSelection() ? ctx.mSelection.GetSingleEntity() : INVALID_ENTITY;
+    return ctx.mSelection.IsSingleSelection() ? ctx.mSelection.GetSingleEntity() : Entity::Null;
 }
 
 // An entity named in args, or the single selected one - required.
 Entity RequiredEntity( const OperatorContext& ctx, const json& args, const char* key )
 {
     const Entity entity = EntityArg( ctx, args, key, SelectedOne( ctx ) );
-    if ( entity == INVALID_ENTITY )
+    if ( entity == Entity::Null )
         throw std::runtime_error( std::format( "{}: not given and the selection is not one entity", key ) );
     return entity;
 }
@@ -74,12 +74,12 @@ Entity TargetParent( const OperatorContext& ctx )
 {
     const Scene& scene = SceneOf( ctx );
     const Entity selected = SelectedOne( ctx );
-    if ( selected == INVALID_ENTITY )
+    if ( selected == Entity::Null )
         return scene.Root();
     if ( selected == scene.Root() or scene.HasComponent<FolderComponent>( selected ) )
         return selected;
     const Entity parent = ParentOf( scene, selected );
-    return parent != INVALID_ENTITY ? parent : scene.Root();
+    return parent != Entity::Null ? parent : scene.Root();
 }
 
 bool HasSelection( const OperatorContext& ctx, const json& ) { return not ctx.mSelection.IsEmpty(); }
@@ -212,7 +212,7 @@ void OperatorRegistry::RegisterBuiltins()
         {
             const Entity entity = RequiredEntity( ctx, args, "entity" );
             const auto componentId = ComponentArg( args );
-            if ( SceneOf( ctx ).EntityComponentTypeIds( entity ).contains( componentId ) )
+            if ( SceneOf( ctx ).HasComponent( entity, componentId ) )
                 return;
             ctx.mHistory.Execute( CreateScope<AddComponentCommand>( entity, componentId, ctx.mProject, SceneOf( ctx ) ) );
         } } );
@@ -223,7 +223,7 @@ void OperatorRegistry::RegisterBuiltins()
             const auto componentId = ComponentArg( args );
             if ( componentId == TagComponent::ID() )
                 throw std::runtime_error( "component: the Tag component cannot be removed" );
-            if ( not SceneOf( ctx ).EntityComponentTypeIds( entity ).contains( componentId ) )
+            if ( not SceneOf( ctx ).HasComponent( entity, componentId ) )
                 return;
             ctx.mHistory.Execute( CreateScope<RemoveComponentCommand>( entity, componentId, SceneOf( ctx ) ) );
         } } );

@@ -133,7 +133,7 @@ public:
 
     // Engine
     Camera mCamera;
-    Entity mActiveCameraEntity = INVALID_ENTITY;
+    Entity mActiveCameraEntity = Entity::Null;
 
     // Set by load_level from a script, applied at the end of OnUpdate: a switch
     // in the middle of the script loop would destroy the pools it walks.

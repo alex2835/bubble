@@ -48,30 +48,24 @@ void Level::SetRootName( const string& name )
 json Level::SaveScene( const Project& project ) const
 {
     json j;
-    j["Entity counter"] = mScene.mEntityCounter;
     j["Root"] = (u64)mScene.Root();
-    // Entity components
+    // Every entity, with the ids of its components - an entity is kept even
+    // when it has none.
     auto& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entity, componentTypeIds] : mScene.mEntitiesComponentTypeIds )
-        entityComponentsJson[std::to_string( entity )] = componentTypeIds;
+    mScene.ForEachEntity( [&]( Entity entity )
+    {
+        entityComponentsJson[std::to_string( entity )] = mScene.ComponentsOf( entity );
+    } );
 
     json& poolsJson = j["Component pools"];
-    for ( const auto& componentID : mScene.mComponents )
+    for ( const ComponentTypeId componentID : ComponentManager::Ids() )
     {
-        const auto iter = mScene.mPools.find( componentID );
-        if ( iter == mScene.mPools.end() )
-            throw std::runtime_error( std::format( "No pool for component: {}", componentID ) );
-
-        const auto& pool = iter->second;
         json& poolJson = poolsJson[ComponentManager::GetName( componentID )];
-
         const auto& componentToJson = ComponentManager::GetToJson( componentID );
-        const auto& poolEntities = pool.Entities();
-        for ( size_t i = 0; i < poolEntities.size(); i++ )
+        mScene.ForEachComponent( componentID, [&]( Entity entity, const void* component )
         {
-            const auto entityStr = std::to_string( poolEntities[i] );
-            componentToJson( poolJson[entityStr], project, pool.GetRaw( i ) );
-        }
+            componentToJson( poolJson[std::to_string( entity )], project, component );
+        } );
     }
     return j;
 }
@@ -79,47 +73,21 @@ json Level::SaveScene( const Project& project ) const
 
 void Level::LoadScene( const json& j, Project& project )
 {
-    mScene.mEntityCounter = j["Entity counter"];
-    // Entity components
-    const json& entityComponentsJson = j["Entity components"];
-    for ( const auto& [entityStr, componentsJson] : entityComponentsJson.items() )
-    {
-        set<ComponentTypeId> components;
-        for ( ComponentTypeId component : componentsJson )
-            components.insert( component );
-
-        u64 entityId = std::atoi( entityStr.c_str() );
-        Entity entity = *(Entity*)&entityId;
-        mScene.mEntitiesComponentTypeIds[entity] = components;
-    }
+    // The entities first, under the ids the file gives them: components and
+    // the tree refer to one another by those.
+    for ( const auto& [entityStr, componentsJson] : j["Entity components"].items() )
+        mScene.CreateEntity( Entity::FromId( std::strtoull( entityStr.c_str(), nullptr, 10 ) ) );
 
     for ( const auto& [componentNameString, poolJson] : j["Component pools"].items() )
     {
-        int componentID = ComponentManager::GetID( componentNameString );
-        auto componentsIter = mScene.mComponents.find( componentID );
-        if ( componentsIter == mScene.mComponents.end() )
-            throw std::runtime_error( std::format( "Scene from_json failed. No such component: {}", componentID ) );
-
-        auto poolsIter = mScene.mPools.find( componentID );
-        if ( poolsIter == mScene.mPools.end() )
-            throw std::runtime_error( std::format( "scene from_json failed. No such pool {}", componentID ) );
-
-        Pool& pool = poolsIter->second;
+        // Throws on a name no component has.
+        const ComponentTypeId componentID = ComponentManager::GetID( componentNameString );
         const auto& componentFromJson = ComponentManager::GetFromJson( componentID );
-
-        // json object keys are strings, so items() yields "1", "10", "100", "2"...
-        // Feeding a sorted pool in that order makes every insert shift the tail
-        // (O(n^2) load). Sort numerically first so each push appends instead.
-        std::vector<std::pair<u64, const json*>> ordered;
-        ordered.reserve( poolJson.size() );
         for ( const auto& [entityIdStr, componentJson] : poolJson.items() )
-            ordered.emplace_back( std::strtoull( entityIdStr.c_str(), nullptr, 10 ), &componentJson );
-
-        std::sort( ordered.begin(), ordered.end(),
-                   []( const auto& a, const auto& b ) { return a.first < b.first; } );
-
-        for ( const auto& [entityId, componentJson] : ordered )
-            componentFromJson( *componentJson, project, pool.PushEmpty( mScene.GetEntityById( entityId ) ) );
+        {
+            const Entity entity = Entity::FromId( std::strtoull( entityIdStr.c_str(), nullptr, 10 ) );
+            componentFromJson( componentJson, project, mScene.AddComponent( entity, componentID ) );
+        }
     }
 }
 
@@ -136,9 +104,12 @@ void Level::FromJson( const json& j, Project& project )
     // Loaded into an empty scene: the default root goes, the file brings one.
     mScene = Scene();
     LoadScene( j["Scene"], project );
-    mScene.SetRoot( mScene.GetEntityById( j["Scene"].value( "Root", u64( 0 ) ) ) );
+    const json& scene = j["Scene"];
+    if ( scene.contains( "Root" ) )
+        mScene.SetRoot( Entity::FromId( scene["Root"].get<u64>() ) );
     if ( not mScene.HasEntity( Root() ) )
         throw std::runtime_error( "Level has no root entity" );
+    DropDanglingLinks( mScene );
     // A file edited by hand may repeat a name among siblings; the second gets
     // a number, so every path leads somewhere.
     MakeNamesUnique( mScene, Root() );

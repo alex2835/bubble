@@ -41,7 +41,7 @@ Entity InstantiatePrefab( Project& project,
                           size_t index,
                           const path& relPrefab,
                           const PrefabPlacement& placement,
-                          std::optional<size_t> rootId = std::nullopt );
+                          Entity rootId = Entity::Null );
 
 // Writes `entity` and everything under it as a prefab, `entity` its root:
 // placed at the origin, turned and scaled as it is in the world.

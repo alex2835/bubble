@@ -279,7 +279,7 @@ void Engine::UnloadLevel()
     } );
     mPhysicsEngine.ClearWorld();
     mAudioEngine.StopAll();
-    mActiveCameraEntity = INVALID_ENTITY;
+    mActiveCameraEntity = Entity::Null;
     mMultipleListenersReported = false;
     mProject.mLevel.Clear();
 }
@@ -361,7 +361,7 @@ void Engine::PropagatePhysicsTransforms( Scene& scene )
     {
         Transform world = transform.World();
         rigidBody.mRigidBody.GetTransform( world.mPosition, world.mRotation );
-        if ( ParentOf( scene, entity ) == INVALID_ENTITY )
+        if ( ParentOf( scene, entity ) == Entity::Null )
         {
             transform.mPosition = world.mPosition;
             transform.mRotation = world.mRotation;
@@ -375,7 +375,7 @@ void Engine::PropagatePhysicsTransforms( Scene& scene )
                   TransformComponent& transform,
                   const CharacterControllerComponent& controller )
     {
-        if ( ParentOf( scene, entity ) == INVALID_ENTITY )
+        if ( ParentOf( scene, entity ) == Entity::Null )
         {
             transform.mPosition = controller.mController.GetPosition();
             return;
@@ -408,12 +408,12 @@ void Engine::ForEachScriptEntity( const ScriptEntityFn& fn )
 
     // Over a snapshot of the entities rather than a live walk.
     //
-    // ForEach hands its callback references straight into the component pools
-    // and walks them by index, so a script that mutates the scene pulls the
-    // ground out from under the iteration it is running inside: Pool::Push
-    // reallocates and frees the old buffer, and Pool::Remove compacts every
-    // pool and shifts every index after the hole. Taking the entity list first
-    // and looking each entity up again is what makes spawn() and
+    // ForEach hands its callback references straight into the component
+    // storages and walks them by index, so a script that mutates the scene
+    // pulls the ground out from under the iteration it is running inside: a
+    // removal moves the last component of its type into the hole, and an
+    // entity added mid walk may or may not be reached. Taking the entity list
+    // first and looking each entity up again is what makes spawn() and
     // remove_entity() safe to call from a script.
     //
     // The snapshot is also the definition of which scripts run this pass: an
@@ -495,7 +495,7 @@ void Engine::UpdateAnimations( Scene& scene, f32 deltaSeconds )
 
 void Engine::SyncActiveCamera()
 {
-    if ( mActiveCameraEntity != INVALID_ENTITY and
+    if ( mActiveCameraEntity != Entity::Null and
          mProject.mLevel.mScene.HasComponent<CameraComponent>( mActiveCameraEntity ) )
     {
         mCamera = mProject.mLevel.mScene.GetComponent<CameraComponent>( mActiveCameraEntity );
@@ -692,7 +692,7 @@ void Engine::DrawScene( Framebuffer& framebuffer, const Scene& scene, bool previ
 
 void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
 {
-    if ( scene.Size() == 0 )
+    if ( scene.EntityCount() == 0 )
         return;
 
     u32 elementIndexStride = 0;
@@ -735,7 +735,7 @@ void Engine::DrawBoundingBoxes( Framebuffer& framebuffer, const Scene& scene )
 
 void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
 {
-    if ( scene.Size() == 0 )
+    if ( scene.EntityCount() == 0 )
         return;
 
     u32 elementIndexStride = 0;
@@ -790,7 +790,7 @@ void Engine::DrawPhysicsShapes( Framebuffer& framebuffer, const Scene& scene )
 
 void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
 {
-    if ( scene.Size() == 0 )
+    if ( scene.EntityCount() == 0 )
         return;
 
     u32 elementIndexStride = 0;
@@ -834,7 +834,7 @@ void Engine::DrawCameraFrustums( Framebuffer& framebuffer, const Scene& scene )
 
 void Engine::DrawSkeletons( Framebuffer& framebuffer, const Scene& scene )
 {
-    if ( scene.Size() == 0 )
+    if ( scene.EntityCount() == 0 )
         return;
 
     mSkeletons.mVertices.Clear();
@@ -984,7 +984,8 @@ void Engine::DrawEntityIds( Framebuffer& framebuffer, const Scene& scene )
     // frame - which the editor's on demand scheduling preserves.
     SubmitPass( mRenderer, "Entity Ids", [&]( wgpu::CommandEncoder encoder )
     {
-        auto pass = framebuffer.BeginRenderPassUint( encoder, uvec4( 0 ), true, "Entity Ids" );
+        // Cleared to Entity::Null: where nothing is drawn, nothing is picked.
+        auto pass = framebuffer.BeginRenderPassUint( encoder, uvec4( (u32)Entity::Null ), true, "Entity Ids" );
         const RenderTarget target = RenderTarget::For( *pass, framebuffer );
         mRenderer.BindFrame( *pass );
 

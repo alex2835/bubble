@@ -294,11 +294,12 @@ end
 
 The one thing in this document that causes crashes rather than wrong answers.
 
-Components live in pooled arrays. Adding a component reallocates that pool and
-frees the old buffer; removing an entity compacts every pool it touched. Both
-happen whenever a script calls `spawn`, `add_*` or `remove_entity` — which is
-now allowed from `on_update` — so **any reference you kept from a previous line
-may already point at freed memory.**
+Components live in packed arrays, one per type. Removing a component - or an
+entity, which removes all of its components - destroys it and moves the last
+component of that type into its place. That happens whenever a script calls
+`remove_entity`, removes a component or replaces one with `add_*` — which is
+allowed from `on_update` — so **any reference you kept from a previous line
+may already point at another entity's component, or at a destroyed one.**
 
 ### Store entities, not components
 

@@ -30,4 +30,5 @@
 #include <imgui.h>
 #include <btBulletDynamicsCommon.h>
 #include <magic_enum/magic_enum.hpp>
+#include <entt/entity/registry.hpp>
 #include "engine/renderer/webgpu.hpp"

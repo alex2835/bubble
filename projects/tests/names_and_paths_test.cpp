@@ -95,8 +95,8 @@ TEST( Paths_FindAndBack )
     CHECK( FindByPath( f.scene, chair, "Light" ) == leg );
     CHECK( FindByPath( f.scene, chair, "." ) == chair );
     CHECK( FindByPath( f.scene, chair, "/" ) == f.Root() );
-    CHECK( FindByPath( f.scene, chair, "nothing" ) == INVALID_ENTITY );
-    CHECK( FindByPath( f.scene, f.Root(), ".." ) == INVALID_ENTITY );
+    CHECK( FindByPath( f.scene, chair, "nothing" ) == Entity::Null );
+    CHECK( FindByPath( f.scene, f.Root(), ".." ) == Entity::Null );
 
     CHECK( PathOf( f.scene, leg ) == "/props/chair/Light" );
     CHECK( PathOf( f.scene, f.Root() ) == "/" );
@@ -128,7 +128,7 @@ TEST( Paths_WhyNothingIsThere )
     // A Cyrillic es where a Latin c was meant: looks the same.
     f.scene.GetComponent<TagComponent>( camera ).mName = "\xD1\x81" "amera";
 
-    CHECK( FindByPath( f.scene, player, "camera" ) == INVALID_ENTITY );
+    CHECK( FindByPath( f.scene, player, "camera" ) == Entity::Null );
     const string why = WhyPathFails( f.scene, player, "camera" );
     CHECK( why.contains( "'/player' has no child 'camera'" ) );
     CHECK( why.contains( "Its children: 'mesh', '\xD1\x81" "amera'" ) );

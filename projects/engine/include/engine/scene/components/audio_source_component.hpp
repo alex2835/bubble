@@ -22,8 +22,8 @@ public:
 
     // Copying carries the settings and not the voice - see VoiceHandle.
     //
-    // The pool relocates components with the move constructor
-    // (recs/pool.hpp), which carries the voice over. The ma_sound itself lives
+    // The scene moves a component when another of its type is removed (see
+    // Scene); a move carries the voice over. The ma_sound itself lives
     // in the AudioEngine and not in here: it points back into itself and
     // cannot move at all.
     AudioSourceComponent( const AudioSourceComponent& ) = default;

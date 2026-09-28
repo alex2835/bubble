@@ -230,7 +230,7 @@ void EditorLua::Bind()
         mCtx.mSelection.Clear();
         for ( const auto& arg : ids )
         {
-            const Entity entity = scene.GetEntityById( arg.get<u64>() );
+            const Entity entity = Entity::FromId( arg.get<u64>() );
             if ( not scene.HasEntity( entity ) )
                 throw std::runtime_error( std::format( "select: no entity {}", arg.get<u64>() ) );
             mCtx.mSelection.AddEntity( entity, scene );
@@ -248,7 +248,7 @@ void EditorLua::Bind()
         {
             sol::table t = mLua->create_table();
             t["entity"] = (u64)entity;
-            t["name"] = scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName : string();
+            t["name"] = NameOf( scene, entity );
             t["folder"] = scene.HasComponent<FolderComponent>( entity );
             sol::table children = mLua->create_table();
             int i = 1;
@@ -266,7 +266,7 @@ void EditorLua::Bind()
     {
         Scene& scene = mCtx.mLevel.mScene;
         const Entity found = FindByPath( scene, scene.Root(), path );
-        if ( found == INVALID_ENTITY )
+        if ( found == Entity::Null )
             throw std::runtime_error( std::format( "find( \"{}\" ): {}", path, WhyPathFails( scene, scene.Root(), path ) ) );
         return (u64)found;
     } );
@@ -274,14 +274,14 @@ void EditorLua::Bind()
     {
         Scene& scene = mCtx.mLevel.mScene;
         const Entity found = FindByPath( scene, scene.Root(), path );
-        if ( found == INVALID_ENTITY )
+        if ( found == Entity::Null )
             return sol::make_object( *mLua, sol::lua_nil );
         return sol::make_object( *mLua, (u64)found );
     } );
     editor.set_function( "path", [this]( u64 id )
     {
         Scene& scene = mCtx.mLevel.mScene;
-        return PathOf( scene, scene.GetEntityById( id ) );
+        return PathOf( scene, Entity::FromId( id ) );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {

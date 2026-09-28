@@ -34,7 +34,7 @@ void Park( Scene& scene, Entity entity, Scene& backup )
         // components are pushed twice.
         if ( backup.HasEntity( e ) )
             backup.RemoveEntity( e );
-        scene.CopyEntityIntoWithId( backup, e, (size_t)e );
+        scene.CopyEntity( e, backup, e );
     }
     scene.RemoveEntities( subtree );
 }
@@ -44,7 +44,7 @@ void Unpark( Scene& scene, Entity entity, Scene& backup )
 {
     const vector<Entity> subtree = Subtree( backup, entity );
     for ( const Entity e : subtree )
-        backup.CopyEntityIntoWithId( scene, e, (size_t)e );
+        backup.CopyEntity( e, scene, e );
     backup.RemoveEntities( subtree );
 }
 }
@@ -54,7 +54,7 @@ void Unpark( Scene& scene, Entity entity, Scene& backup )
 CreateEntityCommand::CreateEntityCommand( Project& project, Scene& scene, Entity parent, EntityKind kind, const Transform& spawnAt )
     : mProject( project ),
       mScene( scene ),
-      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
+      mParent( parent == Entity::Null ? scene.Root() : parent ),
       mKind( kind ),
       mSpawnAt( spawnAt ),
       mName( std::format( "Create {}", magic_enum::enum_name( kind ) ) )
@@ -196,7 +196,7 @@ void DeleteEntitiesCommand::Undo()
 CopyEntityCommand::CopyEntityCommand( Scene& scene, Entity source, Entity parent )
     : mScene( scene ),
       mSource( source ),
-      mParent( parent == INVALID_ENTITY ? scene.Root() : parent )
+      mParent( parent == Entity::Null ? scene.Root() : parent )
 {
 }
 
@@ -234,7 +234,7 @@ void CopyEntityCommand::Redo()
 MoveEntityCommand::MoveEntityCommand( Scene& scene, Entity entity, Entity parent, size_t index )
     : mScene( scene ),
       mEntity( entity ),
-      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
+      mParent( parent == Entity::Null ? scene.Root() : parent ),
       mIndex( index )
 {
 }
@@ -260,7 +260,7 @@ void MoveEntityCommand::Execute()
 
 void MoveEntityCommand::Undo()
 {
-    if ( mOldParent == INVALID_ENTITY or not mScene.HasEntity( mEntity ) )
+    if ( mOldParent == Entity::Null or not mScene.HasEntity( mEntity ) )
         return;
     DetachFromParent( mScene, mEntity );
     AttachChild( mScene, mEntity, mOldParent, mOldIndex );
@@ -278,10 +278,10 @@ InstantiatePrefabCommand::InstantiatePrefabCommand( Project& project,
                                                     path relPrefab,
                                                     PrefabPlacement placement,
                                                     size_t index,
-                                                    std::optional<size_t> rootId )
+                                                    Entity rootId )
     : mProject( project ),
       mScene( scene ),
-      mParent( parent == INVALID_ENTITY ? scene.Root() : parent ),
+      mParent( parent == Entity::Null ? scene.Root() : parent ),
       mPrefab( std::move( relPrefab ) ),
       mPlacement( std::move( placement ) ),
       mIndex( index ),
@@ -325,7 +325,7 @@ Command MakeRefreshPrefabInstance( Project& project, Scene& scene, Entity instan
     auto step = CreateScope<CompositeCommand>( "Update prefab instance" );
     step->Add( CreateScope<DeleteEntitiesCommand>( scene, vector<Entity>{ instance } ) );
     step->Add( CreateScope<InstantiatePrefabCommand>( project, scene, parent, prefab, placement,
-                                                      IndexInParent( scene, instance ), (size_t)instance ) );
+                                                      IndexInParent( scene, instance ), instance ) );
     return step;
 }
 
@@ -335,7 +335,7 @@ Command MakeRenameCommand( Scene& scene, Entity entity, string_view wanted )
         return nullptr;
     const string old = scene.GetComponent<TagComponent>( entity ).mName;
     const Entity parent = ParentOf( scene, entity );
-    const string name = parent == INVALID_ENTITY ? ( wanted.empty() ? old : string( wanted ) )
+    const string name = parent == Entity::Null ? ( wanted.empty() ? old : string( wanted ) )
                                                  : UniqueChildName( scene, parent, wanted, entity );
     if ( name == old )
         return nullptr;

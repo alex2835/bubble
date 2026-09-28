@@ -110,7 +110,7 @@ Any LoadAnyValue( ScriptingEngine& se, const json& j )
         if ( type == "Entity" )
         {
             auto id = j["id"].get<size_t>();
-            return *(Entity*)&id;
+            return Entity( static_cast<Entity::entity_type>( id ) );
         }
         else if ( type == "NodePath" )
             return NodePath( j.value( "path", string() ) );

@@ -1,7 +1,7 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
 #include "engine/types/array.hpp"
-#include <recs/entity.hpp>
+#include "engine/scene/entity.hpp"
 
 namespace bubble
 {
@@ -26,7 +26,7 @@ struct HierarchyComponent
     static void FromJson( const json& json, Project& project, HierarchyComponent& component );
     static void CreateLuaBinding( sol::state& lua );
 
-    Entity mParent = INVALID_ENTITY;
+    Entity mParent = Entity::Null;
     vector<Entity> mChildren;
 };
 

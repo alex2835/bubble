@@ -93,7 +93,7 @@ void RemapTable( Table table, const map<Entity, Entity>& copied, set<const void*
 Entity ParentOf( const Scene& scene, Entity entity )
 {
     const auto* h = FindHierarchy( scene, entity );
-    return h ? h->mParent : INVALID_ENTITY;
+    return h ? h->mParent : Entity::Null;
 }
 
 std::span<const Entity> ChildrenOf( const Scene& scene, Entity entity )
@@ -112,7 +112,7 @@ size_t IndexInParent( const Scene& scene, Entity entity )
 bool IsAncestor( const Scene& scene, Entity ancestor, Entity entity )
 {
     Entity current = ParentOf( scene, entity );
-    for ( int depth = 0; current != INVALID_ENTITY and depth < cMaxDepth; depth++ )
+    for ( int depth = 0; current != Entity::Null and depth < cMaxDepth; depth++ )
     {
         if ( current == ancestor )
             return true;
@@ -149,7 +149,7 @@ size_t DetachFromParent( Scene& scene, Entity child )
 {
     const Entity parent = ParentOf( scene, child );
     size_t index = cAtEnd;
-    if ( parent != INVALID_ENTITY and scene.HasEntity( parent ) )
+    if ( scene.HasEntity( parent ) )
     {
         auto& siblings = scene.GetComponent<HierarchyComponent>( parent ).mChildren;
         if ( const auto it = std::ranges::find( siblings, child ); it != siblings.end() )
@@ -158,17 +158,17 @@ size_t DetachFromParent( Scene& scene, Entity child )
             siblings.erase( it );
         }
     }
-    EnsureHierarchy( scene, child ).mParent = INVALID_ENTITY;
+    EnsureHierarchy( scene, child ).mParent = Entity::Null;
     return index;
 }
 
 bool SetParent( Scene& scene, Entity child, Entity parent, bool keepWorld, size_t index )
 {
-    if ( parent == INVALID_ENTITY )
+    if ( parent == Entity::Null )
         parent = scene.Root();
-    if ( child == INVALID_ENTITY or not scene.HasEntity( child ) or child == scene.Root() )
+    if ( not scene.HasEntity( child ) or child == scene.Root() )
         return false;
-    if ( parent == INVALID_ENTITY or parent == child or not scene.HasEntity( parent ) or IsAncestor( scene, child, parent ) )
+    if ( parent == Entity::Null or parent == child or not scene.HasEntity( parent ) or IsAncestor( scene, child, parent ) )
         return false;
 
     const mat4 world = ComputeWorldMatrix( scene, child );
@@ -183,26 +183,19 @@ Entity CreateChildEntity( Scene& scene, Entity parent )
 {
     const Entity entity = scene.CreateEntity();
     scene.AddComponent<HierarchyComponent>( entity );
-    if ( parent == INVALID_ENTITY )
+    if ( parent == Entity::Null )
         parent = scene.Root();
-    if ( parent != INVALID_ENTITY )
+    if ( parent != Entity::Null )
         AttachChild( scene, entity, parent );
     return entity;
 }
 
-Entity CopySubtree( Scene& from, Entity entity, Scene& to, map<Entity, Entity>& copied, std::optional<size_t> topId )
+Entity CopySubtree( Scene& from, Entity entity, Scene& to, map<Entity, Entity>& copied, Entity topId )
 {
     const vector<Entity> originals = Subtree( from, entity );
     for ( const Entity original : originals )
     {
-        Entity made;
-        if ( original == entity and topId )
-            made = from.CopyEntityIntoWithId( to, original, *topId );
-        else if ( &from == &to )
-            made = from.CopyEntity( original );
-        else
-            made = from.CopyEntityInto( to, original );
-        copied[original] = made;
+        copied[original] = from.CopyEntity( original, to, original == entity ? topId : Entity::Null );
     }
     // The links came across naming the originals.
     for ( const Entity original : originals )
@@ -210,7 +203,7 @@ Entity CopySubtree( Scene& from, Entity entity, Scene& to, map<Entity, Entity>& 
         const Entity made = copied.at( original );
         auto& h = EnsureHierarchy( to, made );
         const auto parent = copied.find( h.mParent );
-        h.mParent = original == entity or parent == copied.end() ? INVALID_ENTITY : parent->second;
+        h.mParent = original == entity or parent == copied.end() ? Entity::Null : parent->second;
         vector<Entity> children;
         for ( const Entity child : h.mChildren )
             if ( const auto it = copied.find( child ); it != copied.end() )
@@ -240,7 +233,7 @@ mat4 ComputeWorldMatrix( const Scene& scene, Entity entity )
                  ? scene.GetComponent<TransformComponent>( entity ).TransformMat()
                  : mat4( 1.0f );
     Entity parent = ParentOf( scene, entity );
-    for ( int depth = 0; parent != INVALID_ENTITY and scene.HasEntity( parent ) and depth < cMaxDepth; depth++ )
+    for ( int depth = 0; scene.HasEntity( parent ) and depth < cMaxDepth; depth++ )
     {
         if ( scene.HasComponent<TransformComponent>( parent ) )
             world = scene.GetComponent<TransformComponent>( parent ).TransformMat() * world;
@@ -255,7 +248,7 @@ void SetWorldTransform( Scene& scene, Entity entity, const Transform& world )
         return;
     const Entity parent = ParentOf( scene, entity );
     Transform local = world;
-    if ( parent != INVALID_ENTITY and scene.HasEntity( parent ) )
+    if ( scene.HasEntity( parent ) )
         local = Transform::FromMatrix( glm::inverse( ComputeWorldMatrix( scene, parent ) ) * world.TransformMat() );
     auto& transform = scene.GetComponent<TransformComponent>( entity );
     transform.mPosition = local.mPosition;
@@ -271,7 +264,7 @@ void UpdateWorldTransforms( Scene& scene )
     scene.ForEachEntity( [&]( Entity entity )
     {
         const Entity parent = ParentOf( scene, entity );
-        if ( parent == INVALID_ENTITY or not scene.HasEntity( parent ) )
+        if ( not scene.HasEntity( parent ) )
             tops.push_back( entity );
     } );
     for ( const Entity top : tops )
@@ -282,8 +275,8 @@ void UpdateWorldTransforms( Scene& scene )
 
 string NameOf( const Scene& scene, Entity entity )
 {
-    return scene.HasEntity( entity ) and scene.HasComponent<TagComponent>( entity )
-           ? scene.GetComponent<TagComponent>( entity ).mName : string();
+    const auto* tag = scene.TryGetComponent<TagComponent>( entity );
+    return tag ? tag->mName : string();
 }
 
 namespace
@@ -341,7 +334,7 @@ bool MakeNameUnique( Scene& scene, Entity entity )
     const Entity parent = ParentOf( scene, entity );
     auto& tag = scene.GetComponent<TagComponent>( entity );
     // The root has no siblings; its name only has to be a valid one.
-    string name = parent == INVALID_ENTITY ? ValidName( tag.mName )
+    string name = parent == Entity::Null ? ValidName( tag.mName )
                                            : UniqueChildName( scene, parent, tag.mName, entity );
     if ( name == tag.mName )
         return false;
@@ -349,6 +342,16 @@ bool MakeNameUnique( Scene& scene, Entity entity )
     return true;
 }
 
+
+void DropDanglingLinks( Scene& scene )
+{
+    scene.ForEach<HierarchyComponent>( [&]( Entity, HierarchyComponent& h )
+    {
+        if ( not scene.HasEntity( h.mParent ) )
+            h.mParent = Entity::Null;
+        std::erase_if( h.mChildren, [&]( Entity child ) { return not scene.HasEntity( child ); } );
+    } );
+}
 
 void MakeNamesUnique( Scene& scene, Entity top )
 {
@@ -394,11 +397,11 @@ void MakeNamesUnique( Scene& scene, Entity top )
 Entity PrefabRootOf( const Scene& scene, Entity entity )
 {
     int depth = 0;
-    for ( Entity at = entity; at != INVALID_ENTITY and scene.HasEntity( at ) and depth < cMaxDepth;
+    for ( Entity at = entity; scene.HasEntity( at ) and depth < cMaxDepth;
           at = ParentOf( scene, at ), depth++ )
         if ( scene.HasComponent<PrefabInstanceComponent>( at ) )
             return at;
-    return scene.HasEntity( entity ) ? scene.Root() : INVALID_ENTITY;
+    return scene.HasEntity( entity ) ? scene.Root() : Entity::Null;
 }
 
 namespace
@@ -411,9 +414,9 @@ Entity WalkPath( const Scene& scene, Entity from, string_view path, string* why 
     {
         if ( why )
             *why = std::move( reason );
-        return INVALID_ENTITY;
+        return Entity::Null;
     };
-    if ( from == INVALID_ENTITY or not scene.HasEntity( from ) )
+    if ( not scene.HasEntity( from ) )
         return fail( std::format( "{} is not in the scene", DescribeEntity( scene, from ) ) );
 
     Entity at = from;
@@ -437,23 +440,23 @@ Entity WalkPath( const Scene& scene, Entity from, string_view path, string* why 
         if ( part == ".." )
         {
             const Entity parent = ParentOf( scene, at );
-            if ( parent == INVALID_ENTITY )
+            if ( parent == Entity::Null )
                 return fail( std::format( "{} has no parent", DescribeEntity( scene, at ) ) );
             at = parent;
             continue;
         }
 
-        Entity found = INVALID_ENTITY;
+        Entity found = Entity::Null;
         for ( const Entity child : ChildrenOf( scene, at ) )
             if ( scene.HasComponent<TagComponent>( child ) and scene.GetComponent<TagComponent>( child ).mName == part )
             {
                 found = child;
                 break;
             }
-        if ( found == INVALID_ENTITY )
+        if ( found == Entity::Null )
         {
             if ( not why )
-                return INVALID_ENTITY;
+                return Entity::Null;
             // What is there, and whether one of those is what was meant.
             string names, alike;
             int listed = 0;
@@ -495,7 +498,7 @@ Entity FindByPath( const Scene& scene, Entity from, string_view path )
 string WhyPathFails( const Scene& scene, Entity from, string_view path )
 {
     string why;
-    if ( WalkPath( scene, from, path, &why ) != INVALID_ENTITY )
+    if ( WalkPath( scene, from, path, &why ) != Entity::Null )
         return {};
     return why;
 }
@@ -507,7 +510,7 @@ namespace
 vector<Entity> ChainToRoot( const Scene& scene, Entity entity )
 {
     vector<Entity> chain;
-    for ( Entity at = entity; at != INVALID_ENTITY and scene.HasEntity( at ); at = ParentOf( scene, at ) )
+    for ( Entity at = entity; scene.HasEntity( at ); at = ParentOf( scene, at ) )
     {
         chain.push_back( at );
         if ( chain.size() > cMaxDepth )
@@ -553,7 +556,7 @@ string RelativePath( const Scene& scene, Entity from, Entity to )
 
 string DescribeEntity( const Scene& scene, Entity entity )
 {
-    if ( entity == INVALID_ENTITY or not scene.HasEntity( entity ) )
+    if ( not scene.HasEntity( entity ) )
         return std::format( "entity {} (removed)", (u64)entity );
     const string path = PathOf( scene, entity );
     if ( not path.empty() )

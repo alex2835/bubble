@@ -45,7 +45,7 @@ struct Fixture
 
     // An entity of `kind` under `parent` (the root), at (1, 2, 3), through
     // the history.
-    Entity Create( EntityKind kind, Entity parent = INVALID_ENTITY )
+    Entity Create( EntityKind kind, Entity parent = Entity::Null )
     {
         auto command = CreateScope<CreateEntityCommand>( project, scene, parent, kind, Transform( vec3( 1, 2, 3 ) ) );
         auto* raw = command.get();

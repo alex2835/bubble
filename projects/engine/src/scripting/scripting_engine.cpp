@@ -168,7 +168,7 @@ namespace
                                     string_view callback,
                                     const Ref<Script>& script,
                                     const Scene& scene,
-                                    recs::Entity entity )
+                                    Entity entity )
 {
     const sol::error err = result;
     const string name = script ? script->mName : string( "<unknown>" );
@@ -182,7 +182,7 @@ namespace
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
                         const Scene& scene,
-                        recs::Entity entity,
+                        Entity entity,
                         const Any& state )
 {
     if ( not onStart )
@@ -196,7 +196,7 @@ void CallScriptOnStart( sol::protected_function onStart,
 void CallScriptOnUpdate( sol::protected_function onUpdate,
                          Ref<Script> script,
                          const Scene& scene,
-                         recs::Entity entity,
+                         Entity entity,
                          const Any& state,
                          f32 deltaSeconds )
 {

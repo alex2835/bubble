@@ -311,7 +311,7 @@ void AnimationGraphWindow::AddTransition( i32 from, i32 to )
 Entity AnimationGraphWindow::LiveEntity() const
 {
     if ( not mSource )
-        return INVALID_ENTITY;
+        return Entity::Null;
     Scene& scene = mProject.mLevel.mScene;
     if ( mSelection.IsSingleSelection() )
     {
@@ -320,10 +320,10 @@ Entity AnimationGraphWindow::LiveEntity() const
              scene.GetComponent<AnimatorComponent>( selected ).mController == mSource )
             return selected;
     }
-    Entity found = INVALID_ENTITY;
+    Entity found = Entity::Null;
     scene.ForEach<AnimatorComponent>( [&]( Entity entity, const AnimatorComponent& animator )
     {
-        if ( found == INVALID_ENTITY and animator.mController == mSource )
+        if ( found == Entity::Null and animator.mController == mSource )
             found = entity;
     } );
     return found;
@@ -332,7 +332,7 @@ Entity AnimationGraphWindow::LiveEntity() const
 AnimatorComponent* AnimationGraphWindow::LiveAnimator() const
 {
     const Entity entity = LiveEntity();
-    return entity == INVALID_ENTITY ? nullptr : &mProject.mLevel.mScene.GetComponent<AnimatorComponent>( entity );
+    return entity == Entity::Null ? nullptr : &mProject.mLevel.mScene.GetComponent<AnimatorComponent>( entity );
 }
 
 Playback* AnimationGraphWindow::LivePlayback() const
@@ -807,7 +807,8 @@ void AnimationGraphWindow::DrawPreview()
     }
     Scene& scene = mProject.mLevel.mScene;
     const Entity entity = LiveEntity();
-    ImGui::Text( "%s", scene.HasComponent<TagComponent>( entity ) ? scene.GetComponent<TagComponent>( entity ).mName.c_str() : "entity" );
+    const auto* tag = scene.TryGetComponent<TagComponent>( entity );
+    ImGui::Text( "%s", tag ? tag->mName.c_str() : "entity" );
     if ( mDirty )
         ImGui::TextDisabled( "Plays the saved file; Save to try the edits." );
 

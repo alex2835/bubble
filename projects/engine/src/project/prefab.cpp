@@ -21,7 +21,7 @@ void LoadPrefabFile( Level& prefab, const path& absFile, Project& project )
 
 // The prefab's root copied into `scene`, hanging from nothing, linked to its
 // file. Everything made is in `copied`.
-Entity CopyPrefab( Project& project, Scene& scene, const path& relPrefab, map<Entity, Entity>& copied, std::optional<size_t> rootId )
+Entity CopyPrefab( Project& project, Scene& scene, const path& relPrefab, map<Entity, Entity>& copied, Entity rootId )
 {
     Level prefab;
     LoadPrefabFile( prefab, project.RootDir() / relPrefab, project );
@@ -40,7 +40,7 @@ Entity InstantiatePrefab( Project& project,
                           size_t index,
                           const path& relPrefab,
                           const PrefabPlacement& placement,
-                          std::optional<size_t> rootId )
+                          Entity rootId )
 {
     map<Entity, Entity> copied;
     const Entity root = CopyPrefab( project, scene, relPrefab, copied, rootId );
@@ -51,7 +51,7 @@ Entity InstantiatePrefab( Project& project,
         transform.mPosition = placement.mLocal->mPosition;
         transform.mRotation = placement.mLocal->mRotation;
     }
-    AttachChild( scene, root, parent == INVALID_ENTITY ? scene.Root() : parent, index );
+    AttachChild( scene, root, parent == Entity::Null ? scene.Root() : parent, index );
     if ( placement.mName and scene.HasComponent<TagComponent>( root ) )
         scene.GetComponent<TagComponent>( root ).mName = *placement.mName;
     MakeNameUnique( scene, root );
@@ -121,7 +121,7 @@ vector<Entity> FindPrefabInstances( const Scene& scene, const string& relPrefab 
 vector<Entity> SpawnPrefab( Project& project, Scene& scene, const path& relPrefab, const vec3& position )
 {
     map<Entity, Entity> copied;
-    const Entity root = CopyPrefab( project, scene, relPrefab, copied, std::nullopt );
+    const Entity root = CopyPrefab( project, scene, relPrefab, copied, Entity::Null );
     if ( scene.HasEntity( scene.Root() ) )
         AttachChild( scene, root, scene.Root() );
     MakeNameUnique( scene, root );

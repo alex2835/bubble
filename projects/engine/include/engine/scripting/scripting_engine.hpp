@@ -4,7 +4,7 @@
 // SetVar subscripts the state; a forward declaration is not enough for a
 // template body clang checks before instantiation.
 #include <sol/state.hpp>
-#include <recs/entity.hpp>
+#include "engine/scene/entity.hpp"
 #include "engine/window/input.hpp"
 #include "engine/types/pointer.hpp"
 #include "engine/types/any.hpp"
@@ -44,12 +44,12 @@ ScriptCallbacks ExtractScriptCallbacks( sol::state& lua, const Ref<Script>& scri
 void CallScriptOnStart( sol::protected_function onStart,
                         Ref<Script> script,
                         const Scene& scene,
-                        recs::Entity entity,
+                        Entity entity,
                         const Any& state );
 void CallScriptOnUpdate( sol::protected_function onUpdate,
                          Ref<Script> script,
                          const Scene& scene,
-                         recs::Entity entity,
+                         Entity entity,
                          const Any& state,
                          f32 deltaSeconds );
 

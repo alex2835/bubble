@@ -4,6 +4,7 @@
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/editing/ui/inspector_context.hpp"
 #include "engine/scene/scene.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
@@ -17,9 +18,9 @@ void HierarchyComponent::OnComponentDraw( InspectorContext& ctx, const Entity&, 
     ImGui::TextColored( TEXT_COLOR, "HierarchyComponent" );
     const auto name = [&]( Entity entity )
     {
-        if ( entity == INVALID_ENTITY or not ctx.mScene.HasEntity( entity ) )
+        if ( not ctx.mScene.HasEntity( entity ) )
             return string( "-" );
-        const string tag = ctx.mScene.HasComponent<TagComponent>( entity ) ? ctx.mScene.GetComponent<TagComponent>( entity ).mName : string();
+        const string tag = NameOf( ctx.mScene, entity );
         return std::format( "{} ({})", tag, (u64)entity );
     };
     ImGui::Text( "parent: %s", name( component.mParent ).c_str() );
@@ -27,10 +28,12 @@ void HierarchyComponent::OnComponentDraw( InspectorContext& ctx, const Entity&, 
     ImGui::TextDisabled( "Parent in the Entities tree: drag an entity onto another." );
 }
 
-// Both sides, the children in their order.
+// Both sides, the children in their order. The root has no "Parent": every
+// id, 0 included, is an entity.
 void HierarchyComponent::ToJson( json& json, const Project&, const HierarchyComponent& component )
 {
-    json["Parent"] = (u64)component.mParent;
+    if ( component.mParent != Entity::Null )
+        json["Parent"] = (u64)component.mParent;
     json["Children"] = json::array();
     for ( const Entity child : component.mChildren )
         json["Children"].push_back( (u64)child );
@@ -38,8 +41,9 @@ void HierarchyComponent::ToJson( json& json, const Project&, const HierarchyComp
 
 void HierarchyComponent::FromJson( const json& json, Project&, HierarchyComponent& component )
 {
-    const auto entity = []( u64 id ) { return *(const Entity*)&id; };
-    component.mParent = entity( json.value( "Parent", u64( 0 ) ) );
+    const auto entity = []( u64 id ) { return Entity( static_cast<Entity::entity_type>( id ) ); };
+    const auto parent = json.find( "Parent" );
+    component.mParent = parent != json.end() ? entity( parent->get<u64>() ) : Entity::Null;
     component.mChildren.clear();
     if ( const auto children = json.find( "Children" ); children != json.end() and children->is_array() )
         for ( const auto& id : *children )

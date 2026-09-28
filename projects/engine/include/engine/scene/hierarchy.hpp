@@ -16,7 +16,7 @@ namespace bubble
 {
 constexpr size_t cAtEnd = size_t( -1 );
 
-// INVALID_ENTITY for the root, and for an entity not in the tree.
+// Entity::Null for the root, and for an entity not in the tree.
 Entity ParentOf( const Scene& scene, Entity entity );
 std::span<const Entity> ChildrenOf( const Scene& scene, Entity entity );
 // Where the entity is among its parent's children; cAtEnd if it has none.
@@ -38,7 +38,7 @@ string NameOf( const Scene& scene, Entity entity );
 // `wanted` fit to go under `parent`: '/' taken out, an empty name (or ".",
 // ".." or "~") made "Entity", and when a child other than `self` has it already,
 // a number at its end counted up past theirs: chair -> chair2, chair2 -> chair3.
-string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self = INVALID_ENTITY );
+string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self = Entity::Null );
 // Renames `entity` if a sibling has its name (or the name is not a valid
 // one). What every place that puts an entity under a parent calls after.
 // Returns whether the name changed.
@@ -46,12 +46,16 @@ bool MakeNameUnique( Scene& scene, Entity entity );
 // The same over a whole subtree, siblings in order - the first keeps its
 // name. For a loaded file, which may have been edited by hand.
 void MakeNamesUnique( Scene& scene, Entity top );
+// Clears every parent and drops every child that names no entity of the
+// scene. For a loaded file too: a link to an id the file does not have would
+// otherwise point at whatever entity is made under that id later.
+void DropDanglingLinks( Scene& scene );
 
 // An entity as a message names it: its path, '/player/camera'; one outside
 // the tree by its name and id; one that is gone by its id.
 string DescribeEntity( const Scene& scene, Entity entity );
 
-// INVALID_ENTITY when nothing is there.
+// Entity::Null when nothing is there.
 Entity FindByPath( const Scene& scene, Entity from, string_view path );
 // Why FindByPath finds nothing, for an error: which part is missing where,
 // what is there instead, and a name that looks the same but is spelled with
@@ -73,16 +77,16 @@ string RelativePath( const Scene& scene, Entity from, Entity to );
 void AttachChild( Scene& scene, Entity child, Entity parent, size_t index = cAtEnd );
 size_t DetachFromParent( Scene& scene, Entity child );
 
-// Moves `child` under `parent` (INVALID_ENTITY: under the scene's root), at
+// Moves `child` under `parent` (Entity::Null: under the scene's root), at
 // `index`. With keepWorld it stays where it is in the world and its local
 // transform changes; without, the local transform stays and it moves with
 // its new parent. Refuses - returning false, changing nothing - a loop, and
 // moving the root.
 bool SetParent( Scene& scene, Entity child, Entity parent, bool keepWorld = true, size_t index = cAtEnd );
 
-// A new entity with a HierarchyComponent, under `parent` (INVALID_ENTITY:
+// A new entity with a HierarchyComponent, under `parent` (Entity::Null:
 // the root).
-Entity CreateChildEntity( Scene& scene, Entity parent = INVALID_ENTITY );
+Entity CreateChildEntity( Scene& scene, Entity parent = Entity::Null );
 
 // A copy of `entity`'s subtree from one scene into another (or the same):
 // new ids - `topId` for the top one, when given - with the links between the
@@ -90,7 +94,7 @@ Entity CreateChildEntity( Scene& scene, Entity parent = INVALID_ENTITY );
 // to attach. `copied` is filled old -> new; State tables naming a copied
 // entity are pointed at its copy.
 Entity CopySubtree( Scene& from, Entity entity, Scene& to, map<Entity, Entity>& copied,
-                    std::optional<size_t> topId = std::nullopt );
+                    Entity topId = Entity::Null );
 
 // State tables of the entities just copied may name entities of the scene
 // they were copied from. Those that were copied along are pointed at their

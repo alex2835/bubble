@@ -9,85 +9,59 @@ ComponentManager& ComponentManager::Instance()
     return componentManager;
 }
 
-bool ComponentManager::CreateComponentTable( int componentID )
+void ComponentManager::Register( ComponentTypeId componentId, const ComponentFunctionsTable& table )
 {
-    auto& storage = Instance();
-    return storage.mComponentFuncTable.emplace( componentID, ComponentFunctionsTable{} ).second;
+    auto& manager = Instance();
+    if ( not manager.mComponentFuncTable.emplace( componentId, table ).second )
+        return;
+    manager.mIds.insert( std::ranges::upper_bound( manager.mIds, componentId ), componentId );
 }
 
-ComponentFunctionsTable& ComponentManager::GetComponentTable( int componentID )
+const vector<ComponentTypeId>& ComponentManager::Ids()
 {
-    auto& storage = Instance();
-    auto iter = storage.mComponentFuncTable.find( componentID );
-    if ( iter != storage.mComponentFuncTable.end() )
+    return Instance().mIds;
+}
+
+const ComponentFunctionsTable& ComponentManager::Get( ComponentTypeId componentId )
+{
+    auto& manager = Instance();
+    const auto iter = manager.mComponentFuncTable.find( componentId );
+    if ( iter != manager.mComponentFuncTable.end() )
         return iter->second;
-    throw std::runtime_error( std::format( "{} doesn't exist in component manager.", (int)componentID ) );
+    throw std::runtime_error( std::format( "{} doesn't exist in component manager.", componentId ) );
 }
 
-void ComponentManager::AddName( int componentID, string_view name )
+string_view ComponentManager::GetName( ComponentTypeId componentId )
 {
-    auto& table = GetComponentTable( componentID );
-    table.mName = name;
+    return Get( componentId ).mName;
 }
 
-string_view ComponentManager::GetName( int componentID )
+ComponentTypeId ComponentManager::GetID( string_view name )
 {
-    return GetComponentTable( componentID ).mName;
-}
-
-int ComponentManager::GetID( string_view name )
-{
-    auto& storage = Instance();
-    for ( const auto& [id, table] : storage.mComponentFuncTable )
-    {
+    for ( const auto& [id, table] : Instance().mComponentFuncTable )
         if ( table.mName == name )
             return id;
-    }
     throw std::runtime_error( std::format( "Invalid component name: {}", name ) );
 }
 
-void ComponentManager::AddOnDraw( int componentID, OnComponentDrawFunc drawFunc )
+OnComponentDrawFunc ComponentManager::GetOnDraw( ComponentTypeId componentId )
 {
-    auto& table = GetComponentTable( componentID );
-    table.mOnDraw = drawFunc;
+    return Get( componentId ).mOnDraw;
 }
 
-OnComponentDrawFunc ComponentManager::GetOnDraw( int componentID )
+ComponentFromJson ComponentManager::GetFromJson( ComponentTypeId componentId )
 {
-    return GetComponentTable( componentID ).mOnDraw;
+    return Get( componentId ).mFromJson;
 }
 
-void ComponentManager::AddFromJson( int componentID, ComponentFromJson fromJson )
+ComponentToJson ComponentManager::GetToJson( ComponentTypeId componentId )
 {
-    auto& table = GetComponentTable( componentID );
-    table.mFromJson = fromJson;
+    return Get( componentId ).mToJson;
 }
 
-ComponentFromJson ComponentManager::GetFromJson( int componentID )
+ComponentCreateLuaBinding ComponentManager::GetCreateLuaBinding( ComponentTypeId componentId )
 {
-    return GetComponentTable( componentID ).mFromJson;
-}
-
-void ComponentManager::AddToJson( int componentID, ComponentToJson toJson )
-{
-    auto& table = GetComponentTable( componentID );
-    table.mToJson = toJson;
-}
-
-ComponentToJson ComponentManager::GetToJson( int componentID )
-{
-    return GetComponentTable( componentID ).mToJson;
-}
-
-void ComponentManager::AddCreateLuaBinding( int componentID, ComponentCreateLuaBinding CreateLuaBindingFunc )
-{
-    auto& table = GetComponentTable( componentID );
-    table.mCreateLuaBinding = CreateLuaBindingFunc;
-}
-
-ComponentCreateLuaBinding ComponentManager::GetCreateLuaBinding( int componentID )
-{
-    return GetComponentTable( componentID ).mCreateLuaBinding;
+    return Get( componentId ).mCreateLuaBinding;
 }
 
 }

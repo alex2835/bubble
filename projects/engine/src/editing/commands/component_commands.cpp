@@ -24,12 +24,12 @@ void AddComponentCommand::Execute()
     if ( mComponentId == StateComponent::ID() )
         scene.AddComponent<StateComponent>( mEntity, mProject.mScriptingEngine.CreateTable() );
     else
-        scene.EntityAddComponentId( mEntity, mComponentId );
+        scene.AddComponent( mEntity, mComponentId );
 }
 
 void AddComponentCommand::Undo()
 {
-    mScene.EntityRemoveComponentId( mEntity, mComponentId );
+    mScene.RemoveComponent( mEntity, mComponentId );
 }
 
 /// RemoveComponentCommand
@@ -45,16 +45,16 @@ RemoveComponentCommand::RemoveComponentCommand( Entity entity, ComponentTypeId c
 void RemoveComponentCommand::Execute()
 {
     // Only the one component is parked, on a stand-in entity of the backup.
-    if ( mBackupEntity == INVALID_ENTITY )
+    if ( mBackupEntity == Entity::Null )
         mBackupEntity = mBackupScene.CreateEntity();
-    mScene.CopyComponentInto( mBackupScene, mEntity, mComponentId, mBackupEntity );
-    mScene.EntityRemoveComponentId( mEntity, mComponentId );
+    mScene.CopyComponent( mEntity, mComponentId, mBackupScene, mBackupEntity );
+    mScene.RemoveComponent( mEntity, mComponentId );
 }
 
 void RemoveComponentCommand::Undo()
 {
-    mBackupScene.CopyComponentInto( mScene, mBackupEntity, mComponentId, mEntity );
-    mBackupScene.EntityRemoveComponentId( mBackupEntity, mComponentId );
+    mBackupScene.CopyComponent( mBackupEntity, mComponentId, mScene, mEntity );
+    mBackupScene.RemoveComponent( mBackupEntity, mComponentId );
 }
 
 }

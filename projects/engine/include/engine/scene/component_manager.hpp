@@ -31,17 +31,23 @@ typedef void ( *OnComponentDrawFunc )( InspectorContext& ctx, const Entity& enti
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
 typedef void ( *ComponentFromJson )( const json& json, Project& project, void* rawData );
 typedef void ( *ComponentCreateLuaBinding )( sol::state& lua );
+// The type's storage in a registry, made if it has none yet.
+typedef Scene::Storage& ( *ComponentStorageFunc )( Scene::Registry& registry );
 
 struct ComponentFunctionsTable
 {
     string_view mName;
-    OnComponentDrawFunc mOnDraw;
-    ComponentFromJson mFromJson;
-    ComponentToJson mToJson;
-    ComponentCreateLuaBinding mCreateLuaBinding;
+    OnComponentDrawFunc mOnDraw = nullptr;
+    ComponentFromJson mFromJson = nullptr;
+    ComponentToJson mToJson = nullptr;
+    ComponentCreateLuaBinding mCreateLuaBinding = nullptr;
+    entt::id_type mStorageId = 0;
+    ComponentStorageFunc mStorage = nullptr;
 };
 
-
+// Every component type the engine knows, by ComponentTypeId: its name and
+// what the inspector, the file format, Lua and the id API of Scene need to
+// reach it without naming the type. Filled once, before the first Scene.
 class ComponentManager
 {
 public:
@@ -50,46 +56,42 @@ public:
     template <ComponentConcept Component>
     static void Add()
     {
-        if ( CreateComponentTable( Component::ID() ) )
-        {
-            AddName( Component::ID(), Component::Name() );
-
-            AddOnDraw( Component::ID(), []( InspectorContext& ctx, const Entity& entity, void* rawData )
-            { Component::OnComponentDraw( ctx, entity, *reinterpret_cast<Component*>( rawData ) ); } );
-
-            AddToJson( Component::ID(), []( json& json, const Project& project, const void* rawData )
-            { Component::ToJson( json, project, *reinterpret_cast<const Component*>( rawData ) ); } );
-
-            AddFromJson( Component::ID(), []( const json& json, Project& project, void* rawData )
-            { Component::FromJson( json, project, *reinterpret_cast<Component*>( rawData ) ); } );
-
-            AddCreateLuaBinding( Component::ID(), Component::CreateLuaBinding );
-        }
+        Register( Component::ID(), ComponentFunctionsTable{
+            .mName = Component::Name(),
+            .mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
+            { Component::OnComponentDraw( ctx, entity, *static_cast<Component*>( rawData ) ); },
+            .mFromJson = []( const json& json, Project& project, void* rawData )
+            { Component::FromJson( json, project, *static_cast<Component*>( rawData ) ); },
+            .mToJson = []( json& json, const Project& project, const void* rawData )
+            { Component::ToJson( json, project, *static_cast<const Component*>( rawData ) ); },
+            .mCreateLuaBinding = Component::CreateLuaBinding,
+            .mStorageId = entt::type_hash<Component>::value(),
+            .mStorage = []( Scene::Registry& registry ) -> Scene::Storage& { return registry.storage<Component>(); },
+        } );
     }
 
-    static void AddName( int componentId, string_view name );
-    static string_view GetName( int componentId );
-    static int GetID( string_view name );
+    // Every registered id, in order.
+    static const vector<ComponentTypeId>& Ids();
 
-    static void AddOnDraw( int componentId, OnComponentDrawFunc drawFunc );
-    static OnComponentDrawFunc GetOnDraw( int componentId );
+    static string_view GetName( ComponentTypeId componentId );
+    // Throws on a name no component has.
+    static ComponentTypeId GetID( string_view name );
+    static OnComponentDrawFunc GetOnDraw( ComponentTypeId componentId );
+    static ComponentFromJson GetFromJson( ComponentTypeId componentId );
+    static ComponentToJson GetToJson( ComponentTypeId componentId );
+    static ComponentCreateLuaBinding GetCreateLuaBinding( ComponentTypeId componentId );
+    // Throws on an id no component has.
+    static const ComponentFunctionsTable& Get( ComponentTypeId componentId );
 
-    static void AddFromJson( int componentId, ComponentFromJson drawFunc );
-    static ComponentFromJson GetFromJson( int componentId );
-
-    static void AddToJson( int componentId, ComponentToJson drawFunc );
-    static ComponentToJson GetToJson( int componentId );
-
-    static void AddCreateLuaBinding( int componentId, ComponentCreateLuaBinding CreateLuaBindingFunc );
-    static ComponentCreateLuaBinding GetCreateLuaBinding( int componentId );
-
-    const auto begin(){ return mComponentFuncTable.begin(); }
+    const auto begin() { return mComponentFuncTable.begin(); }
     const auto end() { return mComponentFuncTable.end(); }
-private:
-    static bool CreateComponentTable( int componentId );
-    static ComponentFunctionsTable& GetComponentTable( int componentId );
 
-    hash_map<int, ComponentFunctionsTable> mComponentFuncTable;
+private:
+    // Registering an id twice keeps the first.
+    static void Register( ComponentTypeId componentId, const ComponentFunctionsTable& table );
+
+    hash_map<ComponentTypeId, ComponentFunctionsTable> mComponentFuncTable;
+    vector<ComponentTypeId> mIds;
 };
 
 }

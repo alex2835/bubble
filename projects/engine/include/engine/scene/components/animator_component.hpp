@@ -110,9 +110,9 @@ struct AnimatorComponent
 public:
     AnimatorComponent();
     ~AnimatorComponent();
-    // The pool relocates components with the move constructor
-    // (recs/pool.hpp). The Animator is held by pointer, so a move hands it
-    // over as it is.
+    // The scene moves a component when another of its type is removed (see
+    // Scene). The Animator is held by pointer, so a move hands it over as it
+    // is.
     AnimatorComponent( const AnimatorComponent& );
     AnimatorComponent& operator=( const AnimatorComponent& );
     AnimatorComponent( AnimatorComponent&& ) noexcept;

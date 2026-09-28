@@ -14,18 +14,13 @@ void CreateForEachBindings( Scene& scene, sol::state& lua )
     lua["for_each_entity"] = [&]( const sol::table& components, const sol::function& func )
     {
         constexpr size_t componentsCount = magic_enum::enum_count<ComponentID>();
-        using ComponentsIdsArray = std::array<ComponentTypeId, componentsCount>;
-        using ComponentsDataArray = std::array<void*, componentsCount>;
 
-        // Fill component ids. Every value here comes straight from a script, so
-        // the table can be any length and hold anything at all - an unchecked
-        // index would run off the end of componentsIds.
-        ComponentsIdsArray componentsIds;
-        componentsIds.fill( INVALID_COMPONENT_TYPE_ID );
-        size_t idsCount = 0;
+        // Every value here comes straight from a script, so the table can be
+        // any length and hold anything at all.
+        vector<ComponentTypeId> componentsIds;
         for ( const auto& [k, v] : components )
         {
-            if ( idsCount >= componentsCount )
+            if ( componentsIds.size() >= componentsCount )
                 throw std::runtime_error( std::format( "for_each_entity: at most {} components expected",
                                                        componentsCount ) );
             if ( not v.is<int>() )
@@ -35,22 +30,18 @@ void CreateForEachBindings( Scene& scene, sol::state& lua )
             if ( not magic_enum::enum_contains<ComponentID>( componentId ) )
                 throw std::runtime_error( std::format( "for_each_entity: unknown component id {}", componentId ) );
 
-            componentsIds[idsCount++] = (ComponentTypeId)componentId;
+            componentsIds.push_back( (ComponentTypeId)componentId );
         }
 
         // Same table during whole iterations
         auto componentsTable = lua.create_table( 0, componentsCount );
 
-        scene.RuntimeForEach( componentsIds,
-        [&]( Entity entity, ComponentsDataArray componentsData )
+        scene.ForEach( componentsIds, [&]( Entity entity, std::span<void* const> componentsData )
         {
-            for ( size_t componentIdx = 0; componentIdx < componentsCount; componentIdx++ )
+            for ( size_t componentIdx = 0; componentIdx < componentsIds.size(); componentIdx++ )
             {
-                auto componentId = componentsIds[componentIdx];
-                if ( componentId == INVALID_COMPONENT_TYPE_ID )
-                    continue;
-
-                auto componentDataPtr = componentsData[componentIdx];
+                const auto componentId = componentsIds[componentIdx];
+                const auto componentDataPtr = componentsData[componentIdx];
                 switch ( (ComponentID)componentId )
                 {
                     case ComponentID::Tag:

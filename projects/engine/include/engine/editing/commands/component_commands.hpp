@@ -42,7 +42,7 @@ private:
     ComponentTypeId mComponentId;
     Scene& mScene;
     Scene mBackupScene;
-    Entity mBackupEntity = INVALID_ENTITY;
+    Entity mBackupEntity = Entity::Null;
     string mName;
 };
 

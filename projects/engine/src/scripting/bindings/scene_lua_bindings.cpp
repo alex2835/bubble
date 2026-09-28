@@ -39,8 +39,8 @@ static string BuildComponentEnum()
 }
 
 
-// Adding a physics component to an entity that already has one makes recs
-// replace it in place, which destroys the old Bullet body while the dynamics
+// Adding a physics component to an entity that already has one makes the
+// scene replace it in place, which destroys the old Bullet body while the dynamics
 // world still holds a raw pointer to it. Take it out of the world before the
 // component is overwritten - and for the same reason before the entity is
 // removed, since the component is destroyed either way.
@@ -81,7 +81,7 @@ Component& Need( Scene& scene, Entity entity )
 Entity FindOrThrow( const Scene& scene, Entity from, const string& path )
 {
     const Entity found = FindByPath( scene, from, path );
-    if ( found == INVALID_ENTITY )
+    if ( found == Entity::Null )
         throw std::runtime_error( std::format( "find( \"{}\" ): {}", path, WhyPathFails( scene, from, path ) ) );
     return found;
 }
@@ -427,7 +427,7 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity ) -> opt<Entity>
         {
             const Entity parent = ParentOf( scene, entity );
-            return parent == INVALID_ENTITY ? std::nullopt : opt<Entity>( parent );
+            return parent == Entity::Null ? std::nullopt : opt<Entity>( parent );
         },
         // nil puts it under the level's root. keep_world (default true)
         // leaves it where it is in the world; false keeps its local
@@ -436,7 +436,7 @@ void CreateSceneBindings( Scene& scene,
         "set_parent",
         [&]( const Entity& entity, sol::object parent, sol::optional<bool> keepWorld ) -> bool
         {
-            const Entity target = parent.is<Entity>() ? parent.as<Entity>() : INVALID_ENTITY;
+            const Entity target = parent.is<Entity>() ? parent.as<Entity>() : Entity::Null;
             if ( not SetParent( scene, entity, target, keepWorld.value_or( true ) ) )
                 return false;
             MakeNameUnique( scene, entity );
@@ -458,7 +458,7 @@ void CreateSceneBindings( Scene& scene,
         [&]( const Entity& entity, const string& path ) -> opt<Entity>
         {
             const Entity found = FindByPath( scene, entity, path );
-            return found == INVALID_ENTITY ? std::nullopt : opt<Entity>( found );
+            return found == Entity::Null ? std::nullopt : opt<Entity>( found );
         },
         // "/player/camera".
         "get_path",
@@ -491,14 +491,14 @@ void CreateSceneBindings( Scene& scene,
         "try_find", [&]( sol::object, const string& path ) -> opt<Entity>
         {
             const Entity found = FindByPath( scene, scene.Root(), path );
-            return found == INVALID_ENTITY ? std::nullopt : opt<Entity>( found );
+            return found == Entity::Null ? std::nullopt : opt<Entity>( found );
         },
         "root", [&]( sol::object ) { return scene.Root(); } );
 
 
     lua["remove_entity"] = [&]( Entity entity ) {
-        // Registry::RemoveEntity asserts on an unknown entity, so a stale handle
-        // held by a script would take a debug build down.
+        // Scene::RemoveEntity throws on an unknown entity; this names the call
+        // a stale handle held by a script came through.
         if ( not scene.HasEntity( entity ) )
             throw std::runtime_error( std::format( "remove_entity: no such entity {}", (size_t)entity ) );
 

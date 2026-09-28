@@ -21,16 +21,16 @@ public:
 
     void Clear()
     {
-        mEntity = INVALID_ENTITY;
+        mEntity = Entity::Null;
         mIsCut = false;
     }
 
-    bool IsEmpty() const { return mEntity == INVALID_ENTITY; }
+    bool IsEmpty() const { return mEntity == Entity::Null; }
     bool IsCut() const { return mIsCut; }
     Entity GetEntity() const { return mEntity; }
 
 private:
-    Entity mEntity = INVALID_ENTITY;
+    Entity mEntity = Entity::Null;
     bool mIsCut = false;
 };
 

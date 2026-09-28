@@ -7,11 +7,10 @@
 #include "BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h"
 #include "BulletCollision/CollisionDispatch/btGhostObject.h"
 #include "BulletDynamics/Character/btKinematicCharacterController.h"
-#include "recs/entity.hpp"
+#include "engine/scene/entity.hpp"
 
 namespace bubble
 {
-using namespace recs;
 
 // Bullet steps at a fixed rate and runs actions (the character controller) once
 // per substep, so anything expressed per second converts through this.

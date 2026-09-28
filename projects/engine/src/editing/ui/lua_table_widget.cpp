@@ -279,7 +279,7 @@ void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const A
         Leaf( c, path, current, [&]( NodePath& picked )
         {
             bool changed = false;
-            const bool missing = not picked.mPath.empty() and FindByPath( scene, owner, picked.mPath ) == INVALID_ENTITY;
+            const bool missing = not picked.mPath.empty() and FindByPath( scene, owner, picked.mPath ) == Entity::Null;
             const string preview = picked.mPath.empty() ? "None"s
                                    : missing ? std::format( "{} (nothing there)", picked.mPath ) : picked.mPath;
             ImGui::SetNextItemWidth( 200.0f );

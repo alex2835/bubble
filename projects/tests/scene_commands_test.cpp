@@ -16,7 +16,7 @@ TEST( CreateUndoRedo )
 {
     Fixture f;
     // A new level is its root and nothing else.
-    CHECK( f.scene.Size() == 1 and f.scene.HasComponent<FolderComponent>( f.Root() ) );
+    CHECK( f.scene.EntityCount() == 1 and f.scene.HasComponent<FolderComponent>( f.Root() ) );
 
     const Entity entity = f.Create( EntityKind::ModelObject );
     CHECK( f.Top() == vector{ entity } );
@@ -70,7 +70,7 @@ TEST( FolderAndDelete )
 
     // Undo all the way back, then redo all the way forward.
     f.history.Undo(); f.history.Undo(); f.history.Undo();
-    CHECK( f.Top().empty() and f.scene.Size() == 1 );
+    CHECK( f.Top().empty() and f.scene.EntityCount() == 1 );
     f.history.Redo(); f.history.Redo(); f.history.Redo(); f.history.Redo();
     CHECK( f.Top().empty() );
     CHECK( not f.history.CanRedo() );
