@@ -32,10 +32,11 @@ vector<Entity> Subtree( const Scene& scene, Entity entity );
 //
 // Paths are names joined with '/': "props/chair" from an entity down,
 // "../door" up to the parent first, "/player/camera" from the root (the root
-// itself is "/"). "." is where the path starts.
+// itself is "/"), "~/camera" from the root of the prefab instance the entity
+// is in. "." is where the path starts.
 string NameOf( const Scene& scene, Entity entity );
-// `wanted` fit to go under `parent`: '/' taken out, an empty name (or "."
-// or "..") made "Entity", and when a child other than `self` has it already,
+// `wanted` fit to go under `parent`: '/' taken out, an empty name (or ".",
+// ".." or "~") made "Entity", and when a child other than `self` has it already,
 // a number at its end counted up past theirs: chair -> chair2, chair2 -> chair3.
 string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, Entity self = INVALID_ENTITY );
 // Renames `entity` if a sibling has its name (or the name is not a valid
@@ -52,6 +53,14 @@ string DescribeEntity( const Scene& scene, Entity entity );
 
 // INVALID_ENTITY when nothing is there.
 Entity FindByPath( const Scene& scene, Entity from, string_view path );
+// Why FindByPath finds nothing, for an error: which part is missing where,
+// what is there instead, and a name that looks the same but is spelled with
+// other letters (a Cyrillic es for a Latin 'c'). Empty when it finds one.
+string WhyPathFails( const Scene& scene, Entity from, string_view path );
+// What "~" means from `entity`: the nearest of it and its ancestors that is
+// a prefab instance's root - the innermost instance it is in. Outside any
+// instance, the scene's root: in the Prefab Editor that is the prefab.
+Entity PrefabRootOf( const Scene& scene, Entity entity );
 // "/player/camera"; empty for an entity that is not under the root.
 string PathOf( const Scene& scene, Entity entity );
 // The path that leads from `from` to `to`: "camera", "../door", ".".

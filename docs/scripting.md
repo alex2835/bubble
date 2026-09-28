@@ -111,7 +111,7 @@ Obtained from `create_entity()`, from an `on_update` argument, from
 | Function | Returns | Notes |
 |---|---|---|
 | `create_entity()` | `Entity` | Under the level's root. |
-| `level:find( path )` | `Entity` or `nil` | By a path of names from the level's root: `"props/chair"`. `level:root()` is the root. |
+| `level:find( path )` | `Entity` | By a path of names from the level's root: `"props/chair"`. An error when nothing is there, saying what is there instead. `level:try_find( path )` gives `nil` instead; `level:root()` is the root. |
 | `remove_entity( entity )` | | Errors if the entity does not exist — test with `entity:is_valid()`. Removes what hangs under it too, and all of it from the physics world. The root cannot be removed. |
 | `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `Component.*` values; `fn` is `function( entity, components )`. |
 
@@ -679,7 +679,9 @@ in the editor is an `Entity` (or `nil`) by the time scripts run - see
 | | |
 |---|---|
 | `entity.name` | The Tag's name. Set, a name a sibling has gets a number: `enemy`, `enemy2`. |
-| `entity:find( path )` | `Entity` or `nil`. `"wheel"`, `"../door"`, `"/player/camera"`. |
+| `entity:find( path )` | `Entity`. `"wheel"`, `"../door"`, `"/player/camera"`, `"~/camera"` (from the root of the prefab instance). An error when nothing is there, saying which part is missing and what is there instead. |
+| `entity:try_find( path )` | `Entity` or `nil`. |
+| `entity:get_prefab_root()` | The root of the prefab instance the entity is in; the level's root outside one. |
 | `entity:get_path()` | `"/player/camera"`. |
 | `NodePath( "../door" )` | A path value; `.path` reads it. |
 

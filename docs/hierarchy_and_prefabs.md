@@ -55,8 +55,10 @@ names are the same**: a name that is taken gets a number - `chair`, `chair2`,
 arrives under a parent or is renamed: made, pasted, moved, instantiated,
 renamed in the tree or the inspector, spawned, `add_tag`, `set_parent`,
 `entity.name = ...`. Levels saved before this may repeat names; on load the
-later ones get numbers. A name cannot hold `/`, and cannot be empty, `.` or
-`..`. (Setting `get_tag().name` directly in a script is not checked.)
+later ones get numbers. A name cannot hold `/`, and cannot be empty, `.`,
+`..` or `~`. (Setting `get_tag().name` directly in a script is not checked.)
+Names are compared exactly: letter case counts, and so does the alphabet - a
+Cyrillic `с` is not a Latin `c`, though they look the same.
 
 So a **path** of names leads to one entity:
 
@@ -65,14 +67,35 @@ So a **path** of names leads to one entity:
 | `"props/chair"` | an entity | its child `props`, and that one's child `chair` |
 | `"../door"` | an entity | its parent's child `door` - a sibling |
 | `"/player/camera"` | anywhere | from the level's root; `"/"` is the root |
+| `"~/camera"` | an entity | from the root of the prefab instance it is in; `"~"` is that root |
 | `"."` | an entity | the entity itself |
 
-In scripts: `entity:find( path )` and `level:find( path )` (from the root)
-return the `Entity`, or `nil`; `entity:get_path()` gives `"/player/camera"`;
-`entity.name` reads and sets the name. In editor scripts `editor.find( path )`
-gives an id, and operators take a path (from the root) wherever they take an
-entity id. Functions: `FindByPath`, `PathOf`, `RelativePath`, `NameOf`,
-`UniqueChildName`, `MakeNameUnique` in `engine/scene/hierarchy.hpp`.
+`~` is the nearest of the entity and its ancestors that is an instance's root
+(it has a `PrefabInstance`) - for a prefab inside a prefab, the inner one.
+Outside any instance it is the scene's root, which in the Prefab Editor is the
+prefab itself, so `~/...` means the same while editing the prefab and in every
+instance of it. Script: `entity:get_prefab_root()`.
+
+In scripts:
+
+| | |
+|---|---|
+| `entity:find( path )`, `level:find( path )` | The `Entity`. When nothing is there, an error that says which part is missing where, what is there instead, and a name that looks the same but is spelled differently. |
+| `entity:try_find( path )`, `level:try_find( path )` | The `Entity`, or `nil`. |
+| `entity:get_path()` | `"/player/camera"`. |
+| `entity.name` | Reads and sets the name. |
+
+```
+find( "camera" ): '/player/playing sphere' has no child 'camera'. Its children:
+'mesh', 'ligh', 'сamera'. 'сamera' looks like it but is spelled differently -
+its letters 'с' (U+0441) are not Latin.
+```
+
+In editor scripts `editor.find( path )` (errors) and `editor.try_find( path )`
+(`nil`) give an id, and operators take a path (from the root) wherever they
+take an entity id. Functions: `FindByPath`, `WhyPathFails`, `PrefabRootOf`,
+`PathOf`, `RelativePath`, `NameOf`, `UniqueChildName`, `MakeNameUnique` in
+`engine/scene/hierarchy.hpp`.
 
 ### NodePath: references by path
 
@@ -87,6 +110,8 @@ NodePath in a State table (nested tables too) is **replaced by the entity it
 leads to**, before any `on_start` - scripts get entities. One that leads
 nowhere becomes `nil`, with a warning in the log. A script can make one too:
 `NodePath( "../door" )`, and turn it into an entity with `entity:find( p.path )`.
+Inside a prefab, `"~/..."` names a part from the prefab's root wherever the
+owner sits in it.
 
 Unlike an entity id, a path holds wherever the entities are copied: a prefab's
 NodePath to one of its own parts leads to that instance's part in every
@@ -110,7 +135,7 @@ children of a body follow the body.
 | `entity:get_parent()` | `Entity`; the root's parent is `nil`. |
 | `entity:set_parent( other, keep_world )` | `nil` puts it under the level's root. `keep_world` (default `true`) keeps it where it is; `false` keeps its local transform. `false` on a loop or for the root. |
 | `entity:get_children()` | Array of `Entity`. |
-| `entity:find( path )`, `level:find( path )`, `entity:get_path()`, `entity.name` | See *Names and paths* above. |
+| `entity:find( path )`, `entity:try_find( path )`, `level:find( path )`, `entity:get_path()`, `entity:get_prefab_root()`, `entity.name` | See *Names and paths* above. |
 
 A script that places a child by the world position of something else - the
 old follow-the-capsule pattern - should either make it a child and drop that

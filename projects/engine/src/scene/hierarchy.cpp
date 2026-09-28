@@ -1,10 +1,12 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scene/hierarchy.hpp"
 #include "engine/scene/components/hierarchy_component.hpp"
+#include "engine/scene/components/prefab_instance_component.hpp"
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/tag_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/types/set.hpp"
+#include "engine/utils/lookalike_text.hpp"
 #include <sol/sol.hpp>
 
 namespace bubble
@@ -292,7 +294,8 @@ string ValidName( string_view wanted )
     for ( const char c : wanted )
         if ( c != '/' )
             name += c;
-    if ( name.empty() or name == "." or name == ".." )
+    // What a path would read as something else is not a name.
+    if ( name.empty() or name == "." or name == ".." or name == "~" )
         name = "Entity";
     return name;
 }
@@ -387,15 +390,43 @@ void MakeNamesUnique( Scene& scene, Entity top )
     }
 }
 
-Entity FindByPath( const Scene& scene, Entity from, string_view path )
+Entity PrefabRootOf( const Scene& scene, Entity entity )
 {
+    int depth = 0;
+    for ( Entity at = entity; at != INVALID_ENTITY and scene.HasEntity( at ) and depth < cMaxDepth;
+          at = ParentOf( scene, at ), depth++ )
+        if ( scene.HasComponent<PrefabInstanceComponent>( at ) )
+            return at;
+    return scene.HasEntity( entity ) ? scene.Root() : INVALID_ENTITY;
+}
+
+namespace
+{
+// Walks `path` from `from`. On the way to nothing, `why` (when given) says
+// where it stopped and what was there instead.
+Entity WalkPath( const Scene& scene, Entity from, string_view path, string* why )
+{
+    const auto fail = [&]( string reason )
+    {
+        if ( why )
+            *why = std::move( reason );
+        return INVALID_ENTITY;
+    };
+    if ( from == INVALID_ENTITY or not scene.HasEntity( from ) )
+        return fail( std::format( "{} is not in the scene", DescribeEntity( scene, from ) ) );
+
     Entity at = from;
     if ( path.starts_with( '/' ) )
     {
         at = scene.Root();
         path.remove_prefix( 1 );
     }
-    while ( at != INVALID_ENTITY and not path.empty() )
+    else if ( path == "~" or path.starts_with( "~/" ) )
+    {
+        at = PrefabRootOf( scene, from );
+        path.remove_prefix( 1 );
+    }
+    while ( not path.empty() )
     {
         const size_t slash = path.find( '/' );
         const string_view part = path.substr( 0, slash );
@@ -404,9 +435,13 @@ Entity FindByPath( const Scene& scene, Entity from, string_view path )
             continue;
         if ( part == ".." )
         {
-            at = ParentOf( scene, at );
+            const Entity parent = ParentOf( scene, at );
+            if ( parent == INVALID_ENTITY )
+                return fail( std::format( "{} has no parent", DescribeEntity( scene, at ) ) );
+            at = parent;
             continue;
         }
+
         Entity found = INVALID_ENTITY;
         for ( const Entity child : ChildrenOf( scene, at ) )
             if ( scene.HasComponent<TagComponent>( child ) and scene.GetComponent<TagComponent>( child ).mName == part )
@@ -414,9 +449,54 @@ Entity FindByPath( const Scene& scene, Entity from, string_view path )
                 found = child;
                 break;
             }
+        if ( found == INVALID_ENTITY )
+        {
+            if ( not why )
+                return INVALID_ENTITY;
+            // What is there, and whether one of those is what was meant.
+            string names, alike;
+            int listed = 0;
+            for ( const Entity child : ChildrenOf( scene, at ) )
+            {
+                const string name = NameOf( scene, child );
+                if ( name.empty() )
+                    continue;
+                if ( listed++ < 12 )
+                    names += std::format( "{}'{}'", names.empty() ? "" : ", ", name );
+                if ( alike.empty() and LooksAlike( name, part ) )
+                {
+                    const string foreign = NonAsciiLetters( name ), asked = NonAsciiLetters( part );
+                    alike = std::format( " '{}' looks like it but is spelled differently", name );
+                    if ( not foreign.empty() )
+                        alike += std::format( " - its letters {} are not Latin", foreign );
+                    if ( not asked.empty() )
+                        alike += std::format( " - the path's letters {} are not Latin", asked );
+                    alike += ".";
+                }
+            }
+            if ( listed > 12 )
+                names += std::format( " and {} more", listed - 12 );
+            return fail( std::format( "{} has no child '{}'. {}{}", DescribeEntity( scene, at ), part,
+                                      names.empty() ? "It has no children." : std::format( "Its children: {}.", names ),
+                                      alike ) );
+        }
         at = found;
     }
-    return at != INVALID_ENTITY and scene.HasEntity( at ) ? at : INVALID_ENTITY;
+    return at;
+}
+}
+
+Entity FindByPath( const Scene& scene, Entity from, string_view path )
+{
+    return WalkPath( scene, from, path, nullptr );
+}
+
+string WhyPathFails( const Scene& scene, Entity from, string_view path )
+{
+    string why;
+    if ( WalkPath( scene, from, path, &why ) != INVALID_ENTITY )
+        return {};
+    return why;
 }
 
 namespace

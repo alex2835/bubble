@@ -75,6 +75,16 @@ Component& Need( Scene& scene, Entity entity )
         throw std::runtime_error( std::format( "{} has no {} component", DescribeEntity( scene, entity ), Component::Name() ) );
     return scene.GetComponent<Component>( entity );
 }
+
+// find(): the entity at `path`, or an error that says which part is missing
+// where and what is there instead.
+Entity FindOrThrow( const Scene& scene, Entity from, const string& path )
+{
+    const Entity found = FindByPath( scene, from, path );
+    if ( found == INVALID_ENTITY )
+        throw std::runtime_error( std::format( "find( \"{}\" ): {}", path, WhyPathFails( scene, from, path ) ) );
+    return found;
+}
 }
 
 void CreateSceneBindings( Scene& scene,
@@ -439,8 +449,12 @@ void CreateSceneBindings( Scene& scene,
             return sol::as_table( vector<Entity>( children.begin(), children.end() ) );
         },
         // By a path of names from this entity: "wheel", "../door",
-        // "/player/camera" (from the level's root). nil when nothing is there.
+        // "/player/camera" (from the level's root), "~/camera" (from the
+        // root of the prefab instance it is in). An error that says what is
+        // missing where when nothing is there; try_find gives nil instead.
         "find",
+        [&]( const Entity& entity, const string& path ) { return FindOrThrow( scene, entity, path ); },
+        "try_find",
         [&]( const Entity& entity, const string& path ) -> opt<Entity>
         {
             const Entity found = FindByPath( scene, entity, path );
@@ -449,6 +463,9 @@ void CreateSceneBindings( Scene& scene,
         // "/player/camera".
         "get_path",
         [&]( const Entity& entity ) { return PathOf( scene, entity ); },
+        // The root of the prefab instance the entity is in - what "~" means.
+        "get_prefab_root",
+        [&]( const Entity& entity ) { return PrefabRootOf( scene, entity ); },
         // The Tag's name. Set, it is made unique among the siblings.
         "name",
         sol::property(
@@ -467,10 +484,11 @@ void CreateSceneBindings( Scene& scene,
     // Made under the level's root, so it is in the tree like everything else.
     lua["create_entity"] = [&](){ return CreateChildEntity( scene ); };
 
-    // The level's tree from the top: level:find( "props/chair" ),
-    // level:root().
+    // The level's tree from the top: level:find( "props/chair" ) (an error
+    // when nothing is there), level:try_find( ... ) (nil), level:root().
     lua["level"] = lua.create_table_with(
-        "find", [&]( sol::object, const string& path ) -> opt<Entity>
+        "find", [&]( sol::object, const string& path ) { return FindOrThrow( scene, scene.Root(), path ); },
+        "try_find", [&]( sol::object, const string& path ) -> opt<Entity>
         {
             const Entity found = FindByPath( scene, scene.Root(), path );
             return found == INVALID_ENTITY ? std::nullopt : opt<Entity>( found );

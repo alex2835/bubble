@@ -25,7 +25,7 @@ editor.undo()
 | `editor.selection()` | Selected entity ids. |
 | `editor.select( id, ... )`, `editor.deselect()` | |
 | `editor.tree()` | `{ entity, name, folder, children = {…} }` from the level's root. Entity ids are what `parent` arguments take. |
-| `editor.find( path )`, `editor.path( id )` | An id by a path of names from the root (`"ground/floor"`), or `nil`; the path of an id. |
+| `editor.find( path )`, `editor.try_find( path )`, `editor.path( id )` | An id by a path of names from the root (`"ground/floor"`) - `find` errors when nothing is there, `try_find` gives `nil`; the path of an id. |
 | `editor.entities_by_tag( name )` | Entity ids. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |

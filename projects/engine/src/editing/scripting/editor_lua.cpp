@@ -260,8 +260,17 @@ void EditorLua::Bind()
         return describe( scene.Root() );
     } );
     // By a path of names from the root: editor.find( "ground/floor" ) -> id,
-    // or nil. Operators take the path itself too, wherever they take an id.
-    editor.set_function( "find", [this]( const string& path ) -> sol::object
+    // or an error saying what is missing where; editor.try_find gives nil
+    // instead. Operators take the path itself too, wherever they take an id.
+    editor.set_function( "find", [this]( const string& path )
+    {
+        Scene& scene = mCtx.mLevel.mScene;
+        const Entity found = FindByPath( scene, scene.Root(), path );
+        if ( found == INVALID_ENTITY )
+            throw std::runtime_error( std::format( "find( \"{}\" ): {}", path, WhyPathFails( scene, scene.Root(), path ) ) );
+        return (u64)found;
+    } );
+    editor.set_function( "try_find", [this]( const string& path ) -> sol::object
     {
         Scene& scene = mCtx.mLevel.mScene;
         const Entity found = FindByPath( scene, scene.Root(), path );

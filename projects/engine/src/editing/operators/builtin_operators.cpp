@@ -36,7 +36,8 @@ Entity EntityArg( const OperatorContext& ctx, const json& args, const char* key,
         const string path = args.at( key ).get<string>();
         const Entity found = FindByPath( SceneOf( ctx ), SceneOf( ctx ).Root(), path );
         if ( found == INVALID_ENTITY )
-            throw std::runtime_error( std::format( "{}: nothing at '{}'", key, path ) );
+            throw std::runtime_error( std::format( "{}: nothing at '{}' - {}", key, path,
+                                                   WhyPathFails( SceneOf( ctx ), SceneOf( ctx ).Root(), path ) ) );
         return found;
     }
     const auto id = args.at( key ).get<u64>();

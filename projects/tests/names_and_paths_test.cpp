@@ -117,6 +117,30 @@ TEST( Paths_FindAndBack )
     CHECK( NameOf( f.scene, door ) == "chair2" );
 }
 
+TEST( Paths_WhyNothingIsThere )
+{
+    Fixture f;
+    const Entity player = f.Create( EntityKind::Folder );
+    f.scene.GetComponent<TagComponent>( player ).mName = "player";
+    const Entity mesh = f.Create( EntityKind::ModelObject, player );
+    f.scene.GetComponent<TagComponent>( mesh ).mName = "mesh";
+    const Entity camera = f.Create( EntityKind::Camera, player );
+    // A Cyrillic es where a Latin c was meant: looks the same.
+    f.scene.GetComponent<TagComponent>( camera ).mName = "\xD1\x81" "amera";
+
+    CHECK( FindByPath( f.scene, player, "camera" ) == INVALID_ENTITY );
+    const string why = WhyPathFails( f.scene, player, "camera" );
+    CHECK( why.contains( "'/player' has no child 'camera'" ) );
+    CHECK( why.contains( "Its children: 'mesh', '\xD1\x81" "amera'" ) );
+    CHECK( why.contains( "looks like it but is spelled differently" ) and why.contains( "U+0441" ) );
+    // Other letter case reads the same too.
+    CHECK( WhyPathFails( f.scene, f.Root(), "Player" ).contains( "'player' looks like it" ) );
+    CHECK( WhyPathFails( f.scene, f.Root(), ".." ).contains( "'/' has no parent" ) );
+    CHECK( WhyPathFails( f.scene, player, "mesh" ).empty() );
+    // Not a name: what a path reads as something else.
+    CHECK( UniqueChildName( f.scene, f.Root(), "~" ) == "Entity" );
+}
+
 TEST( Paths_FromScripts )
 {
     Fixture f;
@@ -132,7 +156,10 @@ TEST( Paths_FromScripts )
     lua.script( R"(
         chair = level:find( "props/chair" )
         props = chair:find( ".." )
-        missing = level:find( "props/table" )
+        missing = level:try_find( "props/table" )
+        also_missing = chair:try_find( "leg" )
+        -- find itself raises, saying what is there instead.
+        found, find_err = pcall( function() return level:find( "props/table" ) end )
         path = chair:get_path()
         -- Two made with the same name are told apart.
         e1 = create_entity(); e1:add_tag( "crate" )
@@ -146,7 +173,9 @@ TEST( Paths_FromScripts )
     CHECK( lua["err"].get<string>().contains( "'/props/chair' has no Camera component" ) );
     CHECK( lua["chair"].get<Entity>() == chair );
     CHECK( lua["props"].get<Entity>() == props );
-    CHECK( not lua["missing"].valid() );
+    CHECK( not lua["missing"].valid() and not lua["also_missing"].valid() );
+    CHECK( not lua["found"].get<bool>() );
+    CHECK( lua["find_err"].get<string>().contains( "find( \"props/table\" ): '/props' has no child 'table'. Its children: 'chair'." ) );
     CHECK( lua["path"].get<string>() == "/props/chair" );
     CHECK( lua["second"].get<string>() == "crate2" );
     CHECK( lua["moved"].get<string>() == "chair2" );
@@ -197,6 +226,14 @@ TEST( NodePath_InsidePrefabInstances )
     const Entity part = f.Create( EntityKind::Light, body );
     f.scene.GetComponent<TagComponent>( part ).mName = "part";
     f.scene.GetComponent<StateComponent>( body ).mState->as<Table>()["part"] = NodePath( "part" );
+    // Deeper down, a script holder that names the part from the prefab's root.
+    const Entity deep = f.Create( EntityKind::Script, part );
+    f.scene.GetComponent<TagComponent>( deep ).mName = "deep";
+    f.scene.GetComponent<StateComponent>( deep ).mState->as<Table>()["part"] = NodePath( "~/part" );
+    // Outside any instance, "~" is the scene's root - in the Prefab Editor,
+    // the prefab.
+    CHECK( PrefabRootOf( f.scene, deep ) == f.Root() );
+    CHECK( FindByPath( f.scene, deep, "~" ) == f.Root() );
     SavePrefab( f.scene, body, dir / "thing.prefab", f.project );
 
     // Two instances, each finds its own part.
@@ -211,6 +248,13 @@ TEST( NodePath_InsidePrefabInstances )
         const auto children = ChildrenOf( level.mScene, root );
         const Any& st = *level.mScene.GetComponent<StateComponent>( root ).mState;
         CHECK( children.size() == 1 and st.as<Table>()["part"].get<Entity>() == children[0] );
+        if ( children.size() != 1 )
+            continue;
+        // "~" from inside an instance is that instance's root.
+        const Entity instanceDeep = FindByPath( level.mScene, root, "part/deep" );
+        CHECK( PrefabRootOf( level.mScene, instanceDeep ) == root );
+        const Any& deepState = *level.mScene.GetComponent<StateComponent>( instanceDeep ).mState;
+        CHECK( deepState.as<Table>()["part"].get<Entity>() == children[0] );
     }
     filesystem::remove_all( dir );
 }
