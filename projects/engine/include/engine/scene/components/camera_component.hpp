@@ -44,8 +44,8 @@ struct CameraComponent : public Camera
 	static string_view Name() { return "Camera"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& component );
-	static void ToJson( json& json, const Project& project, const CameraComponent& component );
-	static void FromJson( const json& json, Project& project, CameraComponent& component );
+    // Fields for engine/reflection: what is saved, shown and set by path.
+    static void Reflect();
     static void CreateLuaBinding( sol::state& lua );
 };
 

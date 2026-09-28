@@ -7,6 +7,7 @@
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/geometry.hpp"
+#include "engine/reflection/reflection.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include "engine/scripting/lua_value_property.hpp"
@@ -61,64 +62,38 @@ void LightComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entit
     }
 }
 
-void LightComponent::ToJson( json& json, const Project& project, const LightComponent& light )
+namespace
 {
-    json["Type"] = static_cast<int>( light.mType );
-    json["Color"] = { light.mColor.x, light.mColor.y, light.mColor.z };
-    json["Brightness"] = light.mBrightness;
-    json["Position"] = { light.mPosition.x, light.mPosition.y, light.mPosition.z };
-    json["Direction"] = { light.mDirection.x, light.mDirection.y, light.mDirection.z };
-    json["Distance"] = light.mDistance;
-    json["CutOff"] = light.mCutOff;
-    json["OuterCutOff"] = light.mOuterCutOff;
-    json["Constant"] = light.mConstant;
-    json["Linear"] = light.mLinear;
-    json["Quadratic"] = light.mQuadratic;
+bool NotDirectional( const entt::meta_any& light )
+{
+    return light.cast<const LightComponent&>().mType != LightType::Directional;
 }
 
-void LightComponent::FromJson( const json& json, Project& project, LightComponent& lightComponent )
+bool IsSpot( const entt::meta_any& light )
 {
-    if ( json.contains( "Type" ) )
-        lightComponent.mType = static_cast<LightType>( json["Type"].get<int>() );
+    return light.cast<const LightComponent&>().mType == LightType::Spot;
+}
 
-    if ( json.contains( "Color" ) )
-    {
-        auto color = json["Color"];
-        lightComponent.mColor = vec3( color[0], color[1], color[2] );
-    }
+void LightChanged( LightComponent& light )
+{
+    light.Update();
+}
+}
 
-    if ( json.contains( "Brightness" ) )
-        lightComponent.mBrightness = json["Brightness"];
-
-    if ( json.contains( "Position" ) )
-    {
-        auto pos = json["Position"];
-        lightComponent.mPosition = vec3( pos[0], pos[1], pos[2] );
-    }
-
-    if ( json.contains( "Direction" ) )
-    {
-        auto dir = json["Direction"];
-        lightComponent.mDirection = vec3( dir[0], dir[1], dir[2] );
-    }
-
-    if ( json.contains( "Distance" ) )
-        lightComponent.mDistance = json["Distance"];
-
-    if ( json.contains( "CutOff" ) )
-        lightComponent.mCutOff = json["CutOff"];
-
-    if ( json.contains( "OuterCutOff" ) )
-        lightComponent.mOuterCutOff = json["OuterCutOff"];
-
-    if ( json.contains( "Constant" ) )
-        lightComponent.mConstant = json["Constant"];
-
-    if ( json.contains( "Linear" ) )
-        lightComponent.mLinear = json["Linear"];
-
-    if ( json.contains( "Quadratic" ) )
-        lightComponent.mQuadratic = json["Quadratic"];
+// What the light is. Where it is and where it points come from the entity's
+// transform (SyncToTransform), and the attenuation from the distance - none
+// of it is saved.
+void LightComponent::Reflect()
+{
+    ReflectEnum<LightType>();
+    TypeBuilder<LightComponent>( "Light" )
+        .Field<&LightComponent::mType>( "type" )
+        .Field<&LightComponent::mColor>( "color", { .mFlags = FieldInfo::Color } )
+        .Field<&LightComponent::mBrightness>( "brightness", { .mMin = 0.0f, .mMax = 10.0f, .mSpeed = 0.01f } )
+        .Field<&LightComponent::mDistance>( "distance", { .mMin = 0.1f, .mMax = 3250.0f, .mVisible = NotDirectional } )
+        .Field<&LightComponent::mCutOff>( "cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mVisible = IsSpot } )
+        .Field<&LightComponent::mOuterCutOff>( "outer_cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mVisible = IsSpot } )
+        .OnChanged<&LightChanged>();
 }
 
 void LightComponent::CreateLuaBinding( sol::state& lua )

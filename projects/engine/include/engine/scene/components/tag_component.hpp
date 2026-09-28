@@ -9,8 +9,8 @@ struct TagComponent
 	static string_view Name() { return "Tag"sv; }
 
 	static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, TagComponent& component );
-	static void ToJson( json& json, const Project& project, const TagComponent& component );
-	static void FromJson( const json& json, Project& project, TagComponent& component );
+    // Fields for engine/reflection: what is saved, shown and set by path.
+    static void Reflect();
 	static void CreateLuaBinding( sol::state& lua );
 
 public:

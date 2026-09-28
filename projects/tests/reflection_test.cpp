@@ -2,6 +2,8 @@
 // types, sequences and enums, reached by path and written to JSON.
 #include "test.hpp"
 #include "engine/reflection/reflection.hpp"
+#include "engine/scene/components/light_component.hpp"
+#include "engine/scene/components/transform_component.hpp"
 #include <nlohmann/json.hpp>
 
 using namespace entt::literals;
@@ -203,4 +205,31 @@ TEST( Reflection_Inspection )
     CHECK( FieldInfoOf( type.data( "color"_hs ) ).Has( FieldInfo::Color ) );
     // A field described without a FieldInfo reads the default.
     CHECK( FieldInfoOf( entt::resolve<Point>().data( "value"_hs ) ).mFlags == FieldInfo::None );
+}
+
+// Components that describe themselves are saved from the description: names
+// of fields, enums by name, nothing derived.
+TEST( Reflection_ComponentsInLevelFiles )
+{
+    Fixture f;
+    const Entity lamp = f.Create( EntityKind::Light );
+    auto& light = f.scene.GetComponent<LightComponent>( lamp );
+    light.mType = LightType::Point;
+    light.mDistance = 13.0f;
+    light.Update();
+
+    const json saved = f.project.mLevel.ToJson( f.project );
+    const json& pools = saved.at( "Scene" ).at( "Component pools" );
+    const json& savedLight = pools.at( "Light" ).at( std::to_string( lamp ) );
+    CHECK( savedLight.at( "type" ) == "point" and savedLight.at( "distance" ) == 13.0f );
+    CHECK( not savedLight.contains( "linear" ) and not savedLight.contains( "position" ) );
+    CHECK( pools.at( "Tag" ).at( std::to_string( lamp ) ).at( "name" ) == "Light" );
+    CHECK( pools.at( "Transform" ).at( std::to_string( lamp ) ).at( "position" ) == json::array( { 1.0f, 2.0f, 3.0f } ) );
+
+    Level loaded;
+    loaded.FromJson( saved, f.project );
+    const auto& back = loaded.mScene.GetComponent<LightComponent>( lamp );
+    // The attenuation is made again from the distance, not read.
+    CHECK( back.mType == LightType::Point and back.mLinear == light.mLinear and back.mQuadratic == light.mQuadratic );
+    CHECK( loaded.mScene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 1, 2, 3 ) );
 }

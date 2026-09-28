@@ -29,8 +29,8 @@ struct LightComponent : public Light
 	static string_view Name() { return "Light"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, LightComponent& component );
-	static void ToJson( json& json, const Project& project, const LightComponent& component );
-	static void FromJson( const json& json, Project& project, LightComponent& component );
+    // Fields for engine/reflection: what is saved, shown and set by path.
+    static void Reflect();
 	static void CreateLuaBinding( sol::state& lua );
 };
 

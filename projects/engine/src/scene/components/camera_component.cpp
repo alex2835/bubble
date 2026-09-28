@@ -7,6 +7,7 @@
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/geometry.hpp"
+#include "engine/reflection/reflection.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include "engine/scripting/lua_value_property.hpp"
@@ -59,41 +60,18 @@ void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& enti
     DragFloatField<CameraComponent>( ctx, entity, "Radius", &CameraComponent::mRadius, 0.1f, 0.1f, 100.0f );
 }
 
-// Position, forward, up and right are not written: they are the cache the
-// transform fills, and the transform is serialized on its own.
-void CameraComponent::ToJson( json& json, const Project& project, const CameraComponent& cameraComponent )
+// Position, forward, up and right are not described: they are the cache the
+// transform fills, and the transform is saved on its own.
+void CameraComponent::Reflect()
 {
-    json["WorldUp"] = cameraComponent.mWorldUp;
-    json["Near"] = cameraComponent.mNear;
-    json["Far"] = cameraComponent.mFar;
-    json["Fov"] = cameraComponent.mFov;
-    json["Yaw"] = cameraComponent.mYaw;
-    json["Pitch"] = cameraComponent.mPitch;
-    json["Radius"] = cameraComponent.mRadius;
-}
-
-void CameraComponent::FromJson( const json& json, Project& project, CameraComponent& cameraComponent )
-{
-    if ( json.contains( "WorldUp" ) )
-        cameraComponent.mWorldUp = json["WorldUp"];
-
-    if ( json.contains( "Near" ) )
-        cameraComponent.mNear = json["Near"];
-
-    if ( json.contains( "Far" ) )
-        cameraComponent.mFar = json["Far"];
-
-    if ( json.contains( "Fov" ) )
-        cameraComponent.mFov = json["Fov"];
-
-    if ( json.contains( "Yaw" ) )
-        cameraComponent.mYaw = json["Yaw"];
-
-    if ( json.contains( "Pitch" ) )
-        cameraComponent.mPitch = json["Pitch"];
-
-    if ( json.contains( "Radius" ) )
-        cameraComponent.mRadius = json["Radius"];
+    TypeBuilder<CameraComponent>( "Camera" )
+        .Field<&CameraComponent::mWorldUp>( "world_up", { .mFlags = FieldInfo::Hidden } )
+        .Field<&CameraComponent::mNear>( "near", { .mMin = 0.01f, .mSpeed = 0.01f } )
+        .Field<&CameraComponent::mFar>( "far", { .mMin = 1.0f, .mMax = 10000.0f } )
+        .Field<&CameraComponent::mFov>( "fov", { .mMin = 0.1f, .mMax = 3.14f } )
+        .Field<&CameraComponent::mYaw>( "yaw", { .mFlags = FieldInfo::Hidden } )
+        .Field<&CameraComponent::mPitch>( "pitch", { .mFlags = FieldInfo::Hidden } )
+        .Field<&CameraComponent::mRadius>( "radius", { .mMin = 0.1f, .mMax = 100.0f, .mSpeed = 0.1f } );
 }
 
 void CameraComponent::CreateLuaBinding( sol::state& lua )

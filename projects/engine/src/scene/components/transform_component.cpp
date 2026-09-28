@@ -8,6 +8,7 @@
 #include "engine/types/string.hpp"
 #include "engine/types/map.hpp"
 #include "engine/utils/geometry.hpp"
+#include "engine/reflection/reflection.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 #include "engine/scripting/lua_value_property.hpp"
@@ -55,26 +56,14 @@ void TransformComponent::OnComponentDraw( InspectorContext& ctx, const Entity& e
     DragFloat3Field<TransformComponent>( ctx, entity, "Position", &TransformComponent::mPosition, 0.1f );
 }
 
-// Rotation is saved as the quaternion, [x, y, z, w]. Levels saved before it
-// was one hold three Euler radians there, read as such.
-void TransformComponent::ToJson( json& json, const Project& project, const TransformComponent& transformComponent )
+// The local transform. Where that puts the entity in the world is not
+// saved: UpdateWorldTransforms fills it after a load.
+void TransformComponent::Reflect()
 {
-    const quat& r = transformComponent.mRotation;
-    json["Position"] = transformComponent.mPosition;
-    json["Rotation"] = { r.x, r.y, r.z, r.w };
-    json["Scale"] = transformComponent.mScale;
-}
-
-void TransformComponent::FromJson( const json& json, Project& project, TransformComponent& transformComponent )
-{
-    transformComponent.mPosition = json["Position"];
-    const auto& rotation = json["Rotation"];
-    if ( rotation.is_array() and rotation.size() == 4 )
-        transformComponent.mRotation = glm::normalize( quat( rotation[3].get<f32>(), rotation[0].get<f32>(),
-                                                             rotation[1].get<f32>(), rotation[2].get<f32>() ) );
-    else
-        transformComponent.SetEuler( rotation.get<vec3>() );
-    transformComponent.mScale = json["Scale"];
+    TypeBuilder<TransformComponent>( "Transform" )
+        .Field<&TransformComponent::mPosition>( "position", { .mSpeed = 0.1f } )
+        .Field<&TransformComponent::mRotation>( "rotation" )
+        .Field<&TransformComponent::mScale>( "scale", { .mMin = 0.01f, .mSpeed = 0.01f } );
 }
 
 void TransformComponent::CreateLuaBinding( sol::state& lua )

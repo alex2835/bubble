@@ -9,6 +9,7 @@
 #include "engine/types/array.hpp"
 #include "engine/types/string.hpp"
 #include "engine/utils/geometry.hpp"
+#include "engine/reflection/reflection.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
 
@@ -38,16 +39,11 @@ void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity,
     InputTextField<TagComponent>( ctx, entity, "Class", &TagComponent::mClass );
 }
 
-void TagComponent::ToJson( json& json, const Project& project, const TagComponent& tagComponent )
+void TagComponent::Reflect()
 {
-    json["Tag"] = tagComponent.mName;
-    json["Class"] = tagComponent.mClass;
-}
-
-void TagComponent::FromJson( const json& json, Project& project, TagComponent& tagComponent )
-{
-    tagComponent.mName = json["Tag"];
-    tagComponent.mClass = json["Class"];
+    TypeBuilder<TagComponent>( "Tag" )
+        .Field<&TagComponent::mName>( "name" )
+        .Field<&TagComponent::mClass>( "class" );
 }
 
 void TagComponent::CreateLuaBinding( sol::state& lua )

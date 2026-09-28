@@ -33,8 +33,8 @@ struct TransformComponent : public Transform
 	static string_view Name() { return "Transform"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, TransformComponent& component );
-    static void ToJson( json& json, const Project& project, const TransformComponent& component );
-    static void FromJson( const json& json, Project& project, TransformComponent& component );
+    // Fields for engine/reflection: what is saved, shown and set by path.
+    static void Reflect();
     static void CreateLuaBinding( sol::state& lua );
 
     // The world transform: exact for a root, taken back out of the matrix for
