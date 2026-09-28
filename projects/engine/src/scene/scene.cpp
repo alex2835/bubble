@@ -54,6 +54,7 @@ void RegisterComponents()
     // Before the components: their fields hold resources and entities.
     ReflectAssets();
     ReflectEntity();
+    ReflectLuaValues();
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
     ComponentManager::Add<TransformComponent>();

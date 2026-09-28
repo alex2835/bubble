@@ -303,9 +303,16 @@ void EditorLua::Bind()
         }
         else
             entity = Entity::FromId( entityArg.as<u64>() );
+        const auto context = ComponentManager::ContextOf( mCtx.mProject );
+        // A component's name alone is the whole component.
+        if ( path.find( '.' ) == string::npos )
+        {
+            entt::meta_any component = RequireReflected( scene, entity, ComponentManager::GetID( path ) );
+            return JsonToLua( *mLua, ToJson( component, context ) );
+        }
         const ComponentField field = ParseComponentField( path );
         entt::meta_any component = RequireReflected( scene, entity, field.mComponentId );
-        return JsonToLua( *mLua, ToJson( GetField( component, field.mPath ), ComponentManager::ContextOf( mCtx.mProject ) ) );
+        return JsonToLua( *mLua, ToJson( GetField( component, field.mPath ), context ) );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {

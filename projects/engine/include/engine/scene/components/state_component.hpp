@@ -9,6 +9,11 @@ struct StateComponent
     static int ID() { return static_cast<int>( ComponentID::State ); }
     static string_view Name() { return "state"sv; }
 
+    // For engine/reflection: the table's keys are the component's -
+    // "state.health", "state.items[1]" - for property.set and editor.get.
+    // The inspector, the file and Lua stay written by hand.
+    static void Reflect();
+
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, StateComponent& component );
     // How an edit addresses this entity's state table - see lua_value_command.hpp.
     static LuaTableRoot StateTableRoot( Scene& scene, Entity entity );

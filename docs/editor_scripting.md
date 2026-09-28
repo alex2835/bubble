@@ -27,7 +27,7 @@ editor.undo()
 | `editor.tree()` | `{ entity, name, folder, children = {…} }` from the level's root. Entity ids are what `parent` arguments take. |
 | `editor.find( path )`, `editor.try_find( path )`, `editor.path( id )` | An id by a path of names from the root (`"ground/floor"`) - `find` errors when nothing is there, `try_find` gives `nil`; the path of an id. |
 | `editor.entities_by_tag( name )` | Entity ids. |
-| `editor.get( entity, path )` | A field's value, as `property.set` takes it: `editor.get( "player/Light2", "light.distance" )`. The entity by id or by path. Vectors and described types come back as tables, enums as names. |
+| `editor.get( entity, path )` | A field's value, as `property.set` takes it: `editor.get( "player/Light2", "light.distance" )`. The entity by id or by path. Vectors and described types come back as tables, enums as names. A component's name alone (`"state"`) is the whole component. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
 | `dump( value, depth )` | A value laid out over several lines, tables to `depth` levels (default 4), keys sorted, a cycle shown as `<cycle>`. |
@@ -85,10 +85,16 @@ that makes none (`scene.copy`, `game.run`) leaves no step.
 ## Fields
 
 `property.set`, `editor.get`, the inspector and level files reach a component's
-fields through its description (`engine/reflection`): `tag`, `transform`, `light`
-and `camera` have one so far. Component and field names are snake_case and the
-same everywhere - the key in a file, the step of a path, the Lua field. A field
-the inspector shows greyed out (`light.linear`) is read only and cannot be set.
+fields through its description (`engine/reflection`); every component has one.
+Component and field names are snake_case and the same everywhere - the key in a
+file, the step of a path, the Lua field. A field the inspector shows greyed out
+(`light.linear`) is read only and cannot be set.
+
+A path goes on into Lua tables: the keys of `state` are its fields
+(`"state.health"`, `"state.items[1]"`), and so are the keys of
+`shader.uniforms` (`"shader.uniforms.color"`). `[1]` is the table's first, as
+in Lua. A key the table does not have yet is made by `property.set`, and undo
+takes it away again; reading one names the keys the table has.
 
 ## Adding an operator
 

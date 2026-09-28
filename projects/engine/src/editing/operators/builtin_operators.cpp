@@ -253,13 +253,27 @@ void OperatorRegistry::RegisterBuiltins()
             const ComponentField field = ParseComponentField( path );
             entt::meta_any component = RequireReflected( scene, entity, field.mComponentId );
 
-            // Copies: the step keeps both values of its own.
-            const entt::meta_any current = GetField( component, field.mPath );
-            entt::meta_any from = current;
+            // Copies: the step keeps both values of its own. A key a Lua
+            // table does not have yet was nil before.
+            const entt::meta_type type = TypeAt( component, field.mPath );
+            entt::meta_any from;
+            try
+            {
+                // Copied: GetField reaches into the component, and the step
+                // must keep the value as it is now.
+                const entt::meta_any current = GetField( component, field.mPath );
+                from = current;
+            }
+            catch ( const std::exception& )
+            {
+                if ( type != entt::resolve<Any>() )
+                    throw;
+                from = Any( sol::lua_nil );
+            }
             entt::meta_any to;
             try
             {
-                to = FromJson( args.at( "value" ), current.type(), ComponentManager::ContextOf( ctx.mProject ) );
+                to = FromJson( args.at( "value" ), type, ComponentManager::ContextOf( ctx.mProject ) );
             }
             catch ( const std::exception& e )
             {

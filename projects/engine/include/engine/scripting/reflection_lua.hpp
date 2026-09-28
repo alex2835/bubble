@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/reflection/reflection.hpp"
+#include "engine/types/any.hpp"
 #include <sol/sol.hpp>
 
 // A described type's fields as Lua sees them: every field of the description
@@ -50,6 +51,18 @@ void SetMembers( sol::usertype<T>& type, Key&& key, Value&& value, Rest&&... res
     if constexpr ( sizeof...( Rest ) > 0 )
         SetMembers( type, std::forward<Rest>( rest )... );
 }
+
+// A Lua value (Any) as a field: JSON in the project's Lua state, keys a path
+// goes on into, and Lua sees it as itself. Once, before any component
+// describes itself.
+void ReflectLuaValues();
+
+// A table's key as a path step names it: "health", or [1] for Lua's first.
+// Get throws when the value is no table or has no such key, saying which it
+// has; Set makes the key if it is not there. For a type whose table is its
+// own keys (state).
+entt::meta_any LuaTableGet( const Any& table, const PathKey& key );
+void LuaTableSet( const Any& table, const PathKey& key, const entt::meta_any& value );
 
 // Each enum of the described fields as a global table of its values:
 // light_type.spot == "spot". Once per enum.

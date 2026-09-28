@@ -24,6 +24,11 @@ struct ShaderComponent
     static int ID() { return static_cast<int>( ComponentID::Shader ); }
 	static string_view Name() { return "shader"sv; }
 
+    // Fields for engine/reflection - "shader.shader", "shader.uniforms.color" -
+    // for property.set and editor.get. The inspector, the file and Lua stay
+    // written by hand: they keep a shader path a failed load would lose.
+    static void Reflect();
+
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ShaderComponent& component );
     // How an edit addresses this entity's uniform table - see lua_value_command.hpp.
     static LuaTableRoot UniformsTableRoot( Scene& scene, Entity entity );
@@ -58,14 +63,14 @@ public:
 
     // Same two, for callers that hold the sol::state and not the engine around
     // it - the Lua bindings and the editor's inspector.
-    DroppedUniforms RebuildUniforms( sol::state& lua, const Table* previous );
-    DroppedUniforms RebuildUniforms( sol::state& lua );
+    DroppedUniforms RebuildUniforms( sol::state_view lua, const Table* previous );
+    DroppedUniforms RebuildUniforms( sol::state_view lua );
 
     // Build the table if it is missing, leave it alone if it is not. A shader
     // set from Lua or picked in the inspector arrives with no table at all, and
     // everything downstream - the `uniforms` property, the inspector, the draw
     // loop - assumed one was always there.
-    void EnsureUniforms( sol::state& lua );
+    void EnsureUniforms( sol::state_view lua );
 
     Ref<Shader> mShader;
     Scope<Any> mUniforms;

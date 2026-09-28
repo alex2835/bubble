@@ -120,35 +120,43 @@ void CallOnChanged( entt::meta_any& owner )
 
 /// Paths
 
-struct Step
+hash_map<entt::id_type, DynamicKeys>& Dynamics()
 {
-    string_view mName;
-    std::optional<size_t> mIndex;
-};
+    static hash_map<entt::id_type, DynamicKeys> dynamics;
+    return dynamics;
+}
 
-vector<Step> ParsePath( string_view path )
+const DynamicKeys* FindDynamic( const entt::meta_type& type )
 {
-    vector<Step> steps;
+    const auto it = Dynamics().find( type.info().hash() );
+    return it != Dynamics().end() ? &it->second : nullptr;
+}
+
+// One step each: "points[2].value" is points, [2], value.
+vector<PathKey> ParsePath( string_view path )
+{
+    vector<PathKey> steps;
     size_t start = 0;
     while ( true )
     {
         const size_t dot = path.find( '.', start );
         string_view part = path.substr( start, dot == string_view::npos ? string_view::npos : dot - start );
-        Step step;
+        std::optional<size_t> index;
         if ( const size_t open = part.find( '[' ); open != string_view::npos )
         {
-            size_t index = 0;
+            size_t at = 0;
             const string_view digits = part.substr( open + 1, part.size() - open - 2 );
-            const auto [end, error] = std::from_chars( digits.data(), digits.data() + digits.size(), index );
+            const auto [end, error] = std::from_chars( digits.data(), digits.data() + digits.size(), at );
             if ( part.back() != ']' or digits.empty() or error != std::errc() or end != digits.data() + digits.size() )
                 throw std::runtime_error( std::format( "'{}': '{}' is not name[index]", path, part ) );
-            step.mIndex = index;
+            index = at;
             part = part.substr( 0, open );
         }
         if ( part.empty() )
             throw std::runtime_error( std::format( "'{}': a name is missing", path ) );
-        step.mName = part;
-        steps.push_back( step );
+        steps.push_back( { part, std::nullopt } );
+        if ( index )
+            steps.push_back( { {}, index } );
         if ( dot == string_view::npos )
             return steps;
         start = dot + 1;
@@ -174,25 +182,79 @@ entt::meta_data FieldOf( const entt::meta_any& owner, string_view name, string_v
 }
 
 // The element of a sequence, by reference into it.
-entt::meta_any ElementOf( entt::meta_any& sequence, const Step& step, string_view path )
+entt::meta_any ElementOf( entt::meta_any& sequence, size_t index, string_view path )
 {
     auto container = sequence.as_sequence_container();
     if ( not container )
-        throw std::runtime_error( std::format( "'{}': {} is a {}, not a sequence", path, step.mName, TypeName( sequence.type() ) ) );
-    if ( *step.mIndex >= container.size() )
-        throw std::runtime_error( std::format( "'{}': {} has {} elements", path, step.mName, container.size() ) );
-    return container[*step.mIndex];
+        throw std::runtime_error( std::format( "'{}': a {} is not a sequence", path, TypeName( sequence.type() ) ) );
+    if ( index >= container.size() )
+        throw std::runtime_error( std::format( "'{}': the sequence has {} elements", path, container.size() ) );
+    return container[index];
 }
 
-void SetAt( entt::meta_any& owner, std::span<const Step> steps, entt::meta_any& value, string_view path )
+// What one step reads: a key of a dynamic container, an element of a
+// sequence, or a field.
+entt::meta_any StepInto( entt::meta_any& current, const PathKey& step, string_view path )
 {
-    const Step& step = steps.front();
+    if ( const DynamicKeys* dynamic = FindDynamic( current.type() ) )
+    {
+        try
+        {
+            return dynamic->mGet( current, step );
+        }
+        catch ( const std::exception& e )
+        {
+            throw std::runtime_error( std::format( "'{}': {}", path, e.what() ) );
+        }
+    }
+    if ( step.mIndex )
+        return ElementOf( current, *step.mIndex, path );
+    return FieldOf( current, step.mName, path ).get( current );
+}
+
+void SetAt( entt::meta_any& owner, std::span<const PathKey> steps, entt::meta_any& value, string_view path )
+{
+    const PathKey& step = steps.front();
+    const auto rest = steps.subspan( 1 );
+
+    // Run-time keys: by reference all the way down, nothing to set back.
+    if ( const DynamicKeys* dynamic = FindDynamic( owner.type() ) )
+    {
+        try
+        {
+            if ( rest.empty() )
+                dynamic->mSet( owner, step, value );
+            else
+            {
+                entt::meta_any child = dynamic->mGet( owner, step );
+                SetAt( child, rest, value, path );
+            }
+        }
+        catch ( const std::exception& e )
+        {
+            const string message = e.what();
+            throw std::runtime_error( message.starts_with( "'" ) ? message : std::format( "'{}': {}", path, message ) );
+        }
+        CallOnChanged( owner );
+        return;
+    }
+
+    if ( step.mIndex )
+    {
+        entt::meta_any element = ElementOf( owner, *step.mIndex, path );
+        if ( not rest.empty() )
+            SetAt( element, rest, value, path );
+        else if ( not element.assign( value ) )
+            throw std::runtime_error( std::format( "'{}': an element cannot be set from a {}", path, TypeName( value.type() ) ) );
+        return;
+    }
+
     const entt::meta_data field = FieldOf( owner, step.mName, path );
     if ( const FieldInfo& info = FieldInfoOf( field ); info.Has( FieldInfo::ReadOnly ) )
         throw std::runtime_error( info.mTooltip ? std::format( "'{}': {} is read only - {}", path, step.mName, info.mTooltip )
                                                 : std::format( "'{}': {} is read only", path, step.mName ) );
 
-    if ( steps.size() == 1 and not step.mIndex )
+    if ( rest.empty() )
     {
         if ( not field.set( owner, value ) )
             throw std::runtime_error( std::format( "'{}': a {} cannot be set from a {}", path, TypeName( field.type() ),
@@ -200,24 +262,11 @@ void SetAt( entt::meta_any& owner, std::span<const Step> steps, entt::meta_any& 
     }
     else
     {
-        // A reference into the owner for a Field, a copy for a Property.
+        // A reference into the owner for a Field, a copy for a Property -
+        // set back unless it is a container that holds by reference.
         entt::meta_any child = field.get( owner );
-        if ( step.mIndex )
-        {
-            entt::meta_any element = ElementOf( child, step, path );
-            if ( steps.size() == 1 )
-            {
-                if ( not element.assign( value ) )
-                    throw std::runtime_error( std::format( "'{}': an element of {} cannot be set from a {}", path,
-                                                           step.mName, TypeName( value.type() ) ) );
-            }
-            else
-                SetAt( element, steps.subspan( 1 ), value, path );
-        }
-        else
-            SetAt( child, steps.subspan( 1 ), value, path );
-
-        if ( Owns( child ) and not field.set( owner, child ) )
+        SetAt( child, rest, value, path );
+        if ( Owns( child ) and not FindDynamic( child.type() ) and not field.set( owner, child ) )
             throw std::runtime_error( std::format( "'{}': {} cannot be set back", path, step.mName ) );
     }
     CallOnChanged( owner );
@@ -262,15 +311,9 @@ entt::meta_any GetField( entt::meta_any& object, string_view path )
     entt::meta_any current = object.as_ref();
     // Copies made on the way, through a Property, kept alive until the end.
     vector<entt::meta_any> held;
-    for ( const Step& step : ParsePath( path ) )
+    for ( const PathKey& step : ParsePath( path ) )
     {
-        entt::meta_any next = FieldOf( current, step.mName, path ).get( current );
-        if ( step.mIndex )
-        {
-            if ( Owns( next ) )
-                held.push_back( std::move( next ) ), next = held.back().as_ref();
-            next = ElementOf( next, step, path );
-        }
+        entt::meta_any next = StepInto( current, step, path );
         if ( Owns( next ) )
             held.push_back( std::move( next ) ), next = held.back().as_ref();
         current = std::move( next );
@@ -284,16 +327,33 @@ entt::meta_any GetField( entt::meta_any& object, string_view path )
     return current;
 }
 
+entt::meta_type TypeAt( entt::meta_any& object, string_view path )
+{
+    const vector<PathKey> steps = ParsePath( path );
+    entt::meta_any current = object.as_ref();
+    vector<entt::meta_any> held;
+    for ( size_t i = 0; i < steps.size(); i++ )
+    {
+        if ( const DynamicKeys* dynamic = FindDynamic( current.type() ); dynamic and i + 1 == steps.size() )
+            return dynamic->mValueType;
+        entt::meta_any next = StepInto( current, steps[i], path );
+        if ( Owns( next ) )
+            held.push_back( std::move( next ) ), next = held.back().as_ref();
+        current = std::move( next );
+    }
+    return current.type();
+}
+
 void SetField( entt::meta_any& object, string_view path, entt::meta_any value )
 {
-    const vector<Step> steps = ParsePath( path );
+    const vector<PathKey> steps = ParsePath( path );
     entt::meta_any target = object.as_ref();
     SetAt( target, steps, value, path );
 }
 
 void SetField( entt::meta_any& object, string_view path, const json& value, const ReflectionContext& ctx )
 {
-    const entt::meta_type type = GetField( object, path ).type();
+    const entt::meta_type type = TypeAt( object, path );
     entt::meta_any converted;
     try
     {
@@ -406,6 +466,15 @@ entt::meta_any FromJson( const json& j, const entt::meta_type& type, const Refle
 void FromJson( const json& j, entt::meta_any& object, const ReflectionContext& ctx )
 {
     const entt::meta_type type = object.type();
+    // A type written whole by a codec is read whole.
+    if ( FindCodec( type ) )
+    {
+        entt::meta_any target = object.as_ref();
+        if ( not target.assign( FromJson( j, type, ctx ) ) )
+            throw std::runtime_error( std::format( "a {} cannot be set from JSON", TypeName( type ) ) );
+        CallOnChanged( target );
+        return;
+    }
     if ( not j.is_object() )
         throw std::runtime_error( std::format( "a {} is an object, not {}", TypeName( type ), j.dump() ) );
     entt::meta_any target = object.as_ref();
@@ -427,6 +496,11 @@ void FromJson( const json& j, entt::meta_any& object, const ReflectionContext& c
             throw std::runtime_error( std::format( "{}.{} cannot be set", TypeName( type ), name ) );
     }
     CallOnChanged( target );
+}
+
+void RegisterDynamicKeys( const entt::meta_type& type, DynamicKeys keys )
+{
+    Dynamics()[type.info().hash()] = keys;
 }
 
 void RegisterJsonCodec( const entt::meta_type& type, ToJsonFn to, FromJsonFn from )

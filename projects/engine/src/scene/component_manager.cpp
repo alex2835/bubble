@@ -43,7 +43,8 @@ ReflectionContext ComponentManager::ContextOf( const Project& project )
 {
     // The loader caches what it loads; handing it out from a const project is
     // how every load from a file already reaches it.
-    return { &const_cast<Project&>( project ).mLoader };
+    auto& mutableProject = const_cast<Project&>( project );
+    return { &mutableProject.mLoader, &mutableProject.mScriptingEngine };
 }
 
 string_view ComponentManager::GetName( ComponentTypeId componentId )

@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/scripting/reflection_lua.hpp"
 #include "engine/scene/components/shader_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
@@ -112,6 +113,30 @@ void LogDroppedShaderUniforms( const Ref<Shader>& shader, const DroppedUniforms&
                     shader->mName, dropped.mRetyped.size(), JoinNames( dropped.mRetyped ) );
 }
 
+
+namespace
+{
+Ref<Shader> ShaderOf( const ShaderComponent& c ) { return c.mShader; }
+// A new shader reconciles the uniforms in the state their table is in:
+// values whose name and type it shares carry over.
+void SetShaderOf( ShaderComponent& c, Ref<Shader> shader )
+{
+    c.mShader = std::move( shader );
+    c.mShaderPath = c.mShader ? c.mShader->mPath : path();
+    if ( c.mUniforms and c.mUniforms->is<Table>() )
+        LogDroppedShaderUniforms( c.mShader, c.RebuildUniforms( sol::state_view( c.mUniforms->as<Table>().lua_state() ) ) );
+}
+
+Any UniformsOf( const ShaderComponent& c ) { return c.mUniforms ? *c.mUniforms : Any( sol::lua_nil ); }
+void SetUniformsOf( ShaderComponent& c, Any uniforms ) { c.mUniforms = CreateScope<Any>( AnyDeepCopy( uniforms ) ); }
+}
+
+void ShaderComponent::Reflect()
+{
+    TypeBuilder<ShaderComponent>( Name().data() )
+        .Property<&SetShaderOf, &ShaderOf>( "shader" )
+        .Property<&SetUniformsOf, &UniformsOf>( "uniforms" );
+}
 
 void ShaderComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, ShaderComponent& shaderComponent )
 {
@@ -284,7 +309,7 @@ DroppedUniforms ShaderComponent::RebuildUniforms( ScriptingEngine& lua, const Ta
     return RebuildUniforms( *lua.mLua, previous );
 }
 
-DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua )
+DroppedUniforms ShaderComponent::RebuildUniforms( sol::state_view lua )
 {
     if ( mUniforms and mUniforms->is<Table>() )
     {
@@ -294,14 +319,14 @@ DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua )
     return RebuildUniforms( lua, nullptr );
 }
 
-void ShaderComponent::EnsureUniforms( sol::state& lua )
+void ShaderComponent::EnsureUniforms( sol::state_view lua )
 {
     if ( mUniforms and mUniforms->is<Table>() )
         return;
     RebuildUniforms( lua, nullptr );
 }
 
-DroppedUniforms ShaderComponent::RebuildUniforms( sol::state& lua, const Table* previous )
+DroppedUniforms ShaderComponent::RebuildUniforms( sol::state_view lua, const Table* previous )
 {
     if ( !mShader )
     {

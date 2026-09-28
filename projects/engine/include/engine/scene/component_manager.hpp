@@ -92,6 +92,16 @@ public:
             .mStorageId = entt::type_hash<Component>::value(),
             .mStorage = []( Scene::Registry& registry ) -> Scene::Storage& { return registry.storage<Component>(); },
         };
+
+        // A component may describe itself and still write any of the three
+        // by hand - a Lua table's own inspector, a file format that keeps a
+        // path a failed load would lose; what it writes by hand wins.
+        if constexpr ( ReflectedComponent<Component> )
+        {
+            Component::Reflect();
+            table.mMeta = entt::resolve<Component>();
+        }
+
         if constexpr ( HandDrawnComponent<Component> )
             table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
             { Component::OnComponentDraw( ctx, entity, *static_cast<Component*>( rawData ) ); };
@@ -104,16 +114,25 @@ public:
                     Component::DrawExtras( ctx, entity, *static_cast<Component*>( rawData ) );
             };
 
-        if constexpr ( ReflectedComponent<Component> )
-        {
-            Component::Reflect();
-            table.mMeta = entt::resolve<Component>();
+        if constexpr ( HandBoundComponent<Component> )
+            table.mCreateLuaBinding = Component::CreateLuaBinding;
+        else
             table.mCreateLuaBinding = []( sol::state& lua )
             {
                 auto type = BindReflected<Component>( lua, Component::Name().data() );
                 if constexpr ( requires { Component::BindLuaMethods( lua, type ); } )
                     Component::BindLuaMethods( lua, type );
             };
+
+        if constexpr ( HandSavedComponent<Component> )
+        {
+            table.mFromJson = []( const json& json, Project& project, void* rawData )
+            { Component::FromJson( json, project, *static_cast<Component*>( rawData ) ); };
+            table.mToJson = []( json& json, const Project& project, const void* rawData )
+            { Component::ToJson( json, project, *static_cast<const Component*>( rawData ) ); };
+        }
+        else
+        {
             table.mFromJson = []( const json& json, Project& project, void* rawData )
             {
                 entt::meta_any component = entt::forward_as_meta( *static_cast<Component*>( rawData ) );
@@ -124,14 +143,6 @@ public:
                 json = bubble::ToJson( entt::forward_as_meta( *static_cast<const Component*>( rawData ) ),
                                        ContextOf( project ) );
             };
-        }
-        else
-        {
-            table.mCreateLuaBinding = Component::CreateLuaBinding;
-            table.mFromJson = []( const json& json, Project& project, void* rawData )
-            { Component::FromJson( json, project, *static_cast<Component*>( rawData ) ); };
-            table.mToJson = []( json& json, const Project& project, const void* rawData )
-            { Component::ToJson( json, project, *static_cast<const Component*>( rawData ) ); };
         }
         Register( Component::ID(), table );
     }
@@ -151,7 +162,7 @@ public:
     // The component, by reference, as engine/reflection sees it; empty when
     // the entity does not have it or the type is not reflected.
     static entt::meta_any Reflected( Scene& scene, Entity entity, ComponentTypeId componentId );
-    // What engine/reflection needs of the project: its loader.
+    // What engine/reflection needs of the project: its loader and Lua state.
     static ReflectionContext ContextOf( const Project& project );
 
     const auto begin() { return mComponentFuncTable.begin(); }

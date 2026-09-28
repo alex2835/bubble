@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/scripting/reflection_lua.hpp"
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
@@ -40,6 +41,28 @@ StateComponent& StateComponent::operator=( const StateComponent& other )
     if ( this != &other )
         mState = AnyDeepCopy( other.mState );
     return *this;
+}
+
+void StateComponent::Reflect()
+{
+    TypeBuilder<StateComponent>( Name().data() );
+    const entt::meta_type type = entt::resolve<StateComponent>();
+    RegisterDynamicKeys( type, DynamicKeys{
+        .mGet = []( const entt::meta_any& c, const PathKey& key ) { return LuaTableGet( *c.cast<const StateComponent&>().mState, key ); },
+        .mSet = []( entt::meta_any& c, const PathKey& key, const entt::meta_any& value )
+        { LuaTableSet( *c.cast<const StateComponent&>().mState, key, value ); },
+        .mValueType = entt::resolve<Any>(),
+    } );
+    // The whole table, for editor.get( e, "state" ).
+    RegisterJsonCodec(
+        type,
+        []( const entt::meta_any& c, const ReflectionContext& ) -> json { return SaveAnyValue( *c.cast<const StateComponent&>().mState ); },
+        []( const json& j, const ReflectionContext& ctx ) -> entt::meta_any
+        {
+            if ( not ctx.mScripting )
+                throw std::runtime_error( "a state table cannot be read without a project" );
+            return StateComponent( LoadAnyValue( *ctx.mScripting, j ) );
+        } );
 }
 
 void StateComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, StateComponent& component )

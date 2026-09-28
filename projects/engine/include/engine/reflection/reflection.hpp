@@ -34,6 +34,7 @@ namespace bubble
 {
 struct Loader;
 struct InspectorContext;
+class ScriptingEngine;
 
 // What a value may need beyond itself to cross to or from JSON: the project's
 // loader, for a resource a file names by path. Empty where there is no
@@ -41,6 +42,8 @@ struct InspectorContext;
 struct ReflectionContext
 {
     Loader* mLoader = nullptr;
+    // For a Lua value: the state a table read from a file is made in.
+    ScriptingEngine* mScripting = nullptr;
 };
 
 // What the editor needs to know about a field beyond its name and type.
@@ -180,10 +183,36 @@ string TypeName( const entt::meta_type& type );
 // A path is names joined by dots, with an index after a name that is a
 // sequence: "params.looping", "points[2].value". Both throw when the path
 // leads nowhere, saying where it stopped.
+//
+// A path goes on into a value whose keys are only known at run time - a Lua
+// table - through the DynamicKeys its type registered: "health",
+// "inventory[1]" (the key as Lua has it: 1 is the first).
+
+// One step of a path: a name, or an index.
+struct PathKey
+{
+    string_view mName;
+    std::optional<size_t> mIndex;
+};
+
+// How a path goes into a type with run-time keys. The container is by
+// reference: what Get returns stays part of it, so nothing is set back.
+struct DynamicKeys
+{
+    // Throws when there is no such key, saying which there are.
+    entt::meta_any ( *mGet )( const entt::meta_any& container, const PathKey& key ) = nullptr;
+    void ( *mSet )( entt::meta_any& container, const PathKey& key, const entt::meta_any& value ) = nullptr;
+    // What every key holds - a key not there yet included.
+    entt::meta_type mValueType;
+};
+void RegisterDynamicKeys( const entt::meta_type& type, DynamicKeys keys );
 
 // The value at `path`. A reference into `object` where the path runs
 // through fields only; a copy once it passes a Property.
 entt::meta_any GetField( entt::meta_any& object, string_view path );
+// The type of the value at `path`: what a set there takes. A key a
+// container with run-time keys does not have yet has its value type.
+entt::meta_type TypeAt( entt::meta_any& object, string_view path );
 // Sets the value at `path`, converting what can be converted (a number to
 // an enum, an int to a float), writing copies back through every Property
 // on the way, and calling OnChanged on each owner from the innermost out.

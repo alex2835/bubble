@@ -151,8 +151,7 @@ TEST( EditorLua_Properties )
     CHECK( fails( "editor.ops.property.set{ path = 'light.type', value = 'cube' }", "has no value 'cube'" ) );
     CHECK( fails( "editor.ops.property.set{ path = 'brightness', value = 1 }", "is not Component.field" ) );
     CHECK( fails( "editor.ops.property.set{ path = 'Nope.x', value = 1 }", "Nope" ) );
-    CHECK( lua.Run( "editor.ops.entity.add_component{ component = 'state' }" ).empty() );
-    CHECK( fails( "editor.ops.property.set{ path = 'state.x', value = 1 }", "does not describe its fields yet" ) );
+
     CHECK( fails( "editor.get( 'Lamp', 'light.type' )", "nothing at 'Lamp'" ) );
 }
 
@@ -172,4 +171,32 @@ TEST( EditorLua_NamesThroughRename )
     // The operator for it keeps the names apart.
     CHECK( lua.Run( "editor.ops.scene.rename{ entity = 'Light2', name = 'Light' }" ).empty() );
     CHECK( lua.Run( "assert( editor.try_find( 'Light2' ) ~= nil )" ).empty() );
+}
+
+// state's keys are its table's: a path goes on into the Lua table.
+TEST( EditorLua_StatePaths )
+{
+    OperatorRegistry::RegisterBuiltins();
+    Fixture f;
+    Selection selection;
+    Clipboard clipboard;
+    OperatorQueue queue;
+    EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
+    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'script' }" ).empty() );
+
+    // A key made, a table set whole, then an element of it - Lua's [1] first.
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'state.health', value = 50 }" ).empty() );
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'state.items', value = { 1, 2, 3 } }" ).empty() );
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'state.items[2]', value = 20 }" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.health' ) == 50 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.items[2]' ) == 20 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.undo_name() == 'state.items[2]' )" ).empty() );
+    CHECK( lua.Run( "editor.undo()" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.items[2]' ) == 2 )" ).empty() );
+    // The whole table.
+    CHECK( lua.Run( "local s = editor.get( 'Script', 'state' ); assert( s.health == 50 and #s.items == 3 )" ).empty() );
+
+    const auto fails = [&]( const string& code, string_view says ) { return lua.Run( code ).find( says ) != string::npos; };
+    CHECK( fails( "editor.get( 'Script', 'state.mana' )", "no key 'mana'. The table has: health, items" ) );
+    CHECK( fails( "editor.get( 'Script', 'state.health.max' )", "a number has no key 'max'" ) );
 }

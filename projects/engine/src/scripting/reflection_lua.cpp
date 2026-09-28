@@ -4,6 +4,9 @@
 #include "engine/types/glm.hpp"
 #include "engine/types/set.hpp"
 #include "engine/types/map.hpp"
+#include "engine/serialization/any_serialization.hpp"
+#include "engine/scripting/scripting_engine.hpp"
+#include <nlohmann/json.hpp>
 
 namespace bubble
 {
@@ -222,6 +225,91 @@ entt::meta_any FromLua( const sol::object& value, const entt::meta_type& type )
 void RegisterLuaValue( const entt::meta_type& type, ToLuaFn to, FromLuaFn from )
 {
     LuaValues()[type.info().hash()] = { to, from };
+}
+
+namespace
+{
+sol::object KeyOf( const Table& table, const PathKey& key )
+{
+    if ( key.mIndex )
+        return table[*key.mIndex];
+    return table[string( key.mName )];
+}
+
+string KeyName( const PathKey& key )
+{
+    return key.mIndex ? std::format( "[{}]", *key.mIndex ) : string( key.mName );
+}
+
+string KeysOf( const Table& table )
+{
+    vector<string> keys;
+    for ( const auto& [k, v] : table )
+        keys.push_back( k.get_type() == sol::type::string ? k.as<string>() : std::format( "[{}]", DescribeLuaValue( k, 0, false ) ) );
+    std::ranges::sort( keys );
+    string joined;
+    for ( const string& k : keys )
+        joined += joined.empty() ? k : std::format( ", {}", k );
+    return joined.empty() ? "none" : joined;
+}
+
+Table RequireTable( const Any& value, const PathKey& key )
+{
+    if ( not value.is<Table>() )
+        throw std::runtime_error( std::format( "a {} has no key '{}'", sol::type_name( value.value().lua_state(), value.value().get_type() ), KeyName( key ) ) );
+    return value.as<Table>();
+}
+}
+
+entt::meta_any LuaTableGet( const Any& value, const PathKey& key )
+{
+    const Table table = RequireTable( value, key );
+    const sol::object found = KeyOf( table, key );
+    if ( not found.valid() or found.get_type() == sol::type::lua_nil )
+        throw std::runtime_error( std::format( "no key '{}'. The table has: {}", KeyName( key ), KeysOf( table ) ) );
+    return Any( found );
+}
+
+void LuaTableSet( const Any& value, const PathKey& key, const entt::meta_any& given )
+{
+    Table table = RequireTable( value, key );
+    const Any* any = given.try_cast<const Any>();
+    if ( not any )
+        throw std::runtime_error( std::format( "a Lua value cannot be set from a {}", TypeName( given.type() ) ) );
+    if ( key.mIndex )
+        table[*key.mIndex] = any->value();
+    else
+        table[string( key.mName )] = any->value();
+}
+
+void ReflectLuaValues()
+{
+    static const bool done = []
+    {
+        entt::meta_factory<Any>{}.type( "lua_value" );
+        const entt::meta_type type = entt::resolve<Any>();
+        RegisterJsonCodec(
+            type,
+            []( const entt::meta_any& value, const ReflectionContext& ) -> json { return SaveAnyValue( value.cast<const Any&>() ); },
+            []( const json& j, const ReflectionContext& ctx ) -> entt::meta_any
+            {
+                if ( not ctx.mScripting )
+                    throw std::runtime_error( "a Lua value cannot be read without a project" );
+                return LoadAnyValue( *ctx.mScripting, j );
+            } );
+        RegisterDynamicKeys( type, DynamicKeys{
+            .mGet = []( const entt::meta_any& container, const PathKey& key ) { return LuaTableGet( container.cast<const Any&>(), key ); },
+            .mSet = []( entt::meta_any& container, const PathKey& key, const entt::meta_any& value )
+            { LuaTableSet( container.cast<const Any&>(), key, value ); },
+            .mValueType = type,
+        } );
+        RegisterLuaValue(
+            type,
+            []( sol::state_view lua, const entt::meta_any& value ) { return sol::make_object( lua, value.cast<const Any&>().value() ); },
+            []( const sol::object& value ) -> entt::meta_any { return Any( value ); } );
+        return true;
+    }();
+    (void)done;
 }
 
 void BindReflectedEnum( sol::state& lua, const entt::meta_type& type )
