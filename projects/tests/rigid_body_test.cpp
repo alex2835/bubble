@@ -2,6 +2,7 @@
 // at once out of a physics world and waits for the engine inside one.
 #include "test.hpp"
 #include "engine/physics/physics_engine.hpp"
+#include "engine/utils/timer.hpp"
 #include "engine/reflection/reflection.hpp"
 #include "engine/scene/components/rigid_body_component.hpp"
 #include "engine/scene/components/character_controller_component.hpp"
@@ -131,5 +132,34 @@ TEST( CharacterController_FromScripts )
     auto& character = f.scene.GetComponent<CharacterControllerComponent>( lua["hero"].get<Entity>() );
     CHECK( character.mController.GetFallSpeed() == 40.0f and character.mController.GetGravity() == vec3( 0, -20, 0 ) );
     CHECK( std::abs( lua["half"].get<f32>() - 1.2f ) < 1e-5f );
+    physics.Remove( character.mController );
+}
+
+// A script that sets a field every frame - gravity, rising and falling -
+// leaves alone the jump under way: Bullet caps the climb at its jump speed,
+// and setting gravity used to put jump_speed back there.
+TEST( CharacterController_JumpKeepsItsSpeed )
+{
+    Fixture f;
+    PhysicsEngine physics;
+    f.project.mScriptingEngine.BindLoader( f.project.mLoader );
+    f.project.mScriptingEngine.BindScene( f.scene, physics );
+
+    sol::state& lua = *f.project.mScriptingEngine.mLua;
+    lua.script( R"(
+        hero = spawn{ name = "hero", character_controller = { jump_speed = 10 } }
+        hero:get_character_controller():jump( vec3( 0, 30, 0 ) )
+        function frame() hero:get_character_controller().gravity = vec3( 0, -20, 0 ) end
+    )" );
+    auto& character = f.scene.GetComponent<CharacterControllerComponent>( lua["hero"].get<Entity>() );
+    f32 top = 0.0f;
+    for ( int i = 0; i < 120; i++ )
+    {
+        lua["frame"]();
+        physics.Update( DeltaTime( 1.0f / 60.0f ) );
+        top = std::max( top, character.mController.GetPosition().y );
+    }
+    // 30^2 / (2 * 20) = 22.5 up; at 10 it would stop short of 2.5.
+    CHECK( top > 20.0f );
     physics.Remove( character.mController );
 }

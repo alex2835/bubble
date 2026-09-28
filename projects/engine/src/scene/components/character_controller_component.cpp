@@ -85,10 +85,18 @@ void CharacterControllerComponent::Apply()
             Rebuild();
         return;
     }
-    mController.SetJumpSpeed( mJumpSpeed );
-    mController.SetFallSpeed( mFallSpeed );
-    mController.SetMaxSlope( mMaxSlope );
-    mController.SetGravity( mGravity );
+    // Only what changed: Bullet's jump speed is also where jump() keeps the
+    // speed of the jump under way, and caps the climb at it every step. A
+    // script that sets gravity each frame reset it to jump_speed, and a jump
+    // of 33 rose at 10.
+    if ( c.GetJumpSpeed() != mJumpSpeed )
+        mController.SetJumpSpeed( mJumpSpeed );
+    if ( c.GetFallSpeed() != mFallSpeed )
+        mController.SetFallSpeed( mFallSpeed );
+    if ( c.GetMaxSlopeRadians() != mMaxSlope )
+        mController.SetMaxSlope( mMaxSlope );
+    if ( c.GetGravity() != mGravity )
+        mController.SetGravity( mGravity );
 }
 
 void CharacterControllerComponent::Rebuild()

@@ -118,8 +118,12 @@ void RigidBodyComponent::Apply()
             Rebuild();
         return;
     }
-    mRigidBody.SetFriction( mFriction );
-    mRigidBody.SetKinematic( mKinematic );
+    // Only what changed: SetKinematic wakes a dynamic body, and a script
+    // that sets friction every frame kept the body from ever sleeping.
+    if ( mRigidBody.GetFriction() != mFriction )
+        mRigidBody.SetFriction( mFriction );
+    if ( mRigidBody.IsKinematic() != mKinematic )
+        mRigidBody.SetKinematic( mKinematic );
 }
 
 void RigidBodyComponent::Rebuild()
