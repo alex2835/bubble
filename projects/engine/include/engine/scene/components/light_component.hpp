@@ -28,7 +28,6 @@ struct LightComponent : public Light
     static int ID() { return static_cast<int>( ComponentID::Light ); }
 	static string_view Name() { return "Light"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, LightComponent& component );
     // Fields for engine/reflection: what is saved, shown and set by path.
     static void Reflect();
 	static void CreateLuaBinding( sol::state& lua );

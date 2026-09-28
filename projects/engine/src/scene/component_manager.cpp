@@ -31,6 +31,13 @@ const ComponentFunctionsTable& ComponentManager::Get( ComponentTypeId componentI
     throw std::runtime_error( std::format( "{} doesn't exist in component manager.", componentId ) );
 }
 
+entt::meta_any ComponentManager::Reflected( Scene& scene, Entity entity, ComponentTypeId componentId )
+{
+    const entt::meta_type& meta = Get( componentId ).mMeta;
+    void* component = meta ? scene.TryGetComponent( entity, componentId ) : nullptr;
+    return component ? meta.from_void( component ) : entt::meta_any{};
+}
+
 string_view ComponentManager::GetName( ComponentTypeId componentId )
 {
     return Get( componentId ).mName;

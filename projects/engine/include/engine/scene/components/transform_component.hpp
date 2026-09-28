@@ -32,7 +32,6 @@ struct TransformComponent : public Transform
     static int ID() { return static_cast<int>( ComponentID::Transform ); }
 	static string_view Name() { return "Transform"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, TransformComponent& component );
     // Fields for engine/reflection: what is saved, shown and set by path.
     static void Reflect();
     static void CreateLuaBinding( sol::state& lua );

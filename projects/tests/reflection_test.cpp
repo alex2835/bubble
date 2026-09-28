@@ -4,6 +4,7 @@
 #include "engine/reflection/reflection.hpp"
 #include "engine/scene/components/light_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
+#include "engine/editing/commands/field_command.hpp"
 #include <nlohmann/json.hpp>
 
 using namespace entt::literals;
@@ -232,4 +233,30 @@ TEST( Reflection_ComponentsInLevelFiles )
     // The attenuation is made again from the distance, not read.
     CHECK( back.mType == LightType::Point and back.mLinear == light.mLinear and back.mQuadratic == light.mQuadratic );
     CHECK( loaded.mScene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 1, 2, 3 ) );
+}
+
+// One undo step for any field of any reflected component, by path.
+TEST( Reflection_SetFieldCommand )
+{
+    Fixture f;
+    const Entity lamp = f.Create( EntityKind::Light );
+    auto light = [&]() -> LightComponent& { return f.scene.GetComponent<LightComponent>( lamp ); };
+    light().mType = LightType::Point;
+    const f32 distance = light().mDistance;
+    const f32 linear = light().mLinear;
+
+    f.history.Execute( CreateScope<SetFieldCommand>( f.scene, lamp, LightComponent::ID(), "distance",
+                                                     entt::meta_any( distance ), entt::meta_any( 13.0f ) ) );
+    CHECK( f.history.NextUndoName() == "Light.distance" );
+    // Set through reflection, so OnChanged made the attenuation again.
+    CHECK( light().mDistance == 13.0f and light().mLinear != linear );
+    f.history.Undo();
+    CHECK( light().mDistance == distance and light().mLinear == linear );
+    f.history.Redo();
+    CHECK( light().mDistance == 13.0f );
+
+    // A component that is gone is left alone.
+    f.scene.RemoveComponent<LightComponent>( lamp );
+    f.history.Undo();
+    CHECK( not f.scene.HasComponent<LightComponent>( lamp ) );
 }

@@ -22,46 +22,6 @@ void LightComponent::SyncToTransform( const TransformComponent& transform )
     Update();
 }
 
-void LightComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, LightComponent& lightComponent )
-{
-    ImGui::TextColored( TEXT_COLOR, "LightComponent" );
-
-    // Light Type Selection
-    static const char* lightTypes[] = { "Directional", "Point", "Spot" };
-    EditField<LightComponent>( ctx, entity, "Type", &LightComponent::mType, []( LightType& type )
-    {
-        int current = static_cast<int>( type );
-        if ( not ImGui::Combo( "Type", &current, lightTypes, IM_ARRAYSIZE( lightTypes ) ) )
-            return false;
-        type = static_cast<LightType>( current );
-        return true;
-    } );
-
-    ColorEdit3Field<LightComponent>( ctx, entity, "Color", &LightComponent::mColor );
-    DragFloatField<LightComponent>( ctx, entity, "Brightness", &LightComponent::mBrightness, 0.01f, 0.0f, 10.0f );
-
-    // Type-specific properties
-    if ( lightComponent.mType == LightType::Point or lightComponent.mType == LightType::Spot )
-    {
-        SliderFloatField<LightComponent>( ctx, entity, "Distance", &LightComponent::mDistance, 0.1f, 3250.0f, "%.2f", ImGuiSliderFlags_Logarithmic );
-    }
-    if ( lightComponent.mType == LightType::Spot )
-    {
-        SliderFloatField<LightComponent>( ctx, entity, "Cut Off", &LightComponent::mCutOff, 0.0f, 90.0f );
-        SliderFloatField<LightComponent>( ctx, entity, "Outer Cut Off", &LightComponent::mOuterCutOff, 0.0f, 90.0f );
-    }
-    if ( lightComponent.mType != LightType::Directional )
-    {
-        // Show calculated attenuation values (read-only)
-        ImGui::Text( "Attenuation:" );
-        ImGui::Indent();
-        ImGui::Text( "Constant: %.3f", lightComponent.mConstant );
-        ImGui::Text( "Linear: %.4f", lightComponent.mLinear );
-        ImGui::Text( "Quadratic: %.6f", lightComponent.mQuadratic );
-        ImGui::Unindent();
-    }
-}
-
 namespace
 {
 bool NotDirectional( const entt::meta_any& light )
@@ -73,6 +33,8 @@ bool IsSpot( const entt::meta_any& light )
 {
     return light.cast<const LightComponent&>().mType == LightType::Spot;
 }
+
+constexpr u32 cDerived = FieldInfo::ReadOnly | FieldInfo::Transient;
 
 void LightChanged( LightComponent& light )
 {
@@ -90,9 +52,17 @@ void LightComponent::Reflect()
         .Field<&LightComponent::mType>( "type" )
         .Field<&LightComponent::mColor>( "color", { .mFlags = FieldInfo::Color } )
         .Field<&LightComponent::mBrightness>( "brightness", { .mMin = 0.0f, .mMax = 10.0f, .mSpeed = 0.01f } )
-        .Field<&LightComponent::mDistance>( "distance", { .mMin = 0.1f, .mMax = 3250.0f, .mVisible = NotDirectional } )
-        .Field<&LightComponent::mCutOff>( "cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mVisible = IsSpot } )
-        .Field<&LightComponent::mOuterCutOff>( "outer_cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mVisible = IsSpot } )
+        .Field<&LightComponent::mDistance>( "distance", { .mMin = 0.1f, .mMax = 3250.0f,
+                                                          .mFlags = FieldInfo::Slider | FieldInfo::Logarithmic,
+                                                          .mVisible = NotDirectional } )
+        .Field<&LightComponent::mCutOff>( "cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mFlags = FieldInfo::Slider,
+                                                       .mVisible = IsSpot } )
+        .Field<&LightComponent::mOuterCutOff>( "outer_cut_off", { .mMin = 0.0f, .mMax = 90.0f, .mFlags = FieldInfo::Slider,
+                                                                  .mVisible = IsSpot } )
+        // Made from the distance by OnChanged: shown, never set or saved.
+        .Field<&LightComponent::mConstant>( "constant", { .mFlags = cDerived, .mVisible = NotDirectional } )
+        .Field<&LightComponent::mLinear>( "linear", { .mFlags = cDerived, .mVisible = NotDirectional } )
+        .Field<&LightComponent::mQuadratic>( "quadratic", { .mFlags = cDerived, .mVisible = NotDirectional } )
         .OnChanged<&LightChanged>();
 }
 

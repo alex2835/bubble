@@ -45,21 +45,6 @@ void CameraComponent::OrbitFromTransform( const TransformComponent& transform )
     mPitch  = -std::asin( glm::clamp( offset.y / radius, -1.0f, 1.0f ) );
 }
 
-void CameraComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& cameraComponent )
-{
-    ImGui::TextColored( TEXT_COLOR, "CameraComponent" );
-    ImGui::TextWrapped( "Position and orientation come from this entity's TransformComponent." );
-
-    // Clipping planes. Each is clamped by the other, so the bounds are read
-    // fresh rather than baked into the step.
-    DragFloatField<CameraComponent>( ctx, entity, "Near", &CameraComponent::mNear, 0.01f, 0.01f, cameraComponent.mFar );
-    DragFloatField<CameraComponent>( ctx, entity, "Far", &CameraComponent::mFar, 1.0f, cameraComponent.mNear, 10000.0f );
-
-    SliderFloatField<CameraComponent>( ctx, entity, "FOV", &CameraComponent::mFov, 0.1f, 3.14f );
-
-    DragFloatField<CameraComponent>( ctx, entity, "Radius", &CameraComponent::mRadius, 0.1f, 0.1f, 100.0f );
-}
-
 // Position, forward, up and right are not described: they are the cache the
 // transform fills, and the transform is saved on its own.
 void CameraComponent::Reflect()
@@ -68,7 +53,7 @@ void CameraComponent::Reflect()
         .Field<&CameraComponent::mWorldUp>( "world_up", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mNear>( "near", { .mMin = 0.01f, .mSpeed = 0.01f } )
         .Field<&CameraComponent::mFar>( "far", { .mMin = 1.0f, .mMax = 10000.0f } )
-        .Field<&CameraComponent::mFov>( "fov", { .mMin = 0.1f, .mMax = 3.14f } )
+        .Field<&CameraComponent::mFov>( "fov", { .mMin = 0.1f, .mMax = 3.14f, .mFlags = FieldInfo::Slider } )
         .Field<&CameraComponent::mYaw>( "yaw", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mPitch>( "pitch", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mRadius>( "radius", { .mMin = 0.1f, .mMax = 100.0f, .mSpeed = 0.1f } );

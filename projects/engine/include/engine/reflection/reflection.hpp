@@ -45,6 +45,10 @@ struct FieldInfo
         Hidden = 1 << 2,
         // Not written to files: state the owner rebuilds.
         Transient = 1 << 3,
+        // A number edited with a slider over [mMin, mMax] rather than dragged.
+        Slider = 1 << 4,
+        // The slider's scale is logarithmic.
+        Logarithmic = 1 << 5,
     };
 
     // A range for the widget; both 0 is unbounded.

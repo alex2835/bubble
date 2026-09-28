@@ -15,47 +15,6 @@
 
 namespace bubble
 {
-namespace
-{
-// The inspector shows the rotation as Euler degrees. Angles read back from a
-// quaternion may come out as another spelling of the same rotation - past 90
-// degrees of Y, (0, 100, 0) reads (180, 80, 180) - which would make a field
-// jump under the mouse. So the angles last shown for an entity are kept, and
-// shown again for as long as its rotation is still the one they made.
-struct ShownAngles
-{
-    quat mRotation;
-    vec3 mDegrees;
-};
-hash_map<Entity, ShownAngles> gShownAngles;
-
-vec3 DegreesFor( Entity entity, const quat& rotation )
-{
-    const auto it = gShownAngles.find( entity );
-    if ( it != gShownAngles.end() and it->second.mRotation == rotation )
-        return it->second.mDegrees;
-    return glm::degrees( Transform::ToEuler( rotation ) );
-}
-}
-
-void TransformComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, TransformComponent& component )
-{
-    ImGui::TextColored( TEXT_COLOR, "TransformComponent" );
-    DragFloat3Field<TransformComponent>( ctx, entity, "Scale", &TransformComponent::mScale, 0.01f, 0.01f );
-    EditProperty<TransformComponent>( ctx, entity, "Rotation", component.mRotation,
-        [entity]( quat& rotation )
-        {
-            vec3 degrees = DegreesFor( entity, rotation );
-            if ( not ImGui::DragFloat3( "Rotation", glm::value_ptr( degrees ), 0.5f, 0.0f, 0.0f, "%.1f" ) )
-                return false;
-            rotation = Transform::FromEuler( glm::radians( degrees ) );
-            gShownAngles[entity] = { rotation, degrees };
-            return true;
-        },
-        []( TransformComponent& c, const quat& rotation ) { c.mRotation = rotation; } );
-    DragFloat3Field<TransformComponent>( ctx, entity, "Position", &TransformComponent::mPosition, 0.1f );
-}
-
 // The local transform. Where that puts the entity in the world is not
 // saved: UpdateWorldTransforms fills it after a load.
 void TransformComponent::Reflect()

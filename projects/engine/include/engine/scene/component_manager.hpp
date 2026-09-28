@@ -7,6 +7,7 @@
 #include "engine/scene/scene.hpp"
 #include "engine/editing/ui/inspector_context.hpp"
 #include "engine/reflection/reflection.hpp"
+#include "engine/editing/ui/reflected_inspector.hpp"
 
 namespace bubble
 {
@@ -26,17 +27,22 @@ concept HandSavedComponent = requires( Component& componentRef,
     { Component::FromJson( json, project, componentRef ) } -> std::same_as<void>;
 };
 
+// Drawn in the inspector by code of its own. A reflected component without
+// it is drawn from its description (reflected_inspector.hpp).
 template <typename Component>
-concept ComponentConcept = requires( Component& componentRef,
-                                     const Entity& entity,
-                                     sol::state& lua,
-                                     InspectorContext& ctx )
+concept HandDrawnComponent = requires( Component& componentRef, const Entity& entity, InspectorContext& ctx )
+{
+    { Component::OnComponentDraw( ctx, entity, componentRef ) } -> std::same_as<void>;
+};
+
+template <typename Component>
+concept ComponentConcept = requires( sol::state& lua )
 {
     { Component::ID() } -> std::same_as<int>;
     { Component::Name() } -> std::same_as<string_view>;
-    { Component::OnComponentDraw( ctx, entity, componentRef ) } -> std::same_as<void>;
     { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
-} and ( ReflectedComponent<Component> or HandSavedComponent<Component> );
+} and ( ReflectedComponent<Component> or HandSavedComponent<Component> )
+  and ( ReflectedComponent<Component> or HandDrawnComponent<Component> );
 
 typedef void ( *OnComponentDrawFunc )( InspectorContext& ctx, const Entity& entity, void* rawData );
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
@@ -54,6 +60,8 @@ struct ComponentFunctionsTable
     ComponentCreateLuaBinding mCreateLuaBinding = nullptr;
     entt::id_type mStorageId = 0;
     ComponentStorageFunc mStorage = nullptr;
+    // Its description, for a reflected component; empty otherwise.
+    entt::meta_type mMeta;
 };
 
 // Every component type the engine knows, by ComponentTypeId: its name and
@@ -69,15 +77,21 @@ public:
     {
         ComponentFunctionsTable table{
             .mName = Component::Name(),
-            .mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
-            { Component::OnComponentDraw( ctx, entity, *static_cast<Component*>( rawData ) ); },
             .mCreateLuaBinding = Component::CreateLuaBinding,
             .mStorageId = entt::type_hash<Component>::value(),
             .mStorage = []( Scene::Registry& registry ) -> Scene::Storage& { return registry.storage<Component>(); },
         };
+        if constexpr ( HandDrawnComponent<Component> )
+            table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
+            { Component::OnComponentDraw( ctx, entity, *static_cast<Component*>( rawData ) ); };
+        else
+            table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* )
+            { DrawComponentFields( ctx, entity, Component::ID() ); };
+
         if constexpr ( ReflectedComponent<Component> )
         {
             Component::Reflect();
+            table.mMeta = entt::resolve<Component>();
             table.mFromJson = []( const json& json, Project&, void* rawData )
             {
                 entt::meta_any component = entt::forward_as_meta( *static_cast<Component*>( rawData ) );
@@ -108,6 +122,9 @@ public:
     static ComponentCreateLuaBinding GetCreateLuaBinding( ComponentTypeId componentId );
     // Throws on an id no component has.
     static const ComponentFunctionsTable& Get( ComponentTypeId componentId );
+    // The component, by reference, as engine/reflection sees it; empty when
+    // the entity does not have it or the type is not reflected.
+    static entt::meta_any Reflected( Scene& scene, Entity entity, ComponentTypeId componentId );
 
     const auto begin() { return mComponentFuncTable.begin(); }
     const auto end() { return mComponentFuncTable.end(); }

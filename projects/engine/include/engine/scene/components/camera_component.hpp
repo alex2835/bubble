@@ -43,7 +43,6 @@ struct CameraComponent : public Camera
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
 	static string_view Name() { return "Camera"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, CameraComponent& component );
     // Fields for engine/reflection: what is saved, shown and set by path.
     static void Reflect();
     static void CreateLuaBinding( sol::state& lua );
