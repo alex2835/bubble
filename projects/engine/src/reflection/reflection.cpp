@@ -225,6 +225,12 @@ void SetAt( entt::meta_any& owner, std::span<const Step> steps, entt::meta_any& 
 
 /// Descriptions
 
+void NotifyChanged( entt::meta_any& object )
+{
+    entt::meta_any target = object.as_ref();
+    CallOnChanged( target );
+}
+
 const FieldInfo& FieldInfoOf( const entt::meta_data& field )
 {
     static const FieldInfo none;

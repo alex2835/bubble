@@ -41,6 +41,16 @@ void RegisterLuaValue()
         } );
 }
 
+// type.set for each ( name, value ) pair - a hand-written list of methods in
+// one call, the way new_usertype takes them.
+template <typename T, typename Key, typename Value, typename... Rest>
+void SetMembers( sol::usertype<T>& type, Key&& key, Value&& value, Rest&&... rest )
+{
+    type.set( std::forward<Key>( key ), std::forward<Value>( value ) );
+    if constexpr ( sizeof...( Rest ) > 0 )
+        SetMembers( type, std::forward<Rest>( rest )... );
+}
+
 // Each enum of the described fields as a global table of its values:
 // light_type.spot == "spot". Once per enum.
 void BindReflectedEnum( sol::state& lua, const entt::meta_type& type );

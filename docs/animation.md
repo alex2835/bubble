@@ -169,8 +169,8 @@ the model's own space, unscaled) and `animator:root_yaw_delta()` (radians).
 The script applies it - to the transform, or as a velocity to the character
 controller - so the animation never moves a body the physics owns. Height and
 the other rotations stay in the animation. In a blend, each clip's travel is
-weighted by its share. Without a controller, `animator:root_motion( joint )`
-does the same for the base playback.
+weighted by its share. Without a controller, `animator.root_joint = joint` and
+`animator.root_motion = true` do the same for the base playback.
 
 ### Events
 

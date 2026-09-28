@@ -206,21 +206,19 @@ void CreateSceneBindings( Scene& scene,
                 SyncToEntityTransform<LightComponent>( scene, entity );
             }
         ),
+        // A rigid_body() with its fields set; the body starts where the
+        // entity is.
         "add_rigid_body",
-        sol::overload(
-            [&]( const Entity& entity, RigidBody object )
-            {
-                DetachRigidBody( scene, physicsEngine, entity );
-                auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( object ) );
-                physicsEngine.Add( c.mRigidBody, entity );
-            },
-            [&]( const Entity& entity, RigidBodyComponent comp )
-            {
-                DetachRigidBody( scene, physicsEngine, entity );
-                auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( comp ) );
-                physicsEngine.Add( c.mRigidBody, entity );
-            }
-        ),
+        [&]( const Entity& entity, RigidBodyComponent comp )
+        {
+            DetachRigidBody( scene, physicsEngine, entity );
+            auto& c = scene.AddComponent<RigidBodyComponent>( entity, std::move( comp ) );
+            if ( c.mRebuild )
+                c.Rebuild();
+            if ( const auto* transform = scene.TryGetComponent<TransformComponent>( entity ) )
+                c.mRigidBody.SetTransform( transform->World().mPosition, transform->World().mRotation );
+            physicsEngine.Add( c.mRigidBody, entity );
+        },
         "add_character_controller",
         sol::overload(
             [&]( const Entity& entity, f32 radius, f32 height, f32 stepHeight )
@@ -233,6 +231,10 @@ void CreateSceneBindings( Scene& scene,
             {
                 DetachCharacterController( scene, physicsEngine, entity );
                 auto& c = scene.AddComponent<CharacterControllerComponent>( entity, std::move( comp ) );
+                if ( c.mRebuild )
+                    c.Rebuild();
+                if ( const auto* transform = scene.TryGetComponent<TransformComponent>( entity ) )
+                    c.mController.Warp( transform->World().mPosition );
                 physicsEngine.Add( c.mController, entity );
             }
         ),
@@ -313,10 +315,6 @@ void CreateSceneBindings( Scene& scene,
         // base reference would push userdata with no accessible members at all
         // (indexing it raises "attempt to index a sol.Camera * value").
         //
-        // RigidBodyComponent and CharacterControllerComponent instead *contain*
-        // their payload and expose nothing else, so the inner object - the one
-        // holding jump(), set_walk_direction(), set_friction() - is what a script
-        // needs.
         "get_tag",
         [&]( const Entity& entity ) -> TagComponent& { return Need<TagComponent>( scene, entity ); },
         "get_transform",
@@ -330,9 +328,9 @@ void CreateSceneBindings( Scene& scene,
         "get_light",
         [&]( const Entity& entity ) -> LightComponent& { return Need<LightComponent>( scene, entity ); },
         "get_rigid_body",
-        [&]( const Entity& entity ) -> RigidBody& { return Need<RigidBodyComponent>( scene, entity ).mRigidBody; },
+        [&]( const Entity& entity ) -> RigidBodyComponent& { return Need<RigidBodyComponent>( scene, entity ); },
         "get_character_controller",
-        [&]( const Entity& entity ) -> CharacterController& { return Need<CharacterControllerComponent>( scene, entity ).mController; },
+        [&]( const Entity& entity ) -> CharacterControllerComponent& { return Need<CharacterControllerComponent>( scene, entity ); },
         "get_audio_source",
         [&]( const Entity& entity ) -> AudioSourceComponent& { return Need<AudioSourceComponent>( scene, entity ); },
         "get_audio_listener",

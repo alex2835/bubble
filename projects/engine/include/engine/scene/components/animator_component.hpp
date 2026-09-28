@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include <sol/sol.hpp>
 #include "engine/animation/blend_space.hpp"
 #include "engine/animation/animation_controller.hpp"
 
@@ -66,7 +67,6 @@ struct Playback
     string mEnteredState;
 };
 
-
 // A stream played over the base on part of the skeleton.
 struct OverlayLayer
 {
@@ -85,7 +85,6 @@ struct OverlayLayer
     Playback mPlayback;
 };
 
-
 // Plays one of the clips that came with the entity's skinned model, or a
 // blend of them along a parameter - directly, from a script, or under an
 // AnimationController that picks them from the script's parameters - with
@@ -102,10 +101,14 @@ struct AnimatorComponent
     static int ID() { return static_cast<int>( ComponentID::Animator ); }
     static string_view Name() { return "animator"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component );
-    static void ToJson( json& json, const Project& project, const AnimatorComponent& component );
-    static void FromJson( const json& json, Project& project, AnimatorComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: what an entity starts with - a controller,
+    // or a clip with its speed and loop - saved, shown, set by path and bound
+    // to Lua. What plays from then on is the animator's own and not saved.
+    static void Reflect();
+    // Lua: the fields come from Reflect(); these are what is added to them.
+    static void BindLuaMethods( sol::state& lua, sol::usertype<AnimatorComponent>& type );
+    // Under the fields in the inspector: why there is nothing to set.
+    static void DrawExtras( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component );
 
 public:
     AnimatorComponent();

@@ -70,6 +70,16 @@ bool RotationWidget( const char* label, quat& rotation )
 
 bool FloatWidget( const char* label, f32& value, const FieldInfo& info )
 {
+    if ( info.Has( FieldInfo::Angle ) )
+    {
+        FieldInfo degrees = info;
+        degrees.mFlags &= ~FieldInfo::Angle;
+        f32 shown = glm::degrees( value );
+        if ( not FloatWidget( label, shown, degrees ) )
+            return false;
+        value = glm::radians( shown );
+        return true;
+    }
     if ( info.Has( FieldInfo::Slider ) and info.mMax > info.mMin )
         return ImGui::SliderFloat( label, &value, info.mMin, info.mMax, "%.3f",
                                    info.Has( FieldInfo::Logarithmic ) ? ImGuiSliderFlags_Logarithmic : 0 );
@@ -136,9 +146,34 @@ bool AssetWidget( const char* label, entt::meta_any& value, const AssetKind& ass
     return changed;
 }
 
-// The widget for a value of a leaf type, editing `value` in place.
-bool LeafWidget( const char* label, entt::meta_any& value, const FieldInfo& info, const InspectorContext& ctx )
+// A string picked from a list, or none.
+bool ChoiceWidget( const char* label, string& value, const vector<string>& choices )
 {
+    bool changed = false;
+    if ( ImGui::BeginCombo( label, value.empty() ? "None" : value.c_str() ) )
+    {
+        if ( ImGui::Selectable( "None", value.empty() ) and not value.empty() )
+        {
+            value.clear();
+            changed = true;
+        }
+        for ( const string& choice : choices )
+            if ( ImGui::Selectable( choice.c_str(), choice == value ) and choice != value )
+            {
+                value = choice;
+                changed = true;
+            }
+        ImGui::EndCombo();
+    }
+    return changed;
+}
+
+// The widget for a value of a leaf type, editing `value` in place.
+bool LeafWidget( const char* label, entt::meta_any& value, const FieldInfo& info, const InspectorContext& ctx, Entity entity )
+{
+    if ( info.mChoices )
+        if ( auto* v = value.try_cast<string>() )
+            return ChoiceWidget( label, *v, info.mChoices( ctx, entity ) );
     if ( const AssetKind* asset = FindAssetKind( value.type() ) )
         return AssetWidget( label, value, *asset, ctx.mProject.mLoader );
     if ( auto* v = value.try_cast<Entity>() )
@@ -203,7 +238,7 @@ void DrawLeaf( Target& target, const string& label, const entt::meta_any& curren
     entt::meta_any edited = current;
 
     ImGui::BeginDisabled( info.Has( FieldInfo::ReadOnly ) );
-    const bool changed = LeafWidget( std::format( "{}##{}", label, path ).c_str(), edited, info, target.mCtx );
+    const bool changed = LeafWidget( std::format( "{}##{}", label, path ).c_str(), edited, info, target.mCtx, target.mEntity );
     ImGui::EndDisabled();
 
     if ( changed )

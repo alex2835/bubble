@@ -2,6 +2,7 @@
 #include "engine/scene/components/component_base.hpp"
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/audio/audio_engine.hpp"
+#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -10,10 +11,14 @@ struct AudioSourceComponent
     static int ID() { return static_cast<int>( ComponentID::AudioSource ); }
     static string_view Name() { return "audio_source"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioSourceComponent& component );
-    static void ToJson( json& json, const Project& project, const AudioSourceComponent& component );
-    static void FromJson( const json& json, Project& project, AudioSourceComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: saved, shown, set by path and bound to Lua.
+    // The voice's settings are flat properties over mParams; a set pushes
+    // them into a playing voice.
+    static void Reflect();
+    // Lua: the fields come from Reflect(); these are what is added to them.
+    static void BindLuaMethods( sol::state& lua, sol::usertype<AudioSourceComponent>& type );
+    // Under the fields in the inspector: play and stop, to audition.
+    static void DrawExtras( InspectorContext& ctx, const Entity& entity, AudioSourceComponent& component );
 
 public:
     AudioSourceComponent() = default;

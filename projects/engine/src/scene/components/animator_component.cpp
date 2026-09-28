@@ -1,4 +1,8 @@
 #include "engine/pch/pch.hpp"
+#include "engine/reflection/reflection.hpp"
+#include "engine/scripting/reflection_lua.hpp"
+#include "engine/editing/ui/inspector_context.hpp"
+#include "engine/scene/scene.hpp"
 #include "engine/scene/components/animator_component.hpp"
 #include "engine/scene/components/model_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
@@ -10,6 +14,68 @@
 
 namespace bubble
 {
+namespace
+{
+Ref<AnimationController> ControllerOf( const AnimatorComponent& c ) { return c.mController; }
+void SetControllerOf( AnimatorComponent& c, Ref<AnimationController> controller ) { c.SetController( controller ); }
+
+// The clip the base plays without a controller; empty for none.
+string ClipOf( const AnimatorComponent& c ) { return c.mBase.IsEmpty() ? string() : c.mBase.mClip; }
+void SetClipOf( AnimatorComponent& c, string clip )
+{
+    if ( clip.empty() )
+        c.mBase.PlayNothing();
+    else
+        c.mBase.Play( clip );
+}
+
+f32 SpeedOf( const AnimatorComponent& c ) { return c.mBase.mSpeed; }
+void SetSpeedOf( AnimatorComponent& c, f32 speed ) { c.mBase.mSpeed = speed; }
+bool LoopOf( const AnimatorComponent& c ) { return c.mBase.mLoop; }
+void SetLoopOf( AnimatorComponent& c, bool loop ) { c.mBase.mLoop = loop; }
+bool RootMotionOf( const AnimatorComponent& c ) { return c.mBase.mRootMotion; }
+void SetRootMotionOf( AnimatorComponent& c, bool on ) { c.mBase.mRootMotion = on; }
+
+Ref<Model> SkinnedModelOf( const InspectorContext& ctx, Entity entity )
+{
+    const auto* model = ctx.mScene.TryGetComponent<ModelComponent>( entity );
+    return model and model->mModel and model->mModel->Skinned() ? model->mModel : nullptr;
+}
+
+vector<string> ClipsOf( const InspectorContext& ctx, Entity entity )
+{
+    vector<string> clips;
+    if ( const Ref<Model> model = SkinnedModelOf( ctx, entity ) )
+        for ( const auto& clip : model->mClips )
+            clips.push_back( clip->mName );
+    return clips;
+}
+
+// A controller decides what plays; the rest is for an animator without one.
+bool NoController( const entt::meta_any& c ) { return not c.cast<const AnimatorComponent&>().mController; }
+}
+
+void AnimatorComponent::Reflect()
+{
+    TypeBuilder<AnimatorComponent>( Name().data() )
+        .Property<&SetControllerOf, &ControllerOf>( "controller" )
+        .Property<&SetClipOf, &ClipOf>( "clip", { .mVisible = NoController, .mChoices = ClipsOf } )
+        .Property<&SetSpeedOf, &SpeedOf>( "speed", { .mMin = -10.0f, .mMax = 10.0f, .mSpeed = 0.01f, .mVisible = NoController } )
+        .Property<&SetLoopOf, &LoopOf>( "loop", { .mVisible = NoController } )
+        // The joint whose travel is root motion - the hips, usually - and
+        // whether the base playback takes it out of the pose.
+        .Field<&AnimatorComponent::mRootJoint>( "root_joint", { .mVisible = NoController } )
+        .Property<&SetRootMotionOf, &RootMotionOf>( "root_motion", { .mVisible = NoController } );
+}
+
+void AnimatorComponent::DrawExtras( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component )
+{
+    if ( not SkinnedModelOf( ctx, entity ) )
+        ImGui::TextDisabled( "The entity's model has no skeleton" );
+    else if ( component.mController )
+        ImGui::TextDisabled( "Preview it in the Animation Graph window" );
+}
+
 namespace
 {
 // { { "idle", 0 }, { "walk", 1.5 }, { "run", 4 } }: an array of clip, value
@@ -537,149 +603,11 @@ void AnimatorComponent::Advance( const Ref<Model>& model, f32 dt, const mat4& en
 
 // Inspector
 
-// What the component is set to, and nothing else. Watching it play - live
-// parameters, the current state, scrubbing, pausing, events - is the
-// Animation Graph window's preview: none of it is a setting, and none of it
-// belongs in the scene.
-void AnimatorComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component )
-{
-    ImGui::TextColored( TEXT_COLOR, "AnimatorComponent" );
-
-    const ModelComponent* modelComponent = TryGetComponent<ModelComponent>( ctx.mProject, entity );
-    const Ref<Model> model = modelComponent ? modelComponent->mModel : nullptr;
-    if ( not model or not model->Skinned() )
-    {
-        ImGui::TextDisabled( "The entity's model has no skeleton" );
-        return;
-    }
-
-    const auto& controller = component.mController;
-    ComboProperty<AnimatorComponent>( ctx, entity, "controller", controller,
-                                      controller ? controller->mName.c_str() : "None",
-                                      ctx.mProject.mLoader.mControllers,
-                                      []( const auto& entry ) { return entry.first.stem().string(); },
-                                      []( const auto& entry ) { return entry.second; },
-                                      []( AnimatorComponent& c, const Ref<AnimationController>& v ) { c.SetController( v ); } );
-    if ( controller )
-    {
-        ImGui::TextDisabled( "Preview it in the Animation Graph window" );
-        return;
-    }
-
-    // Without a controller: the clip the entity plays from the start.
-    const string clip = component.mBase.IsEmpty() ? string() : component.mBase.mClip;
-    ComboProperty<AnimatorComponent>( ctx, entity, "clip", clip, clip.empty() ? "None" : clip.c_str(),
-                                      model->mClips,
-                                      []( const auto& c ) { return c->mName; },
-                                      []( const auto& c ) { return c->mName; },
-                                      []( AnimatorComponent& c, const string& v ) { c.mBase.Play( v ); } );
-    EditProperty<AnimatorComponent>( ctx, entity, "Speed", component.mBase.mSpeed,
-                                     []( f32& v ) { return ImGui::DragFloat( "Speed", &v, 0.01f, -10.0f, 10.0f ); },
-                                     []( AnimatorComponent& c, const f32& v ) { c.mBase.mSpeed = v; } );
-    EditProperty<AnimatorComponent>( ctx, entity, "Loop", component.mBase.mLoop,
-                                     []( bool& v ) { return ImGui::Checkbox( "Loop", &v ); },
-                                     []( AnimatorComponent& c, const bool& v ) { c.mBase.mLoop = v; } );
-}
-
-
-// Serialization
-
-namespace
-{
-void PlaybackToJson( json& j, const Playback& playback )
-{
-    j["Clip"] = playback.mClip;
-    j["Speed"] = playback.mSpeed;
-    j["Loop"] = playback.mLoop;
-    if ( playback.IsBlend() )
-    {
-        auto& points = j["Blend"] = json::array();
-        for ( const BlendPoint& point : playback.mBlend.mPoints )
-            points.push_back( { { "Clip", point.mClip }, { "Value", point.mValue } } );
-        j["BlendValue"] = playback.mBlendValue;
-    }
-}
-
-void PlaybackFromJson( const json& j, Playback& playback )
-{
-    if ( j.contains( "Clip" ) )
-        playback.mClip = j["Clip"];
-    if ( j.contains( "Speed" ) )
-        playback.mSpeed = j["Speed"];
-    if ( j.contains( "Loop" ) )
-        playback.mLoop = j["Loop"];
-    if ( j.contains( "Blend" ) )
-    {
-        playback.mBlend = {};
-        for ( const auto& point : j["Blend"] )
-            playback.mBlend.Add( point.value( "Clip", string() ), point.value( "Value", 0.0f ) );
-    }
-    if ( j.contains( "BlendValue" ) )
-        playback.mBlendValue = j["BlendValue"];
-}
-}
-
-void AnimatorComponent::ToJson( json& json, const Project& project, const AnimatorComponent& component )
-{
-    if ( component.mController )
-    {
-        auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( component.mController->mPath );
-        json["Controller"] = relPath;
-    }
-    PlaybackToJson( json, component.mBase );
-    if ( not component.mController and not component.mRootJoint.empty() )
-    {
-        json["RootJoint"] = component.mRootJoint;
-        json["RootMotion"] = component.mBase.mRootMotion;
-    }
-    // A controller's layers come back with it; a script's are saved.
-    if ( not component.mController and not component.mLayers.empty() )
-    {
-        auto& layers = json["Layers"] = json::array();
-        for ( const OverlayLayer& layer : component.mLayers )
-        {
-            auto& j = layers.emplace_back();
-            j["Name"] = layer.mName;
-            j["Mask"] = layer.mMask;
-            j["Weight"] = layer.mWeight;
-            j["Additive"] = layer.mAdditive;
-            PlaybackToJson( j, layer.mPlayback );
-        }
-    }
-}
-
-void AnimatorComponent::FromJson( const json& json, Project& project, AnimatorComponent& component )
-{
-    if ( json.is_null() )
-        return;
-    if ( json.contains( "Controller" ) )
-        component.SetController( project.mLoader.LoadAnimationController( json["Controller"] ) );
-    PlaybackFromJson( json, component.mBase );
-    if ( json.contains( "RootJoint" ) )
-    {
-        component.mRootJoint = json["RootJoint"];
-        component.mBase.mRootMotion = json.value( "RootMotion", false );
-    }
-    if ( json.contains( "Layers" ) and not component.mController )
-    {
-        component.mLayers.clear();
-        for ( const auto& j : json["Layers"] )
-        {
-            OverlayLayer& layer = component.mLayers.emplace_back();
-            layer.mName = j.value( "Name", string() );
-            if ( j.contains( "Mask" ) )
-                layer.mMask = j["Mask"].get<vector<string>>();
-            layer.mWeight = j.value( "Weight", 1.0f );
-            layer.mAdditive = j.value( "Additive", false );
-            PlaybackFromJson( j, layer.mPlayback );
-        }
-    }
-}
 
 
 // Lua
 
-void AnimatorComponent::CreateLuaBinding( sol::state& lua )
+void AnimatorComponent::BindLuaMethods( sol::state&, sol::usertype<AnimatorComponent>& type )
 {
     // The overlay a layer call names; unknown is an error, not a no-op.
     const auto layer = []( AnimatorComponent& c, string_view name ) -> OverlayLayer&
@@ -690,8 +618,8 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         return *found;
     };
 
-    lua.new_usertype<AnimatorComponent>(
-        "animator",
+    SetMembers(
+        type,
 
         "play",
         sol::overload(
@@ -771,11 +699,6 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
         // the base's clips from then on; root_delta() and root_yaw_delta()
         // are what it travelled during the last update, in the model's
         // space, for the script to apply.
-        "root_motion",
-        sol::overload(
-            []( AnimatorComponent& c, string_view joint ) { c.mRootJoint = joint; c.mBase.mRootMotion = not joint.empty(); },
-            []( AnimatorComponent& c ) { c.mBase.mRootMotion = false; }
-        ),
         "root_delta",     []( const AnimatorComponent& c ) { return c.mRootDelta; },
         "root_yaw_delta", []( const AnimatorComponent& c ) { return c.mRootYawDelta; },
 
@@ -816,8 +739,6 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
                 c.mReaches.push_back( std::move( reach ) );
             }
         ),
-        "controller",
-        sol::property( []( const AnimatorComponent& c ) { return c.mController ? c.mController->mPath.generic_string() : string(); } ),
 
         // The names of the model's clips, once the animator has seen the
         // model - after its first update. What play() and a controller name.
@@ -842,13 +763,8 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
             std::ranges::sort( names );
             return sol::as_table( names );
         },
-        "clip",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mClip; } ),
         "time",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mTime; },
                                   []( AnimatorComponent& c, f32 v ) { c.mBase.mTime = v; } ),
-        "speed",   sol::property( []( const AnimatorComponent& c ) { return c.mBase.mSpeed; },
-                                  []( AnimatorComponent& c, f32 v ) { c.mBase.mSpeed = v; } ),
-        "loop",    sol::property( []( const AnimatorComponent& c ) { return c.mBase.mLoop; },
-                                  []( AnimatorComponent& c, bool v ) { c.mBase.mLoop = v; } ),
         "blend",   sol::property( []( const AnimatorComponent& c ) { return c.mBase.mBlendValue; },
                                   []( AnimatorComponent& c, f32 v ) { c.mBase.mBlendValue = v; } ),
 

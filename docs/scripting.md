@@ -181,18 +181,21 @@ spawn{
     shader     = "shaders/phong/p1",       -- a path, or a handle from load_shader
     state      = { health = 100 },
     light      = { point = true, distance = 50 },
-    rigid_body = { box = vec3( 0.5 ), mass = 1, friction = 1.0 },
+    rigid_body = { shape = "box", half_extents = vec3( 0.5 ), mass = 1, friction = 1.0 },
 }
 ```
 
 Returns the `entity`. A misspelled key is not silently ignored — a key present
-with the wrong type raises `spawn: field '<key>' has the wrong type`.
+with the wrong type raises `spawn: field '<key>' has the wrong type`, and a
+`rigid_body` or `character_controller` key that is not one of its fields says
+which fields there are.
 
-`rigid_body` needs exactly one of `box` (a `vec3` of half extents), `sphere` (a
-radius) or `capsule` (`{ radius, height }`), plus optional `mass`, `friction`
-and `kinematic`. A `kinematic` body must have `mass = 0`.
+`rigid_body` and `character_controller` take their component's fields by
+name - `rigid_body = { shape = "capsule", radius = 0.5, height = 1, mass = 2 }`,
+`character_controller = { radius = 0.4, height = 1.6 }` - and what is left out
+keeps its default.
 
-`light` takes either a `Light` built by the factories, or a table naming exactly
+`light` takes either a `light` built by the factories, or a table naming exactly
 one of `directional`, `point` or `spot`:
 
 ```lua
@@ -222,8 +225,8 @@ Each takes an inner value or a whole component.
 | `entity:add_shader( shader )` | shader handle from `load_shader`, or a `shader` |
 | `entity:add_camera( camera )` | `Camera` |
 | `entity:add_light( light )` | `Light` |
-| `entity:add_rigid_body( body )` | `physics_body`, or a `rigid_body`. Registers with the physics world. |
-| `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `character_controller`. Registers with the physics world. |
+| `entity:add_rigid_body( body )` | a `rigid_body()` with its fields set. Registers with the physics world, starting where the entity is. |
+| `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `character_controller()`. Registers with the physics world, starting where the entity is. |
 | `entity:add_audio_source( sound )` | sound path, a handle from `load_sound`, or nothing |
 | `entity:add_audio_listener()` | nothing, or an `audio_listener` |
 | `entity:add_animator( clip )` | clip name to start playing, nothing, or an `animator` |
@@ -248,18 +251,14 @@ One name per component. There is no `_component` suffix anywhere in the API —
 | `entity:get_shader()` | `shader` — `shader`, `uniforms` |
 | `entity:get_camera()` | `Camera` — `position`, `yaw`, `pitch`, `radius`, `center`, … |
 | `entity:get_light()` | `Light` |
-| `entity:get_rigid_body()` | `physics_body` — `set_friction`, `apply_central_impulse`, … |
-| `entity:get_character_controller()` | `physics_character` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
+| `entity:get_rigid_body()` | `rigid_body` — `mass`, `friction`, `apply_central_impulse`, … |
+| `entity:get_character_controller()` | `character_controller` — `jump`, `set_walk_velocity`, `is_on_ground`, `gravity`, … |
 | `entity:get_audio_source()` | `audio_source` — `play`, `stop`, `volume`, … |
 | `entity:get_audio_listener()` | `audio_listener` — `active` |
 | `entity:get_animator()` | `animator` — `play`, `stop`, `clip`, `time`, … |
 | `entity:get_state()` | table |
 
-Each returns the type that actually carries the fields you want. For most
-components that is the component itself; `get_rigid_body` and
-`get_character_controller` return the inner physics object, because
-`rigid_body` and `character_controller` contain their payload
-and expose nothing else.
+Each returns the component itself.
 
 Getting a component the entity does not have raises an error — check first.
 
@@ -496,40 +495,41 @@ Read only fields `parent` (an `entity`, or `nil` for the root) and `children`
 Fields `shader` and `uniforms` (a table — assign a whole table to replace the
 uniform set). `tostring` gives the shader name, or `null`.
 
-### physics_body / rigid_body
+### rigid_body
 
-`rigid_body` has one field, `physics_body`.
+A body the physics world simulates. Constructible: `rigid_body()`, then set
+its fields.
 
-`physics_body` methods: `get_mass()`, `set_mass( mass )`, `set_friction( f )`,
-`get_friction()`, `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`,
+Fields: `shape` (`"sphere"`, `"box"` or `"capsule"`; `body_shape.*` names
+them), `radius` (sphere, capsule), `height` (capsule, between the caps),
+`half_extents` (box, a `vec3`), `mass` (0 is static), `friction`, `kinematic`.
+
+Methods: `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`,
 `set_transform( position, rotation )` (rotation in Euler radians, as
-`Transform`'s), `get_transform()` → `position, rotation`, `set_kinematic( bool )`,
-`is_kinematic()`.
+`transform`'s), `get_transform()` → `position, rotation`.
+
+Friction and `kinematic` take effect at once. A new `mass` or shape makes the
+Bullet body again, which for a body in the world happens before the next
+physics step - and the body's velocity does not survive it.
 
 A kinematic body is driven by `set_transform` instead of by forces, and pushes
-the dynamic bodies it meets. Bullet only treats a massless body as kinematic, so
-`set_kinematic( true )` on a body with mass will not behave as intended.
+the dynamic bodies it meets. Bullet only moves a massless body kinematically,
+so setting `kinematic` makes `mass` 0.
 
-Constructors, all taking a `Transform` for the initial pose:
+### character_controller
 
-```lua
-create_rigid_body_sphere( transform, mass, radius )
-create_rigid_body_box( transform, mass, halfExtents )   -- halfExtents is a vec3
-create_rigid_body_capsule( transform, mass, radius, height )
-```
+A walking capsule. Constructible: `character_controller()`, then set its fields.
 
-### physics_character / character_controller
-
-`character_controller` has one field, `controller`.
-
-Construct with `create_character_controller( radius, height, stepHeight )`.
+Fields: `radius`, `height` (between the caps: the whole capsule is
+`height + 2 * radius`), `step_height`, `jump_speed`, `fall_speed`,
+`max_slope` (radians), `gravity` (a `vec3`). They take effect at once, except
+a new size, which makes the controller again where it stands - before the next
+physics step when it is in the world.
 
 Methods: `set_walk_velocity( vec3 )`, `set_walk_direction( vec3 )`,
-`set_velocity_for_time_interval( vec3, t )`,
-`jump()`, `warp( vec3 )`, `is_on_ground()`, `get_position()`,
-`get_linear_velocity()`, `set_max_jump_height( h )`, `set_jump_speed( s )`,
-`set_fall_speed( s )`, `set_gravity( g )`, `set_max_slope( radians )`,
-`set_step_height( h )`, `get_radius()`, `get_height()`.
+`set_velocity_for_time_interval( vec3, t )`, `jump()`, `jump( vec3 )`,
+`warp( vec3 )`, `is_on_ground()`, `get_position()`, `get_linear_velocity()`,
+`set_max_jump_height( h )`.
 
 `set_walk_velocity` takes **units per second** and is what movement code should
 use. `set_walk_direction` is Bullet's raw form — a displacement applied once per
@@ -553,8 +553,9 @@ below, where every call is its own voice.
 
 Methods: `play()`, `stop()`, `is_playing()`.
 
-Fields: `volume` (1.0), `pitch` (1.0), `looping`, `spatialized`, `min_distance`,
-`max_distance`, `rolloff`, `play_on_start`. Has `tostring`.
+Fields: `sound` (a handle from `load_sound`, or `nil`; a new one stops the
+voice), `volume` (1.0), `pitch` (1.0), `looping`, `spatialized`,
+`min_distance`, `max_distance`, `rolloff`, `play_on_start`. Has `tostring`.
 
 Writing a field takes effect on the playing voice immediately, so a fade is just
 an assignment per frame.
@@ -603,8 +604,10 @@ Methods: `play( name )` — restarts that clip from the beginning;
 evaluated, and a transition may interrupt a transition); `stop()`;
 `is_playing()`; `in_transition()`.
 
-Fields: `clip` (read only, the name), `time` (seconds into the clip, writable
-for scrubbing), `speed` (1.0; negative plays backwards), `loop` (true). Has
+Fields: `clip` (the name; setting it plays that clip, `""` plays nothing),
+`time` (seconds into the clip, writable for scrubbing), `speed` (1.0; negative
+plays backwards), `loop` (true). `clip`, `speed`, `loop`, `root_joint` and
+`root_motion` are what an entity starts with when saved in a level. Has
 `tostring`. `clips()` lists the model's clip names and `joints()` its joint
 names (both from the frame after the animator first ran - `on_start` is too
 early, `on_update` is fine).
@@ -661,14 +664,15 @@ animator:play_layer( "upper", "wave", 0.1 )   -- legs keep walking
 an animation controller - a `.anim` file of states and transitions, see
 `docs/animation.md`. From then on the script only writes parameters:
 `set( name, number | boolean )`, `trigger( name )`; and asks `get( name )`,
-`state()` (the current state's name), `controller` (read only, the path).
+`state()` (the current state's name); the field `controller` is the
+controller, or `nil` (setting `nil` hands playback back to the script).
 `play`/`play_blend` still work under a controller, but the next transition it
 takes overrides them. A trigger the controller does not consume on the frame
 it was set is dropped.
 
-**Root motion.** `root_motion( joint )` takes that joint's horizontal travel
-and yaw out of the base's clips (a controller does this per state with
-`root_motion: true` and its `root_joint`); `root_delta()` (vec3, the model's
+**Root motion.** `root_joint = "hips"` and `root_motion = true` take that
+joint's horizontal travel and yaw out of the base's clips (a controller does
+this per state with `root_motion: true` and its `root_joint`); `root_delta()` (vec3, the model's
 space, unscaled by the entity) and `root_yaw_delta()` (radians) are what it
 travelled during the last animation update, for the script to apply:
 

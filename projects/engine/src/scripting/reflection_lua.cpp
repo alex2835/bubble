@@ -184,12 +184,34 @@ entt::meta_any FromLua( const sol::object& value, const entt::meta_type& type )
         }
         else
         {
+            // A key that names no field is a mistake, not something to skip.
+            for ( const auto& [key, given] : table )
+            {
+                if ( key.get_type() != sol::type::string or not type.data( entt::hashed_string::value( key.as<string>().c_str() ) ) )
+                {
+                    string fields;
+                    for ( const auto [id, field] : type.data() )
+                        fields += fields.empty() ? field.name() : std::format( ", {}", field.name() );
+                    throw std::runtime_error( std::format( "{} has no field '{}'. Its fields: {}", TypeName( type ),
+                                                           key.get_type() == sol::type::string ? key.as<string>() : LuaTypeName( key ),
+                                                           fields ) );
+                }
+            }
             for ( const auto [id, field] : type.data() )
             {
                 const sol::object given = table[field.name()];
-                if ( given.valid() and given.get_type() != sol::type::lua_nil )
+                if ( not given.valid() or given.get_type() == sol::type::lua_nil )
+                    continue;
+                try
+                {
                     field.set( made, FromLua( given, field.type() ) );
+                }
+                catch ( const std::exception& e )
+                {
+                    throw std::runtime_error( std::format( "{}.{}: {}", TypeName( type ), field.name(), e.what() ) );
+                }
             }
+            NotifyChanged( made );
         }
         return made;
     }

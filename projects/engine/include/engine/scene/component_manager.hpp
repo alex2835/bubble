@@ -96,8 +96,13 @@ public:
             table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
             { Component::OnComponentDraw( ctx, entity, *static_cast<Component*>( rawData ) ); };
         else
-            table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* )
-            { DrawComponentFields( ctx, entity, Component::ID() ); };
+            table.mOnDraw = []( InspectorContext& ctx, const Entity& entity, void* rawData )
+            {
+                DrawComponentFields( ctx, entity, Component::ID() );
+                // What a description cannot say - a button to audition a sound.
+                if constexpr ( requires { Component::DrawExtras( ctx, entity, *static_cast<Component*>( rawData ) ); } )
+                    Component::DrawExtras( ctx, entity, *static_cast<Component*>( rawData ) );
+            };
 
         if constexpr ( ReflectedComponent<Component> )
         {

@@ -41,6 +41,12 @@ struct Engine
     // a script is free to move a transform or create an entity outright.
     // Declared in the order OnUpdate runs them.
 
+    // rigid body and character controller fields -> their Bullet objects,
+    // for the changes one in the world could not take at once
+    // (RigidBodyComponent::Apply, CharacterControllerComponent::Apply): taken
+    // out, made again where its entity is, put back. Before the physics
+    // step. A body's velocity does not survive it.
+    void RebuildChangedBodies( Scene& scene );
     // physics -> transform component. Before the scripts.
     void PropagatePhysicsTransforms( Scene& scene );
     // transform component -> the position AudioSourceComponent::Play() starts a

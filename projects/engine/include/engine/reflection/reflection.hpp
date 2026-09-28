@@ -4,6 +4,7 @@
 #include "engine/types/string.hpp"
 #include "engine/types/array.hpp"
 #include "engine/utils/snake_case.hpp"
+#include "engine/scene/entity.hpp"
 #include <magic_enum/magic_enum.hpp>
 #include <entt/core/hashed_string.hpp>
 #include <entt/meta/container.hpp>
@@ -32,6 +33,7 @@
 namespace bubble
 {
 struct Loader;
+struct InspectorContext;
 
 // What a value may need beyond itself to cross to or from JSON: the project's
 // loader, for a resource a file names by path. Empty where there is no
@@ -59,6 +61,8 @@ struct FieldInfo
         Slider = 1 << 4,
         // The slider's scale is logarithmic.
         Logarithmic = 1 << 5,
+        // Radians, edited as degrees; mMin and mMax are in degrees.
+        Angle = 1 << 6,
     };
 
     // A range for the widget; both 0 is unbounded.
@@ -71,6 +75,9 @@ struct FieldInfo
     // Whether to show the field, given its owner - a spot light's cone and
     // not a directional one's. Null is always.
     bool ( *mVisible )( const entt::meta_any& owner ) = nullptr;
+    // For a string: what the inspector offers to pick, besides none - the
+    // clips of the entity's model. Null is free text.
+    vector<string> ( *mChoices )( const InspectorContext& ctx, Entity entity ) = nullptr;
 
     bool Has( Flags flag ) const { return ( mFlags & flag ) != 0; }
 };
@@ -158,6 +165,10 @@ entt::meta_any Meta( T& object )
 {
     return entt::forward_as_meta( object );
 }
+
+// Calls the type's OnChanged hook on `object`, if it has one: for code that
+// set fields itself and wants derived state brought up to date.
+void NotifyChanged( entt::meta_any& object );
 
 // The FieldInfo a field was described with.
 const FieldInfo& FieldInfoOf( const entt::meta_data& field );

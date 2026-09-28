@@ -208,7 +208,7 @@ field read off a component · `Ref`s from `load_model` / `load_shader` /
 - `for_each_entity` takes **at most 10** component ids, and each must be a
   `component.*` value. Anything else raises an error naming the problem.
 - Passing an empty table `{}` iterates nothing. It does not iterate everything.
-- Adding a `physics_body` or `physics_character` component to an entity that
+- Adding a `rigid_body` or `character_controller` component to an entity that
   already has one replaces it and re-registers it with the physics world. This
   is handled, but it is not free — do not do it per frame.
 - `entity:add_script( path )` exists and attaches a `StateComponent` too, then
@@ -230,7 +230,7 @@ disagree, the source wins and the doc is stale:
 |---|---|
 | entity methods, `create_entity`, `remove_entity`, `for_each_entity`, `component` enum | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
 | Per-component usertypes | `projects/engine/src/scene/components/*_component.cpp` → `CreateLuaBinding` |
-| Raycasts, `physics_body:set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
+| Raycasts | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
 | Keyboard/mouse, key enums, cursor control | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
 | `sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |

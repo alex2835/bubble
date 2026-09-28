@@ -305,6 +305,7 @@ void Engine::OnUpdate()
     Scene& scene = mProject.mLevel.mScene;
 
     /// Update physics world
+    RebuildChangedBodies( scene );
     mPhysicsEngine.Update( dt );
 
     // Propagations that end at a transform: gameplay inputs, so they run first
@@ -348,6 +349,34 @@ void Engine::OnUpdate()
         mPendingLevel.reset();
         LoadLevel( relFile );
     }
+}
+
+void Engine::RebuildChangedBodies( Scene& scene )
+{
+    scene.ForEach<RigidBodyComponent, TransformComponent>(
+        [&]( Entity entity, RigidBodyComponent& body, const TransformComponent& transform )
+    {
+        if ( not body.mRebuild )
+            return;
+        const bool inWorld = body.mRigidBody.getBody()->isInWorld();
+        if ( inWorld )
+            mPhysicsEngine.Remove( body.mRigidBody );
+        body.Rebuild();
+        body.mRigidBody.SetTransform( transform.World().mPosition, transform.World().mRotation );
+        if ( inWorld )
+            mPhysicsEngine.Add( body.mRigidBody, entity );
+    } );
+    scene.ForEach<CharacterControllerComponent>( [&]( Entity entity, CharacterControllerComponent& character )
+    {
+        if ( not character.mRebuild )
+            return;
+        const bool inWorld = character.mController.GetGhostObject()->getBroadphaseHandle() != nullptr;
+        if ( inWorld )
+            mPhysicsEngine.Remove( character.mController );
+        character.Rebuild();
+        if ( inWorld )
+            mPhysicsEngine.Add( character.mController, entity );
+    } );
 }
 
 void Engine::PropagatePhysicsTransforms( Scene& scene )

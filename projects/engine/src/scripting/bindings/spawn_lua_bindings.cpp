@@ -6,6 +6,7 @@
 #include "engine/physics/physics_engine.hpp"
 #include "engine/scripting/scripting_engine.hpp"
 #include "binding_utils.hpp"
+#include "engine/scripting/reflection_lua.hpp"
 #include <sol/sol.hpp>
 #include "engine/scene/components/camera_component.hpp"
 #include "engine/scene/components/light_component.hpp"
@@ -216,47 +217,38 @@ void CreateSpawnBindings( Scene& scene,
             SyncToEntityTransform<LightComponent>( scene, entity );
         }
 
+        // Any of rigid_body's fields, by name:
+        //   rigid_body = { shape = "box", half_extents = vec3( 0.5 ), mass = 1 }
         if ( const auto body = Field<sol::table>( description, "rigid_body" ) )
         {
-            const f32 mass = (f32)Field<double>( *body, "mass" ).value_or( 0.0 );
-
-            std::optional<RigidBody> rigidBody;
-            if ( const auto halfExtent = Field<vec3>( *body, "box" ) )
-                rigidBody = RigidBody::CreateBox( mass, *halfExtent );
-            else if ( const auto radius = Field<double>( *body, "sphere" ) )
-                rigidBody = RigidBody::CreateSphere( mass, (f32)*radius );
-            else if ( const auto capsule = Field<sol::table>( *body, "capsule" ) )
-                rigidBody = RigidBody::CreateCapsule( mass,
-                                                      (f32)Field<double>( *capsule, "radius" ).value_or( 0.5 ),
-                                                      (f32)Field<double>( *capsule, "height" ).value_or( 1.0 ) );
-            else
-                throw std::runtime_error( "spawn: rigid_body needs one of box, sphere or capsule" );
-
-            rigidBody->SetTransform( transform.mPosition, transform.mRotation );
-            if ( const auto friction = Field<double>( *body, "friction" ) )
-                rigidBody->SetFriction( (f32)*friction );
-
-            // A platform is scripted, not simulated. Bullet only treats a body
-            // as kinematic when it is massless, so say that here rather than
-            // silently ignoring a mass that was asked for.
-            if ( Field<bool>( *body, "kinematic" ).value_or( false ) )
+            entt::meta_any made;
+            try
             {
-                if ( mass != 0.0f )
-                    throw std::runtime_error( "spawn: a kinematic rigid_body must have mass 0" );
-                rigidBody->SetKinematic( true );
+                made = FromLua( sol::object( *body ), entt::resolve<RigidBodyComponent>() );
             }
-
-            auto& component = scene.AddComponent<RigidBodyComponent>( entity, std::move( *rigidBody ) );
+            catch ( const std::exception& e )
+            {
+                throw std::runtime_error( std::format( "spawn: {}", e.what() ) );
+            }
+            auto& component = scene.AddComponent<RigidBodyComponent>( entity, std::move( made.cast<RigidBodyComponent&>() ) );
+            component.mRigidBody.SetTransform( transform.mPosition, transform.mRotation );
             physicsEngine.Add( component.mRigidBody, entity );
         }
 
+        // Any of character_controller's fields, by name.
         if ( const auto controller = Field<sol::table>( description, "character_controller" ) )
         {
+            entt::meta_any made;
+            try
+            {
+                made = FromLua( sol::object( *controller ), entt::resolve<CharacterControllerComponent>() );
+            }
+            catch ( const std::exception& e )
+            {
+                throw std::runtime_error( std::format( "spawn: {}", e.what() ) );
+            }
             auto& component = scene.AddComponent<CharacterControllerComponent>(
-                entity,
-                (f32)Field<double>( *controller, "radius" ).value_or( 0.5 ),
-                (f32)Field<double>( *controller, "height" ).value_or( 2.0 ),
-                (f32)Field<double>( *controller, "step_height" ).value_or( 0.35 ) );
+                entity, std::move( made.cast<CharacterControllerComponent&>() ) );
             component.mController.Warp( transform.mPosition );
             physicsEngine.Add( component.mController, entity );
         }
