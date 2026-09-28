@@ -2,6 +2,7 @@
 #include "engine/scene/component_manager.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/types/string.hpp"
+#include "engine/utils/snake_case.hpp"
 #include <cctype>
 #include <format>
 #include <stdexcept>
@@ -15,20 +16,6 @@
 // one shared copy across the bindings beats one per translation unit.
 namespace bubble
 {
-// The Lua API is snake_case throughout, while ComponentID is PascalCase.
-inline string ToSnakeCase( string_view name )
-{
-    string out;
-    for ( size_t i = 0; i < name.size(); i++ )
-    {
-        const unsigned char c = (unsigned char)name[i];
-        if ( std::isupper( c ) and i > 0 and not std::isupper( (unsigned char)name[i - 1] ) )
-            out += '_';
-        out += (char)std::tolower( c );
-    }
-    return out;
-}
-
 // The name a component is addressed by in Lua: Component.transform to select
 // it, components.transform to read it back. Both are the component's own
 // Name() lowercased, so the two cannot end up disagreeing.
