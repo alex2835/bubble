@@ -54,13 +54,13 @@ TEST( Names_UniqueAmongSiblings )
     CHECK( UniqueChildName( f.scene, f.Root(), ".." ) == "Entity" );
 }
 
-TEST( Names_DuplicatesInAFileAreNumbered )
+TEST( Names_RepeatsInAFileAreNumbered )
 {
     Fixture f;
     const Entity a = f.Create( EntityKind::Light );
     const Entity b = f.Create( EntityKind::Light );
     const Entity c = f.Create( EntityKind::Light );
-    // As a file from before could have them.
+    // As a file edited by hand could have them.
     f.scene.GetComponent<TagComponent>( a ).mName = "floor";
     f.scene.GetComponent<TagComponent>( b ).mName = "floor";
     f.scene.GetComponent<TagComponent>( c ).mName = "floor2";

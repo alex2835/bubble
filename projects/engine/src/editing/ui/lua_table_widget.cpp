@@ -106,7 +106,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
     }
 
     ImGui::SetNextItemWidth( 100.0f );
-    constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0Entity\0NodePath\0"sv;
+    constexpr string_view types = "Int\0Float\0String\0Bool\0Vec2\0Vec3\0Vec4\0Mat3\0Mat4\0Table\0Texture2D\0NodePath\0"sv;
     auto typeLabel = std::format( "##type_{}", scopeName );
     ImGui::Combo( typeLabel.c_str(), &selectedType, types.data() );
 
@@ -115,7 +115,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
 
     const LuaKey entryKey = isArray ? LuaKey( newId ) : LuaKey( fieldName );
 
-    enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, TableT, Texture2D, EntityT, NodePathT };
+    enum Types { Int, Float, String, Bool, Vec2, Vec3, Vec4, Mat3, Mat4, TableT, Texture2D, NodePathT };
     Any value = Nil();
     switch ( selectedType )
     {
@@ -130,9 +130,7 @@ void DrawFieldsAdding( const DrawCtx& c, const LuaPath& path, Table& table, stri
         case Mat4:      value = mat4( 1 ); break;
         case TableT:    value = c.Lua().create_table(); break;
         case Texture2D: value = Ref<bubble::Texture2D>{}; break;
-        // Nothing until picked from the combo. This used to create a bare
-        // entity in the scene as a side effect of adding a field.
-        case EntityT:   value = INVALID_ENTITY; break;
+        // Nothing until picked from the combo.
         case NodePathT: value = NodePath(); break;
     }
     Set( c, Append( path, entryKey ), Nil(), value );
@@ -266,48 +264,10 @@ void DrawValue( const DrawCtx& c, const LuaPath& path, string_view name, const A
     }
     else if ( any.is<Entity>() )
     {
-        // Build list of all entities that have a tag
-        vector<Entity> entities;
-        vector<string> entityNames;
-        // The scene being edited - the level's, or a prefab's in its editor.
-        c.mCtx.mScene.ForEach<TagComponent>( [&]( Entity entity, const TagComponent& tag )
-        {
-            entities.push_back( entity );
-            entityNames.push_back( std::format( "[{}] {}", (size_t)entity, tag.mName ) );
-        } );
-
-        Leaf( c, path, any.as<Entity>(), [&]( Entity& current )
-        {
-            int selectedIdx = -1;
-            for ( int i = 0; i < (int)entities.size(); i++ )
-                if ( entities[i] == current )
-                {
-                    selectedIdx = i;
-                    break;
-                }
-
-            bool changed = false;
-            ImGui::SetNextItemWidth( 150.0f );
-            const string preview = selectedIdx >= 0 ? entityNames[selectedIdx] : "None";
-            if ( ImGui::BeginCombo( name.data(), preview.c_str() ) )
-            {
-                for ( int i = 0; i < (int)entities.size(); i++ )
-                {
-                    const bool isSelected = ( i == selectedIdx );
-                    if ( ImGui::Selectable( entityNames[i].c_str(), isSelected ) and not isSelected )
-                    {
-                        current = entities[i];
-                        changed = true;
-                    }
-                    if ( isSelected )
-                        ImGui::SetItemDefaultFocus();
-                }
-                ImGui::EndCombo();
-            }
-            return changed;
-        } );
-        ImGui::SameLine();
-        ImGui::Text( "(Entity)" );
+        // Not something the inspector makes - references are NodePaths, and
+        // a file's entity ids become NodePaths on load. One a script put
+        // here is shown, not edited.
+        ImGui::Text( "%s: %s (Entity)", name.data(), DescribeEntity( c.mCtx.mScene, any.as<Entity>() ).c_str() );
     }
     else if ( any.is<NodePath>() )
     {

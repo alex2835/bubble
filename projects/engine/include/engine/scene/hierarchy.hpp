@@ -44,7 +44,7 @@ string UniqueChildName( const Scene& scene, Entity parent, string_view wanted, E
 // Returns whether the name changed.
 bool MakeNameUnique( Scene& scene, Entity entity );
 // The same over a whole subtree, siblings in order - the first keeps its
-// name. For a file, which may come from before names were unique.
+// name. For a loaded file, which may have been edited by hand.
 void MakeNamesUnique( Scene& scene, Entity top );
 
 // An entity as a message names it: its path, '/player/camera'; one outside

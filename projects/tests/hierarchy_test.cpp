@@ -96,7 +96,6 @@ TEST( Hierarchy_SavedAndLoaded )
     f.scene.GetComponent<TransformComponent>( parent ).mPosition = vec3( 0, 10, 0 );
 
     const json saved = f.project.mLevel.ToJson( f.project );
-    CHECK( not saved.contains( "ProjectTree" ) );
     Level loaded;
     loaded.FromJson( saved, f.project );
     const auto id = []( Scene& s, Entity e ) { return s.GetEntityById( (size_t)e ); };
@@ -108,41 +107,4 @@ TEST( Hierarchy_SavedAndLoaded )
     // World transforms are ready right after a load. `first` was made at
     // (1, 2, 3) in the world, where its parent then was, so it sits on it.
     CHECK( Near( WorldPosition( loaded.mScene, id( loaded.mScene, first ) ), vec3( 0, 10, 0 ) ) );
-}
-
-TEST( Hierarchy_OldTreeMigrates )
-{
-    // A level as files were before the tree moved into the scene: entities
-    // with no Hierarchy, and a tree beside them with a folder in it.
-    Fixture f;
-    const json old = json::parse( R"({
-      "Scene": {
-        "Entity counter": 3,
-        "Entity components": { "1": [0, 1], "2": [0, 1] },
-        "Component pools": {
-          "Tag": { "1": { "Tag": "a", "Class": "Object" }, "2": { "Tag": "b", "Class": "Object" } },
-          "Transform": { "1": { "Position": [1, 0, 0], "Rotation": [0, 0, 0], "Scale": [1, 1, 1] },
-                         "2": { "Position": [0, 2, 0], "Rotation": [0, 0, 0], "Scale": [1, 1, 1] } }
-        }
-      },
-      "ProjectTree": { "Counter": 4, "Tree": { "ID": 0, "Type": "Level", "State": "main", "Children": [
-        { "ID": 1, "Type": "Folder", "State": "props", "Children": [
-          { "ID": 2, "Type": "ModelObject", "State": 1, "Children": [
-            { "ID": 3, "Type": "Light", "State": 2, "Children": [] } ] } ] } ] } }
-    })" );
-    Level level;
-    level.FromJson( old, f.project );
-    Scene& scene = level.mScene;
-    const Entity a = scene.GetEntityById( 1 ), b = scene.GetEntityById( 2 );
-
-    CHECK( scene.GetComponent<TagComponent>( level.Root() ).mName == "main" );
-    const auto top = ChildrenOf( scene, level.Root() );
-    CHECK( top.size() == 1 );
-    const Entity props = top[0];
-    CHECK( scene.HasComponent<FolderComponent>( props ) and scene.GetComponent<TagComponent>( props ).mName == "props" );
-    CHECK( ParentOf( scene, a ) == props and ParentOf( scene, b ) == a );
-    // The folder is at the origin: nothing moved.
-    CHECK( Near( WorldPosition( scene, b ), vec3( 1, 2, 0 ) ) );
-    // Saved again, the tree is gone from the file.
-    CHECK( not level.ToJson( f.project ).contains( "ProjectTree" ) );
 }

@@ -124,73 +124,6 @@ void Level::LoadScene( const json& j, Project& project )
 }
 
 
-void Level::MigrateTree( const json& tree )
-{
-    // The links the file may have had (a Hierarchy pool from before the tree
-    // moved into the scene) are rebuilt from the tree, which was the truth.
-    mScene.ForEach<HierarchyComponent>( []( Entity, HierarchyComponent& h )
-    {
-        h.mParent = INVALID_ENTITY;
-        h.mChildren.clear();
-    } );
-
-    std::function<void( const json&, Entity )> walk = [&]( const json& node, Entity parent )
-    {
-        const string type = node.value( "Type", string() );
-        Entity entity = INVALID_ENTITY;
-        if ( type == "Root" or type == "Level" )
-            entity = MakeRoot( node["State"].get<string>() );
-        else if ( type == "Folder" )
-        {
-            entity = CreateChildEntity( mScene, parent );
-            mScene.AddComponent<TagComponent>( entity, node["State"].get<string>() );
-            mScene.AddComponent<TransformComponent>( entity );
-            mScene.AddComponent<FolderComponent>( entity );
-        }
-        else
-        {
-            entity = mScene.GetEntityById( node["State"].get<u64>() );
-            if ( not mScene.HasEntity( entity ) )
-                return;
-            AttachChild( mScene, entity, parent );
-        }
-        if ( const auto children = node.find( "Children" ); children != node.end() and children->is_array() )
-            for ( const auto& child : *children )
-                walk( child, entity );
-    };
-    walk( tree["Tree"], INVALID_ENTITY );
-}
-
-void Level::AdoptStrays()
-{
-    const Entity root = Root();
-    if ( not mScene.HasEntity( root ) )
-        return;
-    vector<Entity> strays;
-    vector<Entity> empty;
-    mScene.ForEachEntity( [&]( Entity entity )
-    {
-        if ( entity == root )
-            return;
-        const Entity parent = ParentOf( mScene, entity );
-        if ( parent != INVALID_ENTITY and mScene.HasEntity( parent ) )
-            return;
-        // Old files kept entities with nothing on them that no tree node
-        // named; there is nothing to keep.
-        if ( mScene.EntityComponentTypeIds( entity ).empty() )
-            empty.push_back( entity );
-        else
-            strays.push_back( entity );
-    } );
-    mScene.RemoveEntities( empty );
-    for ( const Entity entity : strays )
-    {
-        DetachFromParent( mScene, entity );
-        AttachChild( mScene, entity, root );
-    }
-}
-
-
 json Level::ToJson( const Project& project ) const
 {
     json j;
@@ -203,15 +136,11 @@ void Level::FromJson( const json& j, Project& project )
     // Loaded into an empty scene: the default root goes, the file brings one.
     mScene = Scene();
     LoadScene( j["Scene"], project );
-    if ( j.contains( "ProjectTree" ) )
-        MigrateTree( j["ProjectTree"] );
-    else
-        mScene.SetRoot( mScene.GetEntityById( j["Scene"].value( "Root", u64( 0 ) ) ) );
+    mScene.SetRoot( mScene.GetEntityById( j["Scene"].value( "Root", u64( 0 ) ) ) );
     if ( not mScene.HasEntity( Root() ) )
-        MakeRoot( "Level" );
-    AdoptStrays();
-    // Files from before names were unique among siblings may repeat one; the
-    // second gets a number, so every path leads somewhere.
+        throw std::runtime_error( "Level has no root entity" );
+    // A file edited by hand may repeat a name among siblings; the second gets
+    // a number, so every path leads somewhere.
     MakeNamesUnique( mScene, Root() );
     UpdateWorldTransforms( mScene );
 }

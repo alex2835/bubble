@@ -1,6 +1,7 @@
 #include "test.hpp"
 #include "engine/project/prefab.hpp"
 #include "engine/scene/hierarchy.hpp"
+#include "engine/scene/node_path.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/editing/clipboard.hpp"
 #include "engine/editing/operators/operator.hpp"
@@ -47,9 +48,9 @@ TEST( Prefab_SaveInstantiateUpdate )
     const Entity part = f.Create( EntityKind::Light, body );
     f.scene.GetComponent<TagComponent>( body ).mName = "body";
     f.scene.GetComponent<TransformComponent>( part ).mPosition = vec3( 0, 2, 0 );
-    // The body's state names the part, which has to be carried over.
+    // The body's state names the part, which has to lead to the copy's.
     f.scene.AddComponent<StateComponent>( body, f.project.mScriptingEngine.CreateTable() );
-    f.scene.GetComponent<StateComponent>( body ).mState->as<Table>()["part"] = part;
+    f.scene.GetComponent<StateComponent>( body ).mState->as<Table>()["part"] = NodePath( NameOf( f.scene, part ) );
 
     auto ctx = f.Ctx();
     CHECK( InvokeOperator( "prefab.save", ctx, { { "file", "prefabs/thing" }, { "entity", (u64)body } } ) );
@@ -71,9 +72,9 @@ TEST( Prefab_SaveInstantiateUpdate )
     const Entity copiedPart = children[0];
     UpdateWorldTransforms( f.scene );
     CHECK( Near( f.scene.GetComponent<TransformComponent>( copiedPart ).World().mPosition, vec3( 10, 2, 0 ) ) );
-    // The reference in the state followed the copy.
+    // The reference in the state is a path, so it leads to the copy.
     const sol::object named = f.scene.GetComponent<StateComponent>( root ).mState->as<Table>()["part"];
-    CHECK( named.is<Entity>() and named.as<Entity>() == copiedPart );
+    CHECK( named.is<NodePath>() and FindByPath( f.scene, root, named.as<NodePath>().mPath ) == copiedPart );
 
     // Undo takes the instance out, redo brings it back under the same ids.
     f.history.Undo();

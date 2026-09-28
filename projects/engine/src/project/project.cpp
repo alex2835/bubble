@@ -88,23 +88,6 @@ void Project::Open( const path& rootFile, bool openStartupLevel )
     mGlobalState = CreateScope<Any>( LoadAnyValue( mScriptingEngine, projectJson["GlobalState"] ) );
     LogInfo( "Project opened: {}", mRootFile.string() );
 
-    if ( projectJson.contains( "Scene" ) )
-    {
-        // Pre-levels layout: the scene lives in the project file. Split it out.
-        mLevel.Clear();
-        mLevel.FromJson( projectJson, *this );
-        mLevel.mName = DEFAULT_LEVEL_NAME;
-        mLevel.mFile = LevelsDir() / mLevel.mName;
-        mLevel.mFile.replace_extension( LEVEL_FILE_EXT );
-        mLevel.SetRootName( mLevel.mName );
-        mStartupLevel = CurrentLevel();
-
-        filesystem::create_directories( LevelsDir() );
-        Save();
-        LogInfo( "Project migrated: scene moved to {}", mLevel.mFile.string() );
-        return;
-    }
-
     mStartupLevel = path( string( projectJson.value( "StartupLevel", "" ) ) );
     if ( mStartupLevel.empty() )
     {

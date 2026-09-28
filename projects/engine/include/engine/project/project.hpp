@@ -30,10 +30,7 @@ public:
     // and leaves that level open.
     void Create( const path& rootDir, const string& projectName );
     // Opens the project and, unless told not to, its startup level - the
-    // engine loads a level of its own choosing right after and skips it. A
-    // project file from before levels existed carries its scene inline; it is
-    // split out into levels/main.level and rewritten in the new layout on the
-    // spot.
+    // engine loads a level of its own choosing right after and skips it.
     void Open( const path& rootFile, bool openStartupLevel = true );
     // Project file and the open level.
     void Save() const;

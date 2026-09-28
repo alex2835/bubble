@@ -155,9 +155,9 @@ MouseKey =
 
 // Taking sol::object rather than int so a nil argument produces a sentence a
 // script author can act on. Indexing a key that does not exist yields nil
-// silently in Lua, so KeyboardKey.SPACE (a name from before the API became
-// snake_case) reaches the binding as nil, and sol2's own diagnostic for that
-// talks about stack indices and integer conversion.
+// silently in Lua, so a misspelled KeyboardKey.SPACE reaches the binding as
+// nil, and sol2's own diagnostic for that talks about stack indices and
+// integer conversion.
 static int KeyArgument( string_view function, const sol::object& key )
 {
     if ( key.is<int>() )

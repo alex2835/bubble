@@ -349,6 +349,7 @@ bool MakeNameUnique( Scene& scene, Entity entity )
     return true;
 }
 
+
 void MakeNamesUnique( Scene& scene, Entity top )
 {
     for ( const Entity entity : Subtree( scene, top ) )

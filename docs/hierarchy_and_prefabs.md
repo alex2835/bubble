@@ -41,12 +41,6 @@ after the scripts; the editor refreshes it every frame.
 - New entities land where they were asked to in the world, whatever their
   parent.
 
-**Older files.** Levels saved before the tree moved into the scene kept a
-`ProjectTree` beside it, with folders that were not entities. On load that
-tree is turned into folder entities and hierarchy links; entities left with
-no components at all, which such files could hold, are dropped. The next save
-writes the new format.
-
 ## Names and paths
 
 An entity's name is its Tag's name. **Among one parent's children no two
@@ -54,8 +48,8 @@ names are the same**: a name that is taken gets a number - `chair`, `chair2`,
 `chair3` (a taken `chair2` becomes `chair3`). That happens wherever an entity
 arrives under a parent or is renamed: made, pasted, moved, instantiated,
 renamed in the tree or the inspector, spawned, `add_tag`, `set_parent`,
-`entity.name = ...`. Levels saved before this may repeat names; on load the
-later ones get numbers. A name cannot hold `/`, and cannot be empty, `.`,
+`entity.name = ...`, and on load (a file edited by hand may repeat a name;
+the later ones get numbers). A name cannot hold `/`, and cannot be empty, `.`,
 `..` or `~`. (Setting `get_tag().name` directly in a script is not checked.)
 Names are compared exactly: letter case counts, and so does the alphabet - a
 Cyrillic `с` is not a Latin `c`, though they look the same.
@@ -113,11 +107,11 @@ nowhere becomes `nil`, with a warning in the log. A script can make one too:
 Inside a prefab, `"~/..."` names a part from the prefab's root wherever the
 owner sits in it.
 
-Unlike an entity id, a path holds wherever the entities are copied: a prefab's
-NodePath to one of its own parts leads to that instance's part in every
-instance, and still does after the instance is updated from the prefab
-(its inner entities get new ids). An id reference to a part does not survive
-an update - use NodePath for that.
+NodePath is the kind of reference the inspector puts in State. Unlike an
+entity id, a path holds wherever the entities are copied: a prefab's NodePath
+to one of its own parts leads to that instance's part in every instance, and
+still does after the instance is updated from the prefab (its inner entities
+get new ids). An entity a script puts in State at run time stays an entity.
 
 Renaming or moving the target does not update NodePaths that lead to it.
 

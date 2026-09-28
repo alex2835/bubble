@@ -25,12 +25,6 @@ class Level
 private:
     json SaveScene( const Project& project ) const;
     void LoadScene( const json& j, Project& project );
-    // Files from before the scene was a tree kept the tree beside it, with
-    // folders that were not entities. Rebuilt from that, folders made.
-    void MigrateTree( const json& tree );
-    // Anything hanging from nothing but the root goes under the root;
-    // entities with no components at all, which old files could hold, go.
-    void AdoptStrays();
 
 public:
     Level();
@@ -43,8 +37,8 @@ public:
     // pointing at dead entities.
     void Clear();
 
-    // Serialization is split from the file so the same code handles a level
-    // file and a legacy project file with the level embedded in it.
+    // Serialization apart from the file, for tests and for copying a level
+    // in memory.
     json ToJson( const Project& project ) const;
     void FromJson( const json& j, Project& project );
 
