@@ -8,7 +8,7 @@ namespace bubble
 struct AudioSourceComponent
 {
     static int ID() { return static_cast<int>( ComponentID::AudioSource ); }
-    static string_view Name() { return "AudioSource"sv; }
+    static string_view Name() { return "audio_source"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioSourceComponent& component );
     static void ToJson( json& json, const Project& project, const AudioSourceComponent& component );

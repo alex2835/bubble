@@ -221,11 +221,11 @@ TEST( Reflection_ComponentsInLevelFiles )
 
     const json saved = f.project.mLevel.ToJson( f.project );
     const json& pools = saved.at( "Scene" ).at( "Component pools" );
-    const json& savedLight = pools.at( "Light" ).at( std::to_string( lamp ) );
+    const json& savedLight = pools.at( "light" ).at( std::to_string( lamp ) );
     CHECK( savedLight.at( "type" ) == "point" and savedLight.at( "distance" ) == 13.0f );
     CHECK( not savedLight.contains( "linear" ) and not savedLight.contains( "position" ) );
-    CHECK( pools.at( "Tag" ).at( std::to_string( lamp ) ).at( "name" ) == "Light" );
-    CHECK( pools.at( "Transform" ).at( std::to_string( lamp ) ).at( "position" ) == json::array( { 1.0f, 2.0f, 3.0f } ) );
+    CHECK( pools.at( "tag" ).at( std::to_string( lamp ) ).at( "name" ) == "Light" );
+    CHECK( pools.at( "transform" ).at( std::to_string( lamp ) ).at( "position" ) == json::array( { 1.0f, 2.0f, 3.0f } ) );
 
     Level loaded;
     loaded.FromJson( saved, f.project );
@@ -247,7 +247,7 @@ TEST( Reflection_SetFieldCommand )
 
     f.history.Execute( CreateScope<SetFieldCommand>( f.scene, lamp, LightComponent::ID(), "distance",
                                                      entt::meta_any( distance ), entt::meta_any( 13.0f ) ) );
-    CHECK( f.history.NextUndoName() == "Light.distance" );
+    CHECK( f.history.NextUndoName() == "light.distance" );
     // Set through reflection, so OnChanged made the attenuation again.
     CHECK( light().mDistance == 13.0f and light().mLinear != linear );
     f.history.Undo();

@@ -2,6 +2,8 @@
 #include "engine/editing/scripting/editor_lua.hpp"
 #include "engine/editing/history.hpp"
 #include "engine/editing/selection.hpp"
+#include "engine/editing/commands/field_command.hpp"
+#include "engine/reflection/reflection.hpp"
 #include "engine/project/project.hpp"
 #include "engine/serialization/types_serialization.hpp"
 #include "glm_lua_bindings.hpp"
@@ -282,6 +284,27 @@ void EditorLua::Bind()
     {
         Scene& scene = mCtx.mLevel.mScene;
         return PathOf( scene, Entity::FromId( id ) );
+    } );
+    // A field's value: editor.get( entity, "Light.brightness" ), the entity
+    // by id or by path from the root. What property.set would take back:
+    // numbers, strings, booleans, enums by name, vectors and described types
+    // as tables.
+    editor.set_function( "get", [this]( sol::object entityArg, const string& path ) -> sol::object
+    {
+        Scene& scene = mCtx.mLevel.mScene;
+        Entity entity = Entity::Null;
+        if ( entityArg.is<string>() )
+        {
+            const string at = entityArg.as<string>();
+            entity = FindByPath( scene, scene.Root(), at );
+            if ( entity == Entity::Null )
+                throw std::runtime_error( std::format( "get: nothing at '{}' - {}", at, WhyPathFails( scene, scene.Root(), at ) ) );
+        }
+        else
+            entity = Entity::FromId( entityArg.as<u64>() );
+        const ComponentField field = ParseComponentField( path );
+        entt::meta_any component = RequireReflected( scene, entity, field.mComponentId );
+        return JsonToLua( *mLua, ToJson( GetField( component, field.mPath ) ) );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {

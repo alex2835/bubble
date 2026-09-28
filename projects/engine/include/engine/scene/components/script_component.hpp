@@ -9,7 +9,7 @@ struct Script;
 struct ScriptComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Script ); }
-	static string_view Name() { return "Script"sv; }
+	static string_view Name() { return "script"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ScriptComponent& component );
 	static void ToJson( json& json, const Project& project, const ScriptComponent& component );

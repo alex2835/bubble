@@ -8,6 +8,7 @@
 #include "engine/editing/ui/inspector_context.hpp"
 #include "engine/reflection/reflection.hpp"
 #include "engine/editing/ui/reflected_inspector.hpp"
+#include "engine/scripting/reflection_lua.hpp"
 
 namespace bubble
 {
@@ -35,14 +36,25 @@ concept HandDrawnComponent = requires( Component& componentRef, const Entity& en
     { Component::OnComponentDraw( ctx, entity, componentRef ) } -> std::same_as<void>;
 };
 
+// Binds its Lua usertype by hand. A reflected component's usertype is made
+// from its description (reflection_lua.hpp), and the component adds its
+// methods with BindLuaMethods( lua, type ) if it has any.
 template <typename Component>
-concept ComponentConcept = requires( sol::state& lua )
+concept HandBoundComponent = requires( sol::state& lua )
+{
+    { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
+};
+
+// Name() is snake_case - "light", "audio_source" - and is the component's
+// name everywhere: in a file, a property path, Lua and operator arguments.
+template <typename Component>
+concept ComponentConcept = requires
 {
     { Component::ID() } -> std::same_as<int>;
     { Component::Name() } -> std::same_as<string_view>;
-    { Component::CreateLuaBinding( lua ) } -> std::same_as<void>;
 } and ( ReflectedComponent<Component> or HandSavedComponent<Component> )
-  and ( ReflectedComponent<Component> or HandDrawnComponent<Component> );
+  and ( ReflectedComponent<Component> or HandDrawnComponent<Component> )
+  and ( ReflectedComponent<Component> or HandBoundComponent<Component> );
 
 typedef void ( *OnComponentDrawFunc )( InspectorContext& ctx, const Entity& entity, void* rawData );
 typedef void ( *ComponentToJson )( json& json, const Project& project, const void* rawData );
@@ -77,7 +89,6 @@ public:
     {
         ComponentFunctionsTable table{
             .mName = Component::Name(),
-            .mCreateLuaBinding = Component::CreateLuaBinding,
             .mStorageId = entt::type_hash<Component>::value(),
             .mStorage = []( Scene::Registry& registry ) -> Scene::Storage& { return registry.storage<Component>(); },
         };
@@ -92,6 +103,12 @@ public:
         {
             Component::Reflect();
             table.mMeta = entt::resolve<Component>();
+            table.mCreateLuaBinding = []( sol::state& lua )
+            {
+                auto type = BindReflected<Component>( lua, Component::Name().data() );
+                if constexpr ( requires { Component::BindLuaMethods( lua, type ); } )
+                    Component::BindLuaMethods( lua, type );
+            };
             table.mFromJson = []( const json& json, Project&, void* rawData )
             {
                 entt::meta_any component = entt::forward_as_meta( *static_cast<Component*>( rawData ) );
@@ -102,6 +119,7 @@ public:
         }
         else
         {
+            table.mCreateLuaBinding = Component::CreateLuaBinding;
             table.mFromJson = []( const json& json, Project& project, void* rawData )
             { Component::FromJson( json, project, *static_cast<Component*>( rawData ) ); };
             table.mToJson = []( json& json, const Project& project, const void* rawData )

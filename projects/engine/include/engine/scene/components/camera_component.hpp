@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include <sol/sol.hpp>
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/renderer/camera.hpp"
 
@@ -41,11 +42,12 @@ struct CameraComponent : public Camera
     void OrbitFromTransform( const TransformComponent& transform );
 
     static int ID() { return static_cast<int>( ComponentID::Camera ); }
-	static string_view Name() { return "Camera"sv; }
+	static string_view Name() { return "camera"sv; }
 
     // Fields for engine/reflection: what is saved, shown and set by path.
     static void Reflect();
-    static void CreateLuaBinding( sol::state& lua );
+    // Lua: the fields come from Reflect(); these are what is added to them.
+    static void BindLuaMethods( sol::state& lua, sol::usertype<CameraComponent>& type );
 };
 
 }

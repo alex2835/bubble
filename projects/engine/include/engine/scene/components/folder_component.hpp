@@ -10,7 +10,7 @@ namespace bubble
 struct FolderComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Folder ); }
-    static string_view Name() { return "Folder"sv; }
+    static string_view Name() { return "folder"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, FolderComponent& component );
     static void ToJson( json& json, const Project& project, const FolderComponent& component );

@@ -8,6 +8,8 @@
 #include "engine/editing/clipboard.hpp"
 #include "engine/editing/commands/tree_commands.hpp"
 #include "engine/editing/commands/component_commands.hpp"
+#include "engine/editing/commands/field_command.hpp"
+#include "engine/reflection/reflection.hpp"
 #include "engine/project/project.hpp"
 #include "engine/project/prefab.hpp"
 #include "engine/scene/component_manager.hpp"
@@ -226,6 +228,38 @@ void OperatorRegistry::RegisterBuiltins()
             if ( not SceneOf( ctx ).HasComponent( entity, componentId ) )
                 return;
             ctx.mHistory.Execute( CreateScope<RemoveComponentCommand>( entity, componentId, SceneOf( ctx ) ) );
+        } } );
+
+    /// Fields
+    // args: path ("Light.brightness", "Transform.position": a component, then
+    // a path into it), value (JSON, converted to the field's type; an enum by
+    // name), entity (id or path, default: the single selected one). One step;
+    // none when the value is what the field holds already.
+    registry.Register( { "property.set", "Set property", nullptr,
+        []( OperatorContext& ctx, const json& args )
+        {
+            Scene& scene = SceneOf( ctx );
+            const Entity entity = RequiredEntity( ctx, args, "entity" );
+            const string path = args.at( "path" ).get<string>();
+            const ComponentField field = ParseComponentField( path );
+            entt::meta_any component = RequireReflected( scene, entity, field.mComponentId );
+
+            // Copies: the step keeps both values of its own.
+            const entt::meta_any current = GetField( component, field.mPath );
+            entt::meta_any from = current;
+            entt::meta_any to;
+            try
+            {
+                to = FromJson( args.at( "value" ), current.type() );
+            }
+            catch ( const std::exception& e )
+            {
+                throw std::runtime_error( std::format( "{}: {}", path, e.what() ) );
+            }
+            if ( from == to )
+                return;
+            ctx.mHistory.Execute( CreateScope<SetFieldCommand>( scene, entity, field.mComponentId, field.mPath,
+                                                                std::move( from ), std::move( to ) ) );
         } } );
 
     /// Prefabs

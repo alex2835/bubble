@@ -5,6 +5,23 @@
 
 namespace bubble
 {
+// A field of a component as the editor names it: "Light.brightness",
+// "Transform.position" - the component's name, then a path into it.
+struct ComponentField
+{
+    ComponentTypeId mComponentId;
+    string mPath; // within the component: "brightness", "points[2].value"
+};
+
+// Throws when there is no component name before the first dot, or no
+// component by that name.
+ComponentField ParseComponentField( string_view path );
+
+// The component, by reference, as engine/reflection sees it. Throws saying
+// why not: the entity is not there, has no such component, or the component
+// does not describe its fields yet.
+entt::meta_any RequireReflected( Scene& scene, Entity entity, ComponentTypeId componentId );
+
 // A field of a reflected component set from one value to another, the field
 // named by a path (engine/reflection): "brightness", "points[2].value". The
 // component is looked up again each time, by entity and type - it moves in

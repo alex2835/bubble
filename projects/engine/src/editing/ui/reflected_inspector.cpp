@@ -244,7 +244,7 @@ void DrawComponentFields( InspectorContext& ctx, Entity entity, ComponentTypeId 
     entt::meta_any component = ComponentManager::Reflected( ctx.mScene, entity, componentId );
     if ( not component )
         return;
-    ImGui::TextColored( cTitleColor, "%s", ComponentManager::GetName( componentId ).data() );
+    ImGui::TextColored( cTitleColor, "%s", FieldLabel( ComponentManager::GetName( componentId ) ).c_str() );
     ImGui::PushID( (int)(u32)entity );
     ImGui::PushID( componentId );
     Target target{ ctx, entity, componentId };

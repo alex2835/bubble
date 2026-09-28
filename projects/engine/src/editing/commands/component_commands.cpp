@@ -14,7 +14,7 @@ AddComponentCommand::AddComponentCommand( Entity entity, ComponentTypeId compone
       mComponentId( componentId ),
       mProject( project ),
       mScene( scene ),
-      mName( std::format( "Add {}", ComponentManager::GetName( componentId ) ) )
+      mName( std::format( "Add {}", FieldLabel( ComponentManager::GetName( componentId ) ) ) )
 {
 }
 
@@ -38,7 +38,7 @@ RemoveComponentCommand::RemoveComponentCommand( Entity entity, ComponentTypeId c
     : mEntity( entity ),
       mComponentId( componentId ),
       mScene( scene ),
-      mName( std::format( "Remove {}", ComponentManager::GetName( componentId ) ) )
+      mName( std::format( "Remove {}", FieldLabel( ComponentManager::GetName( componentId ) ) ) )
 {
 }
 

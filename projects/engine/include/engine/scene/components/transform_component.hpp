@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include <sol/sol.hpp>
 #include "engine/renderer/transform.hpp"
 
 namespace bubble
@@ -30,11 +31,15 @@ struct TransformComponent : public Transform
     }
 
     static int ID() { return static_cast<int>( ComponentID::Transform ); }
-	static string_view Name() { return "Transform"sv; }
+	static string_view Name() { return "transform"sv; }
 
     // Fields for engine/reflection: what is saved, shown and set by path.
     static void Reflect();
-    static void CreateLuaBinding( sol::state& lua );
+    // Lua: the fields come from Reflect() - rotation as Euler radians, as
+    // every rotation crosses into Lua; these are what is added to them.
+    using LuaConstructors = sol::constructors<TransformComponent(), TransformComponent( vec3 ),
+                                              TransformComponent( vec3, vec3, vec3 )>;
+    static void BindLuaMethods( sol::state& lua, sol::usertype<TransformComponent>& type );
 
     // The world transform: exact for a root, taken back out of the matrix for
     // a child (shear, which a parent's non uniform scale can put into a

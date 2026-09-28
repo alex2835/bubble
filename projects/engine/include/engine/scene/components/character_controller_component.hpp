@@ -7,7 +7,7 @@ namespace bubble
 struct CharacterControllerComponent
 {
     static int ID() { return static_cast<int>( ComponentID::CharacterController ); }
-    static string_view Name() { return "CharacterController"sv; }
+    static string_view Name() { return "character_controller"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, CharacterControllerComponent& component );
     static void ToJson( json& json, const Project& project, const CharacterControllerComponent& component );

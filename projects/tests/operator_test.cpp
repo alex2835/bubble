@@ -43,12 +43,12 @@ TEST( Operators )
 
     // Components on the selected entity
     selection.Select( light, f.scene );
-    CHECK( InvokeOperator( "entity.add_component", ctx, { { "component", "State" } } ) );
+    CHECK( InvokeOperator( "entity.add_component", ctx, { { "component", "state" } } ) );
     CHECK( f.scene.HasComponent<StateComponent>( light ) );
-    CHECK( InvokeOperator( "entity.remove_component", ctx, { { "component", "State" } } ) );
+    CHECK( InvokeOperator( "entity.remove_component", ctx, { { "component", "state" } } ) );
     CHECK( not f.scene.HasComponent<StateComponent>( light ) );
     threw = false;
-    try { InvokeOperator( "entity.remove_component", ctx, { { "component", "Tag" } } ); } catch ( const std::exception& ) { threw = true; }
+    try { InvokeOperator( "entity.remove_component", ctx, { { "component", "tag" } } ); } catch ( const std::exception& ) { threw = true; }
     CHECK( threw );
 
     // Delete polls on the selection

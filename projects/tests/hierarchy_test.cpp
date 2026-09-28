@@ -118,7 +118,7 @@ TEST( Hierarchy_NoIdMeansNothing )
     Fixture f;
     const Entity child = f.Create( EntityKind::Light );
     json saved = f.project.mLevel.ToJson( f.project );
-    json& pools = saved["Scene"]["Component pools"]["Hierarchy"];
+    json& pools = saved["Scene"]["Component pools"]["hierarchy"];
     CHECK( not pools[std::to_string( f.Root() )].contains( "Parent" ) );
 
     // The root under a parent the file does not have, and a child that is

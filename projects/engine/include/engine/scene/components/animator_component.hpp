@@ -100,7 +100,7 @@ struct OverlayLayer
 struct AnimatorComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Animator ); }
-    static string_view Name() { return "Animator"sv; }
+    static string_view Name() { return "animator"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, AnimatorComponent& component );
     static void ToJson( json& json, const Project& project, const AnimatorComponent& component );

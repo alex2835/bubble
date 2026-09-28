@@ -8,7 +8,7 @@ struct Model;
 struct ModelComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Model ); }
-	static string_view Name() { return "Model"sv; }
+	static string_view Name() { return "model"sv; }
 
 	static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ModelComponent& component );
 	static void ToJson( json& json, const Project& project, const ModelComponent& component );

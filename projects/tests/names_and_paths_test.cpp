@@ -170,7 +170,7 @@ TEST( Paths_FromScripts )
         -- A missing component is reported by the entity's path.
         ok, err = pcall( function() return chair:get_camera() end )
     )" );
-    CHECK( lua["err"].get<string>().contains( "'/props/chair' has no Camera component" ) );
+    CHECK( lua["err"].get<string>().contains( "'/props/chair' has no camera component" ) );
     CHECK( lua["chair"].get<Entity>() == chair );
     CHECK( lua["props"].get<Entity>() == props );
     CHECK( not lua["missing"].valid() and not lua["also_missing"].valid() );

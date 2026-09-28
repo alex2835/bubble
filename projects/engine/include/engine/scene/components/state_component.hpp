@@ -7,7 +7,7 @@ namespace bubble
 struct StateComponent
 {
     static int ID() { return static_cast<int>( ComponentID::State ); }
-    static string_view Name() { return "State"sv; }
+    static string_view Name() { return "state"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, StateComponent& component );
     // How an edit addresses this entity's state table - see lua_value_command.hpp.

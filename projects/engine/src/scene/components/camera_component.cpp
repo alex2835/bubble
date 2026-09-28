@@ -10,7 +10,6 @@
 #include "engine/reflection/reflection.hpp"
 #include <nlohmann/json.hpp>
 #include <sol/sol.hpp>
-#include "engine/scripting/lua_value_property.hpp"
 
 namespace bubble
 {
@@ -47,53 +46,39 @@ void CameraComponent::OrbitFromTransform( const TransformComponent& transform )
 
 // Position, forward, up and right are not described: they are the cache the
 // transform fills, and the transform is saved on its own.
+namespace
+{
+constexpr u32 cCache = FieldInfo::ReadOnly | FieldInfo::Transient | FieldInfo::Hidden;
+}
+
 void CameraComponent::Reflect()
 {
-    TypeBuilder<CameraComponent>( "Camera" )
+    TypeBuilder<CameraComponent>( Name().data() )
         .Field<&CameraComponent::mWorldUp>( "world_up", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mNear>( "near", { .mMin = 0.01f, .mSpeed = 0.01f } )
         .Field<&CameraComponent::mFar>( "far", { .mMin = 1.0f, .mMax = 10000.0f } )
         .Field<&CameraComponent::mFov>( "fov", { .mMin = 0.1f, .mMax = 3.14f, .mFlags = FieldInfo::Slider } )
         .Field<&CameraComponent::mYaw>( "yaw", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mPitch>( "pitch", { .mFlags = FieldInfo::Hidden } )
-        .Field<&CameraComponent::mRadius>( "radius", { .mMin = 0.1f, .mMax = 100.0f, .mSpeed = 0.1f } );
+        .Field<&CameraComponent::mRadius>( "radius", { .mMin = 0.1f, .mMax = 100.0f, .mSpeed = 0.1f } )
+        // What the orbit turns around; set by scripts, not saved.
+        .Field<&CameraComponent::mCenter>( "center", { .mFlags = FieldInfo::Hidden | FieldInfo::Transient } )
+        // The cache PropagateCameraTransforms fills from the transform: for
+        // scripts to read. A camera moves by moving its entity.
+        .Field<&CameraComponent::mPosition>( "position", { .mFlags = cCache } )
+        .Field<&CameraComponent::mForward>( "forward", { .mFlags = cCache } )
+        .Field<&CameraComponent::mUp>( "up", { .mFlags = cCache } )
+        .Field<&CameraComponent::mRight>( "right", { .mFlags = cCache } );
 }
 
-void CameraComponent::CreateLuaBinding( sol::state& lua )
+void CameraComponent::BindLuaMethods( sol::state&, sol::usertype<CameraComponent>& type )
 {
-    lua.new_usertype<CameraComponent>(
-        "Camera",
-        sol::call_constructor,
-        // Default constructed only. The Camera( position, yaw, pitch, fov, up )
-        // constructor is not exposed: a component's position is its entity's
-        // transform, and a position passed here would be overwritten on the
-        // first frame. Set fov, near, far, radius and the rest as fields:
-        //     local c = Camera(); c.fov = 1.2
-        sol::constructors<CameraComponent()>(),
-
-        // Read only: these are the cache filled from the entity's transform.
-        // A script moves a camera by moving its entity, or with update_orbit.
-        "position",              sol::readonly( &CameraComponent::mPosition ),
-        "forward",               sol::readonly( &CameraComponent::mForward ),
-        "up",                    sol::readonly( &CameraComponent::mUp ),
-        "right",                 sol::readonly( &CameraComponent::mRight ),
-        // vec3 fields by value - see ValueProperty.
-        "world_up",              ValueProperty( &CameraComponent::mWorldUp ),
-        "near",                  &CameraComponent::mNear,
-        "far",                   &CameraComponent::mFar,
-        "fov",                   &CameraComponent::mFov,
-        "yaw",                   &CameraComponent::mYaw,
-        "pitch",                 &CameraComponent::mPitch,
-        "center",                ValueProperty( &CameraComponent::mCenter ),
-        "radius",                &CameraComponent::mRadius,
-
-        "get_lookat_mat",          &CameraComponent::GetLookatMat,
-        "get_projection_mat",      &CameraComponent::GetProjectionMat,
-        // camera:update_orbit( entity:get_transform() )
-        "update_orbit",           &CameraComponent::UpdateOrbit,
-        // camera:orbit_from_transform( entity:get_transform() ), in on_start
-        "orbit_from_transform",   &CameraComponent::OrbitFromTransform
-    );
+    type["get_lookat_mat"] = &CameraComponent::GetLookatMat;
+    type["get_projection_mat"] = &CameraComponent::GetProjectionMat;
+    // camera:update_orbit( entity:get_transform() )
+    type["update_orbit"] = &CameraComponent::UpdateOrbit;
+    // camera:orbit_from_transform( entity:get_transform() ), in on_start
+    type["orbit_from_transform"] = &CameraComponent::OrbitFromTransform;
 }
 
 }

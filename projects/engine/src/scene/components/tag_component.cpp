@@ -41,24 +41,17 @@ void TagComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity,
 
 void TagComponent::Reflect()
 {
-    TypeBuilder<TagComponent>( "Tag" )
+    TypeBuilder<TagComponent>( Name().data() )
         .Field<&TagComponent::mName>( "name" )
         .Field<&TagComponent::mClass>( "class" );
 }
 
-void TagComponent::CreateLuaBinding( sol::state& lua )
+void TagComponent::BindLuaMethods( sol::state&, sol::usertype<TagComponent>& type )
 {
-    lua.new_usertype<TagComponent>(
-        "Tag",
-        sol::call_constructor,
-        sol::constructors<TagComponent(), TagComponent( string ), TagComponent( string, string )>(),
-        "name",
-        &TagComponent::mName,
-        "class",
-        &TagComponent::mClass,
-        sol::meta_function::to_string,
-        []( const TagComponent& tag ) { return std::format( "Name: {} Class:{}", tag.mName, tag.mClass ); }
-    );
+    type[sol::meta_function::to_string] = []( const TagComponent& tag )
+    {
+        return std::format( "name: {} class: {}", tag.mName, tag.mClass );
+    };
 }
 
 TagComponent::TagComponent( string name, string cls )

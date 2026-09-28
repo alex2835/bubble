@@ -13,7 +13,7 @@ namespace bubble
 struct AudioListenerComponent
 {
     static int ID() { return static_cast<int>( ComponentID::AudioListener ); }
-    static string_view Name() { return "AudioListener"sv; }
+    static string_view Name() { return "audio_listener"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioListenerComponent& component );
     static void ToJson( json& json, const Project& project, const AudioListenerComponent& component );

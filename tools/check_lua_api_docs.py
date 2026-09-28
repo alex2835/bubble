@@ -58,6 +58,11 @@ PATTERNS = [
     re.compile(r'^\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*(?:&|\[|sol::property|ValueProperty)', re.M),
     re.compile(r'^\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*$', re.M),
     re.compile(r'\w+Type\s*\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\]\s*='),
+    # A reflected component: its methods, added in BindLuaMethods as
+    # `type["name"] = ...`, and its fields, which become Lua properties
+    # under the name the description gives them.
+    re.compile(r'type\s*\[\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\]\s*='),
+    re.compile(r'\.(?:Field|Property)\s*<[^>]*>\s*\(\s*"([A-Za-z_][A-Za-z0-9_]*)"'),
 ]
 
 # Lua reserved words. A binding name that collides with one of these is not a
@@ -75,7 +80,7 @@ IGNORE = {
     # sol2 plumbing / operator names, not callable identifiers.
     "call_constructor", "to_string", "index", "new_index",
     # Enum tables are emitted from Lua source strings, checked separately.
-    "Component", "KeyboardKey", "MouseKey", "LightType",
+    "Component", "KeyboardKey", "MouseKey",
 }
 
 

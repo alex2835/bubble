@@ -8,6 +8,7 @@
 #include <sol/sol.hpp>
 #include "engine/scene/components/state_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
+#include "engine/scene/components/light_component.hpp"
 
 TEST( EditorLua )
 {
@@ -40,7 +41,7 @@ TEST( EditorLua )
     CHECK( lua.Run( "assert( editor.selection()[1] == " + std::to_string( (u64)light ) + " )" ).empty() );
 
     // Components on the selection, and undo through the table
-    CHECK( lua.Run( "editor.ops.entity.add_component{ component = 'State' }" ).empty() );
+    CHECK( lua.Run( "editor.ops.entity.add_component{ component = 'state' }" ).empty() );
     CHECK( f.scene.HasComponent<StateComponent>( light ) );
     CHECK( lua.Run( "assert( editor.undo_name() == 'Add State' ); editor.undo()" ).empty() );
     CHECK( not f.scene.HasComponent<StateComponent>( light ) );
@@ -60,7 +61,7 @@ TEST( EditorLua )
 
     // An operator's error is a Lua error, and it lands in the log
     lua.ClearLog();
-    const string err = lua.Run( "editor.ops.entity.remove_component{ component = 'Tag' }" );
+    const string err = lua.Run( "editor.ops.entity.remove_component{ component = 'tag' }" );
     CHECK( not err.empty() and err.find( "Tag component cannot be removed" ) != string::npos );
     CHECK( lua.Log().size() == 1 and lua.Log()[0].starts_with( "error:" ) );
 
@@ -101,4 +102,56 @@ TEST( EditorLua_Describe )
     lua.ClearLog();
     CHECK( lua.Run( "print( 'n', { 1, 2 } )" ).empty() );
     CHECK( lua.Log().size() == 1 and lua.Log()[0] == "n\t{ 1, 2 }" );
+}
+
+// property.set and editor.get: any field of a reflected component, by path.
+TEST( EditorLua_Properties )
+{
+    OperatorRegistry::RegisterBuiltins();
+    Fixture f;
+    Selection selection;
+    Clipboard clipboard;
+    OperatorQueue queue;
+    EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
+
+    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'Light' }" ).empty() );
+    const Entity lamp = f.Top()[0];
+    const auto light = [&]() -> const LightComponent& { return f.scene.GetComponent<LightComponent>( lamp ); };
+
+    // On the selection; an enum by name.
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'light.type', value = 'spot' }" ).empty() );
+    CHECK( light().mType == LightType::Spot );
+    // On an entity by path; derived state follows.
+    const f32 linear = light().mLinear;
+    CHECK( lua.Run( "editor.ops.property.set{ entity = 'Light', path = 'light.distance', value = 13 }" ).empty() );
+    CHECK( light().mDistance == 13.0f and light().mLinear != linear );
+    CHECK( lua.Run( "assert( editor.undo_name() == 'light.distance' )" ).empty() );
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'transform.position', value = vec3( 7, 8, 9 ) }" ).empty() );
+    CHECK( f.scene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 7, 8, 9 ) );
+
+    // Read back as property.set takes it.
+    CHECK( lua.Run( "assert( editor.get( 'Light', 'light.type' ) == 'spot' )" ).empty() );
+    CHECK( lua.Run( "local p = editor.get( 'Light', 'transform.position' ); assert( #p == 3 and p[3] == 9 )" ).empty() );
+
+    // The value a field holds already makes no step; undo goes one back.
+    CHECK( lua.Run( "editor.ops.property.set{ path = 'light.distance', value = 13 }" ).empty() );
+    CHECK( f.history.NextUndoName() == "transform.position" );
+    CHECK( lua.Run( "editor.undo()" ).empty() );
+    CHECK( f.scene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 0 ) );
+
+    // What is wrong, said.
+    const auto fails = [&]( const string& code, string_view says )
+    {
+        const string error = lua.Run( code );
+        return error.find( says ) != string::npos;
+    };
+    CHECK( fails( "editor.ops.property.set{ path = 'light.brigthness', value = 1 }", "has no field 'brigthness'" ) );
+    CHECK( fails( "editor.ops.property.set{ path = 'camera.fov', value = 1 }", "has no camera component" ) );
+    CHECK( fails( "editor.ops.property.set{ path = 'light.linear', value = 1 }", "read only" ) );
+    CHECK( fails( "editor.ops.property.set{ path = 'light.type', value = 'cube' }", "has no value 'cube'" ) );
+    CHECK( fails( "editor.ops.property.set{ path = 'brightness', value = 1 }", "is not Component.field" ) );
+    CHECK( fails( "editor.ops.property.set{ path = 'Nope.x', value = 1 }", "Nope" ) );
+    CHECK( lua.Run( "editor.ops.entity.add_component{ component = 'state' }" ).empty() );
+    CHECK( fails( "editor.ops.property.set{ path = 'state.x', value = 1 }", "does not describe its fields yet" ) );
+    CHECK( fails( "editor.get( 'Lamp', 'light.type' )", "nothing at 'Lamp'" ) );
 }

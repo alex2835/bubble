@@ -19,7 +19,7 @@ namespace bubble
 struct HierarchyComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Hierarchy ); }
-    static string_view Name() { return "Hierarchy"sv; }
+    static string_view Name() { return "hierarchy"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, HierarchyComponent& component );
     static void ToJson( json& json, const Project& project, const HierarchyComponent& component );

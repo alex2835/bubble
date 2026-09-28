@@ -22,7 +22,7 @@ struct DroppedUniforms
 struct ShaderComponent
 {
     static int ID() { return static_cast<int>( ComponentID::Shader ); }
-	static string_view Name() { return "Shader"sv; }
+	static string_view Name() { return "shader"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ShaderComponent& component );
     // How an edit addresses this entity's uniform table - see lua_value_command.hpp.

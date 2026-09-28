@@ -7,7 +7,7 @@ namespace bubble
 struct RigidBodyComponent
 {
     static int ID() { return static_cast<int>( ComponentID::RigidBody ); }
-    static string_view Name() { return "RigidBody"sv; }
+    static string_view Name() { return "rigid_body"sv; }
 
     static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, RigidBodyComponent& component );
     static void ToJson( json& json, const Project& project, const RigidBodyComponent& component );

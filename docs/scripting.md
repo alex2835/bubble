@@ -375,15 +375,34 @@ snake_case names above, not by these values.
 
 ## Component types
 
-### Tag
+Component types are snake_case in Lua, as everywhere else: `light()`,
+`transform()`, and the component names in `Component.*`, in files and in
+editor property paths (`light.brightness`) are the same words.
 
-Constructible: `Tag()`, `Tag( name )`, `Tag( name, class )`.
+A component that describes its fields to the engine (`tag`, `transform`,
+`camera`, `light` so far) has a Lua property for each described field, under
+the name the field has in a level file. Values cross by value:
+
+- numbers, booleans and strings as themselves, `vec2`/`vec3`/`vec4` as copies;
+- an enum by the name of its value - `light.type == "spot"` - with a table of
+  the names for each enum: `light_type.spot`;
+- a rotation as Euler radians in a `vec3` (there is no quaternion in Lua);
+- a read only field reads but refuses a set; a value that does not fit says
+  what it expected.
+
+A set goes through the same path as the inspector and `property.set`, so what
+a component derives from its fields follows at once: setting
+`light.distance` updates `light.linear`.
+
+### tag
+
+Constructible: `tag()`, `tag( name )`, `tag( name, class )`.
 Fields: `name`, `class`. Has `tostring`.
 
-### Transform
+### transform
 
-Constructible: `Transform()`, `Transform( position )`,
-`Transform( position, rotation, scale )`.
+Constructible: `transform()`, `transform( position )`,
+`transform( position, rotation, scale )`.
 Fields: `position`, `rotation`, `scale` — all `vec3`, read as copies. Has
 `tostring`.
 
@@ -421,9 +440,9 @@ t:translate( 0, speed * dt, 0 )              -- zero allocations
 t.position = t.position + vec3( 0, speed * dt, 0 )   -- correct, two allocations
 ```
 
-### Camera
+### camera
 
-Constructible: `Camera()`. There is no position to pass: a camera is where
+Constructible: `camera()`. There is no position to pass: a camera is where
 its entity's transform is, and looks where the transform's rotation says.
 
 Fields: `position`, `forward`, `up`, `right` (read only - the cache the
@@ -439,16 +458,16 @@ inverse, for `on_start`: sets `yaw`/`pitch`/`radius` from where the entity was
 placed relative to `center`, so the orbit begins where the camera stands in
 the editor.
 
-### Light
+### light
 
-Constructible: `Light()`.
+Constructible: `light()`.
 
-Fields: `type` (a `LightType`), `color`, `brightness`, `position`, `direction`,
-`distance`, `cut_off`, `outer_cut_off`.
+Fields: `type` (`"directional"`, `"point"` or `"spot"`; `light_type.*` names
+them), `color`, `brightness`, `distance`, `cut_off`, `outer_cut_off`; read only:
+`position` and `direction` (from the entity's transform) and `constant`,
+`linear`, `quadratic` (the attenuation, made from `distance`).
 
 Methods: `create_dir_light`, `create_point_light`, `create_spot_light`.
-
-`LightType.directional`, `LightType.point`, `LightType.spot`.
 
 ### ModelComponent
 
