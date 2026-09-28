@@ -188,7 +188,7 @@ void AudioSourceComponent::FromJson( const json& json, Project& project, AudioSo
 void AudioSourceComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<AudioSourceComponent>(
-        "AudioSource",
+        "audio_source",
 
         "play",       &AudioSourceComponent::Play,
         "stop",       &AudioSourceComponent::Stop,

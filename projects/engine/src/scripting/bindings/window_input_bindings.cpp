@@ -7,7 +7,7 @@
 namespace bubble
 {
 constexpr string_view keyboardKeys = R"(
-KeyboardKey =
+keyboard_key =
 {
     unknown = -1,
     space = 32,
@@ -135,7 +135,7 @@ KeyboardKey =
 )";
 
 constexpr string_view mouseKeys = R"(
-MouseKey = 
+mouse_key = 
 {
     unknown   = -1,
     one       = 0,
@@ -175,7 +175,7 @@ static int KeyArgument( string_view function, const sol::object& key )
 }
 
 constexpr string_view cursorModes = R"(
-CursorMode =
+cursor_mode =
 {
     normal = 0,
     hidden = 1,

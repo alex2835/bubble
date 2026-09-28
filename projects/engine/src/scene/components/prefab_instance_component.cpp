@@ -29,7 +29,7 @@ void PrefabInstanceComponent::FromJson( const json& json, Project&, PrefabInstan
 void PrefabInstanceComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<PrefabInstanceComponent>(
-        "PrefabInstance",
+        "prefab_instance",
         "prefab", sol::readonly( &PrefabInstanceComponent::mPrefab )
     );
 }

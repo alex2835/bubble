@@ -1,7 +1,7 @@
 # Bubble — skeletal animation
 
 What a skinned model brings with it, how it is played, and the `.anim`
-controller format. The script side is in `docs/scripting.md` (*Animator*); the
+controller format. The script side is in `docs/scripting.md` (*animator*); the
 renderer side in `docs/renderer.md` (*Skinned meshes*).
 
 ## The pieces

@@ -29,7 +29,7 @@ void AudioListenerComponent::FromJson( const json& json, Project& project, Audio
 void AudioListenerComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<AudioListenerComponent>(
-        "AudioListener",
+        "audio_listener",
         sol::call_constructor,
         sol::constructors<AudioListenerComponent()>(),
         "active", &AudioListenerComponent::mActive

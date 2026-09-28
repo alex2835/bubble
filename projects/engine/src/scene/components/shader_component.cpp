@@ -216,7 +216,7 @@ void ShaderComponent::FromJson( const json& j, Project& project, ShaderComponent
 void ShaderComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<ShaderComponent>(
-        "ShaderComponent",
+        "shader",
         "shader", sol::property(
             []( ShaderComponent& sc ) { return sc.mShader; },
             [&lua]( ShaderComponent& sc, const Ref<Shader>& shader )

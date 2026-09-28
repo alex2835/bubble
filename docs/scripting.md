@@ -26,7 +26,7 @@ the game starts.
 
 | Parameter | |
 |---|---|
-| `entity` | the owning `Entity` |
+| `entity` | the owning `entity` |
 | `state` | that entity's `StateComponent` — a plain Lua table that persists between frames and is saved with the project |
 | `dt` | seconds since the last frame (`on_update` only) |
 
@@ -69,9 +69,9 @@ environment isolation, so a global would be writable by any script and would
 corrupt the value for every script running later in the same frame.
 
 ## Globals
-| `global_state` | table | Shared by every script; persisted with the project. Survives `load_level` — but an `Entity` stored in it does not, see **Levels**. |
+| `global_state` | table | Shared by every script; persisted with the project. Survives `load_level` — but an `entity` stored in it does not, see **Levels**. |
 | `set_active_camera( entity )` | | Renders from that entity's `CameraComponent`. |
-| `get_active_camera()` | `Entity` | |
+| `get_active_camera()` | `entity` | |
 | `load_level( path )` | | Switch to another level at the end of this frame. `path` is relative to the project root: `"levels/arena.level"`. Raises if there is no such file. |
 | `current_level()` | string | The open level, as the path `load_level` takes. |
 | `print_any( value )` | | Debug-prints any bound value, tables included. |
@@ -87,47 +87,47 @@ its `on_start`s have run.
 
 What a switch keeps: the Lua VM, every global, `global_state`, loaded assets,
 `time()`. What it drops: every entity and component, every rigid body and
-character controller, every playing voice, the active camera. An `Entity`
+character controller, every playing voice, the active camera. An `entity`
 kept in `global_state` across a switch is a handle into a scene that no
 longer exists — store what you need about it (a tag, a position) instead, or
 look it up again by tag in the new level's `on_start`.
 
 ```lua
 function on_update( entity, state, dt )
-    if is_key_clicked( KeyboardKey.n ) then
+    if is_key_clicked( keyboard_key.n ) then
         global_state.score = state.score          -- carried over
         load_level( "levels/arena.level" )        -- happens after this frame
     end
 end
 ```
 
-## Entity
+## entity
 
 Obtained from `create_entity()`, from an `on_update` argument, from
-`for_each_entity`, or from `RayHitResult.entity`.
+`for_each_entity`, or from `ray_hit_result.entity`.
 
 ### Scene functions
 
 | Function | Returns | Notes |
 |---|---|---|
-| `create_entity()` | `Entity` | Under the level's root. |
-| `level:find( path )` | `Entity` | By a path of names from the level's root: `"props/chair"`. An error when nothing is there, saying what is there instead. `level:try_find( path )` gives `nil` instead; `level:root()` is the root. |
+| `create_entity()` | `entity` | Under the level's root. |
+| `level:find( path )` | `entity` | By a path of names from the level's root: `"props/chair"`. An error when nothing is there, saying what is there instead. `level:try_find( path )` gives `nil` instead; `level:root()` is the root. |
 | `remove_entity( entity )` | | Errors if the entity does not exist — test with `entity:is_valid()`. Removes what hangs under it too, and all of it from the physics world. The root cannot be removed. |
-| `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `Component.*` values; `fn` is `function( entity, components )`. |
+| `for_each_entity( ids, fn )` | | `ids` is an array of at most 10 `component.*` values; `fn` is `function( entity, components )`. |
 
 `components` is keyed by the component's **snake_case name**, not by the
-`Component.*` id used to select them:
+`component.*` id used to select them:
 
 ```lua
-for_each_entity( { Component.transform, Component.tag }, function( entity, comps )
+for_each_entity( { component.transform, component.tag }, function( entity, comps )
     local t = comps.transform
     local name = comps.tag.name
 end )
 ```
 
-The names are the same ones the `Component` table uses: `tag`, `transform`,
+The names are the same ones the `component` table uses: `tag`, `transform`,
 `model`, `shader`, `script`, `rigid_body`, `character_controller`, `camera`,
-`light`, `state`. Indexing with the id instead — `comps[Component.transform]` —
+`light`, `state`. Indexing with the id instead — `comps[component.transform]` —
 returns `nil`.
 
 **The `components` table and the component objects in it are valid only for
@@ -137,7 +137,7 @@ stale by the next iteration. Fields read off them are copies and may be kept:
 
 ```lua
 local names = {}
-for_each_entity( { Component.tag }, function( entity, comps )
+for_each_entity( { component.tag }, function( entity, comps )
     table.insert( names, { entity = entity, name = comps.tag.name } )   -- string, copied
 end )
 ```
@@ -152,7 +152,7 @@ pointer in `comps`. This restriction does *not* apply to `on_update` or
 
 ```lua
 local dead = {}
-for_each_entity( { Component.tag }, function( entity, comps )
+for_each_entity( { component.tag }, function( entity, comps )
     if comps.tag.name == "dead" then table.insert( dead, entity ) end
 end )
 for _, e in ipairs( dead ) do remove_entity( e ) end
@@ -185,7 +185,7 @@ spawn{
 }
 ```
 
-Returns the `Entity`. A misspelled key is not silently ignored — a key present
+Returns the `entity`. A misspelled key is not silently ignored — a key present
 with the wrong type raises `spawn: field '<key>' has the wrong type`.
 
 `rigid_body` needs exactly one of `box` (a `vec3` of half extents), `sphere` (a
@@ -218,15 +218,15 @@ Each takes an inner value or a whole component.
 |---|---|
 | `entity:add_tag( name )` | `string`, or a `Tag` |
 | `entity:add_transform( transform )` | `Transform` |
-| `entity:add_model( model )` | model handle from `load_model`, or a `ModelComponent` |
-| `entity:add_shader( shader )` | shader handle from `load_shader`, or a `ShaderComponent` |
+| `entity:add_model( model )` | model handle from `load_model`, or a `model` |
+| `entity:add_shader( shader )` | shader handle from `load_shader`, or a `shader` |
 | `entity:add_camera( camera )` | `Camera` |
 | `entity:add_light( light )` | `Light` |
-| `entity:add_rigid_body( body )` | `RigidBody`, or a `RigidBodyComponent`. Registers with the physics world. |
-| `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `CharacterControllerComponent`. Registers with the physics world. |
+| `entity:add_rigid_body( body )` | `physics_body`, or a `rigid_body`. Registers with the physics world. |
+| `entity:add_character_controller( radius, height, stepHeight )` | numbers, or a `character_controller`. Registers with the physics world. |
 | `entity:add_audio_source( sound )` | sound path, a handle from `load_sound`, or nothing |
-| `entity:add_audio_listener()` | nothing, or an `AudioListener` |
-| `entity:add_animator( clip )` | clip name to start playing, nothing, or an `Animator` |
+| `entity:add_audio_listener()` | nothing, or an `audio_listener` |
+| `entity:add_animator( clip )` | clip name to start playing, nothing, or an `animator` |
 | `entity:add_state( table )` | any Lua value |
 | `entity:add_script( path )` | path to a `.lua` file. Attaches a `StateComponent` too if the entity has none, and runs `on_start` **immediately** — see below. |
 
@@ -244,21 +244,21 @@ One name per component. There is no `_component` suffix anywhere in the API —
 |---|---|
 | `entity:get_tag()` | `Tag` — `name`, `class` |
 | `entity:get_transform()` | `Transform` — `position`, `rotation`, `scale` |
-| `entity:get_model()` | `ModelComponent` — `model` |
-| `entity:get_shader()` | `ShaderComponent` — `shader`, `uniforms` |
+| `entity:get_model()` | `model` — `model` |
+| `entity:get_shader()` | `shader` — `shader`, `uniforms` |
 | `entity:get_camera()` | `Camera` — `position`, `yaw`, `pitch`, `radius`, `center`, … |
 | `entity:get_light()` | `Light` |
-| `entity:get_rigid_body()` | `RigidBody` — `set_friction`, `apply_central_impulse`, … |
-| `entity:get_character_controller()` | `CharacterController` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
-| `entity:get_audio_source()` | `AudioSource` — `play`, `stop`, `volume`, … |
-| `entity:get_audio_listener()` | `AudioListener` — `active` |
-| `entity:get_animator()` | `Animator` — `play`, `stop`, `clip`, `time`, … |
+| `entity:get_rigid_body()` | `physics_body` — `set_friction`, `apply_central_impulse`, … |
+| `entity:get_character_controller()` | `physics_character` — `jump`, `set_walk_velocity`, `is_on_ground`, … |
+| `entity:get_audio_source()` | `audio_source` — `play`, `stop`, `volume`, … |
+| `entity:get_audio_listener()` | `audio_listener` — `active` |
+| `entity:get_animator()` | `animator` — `play`, `stop`, `clip`, `time`, … |
 | `entity:get_state()` | table |
 
 Each returns the type that actually carries the fields you want. For most
 components that is the component itself; `get_rigid_body` and
 `get_character_controller` return the inner physics object, because
-`RigidBodyComponent` and `CharacterControllerComponent` contain their payload
+`rigid_body` and `character_controller` contain their payload
 and expose nothing else.
 
 Getting a component the entity does not have raises an error — check first.
@@ -336,13 +336,13 @@ the single easiest way to corrupt memory from a script — it looked exactly lik
 a value and was safe right up until the next `spawn`. A copy that ignores
 `.x = 5` fails the first time you run it; the reference failed in production.
 
-The `Entity` shorthands (`entity.position` / `.rotation` / `.scale`) behave the
+The `entity` shorthands (`entity.position` / `.rotation` / `.scale`) behave the
 same way — they always did — so there is now one behaviour for a field
 regardless of which path you reach it through.
 
 ### Safe to keep in `state`
 
-Entity handles · numbers, strings, tables · **any field read off a component**
+entity handles · numbers, strings, tables · **any field read off a component**
 · `Ref`s from `load_model` / `load_shader` / `load_sound` (counted handles;
 keeping one keeps the asset alive).
 
@@ -359,15 +359,15 @@ state.p = entity:get_transform().position   -- yes: the field is a copy
 Nor anything from a `for_each_entity` `components` table — that one is worse,
 see below.
 
-## The `Component` enum
+## The `component` enum
 
 Generated from the engine's `ComponentID`, so it cannot drift:
 
 ```
-Component.tag  Component.transform  Component.camera  Component.model
-Component.light  Component.shader  Component.script  Component.rigid_body
-Component.character_controller  Component.state
-Component.audio_source  Component.audio_listener  Component.animator
+component.tag  component.transform  component.camera  component.model
+component.light  component.shader  component.script  component.rigid_body
+component.character_controller  component.state
+component.audio_source  component.audio_listener  component.animator
 ```
 
 Used as `for_each_entity` ids. The table it passes back is keyed by the
@@ -376,7 +376,7 @@ snake_case names above, not by these values.
 ## Component types
 
 Component types are snake_case in Lua, as everywhere else: `light()`,
-`transform()`, and the component names in `Component.*`, in files and in
+`transform()`, and the component names in `component.*`, in files and in
 editor property paths (`light.brightness`) are the same words.
 
 A component that describes its fields to the engine (`tag`, `transform`,
@@ -469,20 +469,20 @@ them), `color`, `brightness`, `distance`, `cut_off`, `outer_cut_off`; read only:
 
 Methods: `create_dir_light`, `create_point_light`, `create_spot_light`.
 
-### ModelComponent
+### model
 
 Field `Model`. `tostring` gives the model name, or `null`.
 
-### ShaderComponent
+### shader
 
 Fields `Shader` and `uniforms` (a table — assign a whole table to replace the
 uniform set). `tostring` gives the shader name, or `null`.
 
-### RigidBody / RigidBodyComponent
+### physics_body / rigid_body
 
-`RigidBodyComponent` has one field, `RigidBody`.
+`rigid_body` has one field, `physics_body`.
 
-`RigidBody` methods: `get_mass()`, `set_mass( mass )`, `set_friction( f )`,
+`physics_body` methods: `get_mass()`, `set_mass( mass )`, `set_friction( f )`,
 `get_friction()`, `apply_central_impulse( vec3 )`, `apply_torque_impulse( vec3 )`,
 `set_transform( position, rotation )` (rotation in Euler radians, as
 `Transform`'s), `get_transform()` → `position, rotation`, `set_kinematic( bool )`,
@@ -500,9 +500,9 @@ create_rigid_body_box( transform, mass, halfExtents )   -- halfExtents is a vec3
 create_rigid_body_capsule( transform, mass, radius, height )
 ```
 
-### CharacterController / CharacterControllerComponent
+### physics_character / character_controller
 
-`CharacterControllerComponent` has one field, `controller`.
+`character_controller` has one field, `controller`.
 
 Construct with `create_character_controller( radius, height, stepHeight )`.
 
@@ -527,7 +527,7 @@ it as a sample rather than a reliable edge, and keep your own grace timer.
 vertical velocity. The horizontal part is an echo of your own input, not a
 measured post-collision speed, so it cannot tell you that you hit a wall.
 
-### AudioSource
+### audio_source
 
 One entity, one voice. `play()` on a source that is already playing restarts it
 from the beginning — for overlapping shots of the same sound, use `play_sound`
@@ -556,7 +556,12 @@ function on_update( entity, state, dt )
 end
 ```
 
-### AudioListener
+### prefab_instance
+
+On the root of a placed prefab. Read only field `prefab`: the `.prefab` file,
+relative to the project root. See [hierarchy_and_prefabs.md](hierarchy_and_prefabs.md).
+
+### audio_listener
 
 Where the player hears from. Fields: `active`.
 
@@ -567,7 +572,7 @@ camera is used instead, so sound works before anyone has authored audio.
 Only the first active listener is used; a second one is a scene authoring
 mistake and is reported once per run.
 
-### Animator
+### animator
 
 Plays one of the clips that came with the entity's model. Only a skinned model
 (glTF or FBX with a skeleton) has clips; on any other model the component does
@@ -681,7 +686,7 @@ function on_update( entity, state, dt )
     local cc = entity:get_character_controller()
     animator:set( "speed", length( state.velocity ) )   -- whatever the movement code decided
     animator:set( "grounded", cc:is_on_ground() )
-    if is_key_clicked( KeyboardKey.space ) then animator:trigger( "attack" ) end
+    if is_key_clicked( keyboard_key.space ) then animator:trigger( "attack" ) end
     for _, event in ipairs( animator:events() ) do
         if event == "footstep" then play_sound( state.step ) end
     end
@@ -690,8 +695,8 @@ end
 
 ### StateComponent
 
-A plain Lua table. No usertype — it is the native type. A `NodePath` put in it
-in the editor is an `Entity` (or `nil`) by the time scripts run - see
+A plain Lua table. No usertype — it is the native type. A `node_path` put in it
+in the editor is an `entity` (or `nil`) by the time scripts run - see
 [hierarchy_and_prefabs.md](hierarchy_and_prefabs.md#nodepath-references-by-path).
 
 ### Names and paths
@@ -699,11 +704,11 @@ in the editor is an `Entity` (or `nil`) by the time scripts run - see
 | | |
 |---|---|
 | `entity.name` | The Tag's name. Set, a name a sibling has gets a number: `enemy`, `enemy2`. |
-| `entity:find( path )` | `Entity`. `"wheel"`, `"../door"`, `"/player/camera"`, `"~/camera"` (from the root of the prefab instance). An error when nothing is there, saying which part is missing and what is there instead. |
-| `entity:try_find( path )` | `Entity` or `nil`. |
+| `entity:find( path )` | `entity`. `"wheel"`, `"../door"`, `"/player/camera"`, `"~/camera"` (from the root of the prefab instance). An error when nothing is there, saying which part is missing and what is there instead. |
+| `entity:try_find( path )` | `entity` or `nil`. |
 | `entity:get_prefab_root()` | The root of the prefab instance the entity is in; the level's root outside one. |
 | `entity:get_path()` | `"/player/camera"`. |
-| `NodePath( "../door" )` | A path value; `.path` reads it. |
+| `node_path( "../door" )` | A path value; `.path` reads it. |
 
 ## Physics
 
@@ -712,7 +717,7 @@ local hit = raycast_closest( from, to )    -- vec3, vec3
 local hits = raycast_all( from, to )
 ```
 
-`RayHitResult` fields: `hit_point`, `hit_normal`, `hit_fraction`, `hit_body`,
+`ray_hit_result` fields: `hit_point`, `hit_normal`, `hit_fraction`, `hit_body`,
 `entity`.
 
 ## Input
@@ -724,41 +729,41 @@ local hits = raycast_all( from, to )
 | `mouse_pos_x()`, `mouse_pos_y()` | number, normalised 0..1 across the window |
 | `mouse_offset_x()`, `mouse_offset_y()` | number, delta since last frame |
 
-`key` is a `KeyboardKey.*` or a `MouseKey.*` value; both go to the same
+`key` is a `keyboard_key.*` or a `mouse_key.*` value; both go to the same
 functions, which dispatch on the numeric range.
 
-`KeyboardKey` covers `a`–`z`, `zero`–`nine`, `f1`–`f25`, `kp_0`–`kp_9`, the
+`keyboard_key` covers `a`–`z`, `zero`–`nine`, `f1`–`f25`, `kp_0`–`kp_9`, the
 arrow keys (`left`, `right`, `up`, `down`), `space`, `enter`, `tab`,
 `backspace`, `escape`, `del`, `insert`, `home`, `end_key`, `page_up`,
 `page_down`, the modifiers (`left_shift`, `left_control`, `left_alt`,
 `left_super` and the `right_*` equivalents), punctuation, and `unknown`.
 
 Two names do not follow the plain lowercasing. The End key is `end_key`,
-because `end` is a Lua reserved word and `KeyboardKey = { end = ... }` will not
+because `end` is a Lua reserved word and `keyboard_key = { end = ... }` will not
 parse. The Delete key was already `del` for the same kind of reason on the C++
 side.
 
-`MouseKey`: `left`, `right`, `middle`, `one`–`eight`, `last`, `unknown`.
+`mouse_key`: `left`, `right`, `middle`, `one`–`eight`, `last`, `unknown`.
 
 ### Cursor
 
 | Function | Returns |
 |---|---|
 | `set_cursor_mode( mode )` | — |
-| `get_cursor_mode()` | number, a `CursorMode.*` value |
+| `get_cursor_mode()` | number, a `cursor_mode.*` value |
 | `lock_cursor( bool )` | — shorthand for `locked` / `normal` |
 | `hide_cursor( bool )` | — shorthand for `hidden` / `normal` |
 | `center_cursor()` | — moves the cursor to the middle of the window |
 | `get_cursor_pos()` | `vec2`, same frame as `mouse_pos_x/y`, origin bottom left |
 | `set_cursor_pos( vec2 )` | — |
 
-`CursorMode` is one of:
+`cursor_mode` is one of:
 
 | | |
 |---|---|
-| `CursorMode.normal` | visible, free to leave the window |
-| `CursorMode.hidden` | invisible, but still a real pointer that can leave the window |
-| `CursorMode.locked` | invisible and captured; movement comes back as an unbounded delta, and raw motion is used where the platform supports it. This is what a mouse look camera wants. |
+| `cursor_mode.normal` | visible, free to leave the window |
+| `cursor_mode.hidden` | invisible, but still a real pointer that can leave the window |
+| `cursor_mode.locked` | invisible and captured; movement comes back as an unbounded delta, and raw motion is used where the platform supports it. This is what a mouse look camera wants. |
 
 Warping the cursor — `center_cursor`, `set_cursor_pos`, or a mode change — does
 not show up as mouse movement: the engine resyncs the tracked position, so
@@ -776,11 +781,11 @@ load_sound( path )
 
 Paths are relative to the project root.
 
-`load_sound` returns a `Sound` — fields `name` and `streaming`, plus `tostring`.
+`load_sound` returns a `sound` — fields `name` and `streaming`, plus `tostring`.
 WAV, MP3 and FLAC are decoded; anything longer than 15 seconds is streamed from
 disk rather than held decoded in memory.
 
-### Sound
+### sound
 
 ```lua
 play_sound( path )                        -- 2D, full volume
@@ -793,7 +798,7 @@ set_master_volume( v )   get_master_volume()
 
 `play_sound` is fire and forget: each call is its own voice, freed by the engine
 when it finishes. It is the right tool for footsteps and impacts. An
-`AudioSource` component is the right tool for anything a script needs to stop,
+`audio_source` component is the right tool for anything a script needs to stop,
 loop, or follow an entity.
 
 Sound is silent rather than fatal when there is no audio device, so a machine
@@ -890,12 +895,12 @@ m = scale( m, size )
 
 | Surface | Source |
 |---|---|
-| `Entity`, scene functions, `Component` | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
+| `entity`, scene functions, `component` | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
 | Component usertypes | `projects/engine/src/scene/components/*_component.cpp` |
 | Raycasts, `set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
 | Input and key enums | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
-| `Sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
+| `sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
 | `print_any` | `projects/engine/src/scripting/bindings/free_function_lua_bindings.cpp` |
 | Math | `deps/glm_lua_bindings/src/` |
 | `global_state`, `dt`, camera, `load_level`, `current_level` | `projects/engine/src/engine.cpp` |

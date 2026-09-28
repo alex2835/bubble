@@ -24,7 +24,7 @@ TEST( Operators )
     CHECK( std::ranges::find( names, "scene.delete" ) != names.end() );
 
     // Create by name with arguments; the result is selected
-    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Light" }, { "spawn_at", vec3( 4, 5, 6 ) } } ) );
+    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "light" }, { "spawn_at", vec3( 4, 5, 6 ) } } ) );
     CHECK( f.Top().size() == 1 );
     const Entity light = f.Top()[0];
     CHECK( selection.IsSingleSelection() and selection.GetSingleEntity() == light );
@@ -32,13 +32,13 @@ TEST( Operators )
 
     // A folder, then an entity under it by parent id
     selection.Clear();
-    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Folder" } } ) );
+    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "folder" } } ) );
     const Entity folder = f.Top()[1];
-    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Camera" }, { "parent", (u64)folder } } ) );
+    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "camera" }, { "parent", (u64)folder } } ) );
     CHECK( f.Children( folder ).size() == 1 );
     // With the folder selected, no parent given lands inside it
     selection.Select( folder, f.scene );
-    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "Script" } } ) );
+    CHECK( InvokeOperator( "scene.create_node", ctx, { { "type", "script" } } ) );
     CHECK( f.Children( folder ).size() == 2 );
 
     // Components on the selected entity

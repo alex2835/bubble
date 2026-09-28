@@ -34,7 +34,7 @@ TEST( EditorLua )
     }
 
     // The sugar form, with a vec3 argument; the result is selected
-    CHECK( lua.Run( "assert( editor.ops.scene.create_node{ type = 'Light', spawn_at = vec3( 4, 5, 6 ) } )" ).empty() );
+    CHECK( lua.Run( "assert( editor.ops.scene.create_node{ type = 'light', spawn_at = vec3( 4, 5, 6 ) } )" ).empty() );
     CHECK( f.Top().size() == 1 );
     const Entity light = f.Top()[0];
     CHECK( f.scene.GetComponent<TransformComponent>( light ).mPosition == vec3( 4, 5, 6 ) );
@@ -114,7 +114,7 @@ TEST( EditorLua_Properties )
     OperatorQueue queue;
     EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
 
-    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'Light' }" ).empty() );
+    CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'light' }" ).empty() );
     const Entity lamp = f.Top()[0];
     const auto light = [&]() -> const LightComponent& { return f.scene.GetComponent<LightComponent>( lamp ); };
 

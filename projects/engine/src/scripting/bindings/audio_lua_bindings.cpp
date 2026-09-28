@@ -10,7 +10,7 @@ namespace bubble
 void CreateAudioBindings( Loader& loader, sol::state& lua )
 {
     lua.new_usertype<Sound>(
-        "Sound",
+        "sound",
         "name", &Sound::mName,
         "streaming", &Sound::mStreaming,
         sol::meta_function::to_string,

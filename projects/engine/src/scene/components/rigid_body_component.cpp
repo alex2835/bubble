@@ -272,7 +272,7 @@ void RigidBodyComponent::FromJson( const json& j, Project& project, RigidBodyCom
 void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<RigidBody>(
-        "RigidBody",
+        "physics_body",
         "get_mass",             &RigidBody::GetMass,
         "set_friction",         &RigidBody::SetFriction,
         "get_friction",         &RigidBody::GetFriction,
@@ -297,7 +297,7 @@ void RigidBodyComponent::CreateLuaBinding( sol::state& lua )
     );
 
     lua.new_usertype<RigidBodyComponent>(
-        "RigidBodyComponent",
+        "rigid_body",
         "rigid_body", &RigidBodyComponent::mRigidBody
     );
 

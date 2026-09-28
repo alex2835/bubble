@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/utils/snake_case.hpp"
 #include "editor_user_interface/windows/project_tree_window.hpp"
 #include "editor_application/editor_application.hpp"
 #include "engine/scene/component_manager.hpp"
@@ -161,7 +162,7 @@ void ProjectTreeWindow::DrawContextMenu( Entity entity )
     const vec3 spawnAt = SpawnPoint();
     for ( const auto& [label, kind] : kinds )
         if ( ImGui::MenuItem( label ) )
-            Invoke( "scene.create_node", { { "type", magic_enum::enum_name( kind ) },
+            Invoke( "scene.create_node", { { "type", ToSnakeCase( magic_enum::enum_name( kind ) ) },
                                            { "parent", (u64)entity },
                                            { "spawn_at", spawnAt } } );
 

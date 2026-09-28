@@ -1,6 +1,6 @@
 ---
 name: bubble-scripting
-description: Write, review, or debug Lua gameplay scripts for the Bubble engine. Covers the on_update script contract, the Entity/component Lua API, and the object-lifetime rules that make scripts crash or corrupt memory. Use when touching .lua game scripts, ScriptComponent, StateComponent, or anything under projects/engine/src/scripting/bindings.
+description: Write, review, or debug Lua gameplay scripts for the Bubble engine. Covers the on_update script contract, the entity/component Lua API, and the object-lifetime rules that make scripts crash or corrupt memory. Use when touching .lua game scripts, ScriptComponent, StateComponent, or anything under projects/engine/src/scripting/bindings.
 ---
 
 # Bubble engine — Lua scripting
@@ -15,7 +15,7 @@ What follows is only the part a listing cannot express — the script contract a
 the lifetime rules that make scripts crash.
 
 Naming: the Lua API is `snake_case` for globals, methods, fields and enum
-members. Type names stay PascalCase (`Entity`, `Transform`, `RayHitResult`),
+members. Type names are snake_case too (`entity`, `transform`, `ray_hit_result`),
 and glm keeps its GLSL spelling (`vec3`, `mat4`).
 
 Component accessors carry **no `_component` suffix** and there is exactly one
@@ -33,7 +33,7 @@ function on_start( entity, state )       -- optional, once when the game starts
 end
 
 function on_update( entity, state, dt )
-    -- entity: the Entity this ScriptComponent is attached to
+    -- entity: the entity this ScriptComponent is attached to
     -- state:  this entity's StateComponent, a plain Lua table
     -- dt:     seconds since the last frame
 end
@@ -61,7 +61,7 @@ useful error if missing:
    engine calls scripts from `ForEach<StateComponent, ScriptComponent>`, so an
    entity with only a `ScriptComponent` is silently skipped.
 2. The `ScriptComponent` must have a script asset assigned, or `OnStart` throws
-   `Entity:{} Script not set`.
+   `entity:{} Script not set`.
 3. `on_update` must be a **global**. It is extracted by name once at startup,
    not looked up per frame. Defining it as `local` means it is never found.
    The same goes for `on_start`, except that a missing one is not an error - it
@@ -93,13 +93,13 @@ one line can be dangling, or point at another entity's component, on the next.
 ### R1 — Do not keep anything `for_each_entity` hands you
 
 ```lua
-for_each_entity( { Component.transform, Component.tag }, function( entity, comps )
+for_each_entity( { component.transform, component.tag }, function( entity, comps )
     comps.transform.position = vec3( 0, 0, 0 )   -- fine, inside the callback
 end )
 ```
 
 The callback table is keyed by the component's snake_case **name**, not by the
-`Component.*` id used to select it. `comps[Component.transform]` is `nil`.
+`component.*` id used to select it. `comps[component.transform]` is `nil`.
 
 The table is reused for every entity and the component objects in it are raw
 pointers into the pools. Both the table and those objects are valid **only for
@@ -108,7 +108,7 @@ may be kept:
 
 ```lua
 local results = {}
-for_each_entity( { Component.tag }, function( entity, comps )
+for_each_entity( { component.tag }, function( entity, comps )
     table.insert( results, { entity = entity, name = comps.tag.name } )
 end )
 ```
@@ -124,7 +124,7 @@ apply after the loop:
 
 ```lua
 local dead = {}
-for_each_entity( { Component.tag }, function( entity, comps )
+for_each_entity( { component.tag }, function( entity, comps )
     if comps.tag.name == "dead" then table.insert( dead, entity ) end
 end )
 for _, e in ipairs( dead ) do remove_entity( e ) end
@@ -142,9 +142,9 @@ Two consequences:
 - An entity removed by an earlier script this frame is skipped when its turn
   comes. That is not an error.
 
-### R3 — Entity handles go stale, and that is the only thing you may keep
+### R3 — entity handles go stale, and that is the only thing you may keep
 
-`state` is the only place for per-entity script data, and an `Entity` is the
+`state` is the only place for per-entity script data, and an `entity` is the
 only piece of the scene that may go in it. Handles are safe to keep because ids
 are never reused **within a level** — a stale handle stays stale and can never
 come to mean a different entity.
@@ -153,7 +153,7 @@ The exception is `load_level`: every entity goes with the level, and the next
 level numbers its own from scratch. `state` goes too, so this only bites a
 handle stored in `global_state` — there it is not stale, it is *wrong*: it may
 name an unrelated entity of the new level and `is_valid()` will say yes. Keep a
-tag or a position in `global_state`, never an `Entity`. See **Levels** in
+tag or a position in `global_state`, never an `entity`. See **Levels** in
 `docs/scripting.md`.
 
 Test before use. `remove_entity` on something already gone still raises:
@@ -192,7 +192,7 @@ This is by design (`ValueProperty` in
 `engine/scripting/lua_value_property.hpp`). The reference form was the single
 easiest way to corrupt memory from a script — it read exactly like a value and
 was safe until the next `spawn`. The copy that ignores `.x = 5` fails the first
-time it runs. The `Entity` shorthands (`entity.position`, `.rotation`, `.scale`)
+time it runs. The `entity` shorthands (`entity.position`, `.rotation`, `.scale`)
 always worked this way, so a field now behaves the same regardless of the path
 to it.
 
@@ -206,16 +206,16 @@ field read off a component · `Ref`s from `load_model` / `load_shader` /
 ## API rules
 
 - `for_each_entity` takes **at most 10** component ids, and each must be a
-  `Component.*` value. Anything else raises an error naming the problem.
+  `component.*` value. Anything else raises an error naming the problem.
 - Passing an empty table `{}` iterates nothing. It does not iterate everything.
-- Adding a `RigidBody` or `CharacterController` component to an entity that
+- Adding a `physics_body` or `physics_character` component to an entity that
   already has one replaces it and re-registers it with the physics world. This
   is handled, but it is not free — do not do it per frame.
 - `entity:add_script( path )` exists and attaches a `StateComponent` too, then
   runs `on_start` immediately. There is no `get_script` / `has_script`, and no
   `remove_*` bindings at all — scripts cannot detach a component.
 - Input keys are one flat namespace: `is_key_pressed` takes either a
-  `KeyboardKey.*` or a `MouseKey.*` value and dispatches on the numeric range.
+  `keyboard_key.*` or a `mouse_key.*` value and dispatches on the numeric range.
 - `load_level( "levels/x.level" )` is deferred to the end of the frame; the
   calling script and every script after it still run against the old level
   this frame. `global_state`, loaded assets and `time()` survive the switch;
@@ -228,12 +228,12 @@ disagree, the source wins and the doc is stale:
 
 | Surface | File |
 |---|---|
-| Entity methods, `create_entity`, `remove_entity`, `for_each_entity`, `Component` enum | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
+| entity methods, `create_entity`, `remove_entity`, `for_each_entity`, `component` enum | `projects/engine/src/scripting/bindings/scene_lua_bindings.cpp` |
 | Per-component usertypes | `projects/engine/src/scene/components/*_component.cpp` → `CreateLuaBinding` |
-| Raycasts, `RigidBody:set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
+| Raycasts, `physics_body:set_mass` | `projects/engine/src/scripting/bindings/physics_lua_bindings.cpp` |
 | Keyboard/mouse, key enums, cursor control | `projects/engine/src/scripting/bindings/window_input_bindings.cpp` |
 | Asset loading | `projects/engine/src/scripting/bindings/loader_lua_bindings.cpp` |
-| `Sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
+| `sound`, `play_sound`, master volume | `projects/engine/src/scripting/bindings/audio_lua_bindings.cpp` |
 | `vec2/3/4`, `mat2/3/4`, math helpers | `deps/glm_lua_bindings/src/` |
 | `dt`, `global_state`, active camera, `on_start` / `on_update` dispatch | `projects/engine/src/engine.cpp` (`OnStart` / `OnUpdate`) |
 

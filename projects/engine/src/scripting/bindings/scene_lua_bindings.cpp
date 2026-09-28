@@ -26,12 +26,12 @@
 
 namespace bubble
 {
-// Scripts address components as Component.tag, Component.transform, ... A
+// Scripts address components as component.tag, component.transform, ... A
 // hand-written copy of the ids would desync from ComponentID silently, and a
 // script would then iterate the wrong pool, so build the table from the enum.
 static string BuildComponentEnum()
 {
-    string source = "Component =\n{\n";
+    string source = "component =\n{\n";
     for ( const auto& [value, name] : magic_enum::enum_entries<ComponentID>() )
         source += std::format( "    {} = {},\n", ComponentLuaName( value ), static_cast<int>( value ) );
     source += "}\n";
@@ -102,7 +102,7 @@ void CreateSceneBindings( Scene& scene,
     // tables - see node_path.hpp. A level's are entities by the time scripts
     // run; one made in a script is turned into an entity with entity:find().
     lua.new_usertype<NodePath>(
-        "NodePath",
+        "node_path",
         sol::call_constructor,
         sol::constructors<NodePath(), NodePath( string )>(),
         "path", sol::readonly( &NodePath::mPath ),
@@ -111,7 +111,7 @@ void CreateSceneBindings( Scene& scene,
 
     // Entity
     lua.new_usertype<Entity>(
-        "Entity",
+        "entity",
         sol::meta_function::to_string,
         []( const Entity& entity ){ return std::to_string( (size_t)entity ); },
         

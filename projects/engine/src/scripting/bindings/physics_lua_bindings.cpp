@@ -8,7 +8,7 @@ namespace bubble
 void CreatePhysicsBindings( PhysicsEngine& physicsEngine, sol::state& lua )
 {
     // Set mass done by PhysicsEngine remove and create new object
-    sol::usertype<RigidBody> rigidBodyType = lua["RigidBody"];
+    sol::usertype<RigidBody> rigidBodyType = lua["physics_body"];
     rigidBodyType["set_mass"] = [&]( RigidBody& obj, const float mass ) {
         physicsEngine.SetObjectMass( obj, mass );
     };
@@ -16,7 +16,7 @@ void CreatePhysicsBindings( PhysicsEngine& physicsEngine, sol::state& lua )
 
     // Ray casting
     lua.new_usertype<RayHitResult>(
-        "RayHitResult",
+        "ray_hit_result",
         "hit_point", &RayHitResult::hitPoint,
         "hit_normal", &RayHitResult::hitNormal,
         "hit_fraction", &RayHitResult::hitFraction,

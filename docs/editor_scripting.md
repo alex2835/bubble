@@ -7,7 +7,7 @@ invokes one, and so can a Lua script — in the **Console** window, or with
 own; gameplay scripts (`docs/scripting.md`) never see it.
 
 ```lua
-editor.ops.scene.create_node{ type = "Light", spawn_at = vec3( 0, 5, 0 ) }
+editor.ops.scene.create_node{ type = "light", spawn_at = vec3( 0, 5, 0 ) }
 editor.ops.entity.add_component{ component = "audio_source" }  -- on the selection
 print( editor.undo_name() )                                     -- "Add Audio source"
 editor.undo()
@@ -54,7 +54,7 @@ an entity id is taken, a path from the root works too: `parent = "props"`.
 
 | Operator | Arguments | |
 |---|---|---|
-| `scene.create_node` | `type` (`Folder`, `ModelObject`, `PhysicsObject`, `GameObject`, `Script`, `Light`, `Camera`, `Audio`), `parent?` entity id, `spawn_at?` vec3 | Creates and selects. Without `parent`: into the selected folder, next to another selected entity, else under the root. |
+| `scene.create_node` | `type` (`folder`, `model_object`, `physics_object`, `game_object`, `script`, `light`, `camera`, `audio`), `parent?` entity id, `spawn_at?` vec3 | Creates and selects. Without `parent`: into the selected folder, next to another selected entity, else under the root. |
 | `scene.delete` | | The selection. |
 | `scene.cut`, `scene.copy` | | The selected entity and what is under it. Not the root. |
 | `scene.paste` | `parent?` entity id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |

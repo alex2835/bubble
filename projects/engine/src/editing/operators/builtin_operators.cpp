@@ -10,6 +10,7 @@
 #include "engine/editing/commands/component_commands.hpp"
 #include "engine/editing/commands/field_command.hpp"
 #include "engine/reflection/reflection.hpp"
+#include "engine/utils/snake_case.hpp"
 #include "engine/project/project.hpp"
 #include "engine/project/prefab.hpp"
 #include "engine/scene/component_manager.hpp"
@@ -115,16 +116,24 @@ void OperatorRegistry::RegisterBuiltins()
         } } );
 
     /// Scene tree
-    // args: type (EntityKind name: Folder, ModelObject, PhysicsObject,
-    // GameObject, Script, Light, Camera, Audio), parent (entity id, default:
+    // args: type (EntityKind, snake_case: folder, model_object,
+    // physics_object, game_object, script, light, camera, audio), parent (entity id, default:
     // by selection), spawn_at (vec3, default: origin). Selects what it made.
     registry.Register( { "scene.create_node", "Create", nullptr,
         []( OperatorContext& ctx, const json& args )
         {
             const string typeName = args.at( "type" ).get<string>();
-            const auto kind = magic_enum::enum_cast<EntityKind>( typeName );
+            std::optional<EntityKind> kind;
+            string kinds;
+            for ( const auto& [value, name] : magic_enum::enum_entries<EntityKind>() )
+            {
+                const string snake = ToSnakeCase( name );
+                if ( snake == typeName )
+                    kind = value;
+                kinds += kinds.empty() ? snake : std::format( ", {}", snake );
+            }
             if ( not kind )
-                throw std::runtime_error( std::format( "type: cannot create a '{}'", typeName ) );
+                throw std::runtime_error( std::format( "type: cannot create a '{}'. It can be: {}", typeName, kinds ) );
 
             const Entity parent = EntityArg( ctx, args, "parent", TargetParent( ctx ) );
             const Transform spawnAt( args.value( "spawn_at", vec3( 0 ) ) );

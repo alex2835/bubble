@@ -137,7 +137,7 @@ void CharacterControllerComponent::FromJson( const json& j, Project& project, Ch
 void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
 {
     lua.new_usertype<CharacterController>(
-        "CharacterController",
+        "physics_character",
         sol::constructors<CharacterController( f32, f32, f32 )>(),
 
         "set_walk_velocity",           &CharacterController::SetWalkVelocity,
@@ -159,7 +159,7 @@ void CharacterControllerComponent::CreateLuaBinding( sol::state& lua )
     );
 
     lua.new_usertype<CharacterControllerComponent>(
-        "CharacterControllerComponent",
+        "character_controller",
         "controller", &CharacterControllerComponent::mController
     );
 

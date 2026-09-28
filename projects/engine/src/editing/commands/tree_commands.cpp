@@ -3,6 +3,8 @@
 #include "engine/project/project.hpp"
 #include "engine/scene/hierarchy.hpp"
 #include "engine/editing/commands/property_command.hpp"
+#include "engine/editing/ui/reflected_inspector.hpp"
+#include "engine/utils/snake_case.hpp"
 #include <sol/sol.hpp>
 #include "engine/scene/components/audio_source_component.hpp"
 #include "engine/scene/components/camera_component.hpp"
@@ -57,7 +59,7 @@ CreateEntityCommand::CreateEntityCommand( Project& project, Scene& scene, Entity
       mParent( parent == Entity::Null ? scene.Root() : parent ),
       mKind( kind ),
       mSpawnAt( spawnAt ),
-      mName( std::format( "Create {}", magic_enum::enum_name( kind ) ) )
+      mName( std::format( "Create {}", FieldLabel( ToSnakeCase( magic_enum::enum_name( kind ) ) ) ) )
 {
 }
 

@@ -691,7 +691,7 @@ void AnimatorComponent::CreateLuaBinding( sol::state& lua )
     };
 
     lua.new_usertype<AnimatorComponent>(
-        "Animator",
+        "animator",
 
         "play",
         sol::overload(

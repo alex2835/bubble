@@ -65,7 +65,7 @@ So a **path** of names leads to one entity:
 | `"."` | an entity | the entity itself |
 
 `~` is the nearest of the entity and its ancestors that is an instance's root
-(it has a `PrefabInstance`) - for a prefab inside a prefab, the inner one.
+(it has a `prefab_instance`) - for a prefab inside a prefab, the inner one.
 Outside any instance it is the scene's root, which in the Prefab Editor is the
 prefab itself, so `~/...` means the same while editing the prefab and in every
 instance of it. Script: `entity:get_prefab_root()`.
@@ -74,8 +74,8 @@ In scripts:
 
 | | |
 |---|---|
-| `entity:find( path )`, `level:find( path )` | The `Entity`. When nothing is there, an error that says which part is missing where, what is there instead, and a name that looks the same but is spelled differently. |
-| `entity:try_find( path )`, `level:try_find( path )` | The `Entity`, or `nil`. |
+| `entity:find( path )`, `level:find( path )` | The `entity`. When nothing is there, an error that says which part is missing where, what is there instead, and a name that looks the same but is spelled differently. |
+| `entity:try_find( path )`, `level:try_find( path )` | The `entity`, or `nil`. |
 | `entity:get_path()` | `"/player/camera"`. |
 | `entity.name` | Reads and sets the name. |
 
@@ -103,7 +103,7 @@ When the game starts, and for whatever `spawn` and `spawn_prefab` make, every
 NodePath in a State table (nested tables too) is **replaced by the entity it
 leads to**, before any `on_start` - scripts get entities. One that leads
 nowhere becomes `nil`, with a warning in the log. A script can make one too:
-`NodePath( "../door" )`, and turn it into an entity with `entity:find( p.path )`.
+`node_path( "../door" )`, and turn it into an entity with `entity:find( p.path )`.
 Inside a prefab, `"~/..."` names a part from the prefab's root wherever the
 owner sits in it.
 
@@ -126,9 +126,9 @@ children of a body follow the body.
 | | |
 |---|---|
 | `entity.world_position`, `entity.world_rotation` | Read only, as of the last world update. |
-| `entity:get_parent()` | `Entity`; the root's parent is `nil`. |
+| `entity:get_parent()` | `entity`; the root's parent is `nil`. |
 | `entity:set_parent( other, keep_world )` | `nil` puts it under the level's root. `keep_world` (default `true`) keeps it where it is; `false` keeps its local transform. `false` on a loop or for the root. |
-| `entity:get_children()` | Array of `Entity`. |
+| `entity:get_children()` | Array of `entity`. |
 | `entity:find( path )`, `entity:try_find( path )`, `level:find( path )`, `entity:get_path()`, `entity:get_prefab_root()`, `entity.name` | See *Names and paths* above. |
 
 A script that places a child by the world position of something else - the
@@ -156,11 +156,11 @@ root is the prefab: on load it is named after the file.
   goes under that entity) or onto a viewport (in front of the camera).
 - Operator `prefab.instantiate{ file = ..., parent = entity id, spawn_at = {x, y, z} }`.
 - At run time: `spawn_prefab( "prefabs/crate.prefab", vec3( 0, 5, 0 ) )` →
-  the root `Entity`, under the level's root. Bodies join the physics world, sounds set to play on
+  the root `entity`, under the level's root. Bodies join the physics world, sounds set to play on
   start play, scripts get `on_start` - as for a level being loaded.
 
 An instance is a copy of the prefab's root and everything under it. The root
-carries a `PrefabInstanceComponent` naming the
+carries a `prefab_instance` component naming the
 file, and shows `[prefab]` in the tree. References between the prefab's
 entities in their State tables point at the copies.
 
@@ -191,7 +191,7 @@ instance's **Update from prefab**, or with
 `prefab.update_instances{ file = ... }`. Other levels are updated when they
 are open and one of those is run.
 
-**Unpack** an instance by removing its `PrefabInstance` component: plain
+**Unpack** an instance by removing its `prefab_instance` component: plain
 entities from then on.
 
 ### Not done

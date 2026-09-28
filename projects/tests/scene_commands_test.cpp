@@ -23,7 +23,7 @@ TEST( CreateUndoRedo )
     CHECK( ParentOf( f.scene, entity ) == f.Root() );
     CHECK( f.scene.HasComponent<ModelComponent>( entity ) );
     CHECK( f.scene.GetComponent<TransformComponent>( entity ).mPosition == vec3( 1, 2, 3 ) );
-    CHECK( f.history.NextUndoName() == "Create ModelObject" );
+    CHECK( f.history.NextUndoName() == "Create Model object" );
 
     f.history.Undo();
     CHECK( f.Top().empty() );
