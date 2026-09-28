@@ -110,7 +110,7 @@ TEST( Hierarchy_SavedAndLoaded )
     CHECK( Near( WorldPosition( loaded.mScene, id( loaded.mScene, first ) ), vec3( 0, 10, 0 ) ) );
 }
 
-// Every id is an entity, 0 included: the root has no "Parent" in the file,
+// Every id is an entity, 0 included: the root's "parent" is null in the file,
 // and a link to an id the file does not have is dropped on load rather than
 // left to name whatever entity is made under that id later.
 TEST( Hierarchy_NoIdMeansNothing )
@@ -119,13 +119,13 @@ TEST( Hierarchy_NoIdMeansNothing )
     const Entity child = f.Create( EntityKind::Light );
     json saved = f.project.mLevel.ToJson( f.project );
     json& pools = saved["Scene"]["Component pools"]["hierarchy"];
-    CHECK( not pools[std::to_string( f.Root() )].contains( "Parent" ) );
+    CHECK( pools[std::to_string( f.Root() )].at( "parent" ).is_null() );
 
     // The root under a parent the file does not have, and a child that is
     // not there: both dropped.
     const u64 missing = 777;
-    pools[std::to_string( f.Root() )]["Parent"] = missing;
-    pools[std::to_string( f.Root() )]["Children"].push_back( missing );
+    pools[std::to_string( f.Root() )]["parent"] = missing;
+    pools[std::to_string( f.Root() )]["children"].push_back( missing );
     Level loaded;
     loaded.FromJson( saved, f.project );
     CHECK( ParentOf( loaded.mScene, loaded.Root() ) == Entity::Null );

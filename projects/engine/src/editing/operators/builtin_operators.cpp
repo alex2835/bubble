@@ -259,7 +259,7 @@ void OperatorRegistry::RegisterBuiltins()
             entt::meta_any to;
             try
             {
-                to = FromJson( args.at( "value" ), current.type() );
+                to = FromJson( args.at( "value" ), current.type(), ComponentManager::ContextOf( ctx.mProject ) );
             }
             catch ( const std::exception& e )
             {

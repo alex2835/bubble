@@ -6,6 +6,9 @@
 #include "engine/editing/history.hpp"
 #include "engine/scene/component_manager.hpp"
 #include "engine/reflection/reflection.hpp"
+#include "engine/loader/asset_reflection.hpp"
+#include "engine/project/project.hpp"
+#include "engine/scene/hierarchy.hpp"
 #include "engine/renderer/transform.hpp"
 #include "engine/utils/imgui_utils.hpp"
 #include <imgui.h>
@@ -23,11 +26,6 @@ struct Target
     Entity mEntity;
     ComponentTypeId mComponentId;
 };
-
-bool IsDescribed( const entt::meta_type& type )
-{
-    return type.data().begin() != type.data().end();
-}
 
 // Drawn by one widget, as opposed to opened up as a tree.
 bool IsLeaf( const entt::meta_type& type )
@@ -112,9 +110,45 @@ bool EnumWidget( const char* label, entt::meta_any& value )
     return changed;
 }
 
-// The widget for a value of a leaf type, editing `value` in place.
-bool LeafWidget( const char* label, entt::meta_any& value, const FieldInfo& info )
+// A resource: none, or one of what the loader has.
+bool AssetWidget( const char* label, entt::meta_any& value, const AssetKind& asset, const Loader& loader )
 {
+    bool changed = false;
+    if ( ImGui::BeginCombo( label, asset.mLabel( value ).c_str() ) )
+    {
+        entt::meta_any none = value.type().construct();
+        if ( ImGui::Selectable( "None", value == none ) and value != none )
+        {
+            value = std::move( none );
+            changed = true;
+        }
+        for ( auto& [name, option] : asset.mOptions( loader ) )
+        {
+            const bool selected = option == value;
+            if ( ImGui::Selectable( name.c_str(), selected ) and not selected )
+            {
+                value = std::move( option );
+                changed = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    return changed;
+}
+
+// The widget for a value of a leaf type, editing `value` in place.
+bool LeafWidget( const char* label, entt::meta_any& value, const FieldInfo& info, const InspectorContext& ctx )
+{
+    if ( const AssetKind* asset = FindAssetKind( value.type() ) )
+        return AssetWidget( label, value, *asset, ctx.mProject.mLoader );
+    if ( auto* v = value.try_cast<Entity>() )
+    {
+        // Shown, not picked: links between entities are made in the tree.
+        const string shown( string_view( label ).substr( 0, string_view( label ).find( "##" ) ) );
+        const string entity = *v == Entity::Null ? "-" : DescribeEntity( ctx.mScene, *v );
+        ImGui::Text( "%s: %s", shown.c_str(), entity.c_str() );
+        return false;
+    }
     if ( auto* v = value.try_cast<f32>() )
         return FloatWidget( label, *v, info );
     if ( auto* v = value.try_cast<bool>() )
@@ -169,7 +203,7 @@ void DrawLeaf( Target& target, const string& label, const entt::meta_any& curren
     entt::meta_any edited = current;
 
     ImGui::BeginDisabled( info.Has( FieldInfo::ReadOnly ) );
-    const bool changed = LeafWidget( std::format( "{}##{}", label, path ).c_str(), edited, info );
+    const bool changed = LeafWidget( std::format( "{}##{}", label, path ).c_str(), edited, info, target.mCtx );
     ImGui::EndDisabled();
 
     if ( changed )
@@ -245,6 +279,8 @@ void DrawComponentFields( InspectorContext& ctx, Entity entity, ComponentTypeId 
     if ( not component )
         return;
     ImGui::TextColored( cTitleColor, "%s", FieldLabel( ComponentManager::GetName( componentId ) ).c_str() );
+    if ( const char* note = TypeInfoOf( component.type() ).mNote )
+        ImGui::TextDisabled( "%s", note );
     ImGui::PushID( (int)(u32)entity );
     ImGui::PushID( componentId );
     Target target{ ctx, entity, componentId };

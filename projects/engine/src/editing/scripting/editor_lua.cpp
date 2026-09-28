@@ -3,6 +3,7 @@
 #include "engine/editing/history.hpp"
 #include "engine/editing/selection.hpp"
 #include "engine/editing/commands/field_command.hpp"
+#include "engine/scene/component_manager.hpp"
 #include "engine/reflection/reflection.hpp"
 #include "engine/project/project.hpp"
 #include "engine/serialization/types_serialization.hpp"
@@ -304,7 +305,7 @@ void EditorLua::Bind()
             entity = Entity::FromId( entityArg.as<u64>() );
         const ComponentField field = ParseComponentField( path );
         entt::meta_any component = RequireReflected( scene, entity, field.mComponentId );
-        return JsonToLua( *mLua, ToJson( GetField( component, field.mPath ) ) );
+        return JsonToLua( *mLua, ToJson( GetField( component, field.mPath ), ComponentManager::ContextOf( mCtx.mProject ) ) );
     } );
     editor.set_function( "entities_by_tag", [this]( const string& tag )
     {

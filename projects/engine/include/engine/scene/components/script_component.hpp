@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include <sol/sol.hpp>
 #include <sol/function.hpp>
 
 namespace bubble
@@ -11,10 +12,8 @@ struct ScriptComponent
     static int ID() { return static_cast<int>( ComponentID::Script ); }
 	static string_view Name() { return "script"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ScriptComponent& component );
-	static void ToJson( json& json, const Project& project, const ScriptComponent& component );
-	static void FromJson( const json& json, Project& project, ScriptComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: the script, a resource saved by its path.
+    static void Reflect();
 
 public:
     ScriptComponent() = default;

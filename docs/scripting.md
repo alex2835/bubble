@@ -471,11 +471,29 @@ Methods: `create_dir_light`, `create_point_light`, `create_spot_light`.
 
 ### model
 
-Field `Model`. `tostring` gives the model name, or `null`.
+Constructible: `model()`, `model( handle )`. Field `model`: the handle
+`load_model` gives, or `nil`. `tostring` gives the model name, or `null`.
+
+### script
+
+Field `script`: the handle `load_script` gives, or `nil`. A script attached
+this way does not start by itself - use `entity:add_script( path )` (or
+`spawn{ script = ... }`), which starts it.
+
+### folder
+
+No fields: it marks an entity that is there to hold others.
+
+### hierarchy
+
+Read only fields `parent` (an `entity`, or `nil` for the root) and `children`
+(an array of `entity`, in order). The tree is changed through the entity:
+`entity:set_parent( other, keep_world )` - see
+[hierarchy_and_prefabs.md](hierarchy_and_prefabs.md).
 
 ### shader
 
-Fields `Shader` and `uniforms` (a table — assign a whole table to replace the
+Fields `shader` and `uniforms` (a table — assign a whole table to replace the
 uniform set). `tostring` gives the shader name, or `null`.
 
 ### physics_body / rigid_body

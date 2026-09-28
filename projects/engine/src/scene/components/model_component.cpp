@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/reflection/reflection.hpp"
 #include "engine/scene/components/model_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
@@ -12,43 +13,15 @@
 
 namespace bubble
 {
-void ModelComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, ModelComponent& modelComponent )
+void ModelComponent::Reflect()
 {
-    ImGui::TextColored( TEXT_COLOR, "ModelComponent" );
-
-    const auto& model = modelComponent.mModel;
-    ComboProperty<ModelComponent>( ctx, entity, "models", model, model ? model->mName.c_str() : "Not selected",
-                                   ctx.mProject.mLoader.mModels,
-                                   []( const auto& entry ) { return entry.first.stem().string(); },
-                                   []( const auto& entry ) { return entry.second; },
-                                   []( ModelComponent& c, const Ref<Model>& v ) { c = v; } );
+    TypeBuilder<ModelComponent>( Name().data() )
+        .Field<&ModelComponent::mModel>( "model" );
 }
 
-void ModelComponent::ToJson( json& json, const Project& project, const ModelComponent& modelComponent )
+void ModelComponent::BindLuaMethods( sol::state&, sol::usertype<ModelComponent>& type )
 {
-    if ( not modelComponent.mModel )
-    {
-        json = nullptr;
-        return;
-    }
-    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( modelComponent.mModel->mPath );
-    json["Path"] = relPath;
-}
-
-void ModelComponent::FromJson( const json& json, Project& project, ModelComponent& modelComponent )
-{
-    if ( not json.is_null() )
-        modelComponent = project.mLoader.LoadModel( json["Path"] );
-}
-
-void ModelComponent::CreateLuaBinding( sol::state& lua )
-{
-    lua.new_usertype<ModelComponent>(
-        "model",
-        "model", &ModelComponent::mModel,
-        sol::meta_function::to_string,
-        []( const ModelComponent& mc ) { return mc.mModel ? mc.mModel->mName : "null"; }
-    );
+    type[sol::meta_function::to_string] = []( const ModelComponent& c ) { return c.mModel ? c.mModel->mName : "null"; };
 }
 
 ModelComponent::ModelComponent( const Ref<Model>& model )

@@ -54,6 +54,7 @@ constexpr u32 cCache = FieldInfo::ReadOnly | FieldInfo::Transient | FieldInfo::H
 void CameraComponent::Reflect()
 {
     TypeBuilder<CameraComponent>( Name().data() )
+        .Note( "Position and orientation come from this entity's transform." )
         .Field<&CameraComponent::mWorldUp>( "world_up", { .mFlags = FieldInfo::Hidden } )
         .Field<&CameraComponent::mNear>( "near", { .mMin = 0.01f, .mSpeed = 0.01f } )
         .Field<&CameraComponent::mFar>( "far", { .mMin = 1.0f, .mMax = 10000.0f } )

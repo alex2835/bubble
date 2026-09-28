@@ -3,16 +3,12 @@
 #include "engine/renderer/transform.hpp"
 #include "engine/types/glm.hpp"
 #include "engine/types/set.hpp"
+#include "engine/types/map.hpp"
 
 namespace bubble
 {
 namespace
 {
-bool IsDescribed( const entt::meta_type& type )
-{
-    return type.data().begin() != type.data().end();
-}
-
 string EnumName( const entt::meta_any& value )
 {
     for ( const auto [id, constant] : value.type().data() )
@@ -29,6 +25,24 @@ string LuaTypeName( const sol::object& value )
 [[noreturn]] void Expected( const char* what, const entt::meta_type& type, const sol::object& got )
 {
     throw std::runtime_error( std::format( "a {} takes {}, not a {}", TypeName( type ), what, LuaTypeName( got ) ) );
+}
+
+struct LuaValue
+{
+    ToLuaFn mTo = nullptr;
+    FromLuaFn mFrom = nullptr;
+};
+
+hash_map<entt::id_type, LuaValue>& LuaValues()
+{
+    static hash_map<entt::id_type, LuaValue> values;
+    return values;
+}
+
+const LuaValue* FindLuaValue( const entt::meta_type& type )
+{
+    const auto it = LuaValues().find( type.info().hash() );
+    return it != LuaValues().end() ? &it->second : nullptr;
 }
 
 template <typename Number>
@@ -58,6 +72,8 @@ sol::object ToLua( sol::state_view lua, const entt::meta_any& value )
     if ( auto* v = value.try_cast<quat>() ) return sol::make_object( lua, Transform::ToEuler( *v ) );
 
     const entt::meta_type type = value.type();
+    if ( const LuaValue* registered = FindLuaValue( type ) )
+        return registered->mTo( lua, value );
     if ( type.is_enum() )
         return sol::make_object( lua, EnumName( value ) );
     if ( type.is_sequence_container() )
@@ -80,6 +96,8 @@ sol::object ToLua( sol::state_view lua, const entt::meta_any& value )
 
 entt::meta_any FromLua( const sol::object& value, const entt::meta_type& type )
 {
+    if ( const LuaValue* registered = FindLuaValue( type ) )
+        return registered->mFrom( value );
     if ( type == entt::resolve<f32>() ) return NumberFrom<f32>( value, type );
     if ( type == entt::resolve<f64>() ) return NumberFrom<f64>( value, type );
     if ( type == entt::resolve<i32>() ) return NumberFrom<i32>( value, type );
@@ -177,6 +195,11 @@ entt::meta_any FromLua( const sol::object& value, const entt::meta_type& type )
     }
 
     throw std::runtime_error( std::format( "a {} cannot be set from Lua", TypeName( type ) ) );
+}
+
+void RegisterLuaValue( const entt::meta_type& type, ToLuaFn to, FromLuaFn from )
+{
+    LuaValues()[type.info().hash()] = { to, from };
 }
 
 void BindReflectedEnum( sol::state& lua, const entt::meta_type& type )

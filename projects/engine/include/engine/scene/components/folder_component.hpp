@@ -12,10 +12,8 @@ struct FolderComponent
     static int ID() { return static_cast<int>( ComponentID::Folder ); }
     static string_view Name() { return "folder"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, FolderComponent& component );
-    static void ToJson( json& json, const Project& project, const FolderComponent& component );
-    static void FromJson( const json& json, Project& project, FolderComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: saved, shown, set by path and bound to Lua.
+    static void Reflect();
 };
 
 }

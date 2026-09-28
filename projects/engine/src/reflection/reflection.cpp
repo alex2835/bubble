@@ -36,15 +36,15 @@ template <typename T>
 void Plain( hash_map<entt::id_type, Codec>& codecs )
 {
     codecs[entt::type_hash<T>::value()] = {
-        []( const entt::meta_any& v ) -> json { return v.cast<const T&>(); },
-        []( const json& j ) -> entt::meta_any { return j.get<T>(); } };
+        []( const entt::meta_any& v, const ReflectionContext& ) -> json { return v.cast<const T&>(); },
+        []( const json& j, const ReflectionContext& ) -> entt::meta_any { return j.get<T>(); } };
 }
 
 template <typename T>
 void Vector( hash_map<entt::id_type, Codec>& codecs )
 {
     codecs[entt::type_hash<T>::value()] = {
-        []( const entt::meta_any& v ) -> json
+        []( const entt::meta_any& v, const ReflectionContext& ) -> json
         {
             const T& vec = v.cast<const T&>();
             json j = json::array();
@@ -52,7 +52,7 @@ void Vector( hash_map<entt::id_type, Codec>& codecs )
                 j.push_back( vec[i] );
             return j;
         },
-        []( const json& j ) -> entt::meta_any
+        []( const json& j, const ReflectionContext& ) -> entt::meta_any
         {
             if ( not j.is_array() or j.size() != (size_t)T::length() )
                 throw std::runtime_error( std::format( "{} is not {} numbers", j.dump(), T::length() ) );
@@ -83,12 +83,12 @@ hash_map<entt::id_type, Codec>& Codecs()
         Vector<ivec3>( made );
         // x, y, z, w - the order a level file has always had.
         made[entt::type_hash<quat>::value()] = {
-            []( const entt::meta_any& v ) -> json
+            []( const entt::meta_any& v, const ReflectionContext& ) -> json
             {
                 const quat& q = v.cast<const quat&>();
                 return json{ q.x, q.y, q.z, q.w };
             },
-            []( const json& j ) -> entt::meta_any
+            []( const json& j, const ReflectionContext& ) -> entt::meta_any
             {
                 if ( not j.is_array() or j.size() != 4 )
                     throw std::runtime_error( std::format( "{} is not a quaternion [x, y, z, w]", j.dump() ) );
@@ -110,11 +110,6 @@ const Codec* FindCodec( const entt::meta_type& type )
 bool Owns( const entt::meta_any& value )
 {
     return value.base().owner();
-}
-
-bool IsDescribed( const entt::meta_type& type )
-{
-    return type.data().begin() != type.data().end();
 }
 
 void CallOnChanged( entt::meta_any& owner )
@@ -237,6 +232,13 @@ const FieldInfo& FieldInfoOf( const entt::meta_data& field )
     return info ? *info : none;
 }
 
+const TypeInfo& TypeInfoOf( const entt::meta_type& type )
+{
+    static const TypeInfo none;
+    const TypeInfo* info = type.custom();
+    return info ? *info : none;
+}
+
 string TypeName( const entt::meta_type& type )
 {
     if ( not type )
@@ -282,13 +284,13 @@ void SetField( entt::meta_any& object, string_view path, entt::meta_any value )
     SetAt( target, steps, value, path );
 }
 
-void SetField( entt::meta_any& object, string_view path, const json& value )
+void SetField( entt::meta_any& object, string_view path, const json& value, const ReflectionContext& ctx )
 {
     const entt::meta_type type = GetField( object, path ).type();
     entt::meta_any converted;
     try
     {
-        converted = FromJson( value, type );
+        converted = FromJson( value, type, ctx );
     }
     catch ( const std::exception& e )
     {
@@ -299,13 +301,21 @@ void SetField( entt::meta_any& object, string_view path, const json& value )
 
 /// JSON
 
-json ToJson( const entt::meta_any& value )
+bool IsDescribed( const entt::meta_type& type )
+{
+    // A TypeBuilder names the type; a type meta only met as a field's does not
+    // have a name. Enums are named too, but are values, not objects.
+    return not type.is_enum() and
+           ( type.data().begin() != type.data().end() or ( type.name() != nullptr and not FindCodec( type ) ) );
+}
+
+json ToJson( const entt::meta_any& value, const ReflectionContext& ctx )
 {
     const entt::meta_type type = value.type();
     if ( not type )
         throw std::runtime_error( "no JSON for an empty value" );
     if ( const Codec* codec = FindCodec( type ) )
-        return codec->mTo( value );
+        return codec->mTo( value, ctx );
 
     if ( type.is_enum() )
     {
@@ -319,7 +329,7 @@ json ToJson( const entt::meta_any& value )
     {
         json array = json::array();
         for ( const entt::meta_any element : value.as_sequence_container() )
-            array.push_back( ToJson( element ) );
+            array.push_back( ToJson( element, ctx ) );
         return array;
     }
 
@@ -328,17 +338,17 @@ json ToJson( const entt::meta_any& value )
         json object = json::object();
         for ( const auto [id, field] : type.data() )
             if ( not FieldInfoOf( field ).Has( FieldInfo::Transient ) )
-                object[field.name()] = ToJson( field.get( value ) );
+                object[field.name()] = ToJson( field.get( value ), ctx );
         return object;
     }
 
     throw std::runtime_error( std::format( "no JSON for a {}", TypeName( type ) ) );
 }
 
-entt::meta_any FromJson( const json& j, const entt::meta_type& type )
+entt::meta_any FromJson( const json& j, const entt::meta_type& type, const ReflectionContext& ctx )
 {
     if ( const Codec* codec = FindCodec( type ) )
-        return codec->mFrom( j );
+        return codec->mFrom( j, ctx );
 
     if ( type.is_enum() )
     {
@@ -368,7 +378,7 @@ entt::meta_any FromJson( const json& j, const entt::meta_type& type )
         for ( size_t i = 0; i < j.size(); i++ )
         {
             entt::meta_any element = container[i];
-            if ( not element.assign( FromJson( j[i], container.value_type() ) ) )
+            if ( not element.assign( FromJson( j[i], container.value_type(), ctx ) ) )
                 throw std::runtime_error( std::format( "element {} of {} cannot be set", i, TypeName( type ) ) );
         }
         return made;
@@ -379,14 +389,14 @@ entt::meta_any FromJson( const json& j, const entt::meta_type& type )
         entt::meta_any made = type.construct();
         if ( not made )
             throw std::runtime_error( std::format( "a {} cannot be made without arguments", TypeName( type ) ) );
-        FromJson( j, made );
+        FromJson( j, made, ctx );
         return made;
     }
 
     throw std::runtime_error( std::format( "no {} from JSON", TypeName( type ) ) );
 }
 
-void FromJson( const json& j, entt::meta_any& object )
+void FromJson( const json& j, entt::meta_any& object, const ReflectionContext& ctx )
 {
     const entt::meta_type type = object.type();
     if ( not j.is_object() )
@@ -400,7 +410,7 @@ void FromJson( const json& j, entt::meta_any& object )
         entt::meta_any value;
         try
         {
-            value = FromJson( j[name], field.type() );
+            value = FromJson( j[name], field.type(), ctx );
         }
         catch ( const std::exception& e )
         {

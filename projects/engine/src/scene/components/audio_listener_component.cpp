@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/reflection/reflection.hpp"
 #include "engine/scene/components/audio_listener_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
@@ -8,32 +9,10 @@
 
 namespace bubble
 {
-void AudioListenerComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, AudioListenerComponent& )
+void AudioListenerComponent::Reflect()
 {
-    ImGui::TextColored( TEXT_COLOR, "AudioListenerComponent" );
-    CheckboxField<AudioListenerComponent>( ctx, entity, "Active", &AudioListenerComponent::mActive );
-    ImGui::TextWrapped( "Position and orientation come from this entity's TransformComponent." );
+    TypeBuilder<AudioListenerComponent>( Name().data() )
+        .Note( "Position and orientation come from this entity's transform." )
+        .Field<&AudioListenerComponent::mActive>( "active" );
 }
-
-void AudioListenerComponent::ToJson( json& json, const Project& project, const AudioListenerComponent& component )
-{
-    json["Active"] = component.mActive;
-}
-
-void AudioListenerComponent::FromJson( const json& json, Project& project, AudioListenerComponent& component )
-{
-    if ( not json.is_null() and json.contains( "Active" ) )
-        component.mActive = json["Active"];
-}
-
-void AudioListenerComponent::CreateLuaBinding( sol::state& lua )
-{
-    lua.new_usertype<AudioListenerComponent>(
-        "audio_listener",
-        sol::call_constructor,
-        sol::constructors<AudioListenerComponent()>(),
-        "active", &AudioListenerComponent::mActive
-    );
-}
-
 }

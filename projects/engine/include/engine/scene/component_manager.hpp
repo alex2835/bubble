@@ -109,13 +109,16 @@ public:
                 if constexpr ( requires { Component::BindLuaMethods( lua, type ); } )
                     Component::BindLuaMethods( lua, type );
             };
-            table.mFromJson = []( const json& json, Project&, void* rawData )
+            table.mFromJson = []( const json& json, Project& project, void* rawData )
             {
                 entt::meta_any component = entt::forward_as_meta( *static_cast<Component*>( rawData ) );
-                bubble::FromJson( json, component );
+                bubble::FromJson( json, component, ContextOf( project ) );
             };
-            table.mToJson = []( json& json, const Project&, const void* rawData )
-            { json = bubble::ToJson( entt::forward_as_meta( *static_cast<const Component*>( rawData ) ) ); };
+            table.mToJson = []( json& json, const Project& project, const void* rawData )
+            {
+                json = bubble::ToJson( entt::forward_as_meta( *static_cast<const Component*>( rawData ) ),
+                                       ContextOf( project ) );
+            };
         }
         else
         {
@@ -143,6 +146,8 @@ public:
     // The component, by reference, as engine/reflection sees it; empty when
     // the entity does not have it or the type is not reflected.
     static entt::meta_any Reflected( Scene& scene, Entity entity, ComponentTypeId componentId );
+    // What engine/reflection needs of the project: its loader.
+    static ReflectionContext ContextOf( const Project& project );
 
     const auto begin() { return mComponentFuncTable.begin(); }
     const auto end() { return mComponentFuncTable.end(); }

@@ -17,6 +17,30 @@ sol::object ToLua( sol::state_view lua, const entt::meta_any& value );
 // Throws saying what was expected when the value does not fit the type.
 entt::meta_any FromLua( const sol::object& value, const entt::meta_type& type );
 
+// How a type the rules above do not cover crosses: a handle Lua already
+// knows as a usertype - the model load_model gives. Registered once.
+using ToLuaFn = sol::object ( * )( sol::state_view lua, const entt::meta_any& value );
+using FromLuaFn = entt::meta_any ( * )( const sol::object& value );
+void RegisterLuaValue( const entt::meta_type& type, ToLuaFn to, FromLuaFn from );
+
+// T crosses as itself; nil is T{}.
+template <typename T>
+void RegisterLuaValue()
+{
+    RegisterLuaValue(
+        entt::resolve<T>(),
+        []( sol::state_view lua, const entt::meta_any& value ) { return sol::make_object( lua, value.cast<const T&>() ); },
+        []( const sol::object& value ) -> entt::meta_any
+        {
+            if ( value.get_type() == sol::type::lua_nil )
+                return T{};
+            if ( not value.is<T>() )
+                throw std::runtime_error( std::format( "a {} takes one, not a {}", TypeName( entt::resolve<T>() ),
+                                                       sol::type_name( value.lua_state(), value.get_type() ) ) );
+            return value.as<T>();
+        } );
+}
+
 // Each enum of the described fields as a global table of its values:
 // light_type.spot == "spot". Once per enum.
 void BindReflectedEnum( sol::state& lua, const entt::meta_type& type );

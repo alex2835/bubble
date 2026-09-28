@@ -14,10 +14,8 @@ struct PrefabInstanceComponent
     static int ID() { return static_cast<int>( ComponentID::PrefabInstance ); }
     static string_view Name() { return "prefab_instance"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, PrefabInstanceComponent& component );
-    static void ToJson( json& json, const Project& project, const PrefabInstanceComponent& component );
-    static void FromJson( const json& json, Project& project, PrefabInstanceComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: saved, shown, set by path and bound to Lua.
+    static void Reflect();
 
     PrefabInstanceComponent() = default;
     explicit PrefabInstanceComponent( string prefab ) : mPrefab( std::move( prefab ) ) {}

@@ -31,6 +31,16 @@
 // property path and, where there is one, the Lua field.
 namespace bubble
 {
+struct Loader;
+
+// What a value may need beyond itself to cross to or from JSON: the project's
+// loader, for a resource a file names by path. Empty where there is no
+// project at hand - a resource then cannot be read or written.
+struct ReflectionContext
+{
+    Loader* mLoader = nullptr;
+};
+
 // What the editor needs to know about a field beyond its name and type.
 struct FieldInfo
 {
@@ -65,6 +75,13 @@ struct FieldInfo
     bool Has( Flags flag ) const { return ( mFlags & flag ) != 0; }
 };
 
+// What the editor shows about a type as a whole.
+struct TypeInfo
+{
+    // A line under the inspector's title: what the fields do not say.
+    const char* mNote = nullptr;
+};
+
 // The id under which a type keeps its OnChanged hook.
 inline constexpr entt::id_type cOnChangedId = entt::hashed_string::value( "on_changed" );
 
@@ -91,6 +108,13 @@ public:
     TypeBuilder& Property( const char* name, FieldInfo info = {} )
     {
         entt::meta_factory<T>{}.template data<Setter, Getter>( name ).template custom<FieldInfo>( info );
+        return *this;
+    }
+
+    // A line the inspector shows under the type's title.
+    TypeBuilder& Note( const char* note )
+    {
+        entt::meta_factory<T>{}.template custom<TypeInfo>( TypeInfo{ .mNote = note } );
         return *this;
     }
 
@@ -137,6 +161,7 @@ entt::meta_any Meta( T& object )
 
 // The FieldInfo a field was described with.
 const FieldInfo& FieldInfoOf( const entt::meta_data& field );
+const TypeInfo& TypeInfoOf( const entt::meta_type& type );
 // The type's name as described, or its C++ name if it was not.
 string TypeName( const entt::meta_type& type );
 
@@ -153,21 +178,24 @@ entt::meta_any GetField( entt::meta_any& object, string_view path );
 // on the way, and calling OnChanged on each owner from the innermost out.
 void SetField( entt::meta_any& object, string_view path, entt::meta_any value );
 // The same with the value as JSON, as an operator gets it.
-void SetField( entt::meta_any& object, string_view path, const json& value );
+void SetField( entt::meta_any& object, string_view path, const json& value, const ReflectionContext& ctx = {} );
 
 /// JSON
 // Numbers, bools, strings, glm vectors and quat, enums by name, sequences
 // as arrays and described types as objects of their fields - Transient
 // ones left out. Anything else needs a codec.
-json ToJson( const entt::meta_any& value );
-entt::meta_any FromJson( const json& j, const entt::meta_type& type );
+json ToJson( const entt::meta_any& value, const ReflectionContext& ctx = {} );
+entt::meta_any FromJson( const json& j, const entt::meta_type& type, const ReflectionContext& ctx = {} );
 // Into an existing object: the fields `j` has are set, the rest keep their
 // values; then OnChanged.
-void FromJson( const json& j, entt::meta_any& object );
+void FromJson( const json& j, entt::meta_any& object, const ReflectionContext& ctx = {} );
 
 // How a type the rules above do not cover is written. Registered once.
-using ToJsonFn = json ( * )( const entt::meta_any& value );
-using FromJsonFn = entt::meta_any ( * )( const json& j );
+using ToJsonFn = json ( * )( const entt::meta_any& value, const ReflectionContext& ctx );
+using FromJsonFn = entt::meta_any ( * )( const json& j, const ReflectionContext& ctx );
 void RegisterJsonCodec( const entt::meta_type& type, ToJsonFn to, FromJsonFn from );
+
+// A type described with TypeBuilder: fields to walk, even if it has none.
+bool IsDescribed( const entt::meta_type& type );
 
 }

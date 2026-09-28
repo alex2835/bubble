@@ -1,4 +1,5 @@
 #include "engine/pch/pch.hpp"
+#include "engine/reflection/reflection.hpp"
 #include "engine/scene/components/script_component.hpp"
 #include "engine/scene/components/component_draw_utils.hpp"
 #include "engine/project/project.hpp"
@@ -12,39 +13,10 @@
 
 namespace bubble
 {
-void ScriptComponent::OnComponentDraw( InspectorContext& ctx, const Entity& entity, ScriptComponent& scriptComponent )
+void ScriptComponent::Reflect()
 {
-    ImGui::TextColored( TEXT_COLOR, "ScriptComponent" );
-
-    const auto& script = scriptComponent.mScript;
-    ComboProperty<ScriptComponent>( ctx, entity, "scripts", script, script ? script->mName.c_str() : "Not selected",
-                                    ctx.mProject.mLoader.mScripts,
-                                    []( const auto& entry ) { return entry.first.stem().string(); },
-                                    []( const auto& entry ) { return entry.second; },
-                                    []( ScriptComponent& c, const Ref<Script>& v ) { c = v; } );
-}
-
-void ScriptComponent::ToJson( json& json, const Project& project, const ScriptComponent& scriptComponent )
-{
-    if ( not scriptComponent.mScript )
-    {
-        json = nullptr;
-        return;
-    }
-
-    auto [relPath, _] = project.mLoader.RelAbsFromProjectPath( scriptComponent.mScript->mPath );
-    json = relPath;
-}
-
-void ScriptComponent::FromJson( const json& json, Project& project, ScriptComponent& scriptComponent )
-{
-    if ( not json.is_null() )
-        scriptComponent.mScript = project.mLoader.LoadScript( json );
-}
-
-void ScriptComponent::CreateLuaBinding( sol::state& lua )
-{
-
+    TypeBuilder<ScriptComponent>( Name().data() )
+        .Field<&ScriptComponent::mScript>( "script" );
 }
 
 ScriptComponent::ScriptComponent( const Ref<Script>& scirpt )

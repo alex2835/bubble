@@ -5,6 +5,12 @@
 #include "engine/scene/components/light_component.hpp"
 #include "engine/scene/components/transform_component.hpp"
 #include "engine/editing/commands/field_command.hpp"
+#include "engine/editing/operators/operator.hpp"
+#include "engine/editing/selection.hpp"
+#include "engine/editing/clipboard.hpp"
+#include "engine/scene/components/script_component.hpp"
+#include "engine/scripting/script.hpp"
+#include <fstream>
 #include <nlohmann/json.hpp>
 
 using namespace entt::literals;
@@ -259,4 +265,47 @@ TEST( Reflection_SetFieldCommand )
     f.scene.RemoveComponent<LightComponent>( lamp );
     f.history.Undo();
     CHECK( not f.scene.HasComponent<LightComponent>( lamp ) );
+}
+
+// A resource field: saved by its path relative to the project, loaded back
+// through the project's loader, set by path from an operator.
+TEST( Reflection_AssetFields )
+{
+    OperatorRegistry::RegisterBuiltins();
+    Fixture f;
+    const path dir = filesystem::temp_directory_path() /
+                     std::format( "bubble_asset_test_{}", (u64)std::chrono::steady_clock::now().time_since_epoch().count() );
+    filesystem::create_directories( dir / "scripts" );
+    std::ofstream( dir / "scripts" / "spin.lua" ) << "function on_update( entity, state, dt ) end\n";
+    f.project.mRootFile = dir / "test.bubble";
+    f.project.mLoader.mProjectRootDir = dir;
+
+    const Entity e = f.Create( EntityKind::Script );
+    Selection selection;
+    Clipboard clipboard;
+    OperatorContext ctx{ f.project, f.project.mLevel, f.history, selection, clipboard };
+    const auto script = [&]() { return f.scene.GetComponent<ScriptComponent>( e ).mScript; };
+
+    CHECK( InvokeOperator( "property.set", ctx, { { "entity", (u64)e }, { "path", "script.script" }, { "value", "scripts/spin.lua" } } ) );
+    CHECK( script() and script()->mPath.filename() == "spin.lua" );
+
+    const json saved = f.project.mLevel.ToJson( f.project );
+    CHECK( saved["Scene"]["Component pools"]["script"][std::to_string( e )]["script"] == "scripts/spin.lua" );
+    Level loaded;
+    loaded.FromJson( saved, f.project );
+    // The loader's cache: the same script, not a second copy.
+    CHECK( loaded.mScene.GetComponent<ScriptComponent>( e ).mScript == script() );
+
+    // None is null, both ways; undo brings the script back.
+    CHECK( InvokeOperator( "property.set", ctx, { { "entity", (u64)e }, { "path", "script.script" }, { "value", nullptr } } ) );
+    CHECK( not script() );
+    CHECK( f.project.mLevel.ToJson( f.project )["Scene"]["Component pools"]["script"][std::to_string( e )]["script"].is_null() );
+    f.history.Undo();
+    CHECK( script() and script()->mPath.filename() == "spin.lua" );
+
+    // A path needs a project to be loaded from.
+    CHECK( Throws( [] { FromJson( json( "scripts/spin.lua" ), entt::resolve<Ref<Script>>() ); }, "without a project" ) );
+
+    std::error_code ec;
+    filesystem::remove_all( dir, ec );
 }

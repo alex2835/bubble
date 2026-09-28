@@ -1,5 +1,6 @@
 #pragma once
 #include "engine/scene/components/component_base.hpp"
+#include <sol/sol.hpp>
 
 namespace bubble
 {
@@ -10,10 +11,11 @@ struct ModelComponent
     static int ID() { return static_cast<int>( ComponentID::Model ); }
 	static string_view Name() { return "model"sv; }
 
-	static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, ModelComponent& component );
-	static void ToJson( json& json, const Project& project, const ModelComponent& component );
-	static void FromJson( const json& json, Project& project, ModelComponent& component );
-	static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: the model, a resource saved by its path.
+    static void Reflect();
+    // Lua: the fields come from Reflect(); these are what is added to them.
+    using LuaConstructors = sol::constructors<ModelComponent(), ModelComponent( const Ref<Model>& )>;
+    static void BindLuaMethods( sol::state& lua, sol::usertype<ModelComponent>& type );
 
 public:
 	ModelComponent() = default;

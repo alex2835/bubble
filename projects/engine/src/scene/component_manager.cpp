@@ -1,5 +1,6 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/project/project.hpp"
 
 namespace bubble
 {
@@ -36,6 +37,13 @@ entt::meta_any ComponentManager::Reflected( Scene& scene, Entity entity, Compone
     const entt::meta_type& meta = Get( componentId ).mMeta;
     void* component = meta ? scene.TryGetComponent( entity, componentId ) : nullptr;
     return component ? meta.from_void( component ) : entt::meta_any{};
+}
+
+ReflectionContext ComponentManager::ContextOf( const Project& project )
+{
+    // The loader caches what it loads; handing it out from a const project is
+    // how every load from a file already reaches it.
+    return { &const_cast<Project&>( project ).mLoader };
 }
 
 string_view ComponentManager::GetName( ComponentTypeId componentId )

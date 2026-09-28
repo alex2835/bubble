@@ -1,6 +1,8 @@
 #include "engine/pch/pch.hpp"
 #include "engine/scene/scene.hpp"
 #include "engine/scene/component_manager.hpp"
+#include "engine/loader/asset_reflection.hpp"
+#include "engine/scripting/reflection_lua.hpp"
 #include <sol/sol.hpp>
 #include "engine/scene/components/audio_listener_component.hpp"
 #include "engine/scene/components/audio_source_component.hpp"
@@ -23,9 +25,35 @@ namespace bubble
 {
 namespace
 {
+// An entity as a field's value: its id in a file, null for none; the entity
+// usertype in Lua.
+void ReflectEntity()
+{
+    entt::meta_factory<Entity>{}.type( "entity" );
+    RegisterJsonCodec(
+        entt::resolve<Entity>(),
+        []( const entt::meta_any& value, const ReflectionContext& ) -> json
+        {
+            const Entity entity = value.cast<Entity>();
+            return entity == Entity::Null ? json( nullptr ) : json( (u64)entity );
+        },
+        []( const json& j, const ReflectionContext& ) -> entt::meta_any
+        {
+            if ( j.is_null() )
+                return Entity::Null;
+            if ( not j.is_number_unsigned() and not j.is_number_integer() )
+                throw std::runtime_error( std::format( "{} is not an entity id", j.dump() ) );
+            return Entity::FromId( j.get<u64>() );
+        } );
+    RegisterLuaValue<Entity>();
+}
+
 // Once per process, before the first scene: the id API needs every type.
 void RegisterComponents()
 {
+    // Before the components: their fields hold resources and entities.
+    ReflectAssets();
+    ReflectEntity();
     ComponentManager::Add<TagComponent>();
     ComponentManager::Add<ModelComponent>();
     ComponentManager::Add<TransformComponent>();

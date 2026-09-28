@@ -21,10 +21,8 @@ struct HierarchyComponent
     static int ID() { return static_cast<int>( ComponentID::Hierarchy ); }
     static string_view Name() { return "hierarchy"sv; }
 
-    static void OnComponentDraw( InspectorContext& ctx, const Entity& entity, HierarchyComponent& component );
-    static void ToJson( json& json, const Project& project, const HierarchyComponent& component );
-    static void FromJson( const json& json, Project& project, HierarchyComponent& component );
-    static void CreateLuaBinding( sol::state& lua );
+    // Fields for engine/reflection: saved, shown, set by path and bound to Lua.
+    static void Reflect();
 
     Entity mParent = Entity::Null;
     vector<Entity> mChildren;
