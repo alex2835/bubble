@@ -61,6 +61,12 @@ TEST( Operators )
     CHECK( f.Top().size() == 1 and selection.IsEmpty() );
     CHECK( InvokeOperator( "history.undo", ctx ) );
     CHECK( f.Top().size() == 2 and f.Children( folder ).size() == 2 );
+    // One entity by id, whatever is selected - the tree's context menu
+    selection.Select( light, f.scene );
+    CHECK( InvokeOperator( "scene.delete", ctx, { { "entity", (u64)folder } } ) );
+    CHECK( f.Top().size() == 1 and f.Top()[0] == light and selection.IsEmpty() );
+    CHECK( InvokeOperator( "history.undo", ctx ) );
+    CHECK( f.Top().size() == 2 and f.Children( folder ).size() == 2 );
 
     // Cut / paste moves; copy / paste duplicates
     selection.Select( light, f.scene );

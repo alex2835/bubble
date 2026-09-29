@@ -67,28 +67,26 @@ Entity CreateEntityCommand::MakeEntity( EntityKind kind, Project& project, Scene
 {
     const Entity entity = scene.CreateEntity();
     scene.AddComponent<HierarchyComponent>( entity );
+    // Named for its kind, as the Lua API spells it: model_object, light.
+    scene.AddComponent<TagComponent>( entity, ToSnakeCase( magic_enum::enum_name( kind ) ) );
     switch ( kind )
     {
         case EntityKind::Folder:
-            scene.AddComponent<TagComponent>( entity, "folder" );
             scene.AddComponent<TransformComponent>( entity );
             scene.AddComponent<FolderComponent>( entity );
             break;
         case EntityKind::ModelObject:
-            scene.AddComponent<TagComponent>( entity, "Model object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
             scene.AddComponent<ShaderComponent>( entity );
             break;
         case EntityKind::PhysicsObject:
-            scene.AddComponent<TagComponent>( entity, "Physics object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
             scene.AddComponent<ShaderComponent>( entity );
             scene.AddComponent<RigidBodyComponent>( entity );
             break;
         case EntityKind::GameObject:
-            scene.AddComponent<TagComponent>( entity, "Game object" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<ModelComponent>( entity );
             scene.AddComponent<ShaderComponent>( entity );
@@ -97,23 +95,19 @@ Entity CreateEntityCommand::MakeEntity( EntityKind kind, Project& project, Scene
             scene.AddComponent<ScriptComponent>( entity );
             break;
         case EntityKind::Script:
-            scene.AddComponent<TagComponent>( entity, "Script" );
             scene.AddComponent<StateComponent>( entity, project.mScriptingEngine.CreateTable() );
             scene.AddComponent<ScriptComponent>( entity );
             break;
         case EntityKind::Light:
-            scene.AddComponent<TagComponent>( entity, "Light" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<LightComponent>( entity )
                  .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );
             break;
         case EntityKind::Camera:
-            scene.AddComponent<TagComponent>( entity, "Camera" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<CameraComponent>( entity );
             break;
         case EntityKind::Audio:
-            scene.AddComponent<TagComponent>( entity, "Audio" );
             scene.AddComponent<TransformComponent>( entity, spawnAt );
             scene.AddComponent<AudioSourceComponent>( entity )
                  .SyncToTransform( scene.GetComponent<TransformComponent>( entity ) );

@@ -53,9 +53,9 @@ TEST( EditorLua )
     CHECK( lua.Run( "editor.select( " + std::to_string( (u64)light ) + " )" ).empty() );
 
     // Reading the document
-    CHECK( lua.Run( std::format( "local t = editor.tree(); assert( t.entity == {} and t.folder and #t.children == 1 and t.children[1].entity == {} and t.children[1].name == 'Light' )",
+    CHECK( lua.Run( std::format( "local t = editor.tree(); assert( t.entity == {} and t.folder and #t.children == 1 and t.children[1].entity == {} and t.children[1].name == 'light' )",
                                  (u64)f.Root(), (u64)light ) ).empty() );
-    CHECK( lua.Run( "assert( editor.entities_by_tag( 'Light' )[1] == " + std::to_string( (u64)light ) + " )" ).empty() );
+    CHECK( lua.Run( "assert( editor.entities_by_tag( 'light' )[1] == " + std::to_string( (u64)light ) + " )" ).empty() );
     CHECK( lua.Run( "assert( #editor.operators() > 5 )" ).empty() );
     CHECK( lua.Run( "assert( editor.poll( 'scene.delete' ) )" ).empty() );
 
@@ -123,15 +123,15 @@ TEST( EditorLua_Properties )
     CHECK( light().mType == LightType::Spot );
     // On an entity by path; derived state follows.
     const f32 linear = light().mLinear;
-    CHECK( lua.Run( "editor.ops.property.set{ entity = 'Light', path = 'light.distance', value = 13 }" ).empty() );
+    CHECK( lua.Run( "editor.ops.property.set{ entity = 'light', path = 'light.distance', value = 13 }" ).empty() );
     CHECK( light().mDistance == 13.0f and light().mLinear != linear );
     CHECK( lua.Run( "assert( editor.undo_name() == 'light.distance' )" ).empty() );
     CHECK( lua.Run( "editor.ops.property.set{ path = 'transform.position', value = vec3( 7, 8, 9 ) }" ).empty() );
     CHECK( f.scene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 7, 8, 9 ) );
 
     // Read back as property.set takes it.
-    CHECK( lua.Run( "assert( editor.get( 'Light', 'light.type' ) == 'spot' )" ).empty() );
-    CHECK( lua.Run( "local p = editor.get( 'Light', 'transform.position' ); assert( #p == 3 and p[3] == 9 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'light', 'light.type' ) == 'spot' )" ).empty() );
+    CHECK( lua.Run( "local p = editor.get( 'light', 'transform.position' ); assert( #p == 3 and p[3] == 9 )" ).empty() );
 
     // The value a field holds already makes no step; undo goes one back.
     CHECK( lua.Run( "editor.ops.property.set{ path = 'light.distance', value = 13 }" ).empty() );
@@ -166,11 +166,11 @@ TEST( EditorLua_NamesThroughRename )
     EditorLua lua( OperatorContext{ f.project, f.project.mLevel, f.history, selection, clipboard }, queue );
     CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'light' }" ).empty() );
     CHECK( lua.Run( "editor.ops.scene.create_node{ type = 'light' }" ).empty() );
-    const string error = lua.Run( "editor.ops.property.set{ entity = 'Light2', path = 'tag.name', value = 'Light' }" );
+    const string error = lua.Run( "editor.ops.property.set{ entity = 'light2', path = 'tag.name', value = 'light' }" );
     CHECK( error.find( "name is read only - renamed with scene.rename" ) != string::npos );
     // The operator for it keeps the names apart.
-    CHECK( lua.Run( "editor.ops.scene.rename{ entity = 'Light2', name = 'Light' }" ).empty() );
-    CHECK( lua.Run( "assert( editor.try_find( 'Light2' ) ~= nil )" ).empty() );
+    CHECK( lua.Run( "editor.ops.scene.rename{ entity = 'light2', name = 'light' }" ).empty() );
+    CHECK( lua.Run( "assert( editor.try_find( 'light2' ) ~= nil )" ).empty() );
 }
 
 // state's keys are its table's: a path goes on into the Lua table.
@@ -188,15 +188,15 @@ TEST( EditorLua_StatePaths )
     CHECK( lua.Run( "editor.ops.property.set{ path = 'state.health', value = 50 }" ).empty() );
     CHECK( lua.Run( "editor.ops.property.set{ path = 'state.items', value = { 1, 2, 3 } }" ).empty() );
     CHECK( lua.Run( "editor.ops.property.set{ path = 'state.items[2]', value = 20 }" ).empty() );
-    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.health' ) == 50 )" ).empty() );
-    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.items[2]' ) == 20 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'script', 'state.health' ) == 50 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'script', 'state.items[2]' ) == 20 )" ).empty() );
     CHECK( lua.Run( "assert( editor.undo_name() == 'state.items[2]' )" ).empty() );
     CHECK( lua.Run( "editor.undo()" ).empty() );
-    CHECK( lua.Run( "assert( editor.get( 'Script', 'state.items[2]' ) == 2 )" ).empty() );
+    CHECK( lua.Run( "assert( editor.get( 'script', 'state.items[2]' ) == 2 )" ).empty() );
     // The whole table.
-    CHECK( lua.Run( "local s = editor.get( 'Script', 'state' ); assert( s.health == 50 and #s.items == 3 )" ).empty() );
+    CHECK( lua.Run( "local s = editor.get( 'script', 'state' ); assert( s.health == 50 and #s.items == 3 )" ).empty() );
 
     const auto fails = [&]( const string& code, string_view says ) { return lua.Run( code ).find( says ) != string::npos; };
-    CHECK( fails( "editor.get( 'Script', 'state.mana' )", "no key 'mana'. The table has: health, items" ) );
-    CHECK( fails( "editor.get( 'Script', 'state.health.max' )", "a number has no key 'max'" ) );
+    CHECK( fails( "editor.get( 'script', 'state.mana' )", "no key 'mana'. The table has: health, items" ) );
+    CHECK( fails( "editor.get( 'script', 'state.health.max' )", "a number has no key 'max'" ) );
 }

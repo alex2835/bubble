@@ -27,7 +27,7 @@ editor.undo()
 | `editor.tree()` | `{ entity, name, folder, children = {…} }` from the level's root. Entity ids are what `parent` arguments take. |
 | `editor.find( path )`, `editor.try_find( path )`, `editor.path( id )` | An id by a path of names from the root (`"ground/floor"`) - `find` errors when nothing is there, `try_find` gives `nil`; the path of an id. |
 | `editor.entities_by_tag( name )` | Entity ids. |
-| `editor.get( entity, path )` | A field's value, as `property.set` takes it: `editor.get( "player/Light2", "light.distance" )`. The entity by id or by path. Vectors and described types come back as tables, enums as names. A component's name alone (`"state"`) is the whole component. |
+| `editor.get( entity, path )` | A field's value, as `property.set` takes it: `editor.get( "player/light2", "light.distance" )`. The entity by id or by path. Vectors and described types come back as tables, enums as names. A component's name alone (`"state"`) is the whole component. |
 | `editor.current_level()`, `editor.levels()` | Relative paths, as `level.open` takes. |
 | `print( ... )` | To the console. Tables are opened up on one line: `{ 1, { a = 2 } }`. |
 | `dump( value, depth )` | A value laid out over several lines, tables to `depth` levels (default 4), keys sorted, a cycle shown as `<cycle>`. |
@@ -54,8 +54,8 @@ an entity id is taken, a path from the root works too: `parent = "props"`.
 
 | Operator | Arguments | |
 |---|---|---|
-| `scene.create_node` | `type` (`folder`, `model_object`, `physics_object`, `game_object`, `script`, `light`, `camera`, `audio`), `parent?` entity id, `spawn_at?` vec3 | Creates and selects. Without `parent`: into the selected folder, next to another selected entity, else under the root. |
-| `scene.delete` | | The selection. |
+| `scene.create_node` | `type` (`folder`, `model_object`, `physics_object`, `game_object`, `script`, `light`, `camera`, `audio`), `parent?` entity id, `spawn_at?` vec3 | Creates and selects. Named for its type (`light`, `light2`, ...). Without `parent`: into the selected folder, next to another selected entity, else under the root. |
+| `scene.delete` | `entity?` | That entity, else the selection; with what is under it. |
 | `scene.cut`, `scene.copy` | | The selected entity and what is under it. Not the root. |
 | `scene.paste` | `parent?` entity id | Cut moves, copy duplicates. Either way the pasted entities stay where they were in the world. |
 | `scene.rename` | `name`, `entity?` | A name a sibling has gets a number. |

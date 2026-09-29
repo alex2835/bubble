@@ -144,11 +144,19 @@ void OperatorRegistry::RegisterBuiltins()
             ctx.mSelection.Select( raw->Created(), SceneOf( ctx ) );
         } } );
 
-    // Deletes the selection, with what is under it. args: none.
-    registry.Register( { "scene.delete", "Delete", HasSelection,
-        []( OperatorContext& ctx, const json& )
+    // Deletes, with what is under it. args: entity (id or path, default: the
+    // whole selection).
+    registry.Register( { "scene.delete", "Delete",
+        []( const OperatorContext& ctx, const json& args ) { return args.contains( "entity" ) or HasSelection( ctx, args ); },
+        []( OperatorContext& ctx, const json& args )
         {
-            const vector<Entity> entities( ctx.mSelection.GetEntities().begin(), ctx.mSelection.GetEntities().end() );
+            vector<Entity> entities( ctx.mSelection.GetEntities().begin(), ctx.mSelection.GetEntities().end() );
+            if ( args.contains( "entity" ) )
+            {
+                entities = { RequiredEntity( ctx, args, "entity" ) };
+                if ( entities[0] == SceneOf( ctx ).Root() )
+                    throw std::runtime_error( "delete: not the root" );
+            }
             ctx.mSelection.Clear();
             auto command = CreateScope<DeleteEntitiesCommand>( SceneOf( ctx ), entities );
             ctx.mHistory.Execute( std::move( command ) );

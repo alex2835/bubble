@@ -137,5 +137,5 @@ TEST( Hierarchy_NoIdMeansNothing )
     loaded.mScene.AddComponent<TagComponent>( made, "late" );
     AttachChild( loaded.mScene, made, loaded.Root() );
     CHECK( PathOf( loaded.mScene, made ) == "/late" );
-    CHECK( PathOf( loaded.mScene, child ) == "/Light" );
+    CHECK( PathOf( loaded.mScene, child ) == "/light" );
 }

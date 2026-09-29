@@ -289,7 +289,7 @@ string ValidName( string_view wanted )
             name += c;
     // What a path would read as something else is not a name.
     if ( name.empty() or name == "." or name == ".." or name == "~" )
-        name = "Entity";
+        name = "entity";
     return name;
 }
 

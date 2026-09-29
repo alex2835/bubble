@@ -24,34 +24,34 @@ TEST( Names_UniqueAmongSiblings )
     Fixture f;
     const Entity a = f.Create( EntityKind::Light );
     const Entity b = f.Create( EntityKind::Light );
-    CHECK( Name( f, a ) == "Light" and Name( f, b ) == "Light2" );
+    CHECK( Name( f, a ) == "light" and Name( f, b ) == "light2" );
 
     // A copy next to them counts on.
     f.history.Execute( CreateScope<CopyEntityCommand>( f.scene, a, f.Root() ) );
-    CHECK( Name( f, f.Top().back() ) == "Light3" );
+    CHECK( Name( f, f.Top().back() ) == "light3" );
 
     // In another parent the name is free; moved back out, it is taken again,
     // and undo gives the old one back.
     const Entity folder = f.Create( EntityKind::Folder );
     const Entity inside = f.Create( EntityKind::Light, folder );
-    CHECK( Name( f, inside ) == "Light" );
+    CHECK( Name( f, inside ) == "light" );
     f.history.Execute( CreateScope<MoveEntityCommand>( f.scene, inside, f.Root() ) );
-    CHECK( Name( f, inside ) == "Light4" );
+    CHECK( Name( f, inside ) == "light4" );
     f.history.Undo();
-    CHECK( Name( f, inside ) == "Light" and ParentOf( f.scene, inside ) == folder );
+    CHECK( Name( f, inside ) == "light" and ParentOf( f.scene, inside ) == folder );
 
     // A rename to a sibling's name gets a number past it; to its own,
-    // nothing - and "Light" for Light2 is Light2 again.
-    CHECK( MakeRenameCommand( f.scene, b, "Light" ) == nullptr );
-    auto rename = MakeRenameCommand( f.scene, b, "Light3" );
+    // nothing - and "light" for light2 is light2 again.
+    CHECK( MakeRenameCommand( f.scene, b, "light" ) == nullptr );
+    auto rename = MakeRenameCommand( f.scene, b, "light3" );
     CHECK( rename != nullptr );
     f.history.Execute( std::move( rename ) );
-    CHECK( Name( f, b ) == "Light4" );
-    CHECK( MakeRenameCommand( f.scene, b, "Light4" ) == nullptr );
+    CHECK( Name( f, b ) == "light4" );
+    CHECK( MakeRenameCommand( f.scene, b, "light4" ) == nullptr );
     // Slashes cannot be in a name; nothing is not a name.
     CHECK( UniqueChildName( f.scene, f.Root(), "a/b" ) == "ab" );
-    CHECK( UniqueChildName( f.scene, f.Root(), "" ) == "Entity" );
-    CHECK( UniqueChildName( f.scene, f.Root(), ".." ) == "Entity" );
+    CHECK( UniqueChildName( f.scene, f.Root(), "" ) == "entity" );
+    CHECK( UniqueChildName( f.scene, f.Root(), ".." ) == "entity" );
 }
 
 TEST( Names_RepeatsInAFileAreNumbered )
@@ -92,16 +92,16 @@ TEST( Paths_FindAndBack )
     CHECK( FindByPath( f.scene, f.Root(), "props/chair" ) == chair );
     CHECK( FindByPath( f.scene, leg, "/props/door" ) == door );
     CHECK( FindByPath( f.scene, chair, "../door" ) == door );
-    CHECK( FindByPath( f.scene, chair, "Light" ) == leg );
+    CHECK( FindByPath( f.scene, chair, "light" ) == leg );
     CHECK( FindByPath( f.scene, chair, "." ) == chair );
     CHECK( FindByPath( f.scene, chair, "/" ) == f.Root() );
     CHECK( FindByPath( f.scene, chair, "nothing" ) == Entity::Null );
     CHECK( FindByPath( f.scene, f.Root(), ".." ) == Entity::Null );
 
-    CHECK( PathOf( f.scene, leg ) == "/props/chair/Light" );
+    CHECK( PathOf( f.scene, leg ) == "/props/chair/light" );
     CHECK( PathOf( f.scene, f.Root() ) == "/" );
     CHECK( RelativePath( f.scene, chair, door ) == "../door" );
-    CHECK( RelativePath( f.scene, props, leg ) == "chair/Light" );
+    CHECK( RelativePath( f.scene, props, leg ) == "chair/light" );
     CHECK( RelativePath( f.scene, leg, leg ) == "." );
     // Every relative path leads back to where it was made for.
     for ( const Entity from : { f.Root(), props, chair, leg, door } )
@@ -138,7 +138,7 @@ TEST( Paths_WhyNothingIsThere )
     CHECK( WhyPathFails( f.scene, f.Root(), ".." ).contains( "'/' has no parent" ) );
     CHECK( WhyPathFails( f.scene, player, "mesh" ).empty() );
     // Not a name: what a path reads as something else.
-    CHECK( UniqueChildName( f.scene, f.Root(), "~" ) == "Entity" );
+    CHECK( UniqueChildName( f.scene, f.Root(), "~" ) == "entity" );
 }
 
 TEST( Paths_FromScripts )
@@ -194,7 +194,7 @@ TEST( NodePath_SavedAndResolved )
 
     Table state = f.scene.GetComponent<StateComponent>( body ).mState->as<Table>();
     state["part"] = NodePath( "part" );
-    state["lamp"] = NodePath( "../Light" );
+    state["lamp"] = NodePath( "../light" );
     state["gone"] = NodePath( "nothing" );
     Table nested = f.project.mScriptingEngine.CreateTable();
     nested["again"] = NodePath( "part" );
@@ -204,7 +204,7 @@ TEST( NodePath_SavedAndResolved )
     const json saved = SaveAnyValue( state );
     CHECK( saved["part"]["__type"] == "NodePath" and saved["part"]["path"] == "part" );
     const Any loaded = LoadAnyValue( f.project.mScriptingEngine, saved );
-    CHECK( loaded.as<Table>()["lamp"].get<NodePath>().mPath == "../Light" );
+    CHECK( loaded.as<Table>()["lamp"].get<NodePath>().mPath == "../light" );
 
     // Turned into entities, as when the game starts.
     ResolveAllNodePaths( f.scene );

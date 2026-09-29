@@ -230,7 +230,7 @@ TEST( Reflection_ComponentsInLevelFiles )
     const json& savedLight = pools.at( "light" ).at( std::to_string( lamp ) );
     CHECK( savedLight.at( "type" ) == "point" and savedLight.at( "distance" ) == 13.0f );
     CHECK( not savedLight.contains( "linear" ) and not savedLight.contains( "position" ) );
-    CHECK( pools.at( "tag" ).at( std::to_string( lamp ) ).at( "name" ) == "Light" );
+    CHECK( pools.at( "tag" ).at( std::to_string( lamp ) ).at( "name" ) == "light" );
     CHECK( pools.at( "transform" ).at( std::to_string( lamp ) ).at( "position" ) == json::array( { 1.0f, 2.0f, 3.0f } ) );
 
     Level loaded;

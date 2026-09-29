@@ -135,11 +135,7 @@ void ProjectTreeWindow::Rename( Entity entity, const string& name )
     if ( not scene.HasComponent<TagComponent>( entity ) or name.empty() )
         return;
     // A name a sibling has gets a number.
-    mDeferred.push_back( [this, entity, name]()
-    {
-        if ( auto step = MakeRenameCommand( mLevel.mScene, entity, name ) )
-            mHistory.Execute( std::move( step ) );
-    } );
+    Invoke( "scene.rename", { { "entity", (u64)entity }, { "name", name } } );
 }
 
 void ProjectTreeWindow::DrawContextMenu( Entity entity )
@@ -176,11 +172,7 @@ void ProjectTreeWindow::DrawContextMenu( Entity entity )
             mFocusRename = true;
         }
         if ( ImGui::MenuItem( "Delete", "Del" ) )
-            mDeferred.push_back( [this, entity]()
-            {
-                mSelection.Clear();
-                mHistory.Execute( CreateScope<DeleteEntitiesCommand>( mLevel.mScene, vector<Entity>{ entity } ) );
-            } );
+            Invoke( "scene.delete", { { "entity", (u64)entity } } );
         DrawPrefabMenu( entity );
     }
     ImGui::EndPopup();
@@ -238,13 +230,12 @@ void ProjectTreeWindow::DragDrop( Entity entity )
                                             { "spawn_at", SpawnPoint() } } );
         if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( "SCENE_ENTITY" ) )
         {
+            // scene.move says why a drop into what is under it is refused.
+            // Onto itself - let go where it was picked up - or onto its own
+            // parent is no move at all.
             const Entity dragged = Entity::FromId( *(const u64*)payload->Data );
-            if ( scene.HasEntity( dragged ) and dragged != entity and not IsAncestor( scene, dragged, entity ) and
-                 ParentOf( scene, dragged ) != entity )
-                mDeferred.push_back( [this, dragged, entity]()
-                {
-                    mHistory.Execute( CreateScope<MoveEntityCommand>( mLevel.mScene, dragged, entity ) );
-                } );
+            if ( dragged != entity and ParentOf( scene, dragged ) != entity )
+                Invoke( "scene.move", { { "entity", (u64)dragged }, { "parent", (u64)entity } } );
         }
         ImGui::EndDragDropTarget();
     }

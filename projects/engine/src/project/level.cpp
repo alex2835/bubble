@@ -16,14 +16,14 @@ namespace bubble
 {
 Level::Level()
 {
-    MakeRoot( "Level" );
+    MakeRoot( "level" );
 }
 
 void Level::Clear()
 {
     // Scene first - see the header.
     mScene = Scene();
-    MakeRoot( "Level" );
+    MakeRoot( "level" );
     mName.clear();
     mFile.clear();
 }

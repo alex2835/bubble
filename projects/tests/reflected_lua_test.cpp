@@ -19,7 +19,7 @@ TEST( ReflectedLua_Components )
 
     sol::state& lua = *f.project.mScriptingEngine.mLua;
     lua.script( R"(
-        local lamp = level:find( "Light" )
+        local lamp = level:find( "light" )
         local l = lamp:get_light()
         -- An enum by the name of its value, or through its table.
         l.type = "spot"
@@ -59,7 +59,7 @@ TEST( ReflectedLua_Components )
     CHECK( f.scene.GetComponent<TransformComponent>( lamp ).mPosition == vec3( 1, 2, 3 ) );
     CHECK( lua["made_x"].get<f32>() == 4.0f );
     CHECK( std::abs( lua["fov"].get<f32>() - 1.2f ) < 1e-6f );
-    CHECK( lua["tag_name"].get<string>() == "Light" );
+    CHECK( lua["tag_name"].get<string>() == "light" );
 }
 
 // audio_source and animator: settings as flat fields over what plays.
@@ -75,7 +75,7 @@ TEST( ReflectedLua_AudioAndAnimator )
 
     sol::state& lua = *f.project.mScriptingEngine.mLua;
     lua.script( R"(
-        local e = level:find( "Game object" )
+        local e = level:find( "game_object" )
         local s = e:get_audio_source()
         s.volume = 0.5
         s.spatialized = false
