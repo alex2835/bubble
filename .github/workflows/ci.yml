@@ -8,7 +8,7 @@ jobs:
   windows:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # MSVC's environment for its STL, SDK and linker; the compiler is the
       # runner's LLVM clang-cl.
       - uses: ilammy/msvc-dev-cmd@v1
@@ -22,12 +22,15 @@ jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Install clang 20 and Ninja
+      - uses: actions/checkout@v5
+      # libc++, LLVM's own standard library: the one Emscripten, the NDK and
+      # Xcode use too. Ubuntu's clang would otherwise take GCC 13's
+      # libstdc++, whose std::expected clang 20 cannot see.
+      - name: Install clang 20, libc++ and Ninja
         run: |
           wget -qO llvm.sh https://apt.llvm.org/llvm.sh
           sudo bash llvm.sh 20
-          sudo apt-get install -y ninja-build
+          sudo apt-get install -y ninja-build libc++-20-dev libc++abi-20-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
       - name: Configure
@@ -40,7 +43,7 @@ jobs:
   web:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
