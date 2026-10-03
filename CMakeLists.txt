@@ -51,6 +51,13 @@ function( bubble_executable target )
     endif()
 endfunction()
 
+# Script errors are C++ exceptions; the web needs them switched on, and
+# native wasm exceptions are the fast kind.
+if( EMSCRIPTEN )
+    add_compile_options( -fwasm-exceptions )
+    add_link_options( -fwasm-exceptions )
+endif()
+
 if( BUBBLE_ASAN )
     if( MSVC )
         add_compile_options( /fsanitize=address )

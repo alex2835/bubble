@@ -3,7 +3,7 @@ include( CheckCXXCompilerFlag )
 file( GLOB_RECURSE BUBBLE_TEST_SOURCES CONFIGURE_DEPENDS *.cpp )
 
 add_executable( bubble_tests ${BUBBLE_TEST_SOURCES} )
-target_link_libraries( bubble_tests PRIVATE bubble_engine doctest )
+target_link_libraries( bubble_tests PRIVATE bubble_engine doctest luau luau_analysis )
 bubble_executable( bubble_tests )
 
 # doctest's TEST_CASE names its functions with __COUNTER__, which clang 22
