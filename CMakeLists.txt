@@ -23,6 +23,8 @@ endif()
 function( bubble_target_warnings target )
     if( MSVC )
         target_compile_options( ${target} PRIVATE /W4 /WX /utf-8 )
+        # The CRT's "use fopen_s" deprecations: the code is portable C++.
+        target_compile_definitions( ${target} PRIVATE _CRT_SECURE_NO_WARNINGS )
         if( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
             target_compile_options( ${target} PRIVATE -Wpedantic )
         else()
@@ -30,6 +32,15 @@ function( bubble_target_warnings target )
         endif()
     else()
         target_compile_options( ${target} PRIVATE -Wall -Wextra -Wpedantic -Werror )
+    endif()
+endfunction()
+
+# Every executable: warnings, and on Windows the manifest that makes the
+# process's code page UTF-8 (see bubble/core/process.hpp).
+function( bubble_executable target )
+    bubble_target_warnings( ${target} )
+    if( WIN32 )
+        target_sources( ${target} PRIVATE ${PROJECT_SOURCE_DIR}/cmake/utf8.manifest )
     endif()
 endfunction()
 
