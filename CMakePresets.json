@@ -1,0 +1,48 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/out/build/${presetName}"
+        },
+        {
+            "name": "windows-debug",
+            "inherits": "base",
+            "displayName": "Windows clang-cl Debug",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "CMAKE_CXX_COMPILER": "clang-cl", "CMAKE_C_COMPILER": "clang-cl" },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+        },
+        {
+            "name": "windows-release",
+            "inherits": "windows-debug",
+            "displayName": "Windows clang-cl Release",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "linux",
+            "inherits": "base",
+            "displayName": "Linux Clang",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "CMAKE_CXX_COMPILER": "clang++", "CMAKE_C_COMPILER": "clang" }
+        },
+        {
+            "name": "web",
+            "inherits": "base",
+            "displayName": "Web (Emscripten)",
+            "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "windows-debug", "configurePreset": "windows-debug" },
+        { "name": "windows-release", "configurePreset": "windows-release" },
+        { "name": "linux", "configurePreset": "linux" },
+        { "name": "web", "configurePreset": "web" }
+    ],
+    "testPresets": [
+        { "name": "windows-debug", "configurePreset": "windows-debug", "output": { "outputOnFailure": true } },
+        { "name": "linux", "configurePreset": "linux", "output": { "outputOnFailure": true } },
+        { "name": "web", "configurePreset": "web", "output": { "outputOnFailure": true } }
+    ]
+}
