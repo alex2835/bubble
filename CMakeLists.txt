@@ -11,6 +11,13 @@ set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
 
 option( BUBBLE_BUILD_TESTS "Build bubble_tests" ON )
 option( BUBBLE_ASAN "Address sanitizer" OFF )
+option( BUBBLE_PROFILE "Tracy profiler zones (bubble/core/profile.hpp)" OFF )
+
+# Tracy's client needs sockets and threads the browser does not give.
+if( EMSCRIPTEN AND BUBBLE_PROFILE )
+    message( WARNING "BUBBLE_PROFILE is not available on the web; turned off" )
+    set( BUBBLE_PROFILE OFF CACHE BOOL "" FORCE )
+endif()
 
 # Clang everywhere: clang-cl on Windows (MSVC's STL, linker and PDBs),
 # clang on Linux, and the clang inside Emscripten, the NDK and Xcode.

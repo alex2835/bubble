@@ -15,6 +15,7 @@ The engine is built with clang on every platform.
 | preset | platform |
 | --- | --- |
 | `windows-debug`, `windows-release` | clang-cl, from a Visual Studio developer prompt (VS component "C++ Clang Compiler for Windows") |
+| `windows-profile` | release with the Tracy client; connect the [Tracy profiler 0.14.1](https://github.com/wolfpld/tracy/releases/tag/v0.14.1) |
 | `linux` | clang 20 or newer with libc++ (`libc++-dev`, `libc++abi-dev`) |
 | `web` | Emscripten, with `EMSDK` set |
 

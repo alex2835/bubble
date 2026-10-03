@@ -18,6 +18,12 @@ jobs:
         run: cmake --build --preset windows-debug
       - name: Test
         run: ctest --preset windows-debug
+      # The same tests with the Tracy client compiled in.
+      - name: Build with the profiler
+        run: |
+          cmake --preset windows-profile
+          cmake --build --preset windows-profile
+          out/build/windows-profile/bin/bubble_tests.exe
 
   linux:
     runs-on: ubuntu-24.04

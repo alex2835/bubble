@@ -1,4 +1,5 @@
 #include "bubble/core/log.hpp"
+#include "bubble/core/profile.hpp"
 #include <deque>
 #include <fstream>
 #include <iostream>
@@ -48,6 +49,8 @@ void LogMessage( LogLevel level, string text )
         std::cout << Prefix( level ) << text << std::endl;
     if ( state.mFile.is_open() )
         state.mFile << Prefix( level ) << text << std::endl;
+    // On the profiler's timeline too, beside the frame it happened in.
+    BUBBLE_PROFILE_MESSAGE( text.data(), text.size() );
 
     state.mEntries.push_back( LogEntry{ level, std::move( text ), state.mNextIndex++ } );
     if ( state.mEntries.size() > cMaxEntries )

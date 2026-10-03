@@ -21,6 +21,12 @@
             "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
         },
         {
+            "name": "windows-profile",
+            "inherits": "windows-debug",
+            "displayName": "Windows clang-cl Release + Tracy",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "BUBBLE_PROFILE": "ON" }
+        },
+        {
             "name": "linux",
             "inherits": "base",
             "displayName": "Linux Clang + libc++",
@@ -43,6 +49,7 @@
     "buildPresets": [
         { "name": "windows-debug", "configurePreset": "windows-debug" },
         { "name": "windows-release", "configurePreset": "windows-release" },
+        { "name": "windows-profile", "configurePreset": "windows-profile" },
         { "name": "linux", "configurePreset": "linux" },
         { "name": "web", "configurePreset": "web" }
     ],
