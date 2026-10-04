@@ -26,9 +26,9 @@ TEST_CASE( "TryParse takes the whole text or nothing" )
     CHECK( TryParse<u64>( "18446744073709551615" ) == ~u64( 0 ) );
 }
 
-TEST_CASE( "str_hash_map finds a string key by string_view" )
+TEST_CASE( "str_hmap finds a string key by string_view" )
 {
-    str_hash_map<int> map{ { "jump", 1 } };
+    str_hmap<int> map{ { "jump", 1 } };
     const string_view key = "jump";
     CHECK( map.find( key ) != map.end() );
 }

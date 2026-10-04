@@ -26,13 +26,13 @@ template <typename T>
 using set = std::set<T>;
 
 template <typename K, typename V>
-using hash_map = std::unordered_map<K, V>;
+using hmap = std::unordered_map<K, V>;
 
 template <typename T>
-using hash_set = std::unordered_set<T>;
+using hset = std::unordered_set<T>;
 
 // Keyed by string, looked up by string_view without a copy.
 template <typename V>
-using str_hash_map = std::unordered_map<string, V, string_hash, std::equal_to<>>;
-using str_hash_set = std::unordered_set<string, string_hash, std::equal_to<>>;
+using str_hmap = std::unordered_map<string, V, string_hash, std::equal_to<>>;
+using str_hset = std::unordered_set<string, string_hash, std::equal_to<>>;
 }

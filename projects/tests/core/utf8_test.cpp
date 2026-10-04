@@ -106,7 +106,7 @@ TEST_CASE( "AssetPath splits into its parts" )
     CHECK( path.Parent().Join( "table.glb" )->View() == "models/props/table.glb" );
     CHECK( AssetPath::From( ".gitignore" )->Extension().empty() );
 
-    hash_set<AssetPath> set{ path };
+    hset<AssetPath> set{ path };
     CHECK( set.contains( *AssetPath::From( "models\\props\\chair.glb" ) ) );
 }
 
