@@ -1,4 +1,5 @@
 #include "bubble/scripts/script_runtime.hpp"
+#include "bubble/core/asset_path.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/profile.hpp"
 #include "bubble/scripts/lua/lua_data.hpp"
@@ -8,6 +9,7 @@
 #include <lua.h>
 #include <lualib.h>
 #include <stdexcept>
+#include <utility>
 
 #ifdef BUBBLE_LUAU_CODEGEN
 #include <luacodegen.h>
@@ -15,7 +17,7 @@
 
 // Script code can create and destroy instances while it runs, so nothing
 // here keeps a reference to an entry across a call into Luau: before the
-// call the id is looked up, after it the id is looked up again.
+// call the handle is looked up, after it the handle is looked up again.
 namespace bubble
 {
 namespace
@@ -28,7 +30,7 @@ char sPropsKey = 0;
 class CurrentScope
 {
 public:
-    CurrentScope( ScriptInstanceId& current, ScriptInstanceId instance )
+    CurrentScope( ScriptInstanceHandle& current, ScriptInstanceHandle instance )
         : mCurrent( current ),
           mPrevious( current )
     {
@@ -39,8 +41,8 @@ public:
     CurrentScope& operator=( const CurrentScope& ) = delete;
 
 private:
-    ScriptInstanceId& mCurrent;
-    ScriptInstanceId mPrevious;
+    ScriptInstanceHandle& mCurrent;
+    ScriptInstanceHandle mPrevious;
 };
 
 // props { ... }: upvalue 1 is the file's environment.
@@ -90,6 +92,21 @@ int WaitUntil( lua_State* L )
     luaL_checktype( L, 1, LUA_TFUNCTION );
     lua_settop( L, 1 );
     return lua_yield( L, 1 );
+}
+
+// props { ... } in a library: a library shares through what it returns.
+int LibraryProps( lua_State* L )
+{
+    luaL_error( L, "props belong to entity scripts; a library shares through what it returns" );
+}
+
+// "a, b, c", or "none".
+string Join( const vector<string>& names )
+{
+    string list;
+    for ( const string& name : names )
+        list += ( list.empty() ? "" : ", " ) + name;
+    return list.empty() ? "none" : list;
 }
 
 // The names of a table's string keys, sorted: "jump_height, speed".
@@ -165,10 +182,10 @@ expected<void, string> CopyInto( lua_State* L, int self, int from, bool onlyMiss
     return {};
 }
 
-void PushId( lua_State* L, ScriptInstanceId id )
+void PushHandle( lua_State* L, ScriptInstanceHandle handle )
 {
-    lua_pushnumber( L, id.mIndex );
-    lua_pushnumber( L, id.mGeneration );
+    lua_pushnumber( L, handle.mIndex );
+    lua_pushnumber( L, handle.mGeneration );
 }
 }
 
@@ -181,18 +198,18 @@ struct ScriptRuntime::Impl
         return *static_cast<ScriptRuntime*>( lua_tolightuserdata( L, lua_upvalueindex( 1 ) ) );
     }
 
-    static ScriptInstanceId Current( lua_State* L, const char* what )
+    static ScriptInstanceHandle Current( lua_State* L, const char* what )
     {
-        const ScriptInstanceId current = Of( L ).mCurrent;
+        const ScriptInstanceHandle current = Of( L ).mCurrent;
         if ( not current )
             luaL_error( L, "%s works in an entity's callbacks, not at the top of a file", what );
         return current;
     }
 
     // `L` is the thread running now.
-    static void Fail( ScriptRuntime& runtime, ScriptInstanceId id, lua_State* L, const ScriptError& error )
+    static void Fail( ScriptRuntime& runtime, ScriptInstanceHandle handle, lua_State* L, const ScriptError& error )
     {
-        auto instance = runtime.mInstances.Get( id );
+        auto instance = runtime.mInstances.Get( handle );
         if ( not instance )
             return;
         LogError( "{}: {}\n{}", instance->mLabel, error.mMessage, error.mTraceback );
@@ -205,11 +222,11 @@ struct ScriptRuntime::Impl
 
     // Runs the coroutine until it waits (true: the wait is on top of the
     // thread's stack) or ends (false; an error switches the instance off).
-    static bool Resume( ScriptRuntime& runtime, ScriptInstanceId id, lua_State* from, lua_State* thread, int nargs )
+    static bool Resume( ScriptRuntime& runtime, ScriptInstanceHandle handle, lua_State* from, lua_State* thread, int nargs )
     {
         int status = LUA_OK;
         {
-            const CurrentScope scope( runtime.mCurrent, id );
+            const CurrentScope scope( runtime.mCurrent, handle );
             status = lua_resume( thread, from, nargs );
         }
         if ( status == LUA_YIELD )
@@ -220,7 +237,7 @@ struct ScriptRuntime::Impl
         error.mMessage =
             lua_type( thread, -1 ) == LUA_TSTRING ? lua_tostring( thread, -1 ) : DescribeValue( thread, -1 );
         error.mTraceback = lua_debugtrace( thread );
-        Fail( runtime, id, from, error );
+        Fail( runtime, handle, from, error );
         return false;
     }
 
@@ -241,9 +258,9 @@ struct ScriptRuntime::Impl
 
     // A coroutine of the function at `function` of L - the thread that
     // called start - with the `nargs` values after it, run to its first wait.
-    static void Start( ScriptRuntime& runtime, ScriptInstanceId id, lua_State* L, int function, int nargs )
+    static void Start( ScriptRuntime& runtime, ScriptInstanceHandle handle, lua_State* L, int function, int nargs )
     {
-        auto instance = runtime.mInstances.Get( id );
+        auto instance = runtime.mInstances.Get( handle );
         if ( not instance )
             return;
         const int top = lua_gettop( L );
@@ -261,20 +278,20 @@ struct ScriptRuntime::Impl
         lua_rawseti( L, -2, lua_objlen( L, -2 ) + 1 );
         lua_pop( L, 1 );
 
-        AfterResume( L, task, thread, Resume( runtime, id, L, thread, nargs ) );
+        AfterResume( L, task, thread, Resume( runtime, handle, L, thread, nargs ) );
         lua_settop( L, top );
     }
 
-    static void Tick( ScriptRuntime& runtime, ScriptInstanceId id, f32 dt )
+    static void Tick( ScriptRuntime& runtime, ScriptInstanceHandle handle, f32 dt )
     {
         lua_State* L = runtime.L();
-        const auto enabled = [&] { return runtime.Enabled( id ); };
+        const auto enabled = [&] { return runtime.Enabled( handle ); };
         if ( not enabled() )
             return;
         const int top = lua_gettop( L );
         // On the stack, the table outlives the instance if a coroutine
         // destroys it.
-        runtime.mInstances.Get( id )->mTasks.Push( L );
+        runtime.mInstances.Get( handle )->mTasks.Push( L );
         const int tasks = lua_gettop( L );
         // Coroutines started during this tick have run already.
         const int count = lua_objlen( L, tasks );
@@ -301,29 +318,29 @@ struct ScriptRuntime::Impl
                 lua_pushvalue( L, -1 );
                 expected<void, ScriptError> polled;
                 {
-                    const CurrentScope scope( runtime.mCurrent, id );
+                    const CurrentScope scope( runtime.mCurrent, handle );
                     polled = PCall( L, 0, 1 );
                 }
                 if ( not polled )
                 {
-                    Fail( runtime, id, L, polled.error() );
+                    Fail( runtime, handle, L, polled.error() );
                     break;
                 }
                 ready = lua_toboolean( L, -1 );
                 lua_pop( L, 1 );
             }
             if ( ready )
-                AfterResume( L, task, thread, Resume( runtime, id, L, thread, 0 ) );
+                AfterResume( L, task, thread, Resume( runtime, handle, L, thread, 0 ) );
             lua_settop( L, task - 1 );
         }
         lua_settop( L, top );
-        Sweep( runtime, id );
+        Sweep( runtime, handle );
     }
 
     // Drops the finished coroutines, keeping the order of the rest.
-    static void Sweep( ScriptRuntime& runtime, ScriptInstanceId id )
+    static void Sweep( ScriptRuntime& runtime, ScriptInstanceHandle handle )
     {
-        auto instance = runtime.mInstances.Get( id );
+        auto instance = runtime.mInstances.Get( handle );
         if ( not instance )
             return;
         lua_State* L = runtime.L();
@@ -347,7 +364,7 @@ struct ScriptRuntime::Impl
         lua_pop( L, 2 );
     }
 
-    static void Unsubscribe( ScriptRuntime& runtime, ScriptInstanceId id, const Instance& instance )
+    static void Unsubscribe( ScriptRuntime& runtime, ScriptInstanceHandle handle, const Instance& instance )
     {
         lua_State* L = runtime.L();
         runtime.mEvents.Push( L );
@@ -364,7 +381,7 @@ struct ScriptRuntime::Impl
                 lua_rawgeti( L, list, i );
                 lua_rawgeti( L, -1, 1 );
                 lua_rawgeti( L, -2, 2 );
-                const bool mine = lua_tonumber( L, -2 ) == id.mIndex and lua_tonumber( L, -1 ) == id.mGeneration;
+                const bool mine = lua_tonumber( L, -2 ) == handle.mIndex and lua_tonumber( L, -1 ) == handle.mGeneration;
                 lua_pop( L, 2 );
                 if ( mine )
                     lua_pop( L, 1 );
@@ -400,35 +417,45 @@ struct ScriptRuntime::Impl
             lua_rawgeti( L, list, i );
             lua_rawgeti( L, -1, 1 );
             lua_rawgeti( L, -2, 2 );
-            const ScriptInstanceId id{ static_cast<u32>( lua_tonumber( L, -2 ) ),
+            const ScriptInstanceHandle handle{ static_cast<u32>( lua_tonumber( L, -2 ) ),
                                        static_cast<u32>( lua_tonumber( L, -1 ) ) };
             lua_pop( L, 2 );
-            if ( runtime.Enabled( id ) )
+            if ( runtime.Enabled( handle ) )
             {
                 lua_rawgeti( L, -1, 3 );
-                runtime.mInstances.Get( id )->mSelf.Push( L );
+                runtime.mInstances.Get( handle )->mSelf.Push( L );
                 for ( int arg = 0; arg < nargs; ++arg )
                     lua_pushvalue( L, first + arg );
                 expected<void, ScriptError> called;
                 {
-                    const CurrentScope scope( runtime.mCurrent, id );
+                    const CurrentScope scope( runtime.mCurrent, handle );
                     called = PCall( L, nargs + 1, 0 );
                 }
                 if ( not called )
-                    Fail( runtime, id, L, called.error() );
+                    Fail( runtime, handle, L, called.error() );
             }
             lua_pop( L, 1 );
         }
         lua_settop( L, top );
     }
 
-    // Runs a file in a new environment and fills `out` from it.
-    static expected<void, ScriptError> Run( ScriptRuntime& runtime, string_view chunk, string_view bytecode,
-                                            Module& out )
+    // What running a file leaves: its environment, and for a script its
+    // props and callbacks, for a library the value it returned.
+    struct FileResult
     {
-        lua_State* L = runtime.L();
+        LuaRef mEnvironment;
+        LuaRef mProps;
+        vector<LuaRef> mCallbacks;
+        LuaRef mResult;
+    };
+
+    // Runs a file in a new environment on L - the main thread, or the
+    // thread whose require got here.
+    static expected<FileResult, ScriptError> RunFile( ScriptRuntime& runtime, lua_State* L, string_view path,
+                                                      string_view bytecode, bool library )
+    {
         const int top = lua_gettop( L );
-        const auto fail = [&]( string message ) -> expected<void, ScriptError> {
+        const auto fail = [&]( string message ) -> expected<FileResult, ScriptError> {
             lua_settop( L, top );
             return std::unexpected( ScriptError{ std::move( message ), {} } );
         };
@@ -444,11 +471,21 @@ struct ScriptRuntime::Impl
         lua_setfield( L, meta, "__index" );
         lua_pushvalue( L, meta );
         lua_setmetatable( L, env );
-        lua_pushvalue( L, env );
-        lua_pushcclosure( L, DeclareProps, "props", 1 );
+        if ( library )
+            lua_pushcfunction( L, LibraryProps, "props" );
+        else
+        {
+            lua_pushvalue( L, env );
+            lua_pushcclosure( L, DeclareProps, "props", 1 );
+        }
         lua_rawsetfield( L, env, "props" );
+        // require resolves relative paths from this file.
+        lua_pushlightuserdata( L, &runtime );
+        lua_pushlstring( L, path.data(), path.size() );
+        lua_pushcclosure( L, &Impl::LuaRequire, "require", 2 );
+        lua_rawsetfield( L, env, "require" );
 
-        if ( auto loaded = LoadScript( L, chunk, bytecode, env ); not loaded )
+        if ( auto loaded = LoadScript( L, path, bytecode, env ); not loaded )
             return fail( loaded.error() );
         // The engine's globals are read-only, so lookups through to them
         // may be cached - what lets math.sqrt and friends run as builtins.
@@ -457,7 +494,10 @@ struct ScriptRuntime::Impl
         if ( runtime.mState.NativeCode() )
             luau_codegen_compile( L, -1 );
 #endif
-        if ( auto ran = PCall( L, 0, 0 ); not ran )
+        runtime.mRunning.emplace_back( path );
+        auto ran = PCall( L, 0, library ? 1 : 0 );
+        runtime.mRunning.pop_back();
+        if ( not ran )
         {
             lua_settop( L, top );
             return std::unexpected( std::move( ran.error() ) );
@@ -468,71 +508,225 @@ struct ScriptRuntime::Impl
         lua_setfield( L, meta, "__newindex" );
         lua_setreadonly( L, meta, true );
 
-        lua_rawgetp( L, env, &sPropsKey );
-        if ( lua_isnil( L, -1 ) )
+        FileResult result;
+        if ( library )
         {
-            // None declared: an empty table, which also makes a later
-            // props { } an error.
-            lua_pop( L, 1 );
-            lua_newtable( L );
-            lua_pushvalue( L, -1 );
-            lua_rawsetp( L, env, &sPropsKey );
-        }
-        const int props = lua_gettop( L );
-        if ( auto checked = CheckProps( L, props ); not checked )
-            return fail( string( chunk ) + ": " + checked.error() );
-
-        vector<LuaRef> callbacks;
-        for ( const string& name : runtime.mCallbacks )
-        {
-            lua_rawgetfield( L, env, name.c_str() );
-            if ( lua_isfunction( L, -1 ) )
-                callbacks.emplace_back( L, -1 );
-            else if ( lua_isnil( L, -1 ) )
-                callbacks.emplace_back();
-            else
-                return fail( std::format( "{}: {} is a {}, not a function", chunk, name, luaL_typename( L, -1 ) ) );
-            lua_pop( L, 1 );
-        }
-
-        // on_updte would never run; say so instead of staying silent.
-        lua_pushnil( L );
-        while ( lua_next( L, env ) )
-        {
-            if ( lua_type( L, -2 ) == LUA_TSTRING and lua_isfunction( L, -1 ) )
+            if ( lua_isnil( L, -1 ) )
+                return fail( string( path ) + ": a library returns what it shares - end it with return" );
+            result.mResult = LuaRef( L, -1 );
+            for ( const string& name : runtime.mCallbacks )
             {
-                const string_view name = lua_tostring( L, -2 );
-                if ( name.starts_with( "on_" ) and
-                     std::ranges::find( runtime.mCallbacks, name ) == runtime.mCallbacks.end() )
-                {
-                    string known;
-                    for ( const string& callback : runtime.mCallbacks )
-                        known += ( known.empty() ? "" : ", " ) + callback;
-                    LogWarning( "{}: {} is not a callback the engine calls ({})", chunk, name, known );
-                }
+                lua_rawgetfield( L, env, name.c_str() );
+                const bool defined = not lua_isnil( L, -1 );
+                lua_pop( L, 1 );
+                if ( defined )
+                    return fail( std::format(
+                        "{}: {} is a callback of entity scripts; a library only returns what it shares", path,
+                        name ) );
             }
-            lua_pop( L, 1 );
+        }
+        else
+        {
+            lua_rawgetp( L, env, &sPropsKey );
+            if ( lua_isnil( L, -1 ) )
+            {
+                // None declared: an empty table, which also makes a later
+                // props { } an error.
+                lua_pop( L, 1 );
+                lua_newtable( L );
+                lua_pushvalue( L, -1 );
+                lua_rawsetp( L, env, &sPropsKey );
+            }
+            const int props = lua_gettop( L );
+            if ( auto checked = CheckProps( L, props ); not checked )
+                return fail( string( path ) + ": " + checked.error() );
+            result.mProps = LuaRef( L, props );
+
+            for ( const string& name : runtime.mCallbacks )
+            {
+                lua_rawgetfield( L, env, name.c_str() );
+                if ( lua_isfunction( L, -1 ) )
+                    result.mCallbacks.emplace_back( L, -1 );
+                else if ( lua_isnil( L, -1 ) )
+                    result.mCallbacks.emplace_back();
+                else
+                    return fail(
+                        std::format( "{}: {} is a {}, not a function", path, name, luaL_typename( L, -1 ) ) );
+                lua_pop( L, 1 );
+            }
+
+            // on_updte would never run; say so instead of staying silent.
+            lua_pushnil( L );
+            while ( lua_next( L, env ) )
+            {
+                if ( lua_type( L, -2 ) == LUA_TSTRING and lua_isfunction( L, -1 ) )
+                {
+                    const string_view name = lua_tostring( L, -2 );
+                    if ( name.starts_with( "on_" ) and
+                         std::ranges::find( runtime.mCallbacks, name ) == runtime.mCallbacks.end() )
+                        LogWarning( "{}: {} is not a callback the engine calls ({})", path, name,
+                                    Join( runtime.mCallbacks ) );
+                }
+                lua_pop( L, 1 );
+            }
         }
 
-        out.mChunk = string( chunk );
-        out.mEnvironment = LuaRef( L, env );
-        out.mProps = LuaRef( L, props );
-        out.mCallbacks = std::move( callbacks );
+        result.mEnvironment = LuaRef( L, env );
         lua_settop( L, top );
+        return result;
+    }
+
+    // RunFile, recording what the file requires. A file that fails keeps
+    // the record of its last good run, as it keeps its code.
+    static expected<FileResult, ScriptError> RunTracked( ScriptRuntime& runtime, lua_State* L, string_view path,
+                                                         string_view bytecode, bool library )
+    {
+        str_hset previous = std::exchange( runtime.mRequires[string( path )], {} );
+        auto ran = RunFile( runtime, L, path, bytecode, library );
+        if ( not ran )
+            runtime.mRequires[string( path )] = std::move( previous );
+        return ran;
+    }
+
+    // `request` as require reads it in the file `from`: the library's path
+    // from the project's root.
+    static expected<string, string> Resolve( const ScriptRuntime& runtime, string_view from, string_view request )
+    {
+        string joined;
+        if ( request.starts_with( "./" ) or request.starts_with( "../" ) )
+        {
+            const size_t slash = from.rfind( '/' );
+            const string_view directory = slash == string_view::npos ? string_view() : from.substr( 0, slash );
+            joined = string( directory ) + "/" + string( request );
+        }
+        else if ( request.starts_with( '@' ) )
+        {
+            const size_t slash = request.find( '/' );
+            const string_view alias =
+                request.substr( 1, slash == string_view::npos ? string_view::npos : slash - 1 );
+            const auto found = runtime.mAliases.find( alias );
+            if ( found == runtime.mAliases.end() )
+            {
+                vector<string> known;
+                for ( const auto& entry : runtime.mAliases )
+                    known.push_back( "@" + entry.first );
+                std::ranges::sort( known );
+                return std::unexpected( std::format( "no alias @{} (aliases: {})", alias, Join( known ) ) );
+            }
+            joined = found->second + ( slash == string_view::npos ? "" : string( request.substr( slash ) ) );
+        }
+        else
+            return std::unexpected( "a path starts with ./, ../ or @alias"s );
+
+        // "." steps go, ".." takes one back.
+        vector<string_view> steps;
+        const string_view all = joined;
+        for ( size_t at = 0; at <= all.size(); )
+        {
+            const size_t end = std::min( all.find( '/', at ), all.size() );
+            const string_view step = all.substr( at, end - at );
+            at = end + 1;
+            if ( step.empty() or step == "." )
+                continue;
+            if ( step == ".." )
+            {
+                if ( steps.empty() )
+                    return std::unexpected( "the path leads out of the project"s );
+                steps.pop_back();
+            }
+            else
+                steps.push_back( step );
+        }
+        string path;
+        for ( const string_view step : steps )
+            path += ( path.empty() ? "" : "/" ) + string( step );
+        path += ".luau";
+        if ( auto valid = AssetPath::From( path ); not valid )
+            return std::unexpected( valid.error() );
+        return path;
+    }
+
+    // Pushes the value of the library `request` names, running it at its
+    // first require.
+    static expected<void, string> Require( ScriptRuntime& runtime, lua_State* L, const string& from,
+                                           const string& request )
+    {
+        auto path = Resolve( runtime, from, request );
+        if ( not path )
+            return std::unexpected( std::format( "require( '{}' ): {}", request, path.error() ) );
+        auto found = runtime.mLibraries.find( *path );
+        if ( found == runtime.mLibraries.end() )
+        {
+            // First require of this file in the world: the registry has it
+            // loaded, or the world was started without it.
+            AssetHandle<ScriptAsset> asset = runtime.mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
+            if ( not asset.Ready() )
+                return std::unexpected( std::format( "require( '{}' ): no library {} is loaded", request, *path ) );
+            found = runtime.mLibraries.emplace( *path, Library{ std::move( asset ), {}, {} } ).first;
+        }
+        runtime.mRequires[from].insert( *path );
+        if ( not found->second.mResult.Empty() )
+        {
+            found->second.mResult.Push( L );
+            return {};
+        }
+
+        const auto running = std::ranges::find( runtime.mRunning, *path );
+        if ( running != runtime.mRunning.end() )
+        {
+            string chain;
+            for ( auto file = running; file != runtime.mRunning.end(); ++file )
+                chain += *file + " -> ";
+            return std::unexpected( "require cycle: " + chain + *path );
+        }
+
+        // The handle keeps the bytecode alive while it runs, even if the
+        // library is reloaded meanwhile.
+        const AssetHandle<ScriptAsset> asset = found->second.mAsset;
+        auto ran = RunTracked( runtime, L, *path, asset.Get()->mBytecode, true );
+        if ( not ran )
+        {
+            const ScriptError& error = ran.error();
+            return std::unexpected( error.mTraceback.empty() ? error.mMessage
+                                                               : error.mMessage + "\n" + error.mTraceback );
+        }
+        Library& library = runtime.mLibraries.find( *path )->second;
+        library.mResult = std::move( ran->mResult );
+        library.mEnvironment = std::move( ran->mEnvironment );
+        library.mResult.Push( L );
         return {};
+    }
+
+    static int LuaRequire( lua_State* L )
+    {
+        ScriptRuntime& runtime = Of( L );
+        const string from = lua_tostring( L, lua_upvalueindex( 2 ) );
+        size_t length = 0;
+        const char* text = luaL_checklstring( L, 1, &length );
+        const string request( text, length );
+        if ( auto pushed = Require( runtime, L, from, request ); not pushed )
+            luaL_error( L, "%s", pushed.error().c_str() );
+        return 1;
+    }
+
+    static void Fill( Module& module, FileResult result )
+    {
+        module.mEnvironment = std::move( result.mEnvironment );
+        module.mProps = std::move( result.mProps );
+        module.mCallbacks = std::move( result.mCallbacks );
     }
 
     static int LuaStart( lua_State* L )
     {
-        const ScriptInstanceId id = Current( L, "start" );
+        const ScriptInstanceHandle handle = Current( L, "start" );
         luaL_checktype( L, 1, LUA_TFUNCTION );
-        Start( Of( L ), id, L, 1, lua_gettop( L ) - 1 );
+        Start( Of( L ), handle, L, 1, lua_gettop( L ) - 1 );
         return 0;
     }
 
     static int LuaOn( lua_State* L )
     {
-        const ScriptInstanceId id = Current( L, "on" );
+        const ScriptInstanceHandle handle = Current( L, "on" );
         const string event = luaL_checkstring( L, 1 );
         luaL_checktype( L, 2, LUA_TFUNCTION );
         ScriptRuntime& runtime = Of( L );
@@ -547,13 +741,13 @@ struct ScriptRuntime::Impl
             lua_rawsetfield( L, events, event.c_str() );
         }
         lua_createtable( L, 3, 0 );
-        PushId( L, id );
+        PushHandle( L, handle );
         lua_rawseti( L, -3, 2 );
         lua_rawseti( L, -2, 1 );
         lua_pushvalue( L, 2 );
         lua_rawseti( L, -2, 3 );
         lua_rawseti( L, -2, lua_objlen( L, -2 ) + 1 );
-        runtime.mInstances.Get( id )->mEvents.insert( event );
+        runtime.mInstances.Get( handle )->mEvents.insert( event );
         return 0;
     }
 
@@ -568,8 +762,9 @@ struct ScriptRuntime::Impl
 
 // ---- ScriptRuntime -------------------------------------------------------
 
-ScriptRuntime::ScriptRuntime( LuaState& state, vector<string> callbacks )
+ScriptRuntime::ScriptRuntime( LuaState& state, AssetRegistry& assets, vector<string> callbacks )
     : mState( state ),
+      mAssets( assets ),
       mCallbacks( std::move( callbacks ) )
 {
     if ( state.Sealed() )
@@ -590,44 +785,122 @@ ScriptRuntime::ScriptRuntime( LuaState& state, vector<string> callbacks )
     global( "wait_until", WaitUntil );
     global( "on", &Impl::LuaOn );
     global( "emit", &Impl::LuaEmit );
+
+    mListener = mAssets.OnChanged( [this]( const AssetSlotBase& slot ) { Changed( slot ); } );
 }
 
-ScriptRuntime::~ScriptRuntime() = default;
+ScriptRuntime::~ScriptRuntime()
+{
+    mAssets.RemoveListener( mListener );
+}
 
 lua_State* ScriptRuntime::L() const
 {
     return mState.L();
 }
 
-expected<ScriptModuleId, ScriptError> ScriptRuntime::Load( string_view chunk, string_view bytecode )
+expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view directory )
 {
-    Module module;
-    if ( auto ran = Impl::Run( *this, chunk, bytecode, module ); not ran )
-        return std::unexpected( std::move( ran.error() ) );
-    return mModules.Add( std::move( module ) );
+    const bool named = not name.empty() and std::ranges::all_of( name, []( char c ) {
+        return ( c >= 'a' and c <= 'z' ) or ( c >= '0' and c <= '9' ) or c == '_' or c == '-';
+    } );
+    if ( not named )
+        return std::unexpected( std::format( "alias '{}': lowercase letters, digits, _ and - only", name ) );
+    string path;
+    if ( not directory.empty() )
+    {
+        auto valid = AssetPath::From( directory );
+        if ( not valid )
+            return std::unexpected( std::format( "alias @{}: {}", name, valid.error() ) );
+        path = valid->String();
+    }
+    mAliases[string( name )] = std::move( path );
+    return {};
 }
 
-expected<void, ScriptError> ScriptRuntime::Reload( ScriptModuleId id, string_view bytecode )
+void ScriptRuntime::Changed( const AssetSlotBase& slot )
 {
-    if ( not mModules.Alive( id ) )
-        return std::unexpected( ScriptError{ "the script was unloaded", {} } );
-    Module fresh;
-    if ( auto ran = Impl::Run( *this, mModules.Get( id )->mChunk, bytecode, fresh ); not ran )
-        return ran;
-    auto module = mModules.Get( id );
+    const string& path = slot.Path().String();
+    // Everything that holds a value of the old file: the library itself,
+    // the libraries that required it, theirs in turn.
+    str_hset changed;
+    if ( mLibraries.contains( path ) )
+        changed.insert( path );
+    const auto touches = [&]( const str_hset& required ) {
+        return std::ranges::any_of( required, [&]( const string& library ) { return changed.contains( library ); } );
+    };
+    for ( bool grew = not changed.empty(); grew; )
+    {
+        grew = false;
+        for ( const auto& [file, required] : mRequires )
+            if ( mLibraries.contains( file ) and not changed.contains( file ) and touches( required ) )
+                grew = changed.insert( file ).second;
+    }
+    for ( const string& library : changed )
+    {
+        Library& entry = mLibraries.find( library )->second;
+        entry.mResult.Reset();
+        entry.mEnvironment.Reset();
+    }
+
+    // Then the scripts: the changed one, and those that required any of
+    // the changed libraries. A failure is logged and leaves the old code.
+    for ( const ScriptModuleHandle handle : mModules.Handles() )
+    {
+        const string chunk = mModules.Get( handle )->mChunk;
+        const auto required = mRequires.find( chunk );
+        if ( chunk != path and ( required == mRequires.end() or not touches( required->second ) ) )
+            continue;
+        if ( auto rerun = Rerun( handle ); not rerun )
+            LogError( "{}\n{}", rerun.error().mMessage, rerun.error().mTraceback );
+    }
+}
+
+expected<ScriptModuleHandle, ScriptError> ScriptRuntime::Load( string_view path )
+{
+    if ( const auto known = mModulesByPath.find( path ); known != mModulesByPath.end() )
+        return known->second;
+    auto asset = AssetPath::From( path );
+    if ( not asset )
+        return std::unexpected( ScriptError{ std::format( "{}: {}", path, asset.error() ), {} } );
+    AssetHandle<ScriptAsset> script = mAssets.Find<ScriptAsset>( *asset );
+    if ( not script.Ready() )
+        return std::unexpected( ScriptError{ std::format( "{} is not loaded", path ), {} } );
+
+    auto ran = Impl::RunTracked( *this, L(), asset->View(), script.Get()->mBytecode, false );
+    if ( not ran )
+        return std::unexpected( std::move( ran.error() ) );
+    Module module;
+    module.mChunk = asset->String();
+    module.mAsset = std::move( script );
+    Impl::Fill( module, std::move( *ran ) );
+    const ScriptModuleHandle handle = mModules.Add( std::move( module ) );
+    mModulesByPath[asset->String()] = handle;
+    return handle;
+}
+
+expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
+{
+    // Copies held through the run: it may load and unload modules.
+    const string chunk = mModules.Get( handle )->mChunk;
+    const AssetHandle<ScriptAsset> asset = mModules.Get( handle )->mAsset;
+    if ( not asset.Ready() )
+        return std::unexpected( ScriptError{ std::format( "{} is not loaded", chunk ), {} } );
+    auto ran = Impl::RunTracked( *this, L(), chunk, asset.Get()->mBytecode, false );
+    if ( not ran )
+        return std::unexpected( std::move( ran.error() ) );
+    auto module = mModules.Get( handle );
     if ( not module )
-        return std::unexpected( ScriptError{ "the script was unloaded while it ran", {} } );
-    module->mEnvironment = std::move( fresh.mEnvironment );
-    module->mProps = std::move( fresh.mProps );
-    module->mCallbacks = std::move( fresh.mCallbacks );
+        return std::unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
+    Impl::Fill( *module, std::move( *ran ) );
 
     lua_State* L = this->L();
     const int top = lua_gettop( L );
     module->mProps.Push( L );
-    for ( const ScriptInstanceId instanceId : mInstances.Ids() )
+    for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
     {
-        auto instance = mInstances.Get( instanceId );
-        if ( instance->mModule != id )
+        auto instance = mInstances.Get( instanceHandle );
+        if ( instance->mModule != handle )
             continue;
         instance->mSelf.Push( L );
         // Props are data and copy; a failure here would have failed Run.
@@ -639,38 +912,40 @@ expected<void, ScriptError> ScriptRuntime::Reload( ScriptModuleId id, string_vie
     return {};
 }
 
-void ScriptRuntime::Unload( ScriptModuleId id )
+void ScriptRuntime::Unload( ScriptModuleHandle handle )
 {
-    for ( const ScriptInstanceId instance : mInstances.Ids() )
-        if ( mInstances.Get( instance )->mModule == id )
+    if ( const auto module = mModules.Get( handle ) )
+        mModulesByPath.erase( module->mChunk );
+    for ( const ScriptInstanceHandle instance : mInstances.Handles() )
+        if ( mInstances.Get( instance )->mModule == handle )
             Destroy( instance );
-    mModules.Remove( id );
+    mModules.Remove( handle );
 }
 
-bool ScriptRuntime::Has( ScriptModuleId id, u32 callback ) const
+bool ScriptRuntime::Has( ScriptModuleHandle handle, u32 callback ) const
 {
-    const auto module = mModules.Get( id );
+    const auto module = mModules.Get( handle );
     return module and callback < module->mCallbacks.size() and not module->mCallbacks[callback].Empty();
 }
 
-void ScriptRuntime::PushProps( ScriptModuleId id ) const
+void ScriptRuntime::PushProps( ScriptModuleHandle handle ) const
 {
-    if ( const auto module = mModules.Get( id ) )
+    if ( const auto module = mModules.Get( handle ) )
         module->mProps.Push( L() );
     else
         lua_pushnil( L() );
 }
 
-expected<ScriptInstanceId, string> ScriptRuntime::Create( ScriptModuleId moduleId, string label, int overrides )
+expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle moduleHandle, string label, int overrides )
 {
-    const auto module = mModules.Get( moduleId );
+    const auto module = mModules.Get( moduleHandle );
     if ( not module )
         return std::unexpected( label + ": its script was unloaded" );
     lua_State* L = this->L();
     const int top = lua_gettop( L );
     if ( overrides != 0 )
         overrides = lua_absindex( L, overrides );
-    const auto fail = [&]( string message ) -> expected<ScriptInstanceId, string> {
+    const auto fail = [&]( string message ) -> expected<ScriptInstanceHandle, string> {
         lua_settop( L, top );
         return std::unexpected( std::move( message ) );
     };
@@ -708,7 +983,7 @@ expected<ScriptInstanceId, string> ScriptRuntime::Create( ScriptModuleId moduleI
     }
 
     Instance instance;
-    instance.mModule = moduleId;
+    instance.mModule = moduleHandle;
     instance.mLabel = std::move( label );
     instance.mSelf = LuaRef( L, self );
     lua_newtable( L );
@@ -717,40 +992,40 @@ expected<ScriptInstanceId, string> ScriptRuntime::Create( ScriptModuleId moduleI
     return mInstances.Add( std::move( instance ) );
 }
 
-void ScriptRuntime::Destroy( ScriptInstanceId id )
+void ScriptRuntime::Destroy( ScriptInstanceHandle handle )
 {
-    const auto instance = mInstances.Get( id );
+    const auto instance = mInstances.Get( handle );
     if ( not instance )
         return;
-    Impl::Unsubscribe( *this, id, *instance );
+    Impl::Unsubscribe( *this, handle, *instance );
     // Its coroutines and self go with its references; a callback of its
     // own still running holds them on the stack until it returns.
-    mInstances.Remove( id );
+    mInstances.Remove( handle );
 }
 
-bool ScriptRuntime::Alive( ScriptInstanceId id ) const
+bool ScriptRuntime::Alive( ScriptInstanceHandle handle ) const
 {
-    return mInstances.Alive( id );
+    return mInstances.Alive( handle );
 }
 
-bool ScriptRuntime::Enabled( ScriptInstanceId id ) const
+bool ScriptRuntime::Enabled( ScriptInstanceHandle handle ) const
 {
-    const auto instance = mInstances.Get( id );
+    const auto instance = mInstances.Get( handle );
     return instance and instance->mEnabled;
 }
 
-void ScriptRuntime::PushSelf( ScriptInstanceId id ) const
+void ScriptRuntime::PushSelf( ScriptInstanceHandle handle ) const
 {
-    if ( const auto instance = mInstances.Get( id ) )
+    if ( const auto instance = mInstances.Get( handle ) )
         instance->mSelf.Push( L() );
     else
         lua_pushnil( L() );
 }
 
-expected<void, ScriptError> ScriptRuntime::Call( ScriptInstanceId id, u32 callback, int nargs )
+expected<void, ScriptError> ScriptRuntime::Call( ScriptInstanceHandle handle, u32 callback, int nargs )
 {
     lua_State* L = this->L();
-    const auto instance = mInstances.Get( id );
+    const auto instance = mInstances.Get( handle );
     if ( not instance )
     {
         lua_pop( L, nargs );
@@ -769,11 +1044,11 @@ expected<void, ScriptError> ScriptRuntime::Call( ScriptInstanceId id, u32 callba
 
     expected<void, ScriptError> called;
     {
-        const CurrentScope scope( mCurrent, id );
+        const CurrentScope scope( mCurrent, handle );
         called = PCall( L, nargs + 1, 0 );
     }
     if ( not called )
-        Impl::Fail( *this, id, L, called.error() );
+        Impl::Fail( *this, handle, L, called.error() );
     return called;
 }
 
@@ -781,8 +1056,8 @@ void ScriptRuntime::Tick( f32 dt )
 {
     BUBBLE_PROFILE_ZONE();
     // An instance made during the tick waits for the next one.
-    for ( const ScriptInstanceId id : mInstances.Ids() )
-        Impl::Tick( *this, id, dt );
+    for ( const ScriptInstanceHandle handle : mInstances.Handles() )
+        Impl::Tick( *this, handle, dt );
 }
 
 void ScriptRuntime::Emit( string_view event, int nargs )

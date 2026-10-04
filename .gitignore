@@ -69,3 +69,6 @@ Testing/
 
 # Build trees from CMakePresets
 out/
+
+# Visual Studio
+.vs/

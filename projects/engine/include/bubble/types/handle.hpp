@@ -28,15 +28,13 @@ struct Handle
 // Owns entries and hands out handles to them. Add, Remove, Get and Alive
 // are O(1). An entry stays where it is until it is removed - adding others
 // does not move it - so a reference from Get lasts until its own Remove.
-// Freed slots are reused, latest first, so the layout and the order of Ids
+// Freed slots are reused, latest first, so the layout and the order of Handles
 // follow from the order of calls alone.
 template <typename T, typename Tag>
 class SlotMap
 {
 public:
-    using Id = Handle<Tag>;
-
-    Id Add( T value )
+    Handle<Tag> Add( T value )
     {
         u32 index = 0;
         if ( mFree.empty() )
@@ -52,56 +50,56 @@ public:
         Slot& slot = mSlots[index];
         slot.mValue.emplace( std::move( value ) );
         ++mSize;
-        return Id{ index, slot.mGeneration };
+        return Handle<Tag>{ index, slot.mGeneration };
     }
 
     // False when the handle was stale already.
-    bool Remove( Id id )
+    bool Remove( Handle<Tag> handle )
     {
-        if ( not Alive( id ) )
+        if ( not Alive( handle ) )
             return false;
-        Slot& slot = mSlots[id.mIndex];
+        Slot& slot = mSlots[handle.mIndex];
         // The generation moves first: code the destructor runs sees the
         // entry as gone.
         ++slot.mGeneration;
         slot.mValue.reset();
-        mFree.push_back( id.mIndex );
+        mFree.push_back( handle.mIndex );
         --mSize;
         return true;
     }
 
-    bool Alive( Id id ) const
+    bool Alive( Handle<Tag> handle ) const
     {
-        return id.mIndex < mSlots.size() and mSlots[id.mIndex].mGeneration == id.mGeneration and
-               mSlots[id.mIndex].mValue.has_value();
+        return handle.mIndex < mSlots.size() and mSlots[handle.mIndex].mGeneration == handle.mGeneration and
+               mSlots[handle.mIndex].mValue.has_value();
     }
 
-    OptRef<T> Get( Id id )
+    OptRef<T> Get( Handle<Tag> handle )
     {
-        if ( not Alive( id ) )
+        if ( not Alive( handle ) )
             return std::nullopt;
-        return *mSlots[id.mIndex].mValue;
+        return *mSlots[handle.mIndex].mValue;
     }
 
-    OptRef<const T> Get( Id id ) const
+    OptRef<const T> Get( Handle<Tag> handle ) const
     {
-        if ( not Alive( id ) )
+        if ( not Alive( handle ) )
             return std::nullopt;
-        return *mSlots[id.mIndex].mValue;
+        return *mSlots[handle.mIndex].mValue;
     }
 
     size_t Size() const { return mSize; }
 
     // The live entries by slot. A copy: safe to Add and Remove while
     // going through it.
-    vector<Id> Ids() const
+    vector<Handle<Tag>> Handles() const
     {
-        vector<Id> ids;
-        ids.reserve( mSize );
+        vector<Handle<Tag>> handles;
+        handles.reserve( mSize );
         for ( u32 i = 0; i < mSlots.size(); ++i )
             if ( mSlots[i].mValue )
-                ids.push_back( Id{ i, mSlots[i].mGeneration } );
-        return ids;
+                handles.push_back( Handle<Tag>{ i, mSlots[i].mGeneration } );
+        return handles;
     }
 
 private:

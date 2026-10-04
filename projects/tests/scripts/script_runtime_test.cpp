@@ -1,95 +1,9 @@
 // Script files, their instances, coroutines, events and hot reload - the
 // scripting model of the architecture doc, without a World yet.
-#include "bubble/scripts/lua/lua_stack.hpp"
-#include "bubble/scripts/script_runtime.hpp"
-#include "scripts/script_helpers.hpp"
+#include "scripts/script_fixture.hpp"
 
 using namespace bubble;
 using namespace bubble::test;
-
-namespace
-{
-enum Callback : u32
-{
-    OnStart,
-    OnUpdate,
-    OnHit,
-};
-
-struct Scripts
-{
-    LuaState mState;
-    ScriptRuntime mRuntime{ mState, { "on_start", "on_update", "on_hit" } };
-    // What scripts passed to record( text ), in order.
-    vector<string> mRecorded;
-    // What destroy() destroys - as a World's would the entity's.
-    ScriptInstanceId mDoomed;
-
-    Scripts()
-    {
-        LuaPushFunction( mState.L(), "record", [this]( string text ) { mRecorded.push_back( std::move( text ) ); } );
-        lua_setglobal( mState.L(), "record" );
-        LuaPushFunction( mState.L(), "destroy", [this]() { mRuntime.Destroy( mDoomed ); } );
-        lua_setglobal( mState.L(), "destroy" );
-        mState.Seal();
-    }
-
-    lua_State* L() const { return mState.L(); }
-
-    ScriptModuleId Load( string_view chunk, string_view source )
-    {
-        auto module = mRuntime.Load( chunk, Bytecode( source ) );
-        REQUIRE_MESSAGE( module.has_value(), ( module ? "" : module.error().mMessage ) );
-        return *module;
-    }
-
-    string LoadError( string_view chunk, string_view source )
-    {
-        auto module = mRuntime.Load( chunk, Bytecode( source ) );
-        REQUIRE_FALSE( module.has_value() );
-        return module.error().mMessage;
-    }
-
-    ScriptInstanceId Make( ScriptModuleId module, string label = "/player" )
-    {
-        auto instance = mRuntime.Create( module, std::move( label ) );
-        REQUIRE_MESSAGE( instance.has_value(), ( instance ? "" : instance.error() ) );
-        return *instance;
-    }
-
-    // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceId, string> MakeWith( ScriptModuleId module, string_view overrides,
-                                                 string label = "/player" )
-    {
-        REQUIRE( RunLua( L(), "return " + string( overrides ), 1 ) );
-        auto instance = mRuntime.Create( module, std::move( label ), -1 );
-        lua_pop( L(), 1 );
-        return instance;
-    }
-
-    expected<void, ScriptError> Call( ScriptInstanceId instance, u32 callback )
-    {
-        return mRuntime.Call( instance, callback );
-    }
-
-    double Number( ScriptInstanceId instance, const char* field ) const
-    {
-        mRuntime.PushSelf( instance );
-        lua_getfield( L(), -1, field );
-        const double value = lua_tonumber( L(), -1 );
-        lua_pop( L(), 2 );
-        return value;
-    }
-
-    void Set( ScriptInstanceId instance, const char* field, bool value ) const
-    {
-        mRuntime.PushSelf( instance );
-        lua_pushboolean( L(), value );
-        lua_setfield( L(), -2, field );
-        lua_pop( L(), 1 );
-    }
-};
-}
 
 TEST_CASE( "A file's callbacks are found and self holds its props" )
 {
@@ -223,13 +137,13 @@ end
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
-TEST_CASE( "A destroyed instance's id finds nothing, even once its slot is reused" )
+TEST_CASE( "A destroyed instance's handle finds nothing, even once its slot is reused" )
 {
     Scripts scripts;
     const auto unit = scripts.Load( "unit.luau", "props { hp = 3 }" );
     const auto first = scripts.Make( unit, "/first" );
     scripts.mRuntime.Destroy( first );
-    // The freed slot goes to the next instance; the old id stays dead.
+    // The freed slot goes to the next instance; the old handle stays dead.
     const auto second = scripts.Make( unit, "/second" );
     CHECK( second.mIndex == first.mIndex );
     CHECK_FALSE( scripts.mRuntime.Alive( first ) );
@@ -304,13 +218,13 @@ end
     CHECK_FALSE( scripts.Call( a, OnHit ) );
     CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
 
-    REQUIRE( scripts.mRuntime.Reload( door, Bytecode( R"(
+    REQUIRE( scripts.Change( "door.luau", R"(
 props { speed = 1, armor = 5 }
 function on_update( self, dt )
     self.version = 2
     self.calls = ( self.calls or 0 ) + 1
 end
-)" ) ) );
+)" ) );
     CHECK( scripts.mRuntime.Enabled( a ) );
     REQUIRE( scripts.Call( a, OnUpdate ) );
     CHECK( scripts.Number( a, "version" ) == 2 );
@@ -318,10 +232,18 @@ end
     CHECK( scripts.Number( a, "armor" ) == 5 );
     CHECK_FALSE( scripts.mRuntime.Has( door, OnHit ) );
 
-    // A file that fails leaves the old one working.
-    CHECK_FALSE( scripts.mRuntime.Reload( door, Bytecode( "error( 'half-saved' )" ) ) );
+    // A file that fails as it runs leaves the old one working, and says so.
+    LogWatch log;
+    REQUIRE( scripts.Change( "door.luau", "error( 'half-saved' )" ) );
+    CHECK( log.Saw( LogLevel::Error, { "door.luau:1: half-saved" } ) );
     REQUIRE( scripts.Call( a, OnUpdate ) );
     CHECK( scripts.Number( a, "calls" ) == 3 );
+
+    // One that does not compile never reaches the runtime: the registry
+    // keeps the version it had.
+    CHECK_FALSE( scripts.Change( "door.luau", "function on_update( self" ) );
+    REQUIRE( scripts.Call( a, OnUpdate ) );
+    CHECK( scripts.Number( a, "calls" ) == 4 );
 }
 
 TEST_CASE( "Unloading a file destroys its instances" )
@@ -332,7 +254,25 @@ TEST_CASE( "Unloading a file destroys its instances" )
     scripts.mRuntime.Unload( door );
     CHECK_FALSE( scripts.mRuntime.Alive( a ) );
     CHECK_FALSE( scripts.mRuntime.Create( door, "/late" ).has_value() );
-    CHECK_FALSE( scripts.mRuntime.Reload( door, Bytecode( "" ) ).has_value() );
+    // Loading it again runs it anew, as a new module.
+    const auto again = scripts.mRuntime.Load( "door.luau" );
+    REQUIRE( again );
+    CHECK( *again != door );
+}
+
+TEST_CASE( "The runtime runs what the registry holds, each file once" )
+{
+    Scripts scripts;
+    const auto door = scripts.Load( "door.luau", "record( 'ran' )" );
+    // The same path is the same module; the file does not run again.
+    CHECK( scripts.mRuntime.Load( "door.luau" ) == door );
+    CHECK( scripts.mRecorded == vector<string>{ "ran" } );
+
+    // A file the registry has not loaded is an error, not a read from disk.
+    scripts.mFiles["late.luau"] = "props {}";
+    auto late = scripts.mRuntime.Load( "late.luau" );
+    REQUIRE_FALSE( late );
+    CHECK( late.error().mMessage == "late.luau is not loaded" );
 }
 
 TEST_CASE( "Coroutines wait for time and for conditions" )
@@ -417,7 +357,7 @@ end
     auto b = scripts.MakeWith( listener, "{ name = 'b' }", "/b" );
     auto c = scripts.MakeWith( listener, "{ name = 'c' }", "/c" );
     REQUIRE( ( a and grumpy and b and c ) );
-    for ( const ScriptInstanceId instance : { *a, *grumpy, *b, *c } )
+    for ( const ScriptInstanceHandle instance : { *a, *grumpy, *b, *c } )
         REQUIRE( scripts.Call( instance, OnStart ) );
 
     const auto door = scripts.Make( opener, "/door" );
