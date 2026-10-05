@@ -131,7 +131,7 @@ private:
         LuaTable mSelf;
         vector<Task> mTasks;
         // The events it is on, to take itself off them when it goes.
-        str_hset mEvents;
+        hset<string> mEvents;
         bool mEnabled = true;
     };
 
@@ -200,13 +200,13 @@ private:
     AssetRegistry& mAssets;
     AssetListenerHandle mListener;
     vector<string> mCallbacks;
-    str_hmap<string> mAliases;
+    hmap<string, string> mAliases;
 
     SlotMap<Module, ScriptModuleTag> mModules;
-    str_hmap<ScriptModuleHandle> mModulesByPath;
+    hmap<string, ScriptModuleHandle> mModulesByPath;
     SlotMap<Instance, ScriptInstanceTag> mInstances;
-    str_hmap<Library> mLibraries;
-    str_hmap<vector<Subscriber>> mEvents;
+    hmap<string, Library> mLibraries;
+    hmap<string, vector<Subscriber>> mEvents;
 
     // File environment -> its path, its props, whether it is a library:
     // what props and require read about the file that called them. Weak,
@@ -220,7 +220,7 @@ private:
     LuaTable mStrictEnvironment;
 
     // File -> the libraries it required: who to rerun when one changes.
-    str_hmap<str_hset> mRequires;
+    hmap<string, hset<string>> mRequires;
     // The files running now, outermost first: a library met again is a
     // require cycle.
     vector<string> mRunning;

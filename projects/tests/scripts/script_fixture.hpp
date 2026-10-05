@@ -20,7 +20,7 @@ enum Callback : u32
 struct Scripts
 {
     // The project's files, by path.
-    str_hmap<string> mFiles;
+    hmap<string, string> mFiles;
     AssetRegistry mAssets{ [this]( const AssetPath& path ) -> expected<string, string> {
         const auto found = mFiles.find( path.View() );
         if ( found == mFiles.end() )

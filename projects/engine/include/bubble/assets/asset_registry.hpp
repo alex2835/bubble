@@ -189,9 +189,9 @@ private:
     expected<void, string> Import( AssetSlotBase& slot );
 
     ReadFile mRead;
-    str_hmap<ImporterEntry> mImporters;
+    hmap<string, ImporterEntry> mImporters;
     // Weak: a slot lives as long as its handles do.
-    str_hmap<std::weak_ptr<AssetSlotBase>> mByPath;
+    hmap<string, std::weak_ptr<AssetSlotBase>> mByPath;
     hmap<AssetId, std::weak_ptr<AssetSlotBase>> mById;
     SlotMap<ChangedListener, AssetListenerTag> mListeners;
 };

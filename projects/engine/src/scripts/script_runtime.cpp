@@ -249,7 +249,7 @@ ScriptRuntime::RunTracked( string_view path, const AssetHandle<ScriptAsset>& ass
 {
     // A file that fails keeps the record of its last good run, as it keeps
     // its code.
-    str_hset previous = std::exchange( mRequires[string( path )], {} );
+    hset<string> previous = std::exchange( mRequires[string( path )], {} );
     auto ran = RunFile( path, asset, library );
     if ( not ran )
         mRequires[string( path )] = std::move( previous );
@@ -438,10 +438,10 @@ void ScriptRuntime::Changed( const AssetSlotBase& slot )
     const string& path = slot.Path().String();
     // Everything that holds a value of the old file: the library itself,
     // the libraries that required it, theirs in turn.
-    str_hset changed;
+    hset<string> changed;
     if ( mLibraries.contains( path ) )
         changed.insert( path );
-    const auto touches = [&]( const str_hset& required ) {
+    const auto touches = [&]( const hset<string>& required ) {
         return std::ranges::any_of( required, [&]( const string& library ) { return changed.contains( library ); } );
     };
     for ( bool grew = not changed.empty(); grew; )

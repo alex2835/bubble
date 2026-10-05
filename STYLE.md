@@ -67,8 +67,8 @@ their own style. What it enforces:
 ## Types and ownership
 
 - The aliases from `bubble/types`: `string`, `string_view`, `vector`,
-  `array`, `hmap`, `str_hmap`, `hset`, `str_hset`, `opt`, `expected`,
-  `Scope`, `Ref`, `i32`, `u32`, `f32`, `f64`... luaubind has its own small
+  `array`, `hmap`, `hset` (a string key is found by `string_view`), `opt`,
+  `expected`, `Scope`, `Ref`, `i32`, `u32`, `f32`, `f64`... luaubind has its own small
   set in `luaubind/common.hpp`, the same names over the standard library.
 - Owning: `Scope` or `Ref`. A link to what outlives you: `T&`. A link to
   what can go away: a `Handle` from a `SlotMap`. Maybe-missing results and

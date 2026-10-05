@@ -25,14 +25,25 @@ using map = std::map<K, V>;
 template <typename T>
 using set = std::set<T>;
 
+// The hash of a key; a string key gets one that also takes string_view and
+// const char*, so a lookup does not copy.
+template <typename K>
+struct hmap_hash
+{
+    using type = std::hash<K>;
+};
+
+template <>
+struct hmap_hash<string>
+{
+    using type = string_hash;
+};
+
+// std::equal_to<> compares with ==; lookup by another type works only where
+// the hash is transparent too, that is for string keys.
 template <typename K, typename V>
-using hmap = std::unordered_map<K, V>;
+using hmap = std::unordered_map<K, V, typename hmap_hash<K>::type, std::equal_to<>>;
 
 template <typename T>
-using hset = std::unordered_set<T>;
-
-// Keyed by string, looked up by string_view without a copy.
-template <typename V>
-using str_hmap = std::unordered_map<string, V, string_hash, std::equal_to<>>;
-using str_hset = std::unordered_set<string, string_hash, std::equal_to<>>;
+using hset = std::unordered_set<T, typename hmap_hash<T>::type, std::equal_to<>>;
 }

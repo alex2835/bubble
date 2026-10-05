@@ -27,11 +27,15 @@ TEST_CASE( "TryParse takes the whole text or nothing" )
     CHECK( TryParse<u64>( "18446744073709551615" ) == ~u64( 0 ) );
 }
 
-TEST_CASE( "str_hmap finds a string key by string_view" )
+TEST_CASE( "A string-keyed hmap and hset find a key by string_view" )
 {
-    str_hmap<int> map{ { "jump", 1 } };
-    const string_view key = "jump";
-    CHECK( map.find( key ) != map.end() );
+    hmap<string, int> map{ { "jump", 1 } };
+    hset<string> set{ "run" };
+    CHECK( map.find( string_view( "jump" ) ) != map.end() );
+    CHECK( set.contains( string_view( "run" ) ) );
+    // Other keys keep the plain hash.
+    hmap<int, int> numbers{ { 1, 2 } };
+    CHECK( numbers.at( 1 ) == 2 );
 }
 
 TEST_CASE( "The log keeps what was said, in order, with its level" )

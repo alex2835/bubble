@@ -25,7 +25,7 @@ struct NumberAsset
 // Files in memory, a .txt importer that refuses "broken", a .num one.
 struct Project
 {
-    str_hmap<string> mFiles;
+    hmap<string, string> mFiles;
     AssetRegistry mAssets{ [this]( const AssetPath& path ) -> expected<string, string> {
         const auto found = mFiles.find( path.View() );
         if ( found == mFiles.end() )
