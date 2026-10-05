@@ -4,7 +4,6 @@
 // with three callbacks, and two functions bound for observing - record( text )
 // for order, destroy() for lifetimes.
 #include "bubble/assets/asset_registry.hpp"
-#include "bubble/scripts/lua/lua_stack.hpp"
 #include "bubble/scripts/script_asset.hpp"
 #include "bubble/scripts/script_runtime.hpp"
 #include "scripts/script_helpers.hpp"
@@ -30,7 +29,7 @@ struct Scripts
     } };
     // What the world holds loaded - as its scripts module would.
     vector<AssetHandle<ScriptAsset>> mHeld;
-    LuaState mState;
+    LuaState mState{ PrintToLog };
     ScriptRuntime mRuntime{ mState, mAssets, { "on_start", "on_update", "on_hit" } };
     // What scripts passed to record( text ), in order.
     vector<string> mRecorded;
@@ -39,10 +38,9 @@ struct Scripts
 
     Scripts()
     {
-        LuaPushFunction( mState.L(), "record", [this]( string text ) { mRecorded.push_back( std::move( text ) ); } );
-        lua_setglobal( mState.L(), "record" );
-        LuaPushFunction( mState.L(), "destroy", [this]() { mRuntime.Destroy( mDoomed ); } );
-        lua_setglobal( mState.L(), "destroy" );
+        LuaTable globals = mState.Globals();
+        globals["record"] = [this]( string text ) { mRecorded.push_back( std::move( text ) ); };
+        globals["destroy"] = [this]() { mRuntime.Destroy( mDoomed ); };
         mState.Seal();
         RegisterScriptImporter( mAssets );
     }
@@ -92,36 +90,38 @@ struct Scripts
         return *instance;
     }
 
-    // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceHandle, string> MakeWith( ScriptModuleHandle module, string_view overrides,
-                                                 string label = "/player" )
+    // What a Luau expression evaluates to, run in the globals.
+    LuaValue Evaluate( string_view expression )
     {
-        REQUIRE( RunLua( L(), "return " + string( overrides ), 1 ) );
-        auto instance = mRuntime.Create( module, std::move( label ), -1 );
-        lua_pop( L(), 1 );
-        return instance;
+        auto chunk = mState.Load( "=test", Bytecode( "return " + string( expression ) ), mState.Globals() );
+        REQUIRE_MESSAGE( chunk.has_value(), ( chunk ? "" : chunk.error() ) );
+        auto value = ( *chunk )();
+        REQUIRE_MESSAGE( value.has_value(), ( value ? "" : value.error().mMessage ) );
+        return *value;
     }
 
-    expected<void, ScriptError> Call( ScriptInstanceHandle instance, u32 callback )
+    // Made with the overrides of the table `overrides` evaluates to.
+    expected<ScriptInstanceHandle, string> MakeWith( ScriptModuleHandle module, string_view overrides,
+                                                     string label = "/player" )
     {
-        return mRuntime.Call( instance, callback );
+        return mRuntime.Create( module, std::move( label ), LuaTable( Evaluate( overrides ) ) );
+    }
+
+    bool Call( ScriptInstanceHandle instance, u32 callback ) { return mRuntime.Call( instance, callback ); }
+
+    LuaValue Field( ScriptInstanceHandle instance, const char* field ) const
+    {
+        return mRuntime.Self( instance ).RawGet( field );
     }
 
     double Number( ScriptInstanceHandle instance, const char* field ) const
     {
-        mRuntime.PushSelf( instance );
-        lua_getfield( L(), -1, field );
-        const double value = lua_tonumber( L(), -1 );
-        lua_pop( L(), 2 );
-        return value;
+        return Field( instance, field ).As<f64>().value_or( 0.0 );
     }
 
     void Set( ScriptInstanceHandle instance, const char* field, bool value ) const
     {
-        mRuntime.PushSelf( instance );
-        lua_pushboolean( L(), value );
-        lua_setfield( L(), -2, field );
-        lua_pop( L(), 1 );
+        mRuntime.Self( instance ).RawSet( field, value );
     }
 };
 }

@@ -59,7 +59,8 @@ TEST_CASE( "The type checker passes a correct script" )
             return vector.magnitude(v)
         end
         local l: number = length(vector.create(3, 4, 0))
-    )" ).empty() );
+    )" )
+               .empty() );
 }
 
 TEST_CASE( "The type checker finds a mistake before the script runs" )

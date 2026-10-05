@@ -1,0 +1,68 @@
+# Bubble's formatting, as STYLE.md describes it. Applies to our code -
+# projects/ and deps/luaubind; vendored libraries keep their own.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: Latest
+ColumnLimit: 120
+IndentWidth: 4
+AccessModifierOffset: -4
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: true
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+NamespaceIndentation: None
+FixNamespaceComments: false
+IndentCaseLabels: true
+
+# Foo( a, b ), if ( x ), { 1, 2 }; but (void)x and Foo().
+SpaceBeforeParens: ControlStatements
+SpacesInParens: Custom
+SpacesInParensOptions:
+  InConditionalStatements: true
+  InCStyleCasts: false
+  InEmptyParentheses: false
+  Other: true
+Cpp11BracedListStyle: false
+SpacesInSquareBrackets: false
+SpacesInAngles: Never
+SpaceAfterTemplateKeyword: true
+PointerAlignment: Left
+
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Never
+AlwaysBreakTemplateDeclarations: Yes
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: CurrentLine
+ConstructorInitializerIndentWidth: 4
+RequiresClausePosition: OwnLine
+LambdaBodyIndentation: Signature
+KeepEmptyLines:
+  AtStartOfBlock: false
+MaxEmptyLinesToKeep: 1
+
+# The file's own header first, then the rest sorted.
+SortIncludes: CaseSensitive
+IncludeBlocks: Merge
+IncludeIsMainRegex: '$'
+IncludeCategories:
+  - Regex: '.*'
+    Priority: 1

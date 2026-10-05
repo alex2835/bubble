@@ -1,15 +1,13 @@
 #pragma once
-#include "bubble/scripts/lua/lua_ref.hpp"
-#include "bubble/types/containers.hpp"
-#include "bubble/types/number.hpp"
-#include "bubble/types/string.hpp"
-#include "bubble/types/utility.hpp"
+#include "luaubind/common.hpp"
+#include "luaubind/value.hpp"
 #include <cmath>
 #include <concepts>
 #include <limits>
 #include <lua.h>
 #include <lualib.h>
 #include <new>
+#include <stdexcept>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -17,7 +15,7 @@
 // How C++ values cross into Luau and back, and C++ functions bound as Luau
 // functions with their arguments checked and converted. The set of types is
 // closed on purpose: what is not here does not cross.
-namespace bubble
+namespace luaubind
 {
 static_assert( LUA_VECTOR_SIZE == 3, "vectors cross as three floats" );
 
@@ -153,12 +151,69 @@ struct LuaTraits<opt<T>>
 
 // Any value, held: a function to call later, a table to keep.
 template <>
-struct LuaTraits<LuaRef>
+struct LuaTraits<LuaValue>
 {
     static constexpr const char* cName = "value";
     static bool Is( lua_State*, int ) { return true; }
-    static void Push( lua_State* L, const LuaRef& value ) { value.Push( L ); }
-    static LuaRef Check( lua_State* L, int index ) { return LuaRef( L, index ); }
+    static void Push( lua_State* L, const LuaValue& value ) { value.Push( L ); }
+    static LuaValue Check( lua_State* L, int index ) { return LuaValue( L, index ); }
+};
+
+namespace detail
+{
+// A table, function or thread as a parameter: checked for its kind.
+template <typename T, int Type>
+struct LuaKindTraits
+{
+    static bool Is( lua_State* L, int index ) { return lua_type( L, index ) == Type; }
+    static void Push( lua_State* L, const T& value ) { value.Push( L ); }
+    static T Check( lua_State* L, int index )
+    {
+        if ( not Is( L, index ) )
+            luaL_typeerror( L, index, lua_typename( L, Type ) );
+        return T( LuaValue( L, index ) );
+    }
+};
+}
+
+template <>
+struct LuaTraits<LuaTable> : detail::LuaKindTraits<LuaTable, LUA_TTABLE>
+{
+    static constexpr const char* cName = "table";
+};
+
+template <>
+struct LuaTraits<LuaFunction> : detail::LuaKindTraits<LuaFunction, LUA_TFUNCTION>
+{
+    static constexpr const char* cName = "function";
+};
+
+template <>
+struct LuaTraits<LuaThread> : detail::LuaKindTraits<LuaThread, LUA_TTHREAD>
+{
+    static constexpr const char* cName = "thread";
+};
+
+// Thrown by a bound function: a script error at the line that called it,
+// "player.luau:12: what went wrong".
+class LuaError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
+
+// The arguments from here to the end, however many: the last parameter of
+// a bound function that takes `...`. Passed to a call, they are spread out.
+struct LuaRest
+{
+    vector<LuaValue> mValues;
+};
+
+// Returned by a bound function to suspend the coroutine that called it,
+// handing `mValue` to whoever resumes it.
+struct LuaYield
+{
+    LuaValue mValue;
 };
 
 template <typename T>
@@ -172,6 +227,18 @@ inline void LuaPush( lua_State* L, const char* text )
     lua_pushstring( L, text );
 }
 
+inline void LuaPush( lua_State* L, const LuaRest& rest )
+{
+    for ( const LuaValue& value : rest.mValues )
+        value.Push( L );
+}
+
+template <typename K>
+void LuaPush( lua_State* L, const LuaTableEntry<K>& entry )
+{
+    entry.Value().Push( L );
+}
+
 template <typename T>
 std::remove_cvref_t<T> LuaCheck( lua_State* L, int index )
 {
@@ -180,6 +247,22 @@ std::remove_cvref_t<T> LuaCheck( lua_State* L, int index )
 
 namespace detail
 {
+// Makes `L` the thread LuaState works on and returns the one before:
+// what lets C++ called from a coroutine use the coroutine's stack.
+lua_State* SwapActiveThread( lua_State* L );
+
+class ActiveThreadScope
+{
+public:
+    explicit ActiveThreadScope( lua_State* L ) : mPrevious( SwapActiveThread( L ) ) {}
+    ~ActiveThreadScope() { SwapActiveThread( mPrevious ); }
+    ActiveThreadScope( const ActiveThreadScope& ) = delete;
+    ActiveThreadScope& operator=( const ActiveThreadScope& ) = delete;
+
+private:
+    lua_State* mPrevious;
+};
+
 template <typename F>
 struct Signature : Signature<decltype( &F::operator() )>
 {
@@ -217,6 +300,11 @@ struct Signature<R ( C::* )( A... ) const noexcept> : Signature<R ( * )( A... )>
 {
 };
 
+// A lambda, functor or function pointer: what becomes a bound function
+// when it is stored in a table.
+template <typename T>
+concept IsCallable = requires { &T::operator(); } or std::is_function_v<std::remove_pointer_t<T>>;
+
 // A lua_State* parameter is handed the state and takes no argument.
 template <typename A>
 constexpr bool cIsState = std::is_same_v<std::remove_cvref_t<A>, lua_State*>;
@@ -237,6 +325,13 @@ std::remove_cvref_t<A> Fetch( lua_State* L, int slot )
 {
     if constexpr ( cIsState<A> )
         return L;
+    else if constexpr ( std::is_same_v<std::remove_cvref_t<A>, LuaRest> )
+    {
+        LuaRest rest;
+        for ( int index = slot; index <= lua_gettop( L ); ++index )
+            rest.mValues.emplace_back( L, index );
+        return rest;
+    }
     else
         return LuaCheck<A>( L, slot );
 }
@@ -251,11 +346,17 @@ struct IsTuple<std::tuple<T...>> : std::true_type
 {
 };
 
-// Pushes what a bound function returned; a tuple is several results.
+// Pushes what a bound function returned; a tuple is several results, a
+// LuaYield suspends the coroutine.
 template <typename R>
 int PushResults( lua_State* L, R&& result )
 {
-    if constexpr ( IsTuple<std::remove_cvref_t<R>>::value )
+    if constexpr ( std::is_same_v<std::remove_cvref_t<R>, LuaYield> )
+    {
+        result.mValue.Push( L );
+        return lua_yield( L, 1 );
+    }
+    else if constexpr ( IsTuple<std::remove_cvref_t<R>>::value )
     {
         std::apply( [L]( const auto&... values ) { ( LuaPush( L, values ), ... ); }, result );
         return static_cast<int>( std::tuple_size_v<std::remove_cvref_t<R>> );
@@ -302,7 +403,18 @@ template <typename F>
 int CallBound( lua_State* L )
 {
     F& fn = *static_cast<F*>( lua_touserdata( L, lua_upvalueindex( 1 ) ) );
-    return Invoke( L, fn, 1, std::type_identity<typename Signature<F>::Args>{} );
+    int results = 0;
+    try
+    {
+        const ActiveThreadScope active( L );
+        results = Invoke( L, fn, 1, std::type_identity<typename Signature<F>::Args>{} );
+    }
+    catch ( const LuaError& error )
+    {
+        // luaL_error puts the caller's file and line in front.
+        luaL_error( L, "%s", error.what() );
+    }
+    return results;
 }
 
 template <typename T>
@@ -324,8 +436,10 @@ T* NewOwned( lua_State* L, T value )
 
 // Pushes `fn` - a function or a lambda, captures and all - as a Luau
 // function. Its parameters are read with LuaCheck: a wrong argument is a
-// script error naming it. A C++ exception it throws becomes a script error
-// with the exception's message. It returns nothing, one value, or a tuple.
+// script error naming it; a last LuaRest takes the rest. A LuaError it
+// throws is a script error at the calling line; any other exception, one
+// with the exception's message. It returns nothing, one value, a tuple, or
+// a LuaYield. While it runs, LuaState works on the thread that called it.
 template <typename F>
 void LuaPushFunction( lua_State* L, const char* name, F fn )
 {

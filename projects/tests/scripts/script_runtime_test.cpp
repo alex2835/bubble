@@ -37,13 +37,8 @@ end
 
     // Each instance has its own copy of a table prop.
     REQUIRE( scripts.Call( a, OnHit ) );
-    scripts.mRuntime.PushSelf( a );
-    scripts.mRuntime.PushSelf( b );
-    lua_getfield( scripts.L(), -2, "patrol" );
-    lua_getfield( scripts.L(), -2, "patrol" );
-    CHECK( lua_objlen( scripts.L(), -2 ) == 2 );
-    CHECK( lua_objlen( scripts.L(), -1 ) == 1 );
-    lua_settop( scripts.L(), 0 );
+    CHECK( LuaTable( scripts.Field( a, "patrol" ) ).Length() == 2 );
+    CHECK( LuaTable( scripts.Field( b, "patrol" ) ).Length() == 1 );
 }
 
 TEST_CASE( "Overrides lay over the defaults and must match them" )
@@ -69,12 +64,10 @@ TEST_CASE( "Overrides lay over the defaults and must match them" )
 TEST_CASE( "Props that a scene file could not hold are refused on load" )
 {
     Scripts scripts;
-    CHECK( scripts.LoadError( "a.luau", "props { entity = 1 }" ).find( "cannot be called 'entity'" ) !=
-           string::npos );
+    CHECK( scripts.LoadError( "a.luau", "props { entity = 1 }" ).find( "cannot be called 'entity'" ) != string::npos );
     CHECK( scripts.LoadError( "b.luau", "props { hit = function() end }" ).find( "a function cannot be saved" ) !=
            string::npos );
-    CHECK( scripts.LoadError( "c.luau", "props { a = 1 }\nprops { b = 2 }" ).find( "declared once" ) !=
-           string::npos );
+    CHECK( scripts.LoadError( "c.luau", "props { a = 1 }\nprops { b = 2 }" ).find( "declared once" ) != string::npos );
     CHECK( scripts.LoadError( "d.luau", "on_update = 5" ).find( "on_update is a number, not a function" ) !=
            string::npos );
 }
@@ -98,11 +91,9 @@ end
     REQUIRE( scripts.Call( a, OnUpdate ) );
     CHECK( scripts.Number( a, "count" ) == 2 );
 
-    auto hit = scripts.Call( a, OnHit );
-    REQUIRE_FALSE( hit );
-    CHECK( hit.error().mMessage.find( "undeclared global 'score'" ) != string::npos );
+    CHECK_FALSE( scripts.Call( a, OnHit ) );
     CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
-    CHECK( log.Saw( LogLevel::Error, { "/player", "score" } ) );
+    CHECK( log.Saw( LogLevel::Error, { "/player", "undeclared global 'score'" } ) );
 }
 
 TEST_CASE( "A failing instance is logged and switched off; the others go on" )
@@ -122,18 +113,15 @@ end
     REQUIRE( weak );
     const auto strong = scripts.Make( unit, "/strong" );
 
-    lua_pushnumber( scripts.L(), 0.016 );
-    CHECK_FALSE( scripts.mRuntime.Call( *weak, OnUpdate, 1 ) );
-    lua_pushnumber( scripts.L(), 0.016 );
-    CHECK( scripts.mRuntime.Call( strong, OnUpdate, 1 ) );
+    CHECK_FALSE( scripts.mRuntime.Call( *weak, OnUpdate, 0.016 ) );
+    CHECK( scripts.mRuntime.Call( strong, OnUpdate, 0.016 ) );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 
     CHECK_FALSE( scripts.mRuntime.Enabled( *weak ) );
     CHECK( scripts.mRuntime.Enabled( strong ) );
     CHECK( log.Saw( LogLevel::Error, { "/weak", "unit.luau:5: broke", "on_update" } ) );
-    // Switched off: no call, no error, the argument taken all the same.
-    lua_pushnumber( scripts.L(), 0.016 );
-    CHECK( scripts.mRuntime.Call( *weak, OnUpdate, 1 ) );
+    // Switched off: no call, no error.
+    CHECK( scripts.mRuntime.Call( *weak, OnUpdate, 0.016 ) );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
@@ -149,14 +137,13 @@ TEST_CASE( "A destroyed instance's handle finds nothing, even once its slot is r
     CHECK_FALSE( scripts.mRuntime.Alive( first ) );
     CHECK( scripts.mRuntime.Alive( second ) );
 
-    lua_pushnumber( scripts.L(), 1 );
-    auto called = scripts.mRuntime.Call( first, OnUpdate, 1 );
-    REQUIRE_FALSE( called );
-    CHECK( called.error().mMessage == "the script instance was destroyed" );
+    // A call through it does nothing and says so; nothing is logged, the
+    // entity is just gone.
+    LogWatch log;
+    CHECK_FALSE( scripts.mRuntime.Call( first, OnUpdate, 1.0 ) );
+    CHECK( log.Entries().empty() );
     CHECK( lua_gettop( scripts.L() ) == 0 );
-    scripts.mRuntime.PushSelf( first );
-    CHECK( lua_isnil( scripts.L(), -1 ) );
-    lua_pop( scripts.L(), 1 );
+    CHECK( scripts.mRuntime.Self( first ).IsNil() );
     // Destroying twice is harmless.
     scripts.mRuntime.Destroy( first );
     CHECK( scripts.mRuntime.Alive( second ) );
@@ -187,7 +174,7 @@ end
     CHECK_FALSE( scripts.mRuntime.Alive( scripts.mDoomed ) );
 
     // Its subscription and coroutine went with it.
-    scripts.mRuntime.Emit( "ping", 0 );
+    scripts.mRuntime.Emit( "ping" );
     scripts.mRuntime.Tick( 2 );
     CHECK( scripts.mRecorded == vector<string>{ "still running" } );
 }
@@ -327,9 +314,8 @@ end
     CHECK( log.Saw( LogLevel::Error, { "/bomb", "boom" } ) );
 
     const auto b = scripts.Make( bomb );
-    auto waited = scripts.Call( b, OnUpdate );
-    REQUIRE_FALSE( waited );
-    CHECK( waited.error().mMessage.find( "wait works inside start" ) != string::npos );
+    CHECK_FALSE( scripts.Call( b, OnUpdate ) );
+    CHECK( log.Saw( LogLevel::Error, { "wait works inside start" } ) );
 
     CHECK( scripts.LoadError( "top.luau", "start( function() end )" ).find( "in an entity's callbacks" ) !=
            string::npos );
@@ -372,8 +358,7 @@ end
     REQUIRE( newcomer );
     CHECK( newcomer->mIndex == b->mIndex );
     scripts.mRecorded.clear();
-    LuaPush( scripts.L(), "south" );
-    scripts.mRuntime.Emit( "door_opened", 1 );
+    scripts.mRuntime.Emit( "door_opened", "south" );
     CHECK( scripts.mRecorded == vector<string>{ "a:south", "c:south" } );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }

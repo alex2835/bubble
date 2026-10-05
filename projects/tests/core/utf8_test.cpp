@@ -21,11 +21,11 @@ TEST_CASE( "Utf8Valid takes well-formed text in any script" )
 
 TEST_CASE( "Utf8Valid refuses what only looks like UTF-8" )
 {
-    CHECK_FALSE( Utf8Valid( "\x80" ) );              // a continuation byte alone
-    CHECK_FALSE( Utf8Valid( "\xC0\xAF" ) );          // overlong '/'
-    CHECK_FALSE( Utf8Valid( "\xED\xA0\x80" ) );      // a UTF-16 surrogate
-    CHECK_FALSE( Utf8Valid( "\xF4\x90\x80\x80" ) );  // past U+10FFFF
-    CHECK_FALSE( Utf8Valid( "\xE6\x97" ) );          // cut short
+    CHECK_FALSE( Utf8Valid( "\x80" ) );             // a continuation byte alone
+    CHECK_FALSE( Utf8Valid( "\xC0\xAF" ) );         // overlong '/'
+    CHECK_FALSE( Utf8Valid( "\xED\xA0\x80" ) );     // a UTF-16 surrogate
+    CHECK_FALSE( Utf8Valid( "\xF4\x90\x80\x80" ) ); // past U+10FFFF
+    CHECK_FALSE( Utf8Valid( "\xE6\x97" ) );         // cut short
     CHECK_FALSE( Utf8Valid( "ok\xFF" ) );
 }
 
@@ -42,7 +42,8 @@ TEST_CASE( "size() counts bytes, Utf8CodePoints counts code points" )
 
 TEST_CASE( "Utf8Next steps over bad bytes one at a time" )
 {
-    const string_view text = "a\xFF" "b";
+    const string_view text = "a\xFF"
+                             "b";
     size_t pos = 0;
     CHECK( Utf8Next( text, pos ) == U'a' );
     CHECK( Utf8Next( text, pos ) == cReplacementCharacter );

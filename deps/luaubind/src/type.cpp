@@ -1,6 +1,6 @@
-#include "bubble/scripts/lua/lua_type.hpp"
+#include "luaubind/type.hpp"
 
-namespace bubble
+namespace luaubind
 {
 namespace
 {
@@ -24,7 +24,7 @@ LuaType& LuaType::Install( LuaState& state, string_view name, std::type_index ty
     const int tag = static_cast<int>( state.mTypes.size() ) + 1;
     if ( tag >= LUA_UTAG_LIMIT )
         throw std::runtime_error( "too many engine types for Luau's userdata tags" );
-    LuaType& luaType = *state.mTypes.emplace_back( CreateScope<LuaType>( state, string( name ), tag, type ) );
+    LuaType& luaType = *state.mTypes.emplace_back( std::make_unique<LuaType>( state, string( name ), tag, type ) );
 
     lua_State* L = state.L();
     lua_setuserdatadtor( L, tag, destroy );
@@ -85,21 +85,21 @@ void LuaType::AddMethod( string_view name, Method method )
     Add( name ).mMethod = std::move( method );
 }
 
-OptRef<const LuaType::Member> LuaType::Find( int atom, string_view name ) const
+const LuaType::Member* LuaType::Find( int atom, string_view name ) const
 {
     if ( atom >= 0 )
     {
         const auto slot = static_cast<size_t>( atom );
         if ( slot < mByAtom.size() and mByAtom[slot] >= 0 )
-            return mMembers[static_cast<size_t>( mByAtom[slot] )];
+            return &mMembers[static_cast<size_t>( mByAtom[slot] )];
         if ( not mMissingAtoms )
-            return std::nullopt;
+            return nullptr;
     }
     // Atoms ran out before some member was added: those go by name.
     for ( const Member& member : mMembers )
         if ( member.mName == name )
-            return member;
-    return std::nullopt;
+            return &member;
+    return nullptr;
 }
 
 void LuaType::NoMember( lua_State* L, string_view name, bool method ) const

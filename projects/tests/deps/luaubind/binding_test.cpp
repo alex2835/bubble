@@ -1,15 +1,12 @@
-// The layer between C++ and Luau: holding values, converting them, binding
-// functions and engine types, calling with tracebacks.
-#include "bubble/scripts/lua/lua_ref.hpp"
-#include "bubble/scripts/lua/lua_stack.hpp"
-#include "bubble/scripts/lua/lua_type.hpp"
-#include "scripts/script_helpers.hpp"
+// luaubind's binding layer: holding values, converting them, binding
+// functions and types, calling with tracebacks.
+#include "deps/luaubind/helpers.hpp"
 #include <memory>
 #include <stdexcept>
 #include <tuple>
 
-using namespace bubble;
-using namespace bubble::test;
+using namespace luaubind;
+using namespace luaubind::test;
 
 namespace
 {
@@ -26,28 +23,24 @@ string ErrorOf( lua_State* L, string_view source )
 }
 }
 
-TEST_CASE( "A LuaRef keeps its value through a collection and pushes it back" )
+TEST_CASE( "A LuaValue keeps its value through a collection; a copy is the same value" )
 {
     LuaState state;
-    lua_State* L = state.L();
-    lua_newtable( L );
-    lua_pushnumber( L, 42 );
-    lua_setfield( L, -2, "answer" );
-    LuaRef ref( L, -1 );
-    lua_pop( L, 1 );
-    lua_gc( L, LUA_GCCOLLECT, 0 );
+    LuaValue table = state.NewTable();
+    state.RawSet( table, "answer", 42 );
+    lua_gc( state.L(), LUA_GCCOLLECT, 0 );
 
-    LuaRef copy = ref.Copy();
-    ref.Reset();
-    CHECK( ref.Empty() );
-    copy.Push( L );
-    lua_getfield( L, -1, "answer" );
-    CHECK( lua_tonumber( L, -1 ) == 42 );
-    lua_pop( L, 2 );
-
-    lua_pushnil( L );
-    CHECK( LuaRef( L, -1 ).Empty() );
-    lua_pop( L, 1 );
+    LuaValue copy = table;
+    table = {};
+    CHECK( table.IsNil() );
+    CHECK( state.RawGet( copy, "answer" ).As<int>() == 42 );
+    // The same table, not a second one.
+    LuaValue again = copy;
+    state.RawSet( again, "answer", 7 );
+    CHECK( state.RawGet( copy, "answer" ).As<int>() == 7 );
+    CHECK( again == copy );
+    CHECK_FALSE( again == state.NewTable() );
+    CHECK( lua_gettop( state.L() ) == 0 );
 }
 
 TEST_CASE( "Values cross both ways with their types" )
@@ -172,14 +165,6 @@ TEST_CASE( "Sealed globals are read-only to scripts" )
     CHECK_FALSE( RunLua( state.L(), "print = nil" ).has_value() );
 }
 
-TEST_CASE( "print writes to the log as the script's message" )
-{
-    LogWatch log;
-    LuaState state;
-    REQUIRE( RunLua( state.L(), "print( 'hp', 10, true )" ) );
-    CHECK( log.Saw( LogLevel::Script, { "hp\t10\ttrue" } ) );
-}
-
 namespace
 {
 struct Light
@@ -195,10 +180,11 @@ LuaType& RegisterLight( LuaState& state )
         .Field( "brightness", &Light::mBrightness )
         .Field( "color", &Light::mColor )
         .ReadOnly( "id", &Light::mId )
-        .Method( "dim", []( Light& self, f32 by ) {
-            self.mBrightness -= by;
-            return self.mBrightness;
-        } )
+        .Method( "dim",
+                 []( Light& self, f32 by ) {
+                     self.mBrightness -= by;
+                     return self.mBrightness;
+                 } )
         .Type();
 }
 }
@@ -258,8 +244,8 @@ TEST_CASE( "An engine type hands its object back typed, and only as the type it 
     REQUIRE( light );
     CHECK( light->mId == 12 );
     CHECK_FALSE( type.To<Light>( L, 2 ) );
-    CHECK( state.Type( type.Tag() ) == OptRef<LuaType>( type ) );
-    CHECK_FALSE( state.Type( type.Tag() + 1 ) );
+    CHECK( state.FindType( type.Tag() ) == &type );
+    CHECK( state.FindType( type.Tag() + 1 ) == nullptr );
     // Asking for another C++ type is a bug in the engine, not in a script.
     CHECK_THROWS_AS( (void)type.To<Vec3>( L, 1 ), std::logic_error );
     lua_settop( L, 0 );

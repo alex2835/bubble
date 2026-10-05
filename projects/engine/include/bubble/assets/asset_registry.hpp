@@ -121,26 +121,27 @@ public:
     template <typename T>
     void RegisterImporter( string_view extension, string_view kind, Importer<T> import )
     {
-        mImporters.insert_or_assign( string( extension ), ImporterEntry{
-            typeid( T ), string( kind ),
-            [import = std::move( import )]( string_view bytes, AssetSlotBase& slot ) -> expected<void, string> {
-                auto asset = import( bytes, slot.Path() );
-                if ( not asset )
-                    return std::unexpected( std::move( asset.error() ) );
-                static_cast<AssetSlot<T>&>( slot ).mData.emplace( std::move( *asset ) );
-                return {};
-            } } );
+        mImporters.insert_or_assign(
+            string( extension ),
+            ImporterEntry{
+                typeid( T ), string( kind ),
+                [import = std::move( import )]( string_view bytes, AssetSlotBase& slot ) -> expected<void, string> {
+                    auto asset = import( bytes, slot.Path() );
+                    if ( not asset )
+                        return std::unexpected( std::move( asset.error() ) );
+                    static_cast<AssetSlot<T>&>( slot ).mData.emplace( std::move( *asset ) );
+                    return {};
+                } } );
     }
 
     // The asset at `path`; the same slot when it is in memory already. A
     // file that is missing, of an unknown kind or fails to import gives a
-    // Failed handle with the reason, which is logged.
+    // Failed handle with the reason in Error(); whoever asked reports it.
     template <typename T>
     AssetHandle<T> Load( const AssetPath& path )
     {
-        return AssetHandle<T>( std::static_pointer_cast<AssetSlot<T>>( LoadSlot( path, typeid( T ), [&] {
-            return CreateRef<AssetSlot<T>>( AssetId::MakeFrom( path.View() ), path );
-        } ) ) );
+        return AssetHandle<T>( std::static_pointer_cast<AssetSlot<T>>( LoadSlot(
+            path, typeid( T ), [&] { return CreateRef<AssetSlot<T>>( AssetId::MakeFrom( path.View() ), path ); } ) ) );
     }
 
     // The asset if it is in memory - never loads.

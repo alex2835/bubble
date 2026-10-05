@@ -1,10 +1,9 @@
 #pragma once
-#include "bubble/types/string.hpp"
-#include "bubble/types/utility.hpp"
+#include "luaubind/common.hpp"
 
 struct lua_State;
 
-namespace bubble
+namespace luaubind
 {
 // What went wrong in a script: the message ("player.luau:12: attempt to
 // index nil") and the stack it was raised in, innermost first.

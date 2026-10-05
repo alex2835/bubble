@@ -41,7 +41,8 @@ TEST_CASE( "Luau runs a script with its vector type" )
     REQUIRE( Run( state.L, R"(
         local p = vector.create(1, 2, 3) + vector.create(0, 0.5, 0) * 2
         return p
-    )" ).empty() );
+    )" )
+                 .empty() );
     const float* p = lua_tovector( state.L, -1 );
     REQUIRE( p != nullptr );
     CHECK( p[0] == 1.0f );

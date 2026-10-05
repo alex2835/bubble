@@ -1,5 +1,5 @@
-#include "bubble/scripts/lua/lua_call.hpp"
-#include "bubble/scripts/lua/lua_state.hpp"
+#include "luaubind/call.hpp"
+#include "luaubind/state.hpp"
 #include <cstdlib>
 #include <format>
 #include <lua.h>
@@ -7,7 +7,7 @@
 #include <lualib.h>
 #include <memory>
 
-namespace bubble
+namespace luaubind
 {
 struct LuaStateAccess
 {

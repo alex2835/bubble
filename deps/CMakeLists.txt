@@ -69,3 +69,7 @@ if( BUBBLE_PROFILE )
         target_link_libraries( tracy_client PUBLIC ws2_32 dbghelp )
     endif()
 endif()
+
+# luaubind - our own small C++ binding for Luau, kept apart from the engine so
+# it depends on Luau alone.
+add_subdirectory( luaubind )

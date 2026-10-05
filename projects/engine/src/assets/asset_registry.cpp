@@ -1,12 +1,13 @@
 #include "bubble/assets/asset_registry.hpp"
-#include "bubble/core/log.hpp"
 #include <format>
 #include <fstream>
 #include <sstream>
 
 namespace bubble
 {
-AssetRegistry::AssetRegistry( ReadFile read ) : mRead( std::move( read ) ) {}
+AssetRegistry::AssetRegistry( ReadFile read ) : mRead( std::move( read ) )
+{
+}
 
 AssetRegistry::ReadFile AssetRegistry::FromDirectory( std::filesystem::path root )
 {
@@ -38,7 +39,6 @@ Ref<AssetSlotBase> AssetRegistry::LoadSlot( const AssetPath& path, std::type_ind
         Ref<AssetSlotBase> wrong = make();
         wrong->mState = AssetState::Failed;
         wrong->mError = std::format( "{} is loaded as another kind of asset", path.View() );
-        LogError( "{}", wrong->mError );
         return wrong;
     }
 
@@ -49,7 +49,6 @@ Ref<AssetSlotBase> AssetRegistry::LoadSlot( const AssetPath& path, std::type_ind
     {
         slot->mState = AssetState::Failed;
         slot->mError = std::move( imported.error() );
-        LogError( "{}: {}", path.View(), slot->mError );
         return slot;
     }
     slot->mState = AssetState::Ready;
@@ -79,7 +78,6 @@ expected<void, string> AssetRegistry::Reload( const AssetPath& path )
     // leaves the old version in place.
     if ( auto imported = Import( *slot ); not imported )
     {
-        LogError( "{}: {}", path.View(), imported.error() );
         // A slot that never loaded keeps saying why.
         if ( slot->mState != AssetState::Ready )
             slot->mError = imported.error();

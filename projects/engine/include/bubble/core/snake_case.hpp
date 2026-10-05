@@ -16,8 +16,8 @@ inline string ToSnakeCase( string_view name )
     {
         // A word starts at a capital after a lowercase letter or a digit, and
         // at the last capital of an acronym that a lowercase letter follows.
-        if ( i > 0 and upper( i ) and
-             ( not upper( i - 1 ) or ( i + 1 < name.size() and lower( i + 1 ) ) ) and name[i - 1] != '_' )
+        if ( i > 0 and upper( i ) and ( not upper( i - 1 ) or ( i + 1 < name.size() and lower( i + 1 ) ) ) and
+             name[i - 1] != '_' )
             out += '_';
         out += (char)std::tolower( (unsigned char)name[i] );
     }

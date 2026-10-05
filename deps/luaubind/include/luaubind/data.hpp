@@ -1,12 +1,11 @@
 #pragma once
-#include "bubble/types/string.hpp"
-#include "bubble/types/utility.hpp"
+#include "luaubind/common.hpp"
 
 struct lua_State;
 
 // Script data handled where it lives, on the Luau stack - no C++ copy of a
 // Luau value in between.
-namespace bubble
+namespace luaubind
 {
 // The value at `index` as bytes: what save.write puts in a slot and how
 // `progress` crosses into the next world. Data only - nil, booleans,

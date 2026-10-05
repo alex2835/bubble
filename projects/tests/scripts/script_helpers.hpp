@@ -1,26 +1,13 @@
 #pragma once
-// What the script tests share: compiling and running a snippet, and reading
-// back what was logged.
+// What the script tests share: compiling a snippet, and reading back what
+// was logged.
 #include "bubble/core/log.hpp"
-#include "bubble/scripts/lua/lua_call.hpp"
-#include "bubble/scripts/lua/lua_state.hpp"
+#include "bubble/scripts/lua.hpp"
 #include <doctest.h>
 #include <lua.h>
 
 namespace bubble::test
 {
-// Compiles and runs `source` in L's globals; on success its results stay on
-// the stack, else the error comes back.
-inline expected<void, ScriptError> RunLua( lua_State* L, string_view source, int results = 0 )
-{
-    auto bytecode = CompileScript( source );
-    if ( not bytecode )
-        return std::unexpected( ScriptError{ bytecode.error(), {} } );
-    if ( auto loaded = LoadScript( L, "=test", *bytecode ); not loaded )
-        return std::unexpected( ScriptError{ loaded.error(), {} } );
-    return PCall( L, 0, results );
-}
-
 inline string Bytecode( string_view source )
 {
     auto bytecode = CompileScript( source );

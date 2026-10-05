@@ -1,6 +1,4 @@
-#include "bubble/scripts/lua/lua_data.hpp"
-#include "bubble/types/containers.hpp"
-#include "bubble/types/number.hpp"
+#include "luaubind/data.hpp"
 #include <algorithm>
 #include <bit>
 #include <cstring>
@@ -8,7 +6,7 @@
 #include <lua.h>
 #include <lualib.h>
 
-namespace bubble
+namespace luaubind
 {
 namespace
 {

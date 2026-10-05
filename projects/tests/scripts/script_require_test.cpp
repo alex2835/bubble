@@ -77,8 +77,7 @@ TEST_CASE( "require says what is wrong with a path" )
     Project scripts;
     scripts.AddLibrary( "scripts/lib/inventory.luau", cInventory );
     CHECK( scripts.LoadError( "scripts/a.luau", "require( 'scripts/lib/inventory' )" )
-               .find( "require( 'scripts/lib/inventory' ): a path starts with ./, ../ or @alias" ) !=
-           string::npos );
+               .find( "require( 'scripts/lib/inventory' ): a path starts with ./, ../ or @alias" ) != string::npos );
     CHECK( scripts.LoadError( "scripts/b.luau", "require( '@libs/inventory' )" )
                .find( "no alias @libs (aliases: @lib)" ) != string::npos );
     CHECK( scripts.LoadError( "scripts/c.luau", "require( '@lib/inventroy' )" )
@@ -134,9 +133,9 @@ local leaky = require( "@lib/leaky" )
 function on_hit( self ) leaky.touch() end
 )" );
     const auto a = scripts.Make( unit );
-    auto hit = scripts.Call( a, OnHit );
-    REQUIRE_FALSE( hit );
-    CHECK( hit.error().mMessage.find( "undeclared global 'oops'" ) != string::npos );
+    LogWatch log;
+    CHECK_FALSE( scripts.Call( a, OnHit ) );
+    CHECK( log.Saw( LogLevel::Error, { "undeclared global 'oops'" } ) );
 }
 
 TEST_CASE( "A require cycle is an error that shows the cycle" )
@@ -225,10 +224,7 @@ function on_update( self, dt ) self.calls = ( self.calls or 0 ) + 1 end
     CHECK( scripts.Number( a, "speed" ) == 5 );
     CHECK( scripts.Number( b, "speed" ) == 5 );
     // self survives the reload.
-    scripts.mRuntime.PushSelf( a );
-    lua_getfield( scripts.L(), -1, "kept" );
-    CHECK( lua_toboolean( scripts.L(), -1 ) );
-    lua_pop( scripts.L(), 2 );
+    CHECK( scripts.Field( a, "kept" ).Truthy() );
     // A script that never required it is not run again, nor is an
     // unrelated library.
     CHECK( scripts.mRecorded.empty() );

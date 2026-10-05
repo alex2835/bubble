@@ -1,3 +1,4 @@
+#include "bubble/core/assert.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/snake_case.hpp"
 #include "bubble/types/types.hpp"
@@ -51,4 +52,16 @@ TEST_CASE( "The log keeps what was said, in order, with its level" )
     CHECK( entries[1].mLevel == LogLevel::Warning );
     CHECK( entries[2].mText == "2 + 2 = 5" );
     CHECK( entries[2].mLevel == LogLevel::Error );
+}
+
+TEST_CASE( "An assert that holds lets the code go on" )
+{
+    int checked = 0;
+    BUBBLE_ASSERT( ++checked > 0 or true, "never fails" );
+#ifdef NDEBUG
+    // Release does not evaluate the condition.
+    CHECK( checked == 0 );
+#else
+    CHECK( checked == 1 );
+#endif
 }

@@ -4,9 +4,9 @@ file( GLOB_RECURSE BUBBLE_ENGINE_HEADERS CONFIGURE_DEPENDS include/*.hpp )
 add_library( bubble_engine STATIC ${BUBBLE_ENGINE_SOURCES} ${BUBBLE_ENGINE_HEADERS} )
 target_include_directories( bubble_engine PUBLIC include )
 bubble_target_warnings( bubble_engine )
-# The VM and native code generation. The compiler too, for the editor and
-# tests: a runner that never calls CompileScript links none of it.
-target_link_libraries( bubble_engine PUBLIC luau )
+# Luau through luaubind: the VM, native code generation, and the compiler for
+# the editor and tests - a runner that never calls CompileScript links none of it.
+target_link_libraries( bubble_engine PUBLIC luaubind )
 
 if( BUBBLE_PROFILE )
     target_link_libraries( bubble_engine PUBLIC tracy_client )

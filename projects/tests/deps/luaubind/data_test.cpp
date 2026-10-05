@@ -1,9 +1,8 @@
 // Script data as bytes (saves, progress) and copied in place (snapshots).
-#include "bubble/scripts/lua/lua_data.hpp"
-#include "scripts/script_helpers.hpp"
+#include "deps/luaubind/helpers.hpp"
 
-using namespace bubble;
-using namespace bubble::test;
+using namespace luaubind;
+using namespace luaubind::test;
 
 namespace
 {

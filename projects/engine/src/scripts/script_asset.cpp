@@ -1,6 +1,6 @@
 #include "bubble/scripts/script_asset.hpp"
 #include "bubble/assets/asset_registry.hpp"
-#include "bubble/scripts/lua/lua_call.hpp"
+#include "bubble/scripts/lua.hpp"
 
 namespace bubble
 {

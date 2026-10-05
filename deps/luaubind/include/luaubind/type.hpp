@@ -1,12 +1,12 @@
 #pragma once
-#include "bubble/scripts/lua/lua_stack.hpp"
-#include "bubble/scripts/lua/lua_state.hpp"
-#include "bubble/types/opt_ref.hpp"
+#include "luaubind/common.hpp"
+#include "luaubind/stack.hpp"
+#include "luaubind/state.hpp"
 #include <functional>
 #include <stdexcept>
 #include <typeindex>
 
-namespace bubble
+namespace luaubind
 {
 template <typename T>
 class LuaTypeBuilder;
@@ -24,14 +24,12 @@ public:
     const string& Name() const { return mName; }
     int Tag() const { return mTag; }
 
-    // The object at `index`, or nothing when it is not of this type.
+    // The object at `index`, or null when it is not of this type.
     template <typename T>
-    OptRef<T> To( lua_State* L, int index ) const
+    T* To( lua_State* L, int index ) const
     {
         Expect<T>();
-        if ( void* data = lua_touserdatatagged( L, index, mTag ) )
-            return *static_cast<T*>( data );
-        return std::nullopt;
+        return static_cast<T*>( lua_touserdatatagged( L, index, mTag ) );
     }
 
     // The object at `index`, or a script error: "light expected, got number".
@@ -84,7 +82,7 @@ private:
     void AddField( string_view name, Getter get, Setter set );
     void AddMethod( string_view name, Method method );
     Member& Add( string_view name );
-    OptRef<const Member> Find( int atom, string_view name ) const;
+    const Member* Find( int atom, string_view name ) const;
     [[noreturn]] void NoMember( lua_State* L, string_view name, bool method ) const;
 
     static int Index( lua_State* L );
@@ -130,8 +128,8 @@ public:
     template <typename M>
     LuaTypeBuilder& ReadOnly( string_view name, M T::* member )
     {
-        mType.AddField(
-            name, [member]( lua_State* L, void* data ) { LuaPush( L, static_cast<T*>( data )->*member ); }, {} );
+        mType.AddField( name, [member]( lua_State* L, void* data ) { LuaPush( L, static_cast<T*>( data )->*member ); },
+                        {} );
         return *this;
     }
 

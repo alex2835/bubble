@@ -73,7 +73,7 @@ TEST_CASE( "A loaded asset is Ready, and the same path is the same slot" )
     CHECK_FALSE( project.mAssets.Find<NumberAsset>( *AssetPath::From( "notes/hello.txt" ) ) );
 }
 
-TEST_CASE( "An asset that cannot load fails with the reason, and says so in the log" )
+TEST_CASE( "An asset that cannot load fails with the reason" )
 {
     Project project;
     project.mFiles["bad.txt"] = "broken";
