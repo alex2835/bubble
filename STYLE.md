@@ -99,6 +99,18 @@ their own style. What it enforces:
   headers, then libraries, then the standard library, each group sorted.
 - A header includes what it uses and nothing for its users' convenience.
 
+## Build time
+
+Nothing exotic, just care: a file that takes many seconds to compile is a
+bug to look at.
+
+- Heavy libraries (EnTT, JSON, Tracy) stay in `.cpp` files where they can;
+  a public header shows the engine's own types.
+- A template is a thin typed shell; work that does not need the type goes
+  into a plain function in a `.cpp` (`AssetHandle<T>` over `AssetSlotBase`).
+- Bindings and other code that instantiates a lot live in one `.cpp`, not in
+  a header everyone includes.
+
 ## Tests
 
 - doctest; a test case is named as a sentence about behaviour: "A stale
