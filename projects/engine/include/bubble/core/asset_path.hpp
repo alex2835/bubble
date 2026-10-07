@@ -1,7 +1,6 @@
 #pragma once
+#include "bubble/types/filesystem.hpp"
 #include "bubble/types/string.hpp"
-#include <filesystem>
-#include <functional>
 
 namespace bubble
 {
@@ -31,7 +30,7 @@ public:
     // `relative` inside this one, as From reads it.
     expected<AssetPath, string> Join( string_view relative ) const;
 
-    std::filesystem::path ToOsPath( const std::filesystem::path& projectRoot ) const;
+    OsPath ToOsPath( const OsPath& projectRoot ) const;
 
     friend bool operator==( const AssetPath&, const AssetPath& ) = default;
     friend auto operator<=>( const AssetPath&, const AssetPath& ) = default;
@@ -45,5 +44,5 @@ private:
 template <>
 struct std::hash<bubble::AssetPath>
 {
-    size_t operator()( const bubble::AssetPath& path ) const { return std::hash<std::string_view>{}( path.View() ); }
+    size_t operator()( const bubble::AssetPath& path ) const { return std::hash<string_view>{}( path.View() ); }
 };

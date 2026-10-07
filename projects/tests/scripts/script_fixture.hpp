@@ -24,11 +24,11 @@ struct Scripts
     AssetRegistry mAssets{ [this]( const AssetPath& path ) -> expected<string, string> {
         const auto found = mFiles.find( path.View() );
         if ( found == mFiles.end() )
-            return std::unexpected( "no such file"s );
+            return unexpected( "no such file"s );
         return found->second;
     } };
     // What the world holds loaded - as its scripts module would.
-    vector<AssetHandle<ScriptAsset>> mHeld;
+    vector<AssetRef<ScriptAsset>> mHeld;
     LuaState mState{ PrintToLog };
     ScriptRuntime mRuntime{ mState, mAssets, { "on_start", "on_update", "on_hit" } };
     // What scripts passed to record( text ), in order.
@@ -53,7 +53,7 @@ struct Scripts
     {
         mFiles[string( path )] = string( source );
         auto asset = mAssets.Load<ScriptAsset>( *AssetPath::From( path ) );
-        REQUIRE_MESSAGE( asset.Ready(), asset.Slot().Error() );
+        REQUIRE_MESSAGE( asset.Ready(), asset.Entry().Error() );
         mHeld.push_back( std::move( asset ) );
     }
 

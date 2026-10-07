@@ -1,15 +1,15 @@
 // Handles and the storage that hands them out: links to things that can go
 // away, which find nothing once they have.
 #include "bubble/types/handle.hpp"
+#include "bubble/types/string.hpp"
 #include <doctest.h>
-#include <string>
 
 using namespace bubble;
 
 namespace
 {
 using ThingHandle = Handle<struct ThingTag>;
-using Things = SlotMap<std::string, struct ThingTag>;
+using Things = SlotMap<string, struct ThingTag>;
 }
 
 TEST_CASE( "A handle finds its entry until the entry is removed" )
@@ -44,9 +44,9 @@ TEST_CASE( "An entry stays in place while others are added" )
 {
     Things things;
     const ThingHandle first = things.Add( "first" );
-    const std::string* address = &*things.Get( first );
+    const string* address = &*things.Get( first );
     for ( int i = 0; i < 10000; ++i )
-        things.Add( std::to_string( i ) );
+        things.Add( to_string( i ) );
     CHECK( &*things.Get( first ) == address );
 }
 
@@ -76,5 +76,5 @@ TEST_CASE( "OptRef is a reference or nothing" )
     CHECK( value == 4 );
     const OptRef<const int> constant = some;
     CHECK( *constant == 4 );
-    CHECK( none == std::nullopt );
+    CHECK( none == nullopt );
 }

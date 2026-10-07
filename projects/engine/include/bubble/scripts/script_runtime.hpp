@@ -108,7 +108,7 @@ private:
     struct Module
     {
         string mChunk;
-        AssetHandle<ScriptAsset> mAsset;
+        AssetRef<ScriptAsset> mAsset;
         LuaTable mEnvironment;
         LuaTable mProps;
         // By callback index; nil where the file has none.
@@ -137,7 +137,7 @@ private:
 
     struct Library
     {
-        AssetHandle<ScriptAsset> mAsset;
+        AssetRef<ScriptAsset> mAsset;
         // Nil until its first require, and again after it changes.
         LuaValue mResult;
         LuaTable mEnvironment;
@@ -175,9 +175,8 @@ private:
     };
 
     void RegisterGlobals();
-    expected<FileResult, ScriptError> RunFile( string_view path, const AssetHandle<ScriptAsset>& asset, bool library );
-    expected<FileResult, ScriptError> RunTracked( string_view path, const AssetHandle<ScriptAsset>& asset,
-                                                  bool library );
+    expected<FileResult, ScriptError> RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bool library );
+    expected<FileResult, ScriptError> RunTracked( string_view path, const AssetRef<ScriptAsset>& asset, bool library );
     expected<void, string> CheckProps( const LuaTable& props );
     expected<void, string> CopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
     expected<string, string> Resolve( string_view from, string_view request ) const;
@@ -185,7 +184,7 @@ private:
 
     // A script asset changed: it runs again, and so does everything that
     // required it - libraries at their next require, scripts at once.
-    void Changed( const AssetSlotBase& slot );
+    void Changed( const AssetEntryBase& entry );
     expected<void, ScriptError> Rerun( ScriptModuleHandle module );
 
     bool CallWith( ScriptInstanceHandle instance, u32 callback, const LuaRest& args );

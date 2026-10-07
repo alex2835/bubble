@@ -66,10 +66,22 @@ their own style. What it enforces:
 
 ## Types and ownership
 
-- The aliases from `bubble/types`: `string`, `string_view`, `vector`,
-  `array`, `hmap`, `hset` (a string key is found by `string_view`), `opt`,
-  `expected`, `Scope`, `Ref`, `i32`, `u32`, `f32`, `f64`... luaubind has its own small
-  set in `luaubind/common.hpp`, the same names over the standard library.
+- **No `std::` in the engine's code.** The standard library is reached
+  through `bubble/types`, which is the only place that names it: `string`,
+  `vector`, `hmap`, `opt`, `expected`, `unexpected`, `nullopt`, `Ref`,
+  `WeakRef`, `function` (`function.hpp`), `format` (`format.hpp`), `OsPath`
+  and `fs::` (`filesystem.hpp`), `ranges::`, `min`, `max` (`algorithm.hpp`),
+  streams (`stream.hpp`), `mutex` (`thread.hpp`), `i32`, `u32`, `f32`...
+  Something missing is added there as a `using`, in the header of its kind -
+  a heavy one (`<format>`, `<filesystem>`) gets its own, so only who needs it
+  pays for it. What stays `std::`:
+  - `std::move` and `std::forward`: clang warns on unqualified calls to them;
+  - `std::hash<T>` specializations, which the language puts in `std`;
+  - the C library at a C boundary (`std::abort`, `std::fopen`).
+
+  Tests of vendored libraries (`tests/deps/`) speak those libraries' terms.
+  luaubind has its own small set in `luaubind/common.hpp`.
+- `hmap` and `hset` find a string key by `string_view` without a copy.
 - Owning: `Scope` or `Ref`. A link to what outlives you: `T&`. A link to
   what can go away: a `Handle` from a `SlotMap`. Maybe-missing results and
   parameters: `OptRef<T>`, never a member. Raw pointers only at a C API
@@ -79,8 +91,8 @@ their own style. What it enforces:
   reference, member functions.
 - `auto` when the type is on the same line or obvious (`auto handle =
   registry.Load<ScriptAsset>( path )`), the type written out otherwise.
-- Strings are UTF-8 in `std::string`; identifiers ASCII; never a
-  `std::filesystem::path` from `std::string` - `PathFromUtf8`.
+- Strings are UTF-8 in `string`; identifiers ASCII; never an `OsPath` from
+  a `string` - `PathFromUtf8`.
 - No globals besides the log and the profiler.
 
 ## Comments
@@ -107,7 +119,7 @@ bug to look at.
 - Heavy libraries (EnTT, JSON, Tracy) stay in `.cpp` files where they can;
   a public header shows the engine's own types.
 - A template is a thin typed shell; work that does not need the type goes
-  into a plain function in a `.cpp` (`AssetHandle<T>` over `AssetSlotBase`).
+  into a plain function in a `.cpp` (`AssetRef<T>` over `AssetEntryBase`).
 - Bindings and other code that instantiates a lot live in one `.cpp`, not in
   a header everyone includes.
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/types/string.hpp"
 #include <array>
+#include <deque>
 #include <map>
 #include <set>
 #include <span>
@@ -12,6 +13,9 @@ namespace bubble
 {
 template <typename T>
 using vector = std::vector<T>;
+
+template <typename T>
+using deque = std::deque<T>;
 
 template <typename T, size_t Size>
 using array = std::array<T, Size>;
@@ -46,4 +50,6 @@ using hmap = std::unordered_map<K, V, typename hmap_hash<K>::type, std::equal_to
 
 template <typename T>
 using hset = std::unordered_set<T, typename hmap_hash<T>::type, std::equal_to<>>;
+
+using std::erase_if;
 }

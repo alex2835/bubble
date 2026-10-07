@@ -33,7 +33,7 @@ public:
     }
 
     // Some message of `level` contains every one of `parts`.
-    bool Saw( LogLevel level, std::initializer_list<string_view> parts ) const
+    bool Saw( LogLevel level, initializer_list<string_view> parts ) const
     {
         for ( const LogEntry& entry : Entries() )
         {

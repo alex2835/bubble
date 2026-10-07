@@ -11,6 +11,10 @@ using namespace std::string_view_literals;
 
 using string = std::string;
 using string_view = std::string_view;
+using std::u8string;
+using std::u8string_view;
+
+using std::to_string;
 
 // The whole of `text` as an integer, or nothing.
 template <typename Int = int>

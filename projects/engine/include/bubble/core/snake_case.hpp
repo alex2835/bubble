@@ -1,6 +1,5 @@
 #pragma once
 #include "bubble/types/string.hpp"
-#include <cctype>
 
 namespace bubble
 {
@@ -8,8 +7,9 @@ namespace bubble
 // Everything a user sees is snake_case, while C++ names are PascalCase.
 inline string ToSnakeCase( string_view name )
 {
-    const auto upper = [&]( size_t i ) { return std::isupper( (unsigned char)name[i] ) != 0; };
-    const auto lower = [&]( size_t i ) { return std::islower( (unsigned char)name[i] ) != 0; };
+    // Identifiers are ASCII; <cctype> would also follow the C locale.
+    const auto upper = [&]( size_t i ) { return name[i] >= 'A' and name[i] <= 'Z'; };
+    const auto lower = [&]( size_t i ) { return name[i] >= 'a' and name[i] <= 'z'; };
 
     string out;
     for ( size_t i = 0; i < name.size(); i++ )
@@ -19,7 +19,7 @@ inline string ToSnakeCase( string_view name )
         if ( i > 0 and upper( i ) and ( not upper( i - 1 ) or ( i + 1 < name.size() and lower( i + 1 ) ) ) and
              name[i - 1] != '_' )
             out += '_';
-        out += (char)std::tolower( (unsigned char)name[i] );
+        out += upper( i ) ? char( name[i] - 'A' + 'a' ) : name[i];
     }
     return out;
 }

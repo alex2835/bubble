@@ -1,16 +1,16 @@
 #include "bubble/core/asset_path.hpp"
 #include "bubble/core/utf8.hpp"
 #include "bubble/types/containers.hpp"
-#include <format>
+#include "bubble/types/format.hpp"
 
 namespace bubble
 {
 expected<AssetPath, string> AssetPath::From( string_view text )
 {
     if ( not Utf8Valid( text ) )
-        return std::unexpected( "the path is not valid UTF-8" );
+        return unexpected( "the path is not valid UTF-8" );
     if ( text.starts_with( '/' ) or text.starts_with( '\\' ) or ( text.size() > 1 and text[1] == ':' ) )
-        return std::unexpected( std::format( "'{}' is absolute; asset paths start at the project's root", text ) );
+        return unexpected( format( "'{}' is absolute; asset paths start at the project's root", text ) );
 
     vector<string_view> steps;
     size_t start = 0;
@@ -19,7 +19,7 @@ expected<AssetPath, string> AssetPath::From( string_view text )
         const size_t end = text.find_first_of( "/\\", start );
         const string_view step = text.substr( start, end == string_view::npos ? string_view::npos : end - start );
         if ( step == ".." )
-            return std::unexpected( std::format( "'{}' leaves the project with '..'", text ) );
+            return unexpected( format( "'{}' leaves the project with '..'", text ) );
         if ( not step.empty() and step != "." )
             steps.push_back( step );
         if ( end == string_view::npos )
@@ -67,10 +67,10 @@ expected<AssetPath, string> AssetPath::Join( string_view relative ) const
 {
     if ( mPath.empty() )
         return From( relative );
-    return From( std::format( "{}/{}", mPath, relative ) );
+    return From( format( "{}/{}", mPath, relative ) );
 }
 
-std::filesystem::path AssetPath::ToOsPath( const std::filesystem::path& projectRoot ) const
+OsPath AssetPath::ToOsPath( const OsPath& projectRoot ) const
 {
     return projectRoot / PathFromUtf8( mPath );
 }

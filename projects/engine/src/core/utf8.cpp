@@ -118,14 +118,14 @@ string_view Utf8Truncate( string_view text, size_t maxBytes )
     return text.substr( 0, end );
 }
 
-std::filesystem::path PathFromUtf8( string_view utf8 )
+OsPath PathFromUtf8( string_view utf8 )
 {
-    return std::filesystem::path( std::u8string_view( reinterpret_cast<const char8_t*>( utf8.data() ), utf8.size() ) );
+    return OsPath( u8string_view( reinterpret_cast<const char8_t*>( utf8.data() ), utf8.size() ) );
 }
 
-string PathToUtf8( const std::filesystem::path& path )
+string PathToUtf8( const OsPath& path )
 {
-    const std::u8string u8 = path.u8string();
+    const u8string u8 = path.u8string();
     return string( reinterpret_cast<const char*>( u8.data() ), u8.size() );
 }
 }

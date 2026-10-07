@@ -1,9 +1,9 @@
 #pragma once
 #include "bubble/types/containers.hpp"
+#include "bubble/types/filesystem.hpp"
+#include "bubble/types/format.hpp"
 #include "bubble/types/number.hpp"
 #include "bubble/types/string.hpp"
-#include <filesystem>
-#include <format>
 
 // The engine's log - one of the two globals the engine has (the profiler is
 // the other). Every message goes to stdout, to a log file when one is open,
@@ -36,33 +36,33 @@ void LogMessage( LogLevel level, string text );
 u64 LogReadSince( u64 index, vector<LogEntry>& out );
 
 // Also writes every message to `file`, truncated first. Empty stops it.
-void LogToFile( const std::filesystem::path& file );
+void LogToFile( const OsPath& file );
 
 // Messages go nowhere but the history: for tests that check what was logged
 // without filling the output.
 void LogMuteOutput( bool mute );
 
 template <typename... Args>
-void Log( LogLevel level, std::format_string<Args...> format, Args&&... args )
+void Log( LogLevel level, format_string<Args...> pattern, Args&&... args )
 {
-    LogMessage( level, std::format( format, std::forward<Args>( args )... ) );
+    LogMessage( level, format( pattern, std::forward<Args>( args )... ) );
 }
 
 template <typename... Args>
-void LogInfo( std::format_string<Args...> format, Args&&... args )
+void LogInfo( format_string<Args...> pattern, Args&&... args )
 {
-    Log( LogLevel::Info, format, std::forward<Args>( args )... );
+    Log( LogLevel::Info, pattern, std::forward<Args>( args )... );
 }
 
 template <typename... Args>
-void LogWarning( std::format_string<Args...> format, Args&&... args )
+void LogWarning( format_string<Args...> pattern, Args&&... args )
 {
-    Log( LogLevel::Warning, format, std::forward<Args>( args )... );
+    Log( LogLevel::Warning, pattern, std::forward<Args>( args )... );
 }
 
 template <typename... Args>
-void LogError( std::format_string<Args...> format, Args&&... args )
+void LogError( format_string<Args...> pattern, Args&&... args )
 {
-    Log( LogLevel::Error, format, std::forward<Args>( args )... );
+    Log( LogLevel::Error, pattern, std::forward<Args>( args )... );
 }
 }

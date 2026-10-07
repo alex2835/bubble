@@ -11,8 +11,9 @@ namespace bubble
 // A link to something that can go away: a slot's index and the slot's
 // generation when it was handed out. Removing the entry bumps the
 // generation, so every handle to it stops working at once - a stale handle
-// finds nothing instead of whatever moved in after. Plain numbers: copied,
-// compared, written to a file. `Tag` keeps handles of different things apart.
+// finds nothing instead of whatever moved in after. Plain numbers, copied and
+// compared freely, but good for this run only: what is saved is an `...Id`.
+// `Tag` keeps handles of different things apart.
 template <typename Tag>
 struct Handle
 {

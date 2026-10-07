@@ -11,7 +11,7 @@ void RegisterScriptImporter( AssetRegistry& registry )
             auto bytecode = CompileScript( source );
             if ( not bytecode )
                 // Luau's message starts with the line: ":3: Expected ...".
-                return std::unexpected( path.String() + bytecode.error() );
+                return unexpected( path.String() + bytecode.error() );
             return ScriptAsset{ std::move( *bytecode ) };
         } );
 }

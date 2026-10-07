@@ -2,7 +2,6 @@
 #include "bubble/types/number.hpp"
 #include "bubble/types/string.hpp"
 #include "bubble/types/utility.hpp"
-#include <functional>
 
 namespace bubble
 {

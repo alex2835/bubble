@@ -2,9 +2,9 @@
 #include "bubble/core/asset_path.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/profile.hpp"
-#include <algorithm>
-#include <format>
-#include <stdexcept>
+#include "bubble/types/algorithm.hpp"
+#include "bubble/types/format.hpp"
+#include "bubble/types/utility.hpp"
 
 // Script code can create and destroy instances while it runs, so nothing
 // here keeps a reference to an entry across a call into Luau: before the
@@ -62,7 +62,7 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
       mCallbacks( std::move( callbacks ) )
 {
     if ( lua.Sealed() )
-        throw std::logic_error( "ScriptRuntime adds globals: build it before the state is sealed" );
+        throw logic_error( "ScriptRuntime adds globals: build it before the state is sealed" );
     mPathOf = mLua.NewWeakKeyTable();
     mPropsOf = mLua.NewWeakKeyTable();
     mLibraryOf = mLua.NewWeakKeyTable();
@@ -73,14 +73,14 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
     mStrictEnvironment = mLua.NewTable();
     mStrictEnvironment["__index"] = mLua.Globals();
     mStrictEnvironment["__newindex"] = []( const LuaValue&, const LuaValue& key ) {
-        throw LuaError( std::format( "assignment to undeclared global '{}': declare it at the top of the file, "
-                                     "or keep it in self",
-                                     key.As<string>().value_or( key.Describe() ) ) );
+        throw LuaError( format( "assignment to undeclared global '{}': declare it at the top of the file, "
+                                "or keep it in self",
+                                key.As<string>().value_or( key.Describe() ) ) );
     };
     mStrictEnvironment.Freeze();
 
     RegisterGlobals();
-    mListener = mAssets.OnChanged( [this]( const AssetSlotBase& slot ) { Changed( slot ); } );
+    mListener = mAssets.OnChanged( [this]( const AssetEntryBase& entry ) { Changed( entry ); } );
 }
 
 ScriptRuntime::~ScriptRuntime()
@@ -145,23 +145,23 @@ void ScriptRuntime::RegisterGlobals()
 ScriptInstanceHandle ScriptRuntime::Current( const char* what ) const
 {
     if ( not mInstances.Alive( mCurrent ) )
-        throw LuaError( std::format( "{} works in an entity's callbacks, not at the top of a file", what ) );
+        throw LuaError( format( "{} works in an entity's callbacks, not at the top of a file", what ) );
     return mCurrent;
 }
 
 expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view directory )
 {
-    const bool named = not name.empty() and std::ranges::all_of( name, []( char c ) {
+    const bool named = not name.empty() and ranges::all_of( name, []( char c ) {
         return ( c >= 'a' and c <= 'z' ) or ( c >= '0' and c <= '9' ) or c == '_' or c == '-';
     } );
     if ( not named )
-        return std::unexpected( std::format( "alias '{}': lowercase letters, digits, _ and - only", name ) );
+        return unexpected( format( "alias '{}': lowercase letters, digits, _ and - only", name ) );
     string path;
     if ( not directory.empty() )
     {
         auto valid = AssetPath::From( directory );
         if ( not valid )
-            return std::unexpected( std::format( "alias @{}: {}", name, valid.error() ) );
+            return unexpected( format( "alias @{}: {}", name, valid.error() ) );
         path = valid->String();
     }
     mAliases[string( name )] = std::move( path );
@@ -171,15 +171,15 @@ expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view di
 // ---- files -----------------------------------------------------------------
 
 expected<ScriptRuntime::FileResult, ScriptError>
-ScriptRuntime::RunFile( string_view path, const AssetHandle<ScriptAsset>& asset, bool library )
+ScriptRuntime::RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bool library )
 {
     const auto fail = [&]( string message ) -> expected<FileResult, ScriptError> {
-        return std::unexpected( ScriptError{ std::move( message ), {} } );
+        return unexpected( ScriptError{ std::move( message ), {} } );
     };
     if ( not mLua.Sealed() )
         return fail( "scripts load once the Luau state is sealed" );
     if ( not asset.Ready() )
-        return fail( std::format( "{} is not loaded", path ) );
+        return fail( format( "{} is not loaded", path ) );
 
     // The file's own globals, reading through to the engine's; what props
     // and require need to know of the file, by its environment.
@@ -198,18 +198,18 @@ ScriptRuntime::RunFile( string_view path, const AssetHandle<ScriptAsset>& asset,
     auto ran = ( *chunk )();
     mRunning.pop_back();
     if ( not ran )
-        return std::unexpected( std::move( ran.error() ) );
+        return unexpected( std::move( ran.error() ) );
     // From here on a new global is a mistake.
     env.SetMetatable( mStrictEnvironment );
 
     if ( library )
     {
         if ( ran->IsNil() )
-            return fail( std::format( "{}: a library returns what it shares - end it with return", path ) );
+            return fail( format( "{}: a library returns what it shares - end it with return", path ) );
         for ( const string& name : mCallbacks )
             if ( not env.RawGet( name ).IsNil() )
-                return fail( std::format(
-                    "{}: {} is a callback of entity scripts; a library only returns what it shares", path, name ) );
+                return fail( format( "{}: {} is a callback of entity scripts; a library only returns what it shares",
+                                     path, name ) );
         result.mResult = std::move( *ran );
         return result;
     }
@@ -223,13 +223,13 @@ ScriptRuntime::RunFile( string_view path, const AssetHandle<ScriptAsset>& asset,
         mPropsOf[env] = result.mProps;
     }
     if ( auto checked = CheckProps( result.mProps ); not checked )
-        return fail( std::format( "{}: {}", path, checked.error() ) );
+        return fail( format( "{}: {}", path, checked.error() ) );
 
     for ( const string& name : mCallbacks )
     {
         const LuaValue callback = env.RawGet( name );
         if ( not callback.IsNil() and not callback.Is( LuaKind::Function ) )
-            return fail( std::format( "{}: {} is {}, not a function", path, name, KindName( callback.Kind() ) ) );
+            return fail( format( "{}: {} is {}, not a function", path, name, KindName( callback.Kind() ) ) );
         result.mCallbacks.emplace_back( callback );
     }
 
@@ -238,18 +238,18 @@ ScriptRuntime::RunFile( string_view path, const AssetHandle<ScriptAsset>& asset,
     {
         const auto name = key.As<string>();
         if ( name and name->starts_with( "on_" ) and value.Is( LuaKind::Function ) and
-             std::ranges::find( mCallbacks, *name ) == mCallbacks.end() )
+             ranges::find( mCallbacks, *name ) == mCallbacks.end() )
             LogWarning( "{}: {} is not a callback the engine calls ({})", path, *name, Join( mCallbacks ) );
     }
     return result;
 }
 
 expected<ScriptRuntime::FileResult, ScriptError>
-ScriptRuntime::RunTracked( string_view path, const AssetHandle<ScriptAsset>& asset, bool library )
+ScriptRuntime::RunTracked( string_view path, const AssetRef<ScriptAsset>& asset, bool library )
 {
     // A file that fails keeps the record of its last good run, as it keeps
     // its code.
-    hset<string> previous = std::exchange( mRequires[string( path )], {} );
+    hset<string> previous = exchange( mRequires[string( path )], {} );
     auto ran = RunFile( path, asset, library );
     if ( not ran )
         mRequires[string( path )] = std::move( previous );
@@ -262,11 +262,11 @@ expected<void, string> ScriptRuntime::CheckProps( const LuaTable& props )
     {
         const auto name = key.As<string>();
         if ( not name )
-            return std::unexpected( "props are named, " + key.Describe() + " is not a name" );
+            return unexpected( "props are named, " + key.Describe() + " is not a name" );
         if ( *name == "entity" )
-            return std::unexpected( "a prop cannot be called 'entity': self.entity is the engine's"s );
+            return unexpected( "a prop cannot be called 'entity': self.entity is the engine's"s );
         if ( auto encoded = mLua.Encode( value ); not encoded )
-            return std::unexpected( std::format( "prop {}: {}", *name, encoded.error() ) );
+            return unexpected( format( "prop {}: {}", *name, encoded.error() ) );
     }
     return {};
 }
@@ -279,7 +279,7 @@ expected<void, string> ScriptRuntime::CopyInto( const LuaTable& self, const LuaT
             continue;
         auto copy = mLua.DeepCopy( value );
         if ( not copy )
-            return std::unexpected( std::move( copy.error() ) );
+            return unexpected( std::move( copy.error() ) );
         self.RawSet( key, *copy );
     }
     return {};
@@ -306,20 +306,20 @@ expected<string, string> ScriptRuntime::Resolve( string_view from, string_view r
             vector<string> known;
             for ( const auto& entry : mAliases )
                 known.push_back( "@" + entry.first );
-            std::ranges::sort( known );
-            return std::unexpected( std::format( "no alias @{} (aliases: {})", alias, Join( known ) ) );
+            ranges::sort( known );
+            return unexpected( format( "no alias @{} (aliases: {})", alias, Join( known ) ) );
         }
         joined = found->second + ( slash == string_view::npos ? "" : string( request.substr( slash ) ) );
     }
     else
-        return std::unexpected( "a path starts with ./, ../ or @alias"s );
+        return unexpected( "a path starts with ./, ../ or @alias"s );
 
     // "." steps go, ".." takes one back.
     vector<string_view> steps;
     const string_view all = joined;
     for ( size_t at = 0; at <= all.size(); )
     {
-        const size_t end = std::min( all.find( '/', at ), all.size() );
+        const size_t end = min( all.find( '/', at ), all.size() );
         const string_view step = all.substr( at, end - at );
         at = end + 1;
         if ( step.empty() or step == "." )
@@ -327,7 +327,7 @@ expected<string, string> ScriptRuntime::Resolve( string_view from, string_view r
         if ( step == ".." )
         {
             if ( steps.empty() )
-                return std::unexpected( "the path leads out of the project"s );
+                return unexpected( "the path leads out of the project"s );
             steps.pop_back();
         }
         else
@@ -338,7 +338,7 @@ expected<string, string> ScriptRuntime::Resolve( string_view from, string_view r
         path += ( path.empty() ? "" : "/" ) + string( step );
     path += ".luau";
     if ( auto valid = AssetPath::From( path ); not valid )
-        return std::unexpected( valid.error() );
+        return unexpected( valid.error() );
     return path;
 }
 
@@ -346,36 +346,36 @@ expected<LuaValue, string> ScriptRuntime::Require( const string& from, const str
 {
     auto path = Resolve( from, request );
     if ( not path )
-        return std::unexpected( std::format( "require( '{}' ): {}", request, path.error() ) );
+        return unexpected( format( "require( '{}' ): {}", request, path.error() ) );
     auto found = mLibraries.find( *path );
     if ( found == mLibraries.end() )
     {
         // First require of this file in the world: the registry has it
         // loaded, or the world was started without it.
-        AssetHandle<ScriptAsset> asset = mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
+        AssetRef<ScriptAsset> asset = mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
         if ( not asset.Ready() )
-            return std::unexpected( std::format( "require( '{}' ): no library {} is loaded", request, *path ) );
+            return unexpected( format( "require( '{}' ): no library {} is loaded", request, *path ) );
         found = mLibraries.emplace( *path, Library{ std::move( asset ), {}, {} } ).first;
     }
     mRequires[from].insert( *path );
     if ( not found->second.mResult.IsNil() )
         return found->second.mResult;
 
-    if ( const auto running = std::ranges::find( mRunning, *path ); running != mRunning.end() )
+    if ( const auto running = ranges::find( mRunning, *path ); running != mRunning.end() )
     {
         string chain;
         for ( auto file = running; file != mRunning.end(); ++file )
             chain += *file + " -> ";
-        return std::unexpected( "require cycle: " + chain + *path );
+        return unexpected( "require cycle: " + chain + *path );
     }
 
     // A copy of the handle keeps the bytecode while it runs.
-    const AssetHandle<ScriptAsset> asset = found->second.mAsset;
+    const AssetRef<ScriptAsset> asset = found->second.mAsset;
     auto ran = RunTracked( *path, asset, true );
     if ( not ran )
     {
         const ScriptError& error = ran.error();
-        return std::unexpected( error.mTraceback.empty() ? error.mMessage : error.mMessage + "\n" + error.mTraceback );
+        return unexpected( error.mTraceback.empty() ? error.mMessage : error.mMessage + "\n" + error.mTraceback );
     }
     Library& library = mLibraries.find( *path )->second;
     library.mResult = std::move( ran->mResult );
@@ -391,12 +391,12 @@ expected<ScriptModuleHandle, ScriptError> ScriptRuntime::Load( string_view path 
         return known->second;
     auto asset = AssetPath::From( path );
     if ( not asset )
-        return std::unexpected( ScriptError{ std::format( "{}: {}", path, asset.error() ), {} } );
-    AssetHandle<ScriptAsset> script = mAssets.Find<ScriptAsset>( *asset );
+        return unexpected( ScriptError{ format( "{}: {}", path, asset.error() ), {} } );
+    AssetRef<ScriptAsset> script = mAssets.Find<ScriptAsset>( *asset );
 
     auto ran = RunTracked( asset->View(), script, false );
     if ( not ran )
-        return std::unexpected( std::move( ran.error() ) );
+        return unexpected( std::move( ran.error() ) );
     const ScriptModuleHandle handle =
         mModules.Add( Module{ asset->String(), std::move( script ), std::move( ran->mEnvironment ),
                               std::move( ran->mProps ), std::move( ran->mCallbacks ) } );
@@ -408,13 +408,13 @@ expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
 {
     // Copies held through the run: it may load and unload modules.
     const string chunk = mModules.Get( handle )->mChunk;
-    const AssetHandle<ScriptAsset> asset = mModules.Get( handle )->mAsset;
+    const AssetRef<ScriptAsset> asset = mModules.Get( handle )->mAsset;
     auto ran = RunTracked( chunk, asset, false );
     if ( not ran )
-        return std::unexpected( std::move( ran.error() ) );
+        return unexpected( std::move( ran.error() ) );
     auto module = mModules.Get( handle );
     if ( not module )
-        return std::unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
+        return unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
     module->mEnvironment = std::move( ran->mEnvironment );
     module->mProps = std::move( ran->mProps );
     module->mCallbacks = std::move( ran->mCallbacks );
@@ -433,16 +433,16 @@ expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
     return {};
 }
 
-void ScriptRuntime::Changed( const AssetSlotBase& slot )
+void ScriptRuntime::Changed( const AssetEntryBase& entry )
 {
-    const string& path = slot.Path().String();
+    const string& path = entry.Path().String();
     // Everything that holds a value of the old file: the library itself,
     // the libraries that required it, theirs in turn.
     hset<string> changed;
     if ( mLibraries.contains( path ) )
         changed.insert( path );
     const auto touches = [&]( const hset<string>& required ) {
-        return std::ranges::any_of( required, [&]( const string& library ) { return changed.contains( library ); } );
+        return ranges::any_of( required, [&]( const string& library ) { return changed.contains( library ); } );
     };
     for ( bool grew = not changed.empty(); grew; )
     {
@@ -500,7 +500,7 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle
 {
     const auto module = mModules.Get( moduleHandle );
     if ( not module )
-        return std::unexpected( label + ": its script was unloaded" );
+        return unexpected( label + ": its script was unloaded" );
     const LuaTable props = module->mProps;
     const string chunk = module->mChunk;
 
@@ -508,7 +508,7 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle
     // shared between entities.
     LuaTable self = mLua.NewTable();
     if ( auto copied = CopyInto( self, props, false ); not copied )
-        return std::unexpected( label + ": " + copied.error() );
+        return unexpected( label + ": " + copied.error() );
 
     for ( const auto& [key, value] : overrides.Pairs() )
     {
@@ -518,17 +518,16 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle
             vector<string> names;
             for ( const auto& entry : props.Pairs() )
                 names.push_back( entry.first.As<string>().value_or( "?" ) );
-            std::ranges::sort( names );
-            return std::unexpected(
-                std::format( "{}: {} is not a prop of {} (props: {})", label, key.Describe(), chunk, Join( names ) ) );
+            ranges::sort( names );
+            return unexpected(
+                format( "{}: {} is not a prop of {} (props: {})", label, key.Describe(), chunk, Join( names ) ) );
         }
         if ( fallback.Kind() != value.Kind() )
-            return std::unexpected( std::format( "{}: prop {} is {} in {}, the override is {}", label,
-                                                 *key.As<string>(), KindName( fallback.Kind() ), chunk,
-                                                 KindName( value.Kind() ) ) );
+            return unexpected( format( "{}: prop {} is {} in {}, the override is {}", label, *key.As<string>(),
+                                       KindName( fallback.Kind() ), chunk, KindName( value.Kind() ) ) );
         auto copy = mLua.DeepCopy( value );
         if ( not copy )
-            return std::unexpected( label + ": " + copy.error() );
+            return unexpected( label + ": " + copy.error() );
         self.RawSet( key, *copy );
     }
 
@@ -541,7 +540,7 @@ void ScriptRuntime::Destroy( ScriptInstanceHandle handle )
     if ( not instance )
         return;
     for ( const string& event : instance->mEvents )
-        std::erase_if( mEvents[event], [&]( const Subscriber& subscriber ) { return subscriber.mInstance == handle; } );
+        erase_if( mEvents[event], [&]( const Subscriber& subscriber ) { return subscriber.mInstance == handle; } );
     // Its coroutines and self go with it; a callback of its own still
     // running keeps them on the stack until it returns.
     mInstances.Remove( handle );
@@ -698,7 +697,7 @@ void ScriptRuntime::TickInstance( ScriptInstanceHandle handle, f32 dt )
             Resume( handle, task.mThread, {} );
     }
     if ( const auto instance = mInstances.Get( handle ) )
-        std::erase_if( instance->mTasks, []( const Task& task ) { return task.mDone; } );
+        erase_if( instance->mTasks, []( const Task& task ) { return task.mDone; } );
 }
 
 void ScriptRuntime::Tick( f32 dt )

@@ -1,12 +1,12 @@
-// The asset registry: one slot per file, handles to slots, reloads into the
-// same slot. Synchronous for now; the calls are the ones loading in the
+// The asset registry: one entry per file, refs to entries, reloads into the
+// same entry. Synchronous for now; the calls are the ones loading in the
 // background will keep.
 #include "bubble/assets/asset_registry.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
+#include "bubble/types/filesystem.hpp"
+#include "bubble/types/stream.hpp"
 #include <doctest.h>
-#include <filesystem>
-#include <fstream>
 
 using namespace bubble;
 
@@ -29,7 +29,7 @@ struct Project
     AssetRegistry mAssets{ [this]( const AssetPath& path ) -> expected<string, string> {
         const auto found = mFiles.find( path.View() );
         if ( found == mFiles.end() )
-            return std::unexpected( "no such file"s );
+            return unexpected( "no such file"s );
         return found->second;
     } };
 
@@ -37,7 +37,7 @@ struct Project
     {
         mAssets.RegisterImporter<TextAsset>( ".txt", "text", []( string_view bytes, const AssetPath& ) {
             if ( bytes == "broken" )
-                return expected<TextAsset, string>( std::unexpected( "cannot read it"s ) );
+                return expected<TextAsset, string>( unexpected( "cannot read it"s ) );
             return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
         } );
         mAssets.RegisterImporter<NumberAsset>( ".num", "number", []( string_view bytes, const AssetPath& ) {
@@ -46,27 +46,27 @@ struct Project
     }
 
     template <typename T = TextAsset>
-    AssetHandle<T> Load( string_view path )
+    AssetRef<T> Load( string_view path )
     {
         return mAssets.Load<T>( *AssetPath::From( path ) );
     }
 };
 }
 
-TEST_CASE( "A loaded asset is Ready, and the same path is the same slot" )
+TEST_CASE( "A loaded asset is Ready, and the same path is the same entry" )
 {
     Project project;
     project.mFiles["notes/hello.txt"] = "hello";
     const auto hello = project.Load( "notes/hello.txt" );
     REQUIRE( hello.Ready() );
     CHECK( hello.Get()->mText == "hello" );
-    CHECK( hello.Slot().Path().View() == "notes/hello.txt" );
-    CHECK( hello.Slot().Id() == AssetId::MakeFrom( "notes/hello.txt" ) );
+    CHECK( hello.Entry().Path().View() == "notes/hello.txt" );
+    CHECK( hello.Entry().Id() == AssetId::MakeFrom( "notes/hello.txt" ) );
     CHECK( project.Load( "notes/hello.txt" ) == hello );
 
     // Find never loads, by path or by id.
     CHECK( project.mAssets.Find<TextAsset>( *AssetPath::From( "notes/hello.txt" ) ) == hello );
-    CHECK( project.mAssets.Find<TextAsset>( hello.Slot().Id() ) == hello );
+    CHECK( project.mAssets.Find<TextAsset>( hello.Entry().Id() ) == hello );
     project.mFiles["notes/other.txt"] = "other";
     CHECK_FALSE( project.mAssets.Find<TextAsset>( *AssetPath::From( "notes/other.txt" ) ) );
     // Nor finds an asset as another kind.
@@ -81,12 +81,12 @@ TEST_CASE( "An asset that cannot load fails with the reason" )
     project.mFiles["count.num"] = "123";
     const auto missing = project.Load( "missing.txt" );
     CHECK( missing.State() == AssetState::Failed );
-    CHECK( missing.Slot().Error() == "no such file" );
+    CHECK( missing.Entry().Error() == "no such file" );
     CHECK_FALSE( missing.Get() );
 
-    CHECK( project.Load( "bad.txt" ).Slot().Error() == "cannot read it" );
-    CHECK( project.Load( "image.png" ).Slot().Error() == "no importer for '.png' files" );
-    CHECK( project.Load( "count.num" ).Slot().Error() == "a number file, asked for as something else" );
+    CHECK( project.Load( "bad.txt" ).Entry().Error() == "cannot read it" );
+    CHECK( project.Load( "image.png" ).Entry().Error() == "no importer for '.png' files" );
+    CHECK( project.Load( "count.num" ).Entry().Error() == "a number file, asked for as something else" );
 
     // A file in memory as one kind, asked for as another.
     project.mFiles["notes.txt"] = "x";
@@ -96,19 +96,19 @@ TEST_CASE( "An asset that cannot load fails with the reason" )
     CHECK( text.Ready() );
 }
 
-TEST_CASE( "A reload puts the new version into the same slot and tells the listeners" )
+TEST_CASE( "A reload puts the new version into the same entry and tells the listeners" )
 {
     Project project;
     project.mFiles["a.txt"] = "first";
     const auto a = project.Load( "a.txt" );
     vector<string> heard;
     const auto listener =
-        project.mAssets.OnChanged( [&]( const AssetSlotBase& slot ) { heard.push_back( slot.Path().String() ); } );
+        project.mAssets.OnChanged( [&]( const AssetEntryBase& entry ) { heard.push_back( entry.Path().String() ); } );
 
     project.mFiles["a.txt"] = "second";
     REQUIRE( project.mAssets.Reload( *AssetPath::From( "a.txt" ) ) );
     CHECK( a.Get()->mText == "second" );
-    CHECK( a.Slot().Version() == 1 );
+    CHECK( a.Entry().Version() == 1 );
     CHECK( heard == vector<string>{ "a.txt" } );
 
     // A failed reload keeps the version it had and tells nobody.
@@ -128,16 +128,47 @@ TEST_CASE( "A reload puts the new version into the same slot and tells the liste
     CHECK( heard.size() == 1 );
 }
 
-TEST_CASE( "A slot lives as long as a handle to it" )
+TEST_CASE( "An entry lives as long as a ref to it" )
 {
     Project project;
     project.mFiles["a.txt"] = "a";
     {
         const auto a = project.Load( "a.txt" );
         const auto copy = a;
+        // A file asked for as the wrong kind is not listed.
+        const auto wrong = project.Load<NumberAsset>( "a.txt" );
         REQUIRE( project.mAssets.Find<TextAsset>( *AssetPath::From( "a.txt" ) ) );
+        CHECK( project.mAssets.Count() == 1 );
     }
     CHECK_FALSE( project.mAssets.Find<TextAsset>( *AssetPath::From( "a.txt" ) ) );
+    CHECK_FALSE( project.mAssets.Find<TextAsset>( AssetId::MakeFrom( "a.txt" ) ) );
+    // Its entries went with it.
+    CHECK( project.mAssets.Count() == 0 );
+
+    // Loaded again, it is a new entry.
+    const auto again = project.Load( "a.txt" );
+    CHECK( again.Ready() );
+    CHECK( project.mAssets.Count() == 1 );
+}
+
+TEST_CASE( "An asset ref may outlive the registry" )
+{
+    AssetRef<TextAsset> kept;
+    {
+        Project project;
+        project.mFiles["a.txt"] = "a";
+        kept = project.Load( "a.txt" );
+    }
+    CHECK( kept.Get()->mText == "a" );
+}
+
+TEST_CASE( "An empty asset ref has no entry to ask" )
+{
+    const AssetRef<TextAsset> empty;
+    CHECK_FALSE( empty );
+    CHECK( empty.State() == AssetState::Failed );
+    CHECK_FALSE( empty.Get() );
+    CHECK_THROWS_WITH_AS( empty.Entry(), "Entry() of an empty asset ref", logic_error );
 }
 
 TEST_CASE( "An asset id is written as 32 hex digits and read back" )
@@ -154,9 +185,9 @@ TEST_CASE( "An asset id is written as 32 hex digits and read back" )
 
 TEST_CASE( "The registry reads a project directory, names in any script included" )
 {
-    const auto root = std::filesystem::temp_directory_path() / PathFromUtf8( "bubble_assets_проект" );
-    std::filesystem::create_directories( root / PathFromUtf8( "заметки" ) );
-    std::ofstream( root / PathFromUtf8( "заметки/привет.txt" ), std::ios::binary ) << "привет";
+    const auto root = fs::temp_directory_path() / PathFromUtf8( "bubble_assets_проект" );
+    fs::create_directories( root / PathFromUtf8( "заметки" ) );
+    ofstream( root / PathFromUtf8( "заметки/привет.txt" ), ios::binary ) << "привет";
 
     AssetRegistry assets( AssetRegistry::FromDirectory( root ) );
     assets.RegisterImporter<TextAsset>( ".txt", "text", []( string_view bytes, const AssetPath& ) {
@@ -165,5 +196,5 @@ TEST_CASE( "The registry reads a project directory, names in any script included
     const auto text = assets.Load<TextAsset>( *AssetPath::From( "заметки/привет.txt" ) );
     REQUIRE( text.Ready() );
     CHECK( text.Get()->mText == "привет" );
-    std::filesystem::remove_all( root );
+    fs::remove_all( root );
 }

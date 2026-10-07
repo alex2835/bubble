@@ -3,9 +3,9 @@
 #include "bubble/core/process.hpp"
 #include "bubble/core/utf8.hpp"
 #include "bubble/types/containers.hpp"
+#include "bubble/types/stream.hpp"
 #include <cstdio>
 #include <doctest.h>
-#include <fstream>
 
 using namespace bubble;
 
@@ -113,28 +113,28 @@ TEST_CASE( "AssetPath splits into its parts" )
 
 TEST_CASE( "Files with names in any script are written, listed and read back" )
 {
-    const std::filesystem::path root = std::filesystem::temp_directory_path() / "bubble_utf8_test";
-    std::filesystem::remove_all( root );
-    std::filesystem::create_directories( root );
+    const OsPath root = fs::temp_directory_path() / "bubble_utf8_test";
+    fs::remove_all( root );
+    fs::create_directories( root );
 
     const vector<string> names = { "уровень.level", "日本語.txt", "emoji_👍🏽.json", "plain.txt" };
     for ( const string& name : names )
     {
-        std::ofstream file( root / PathFromUtf8( name ) );
+        ofstream file( root / PathFromUtf8( name ) );
         REQUIRE( file );
         file << name;
     }
 
     set<string> listed;
-    for ( const auto& entry : std::filesystem::directory_iterator( root ) )
+    for ( const auto& entry : fs::directory_iterator( root ) )
         listed.insert( PathToUtf8( entry.path().filename() ) );
     CHECK( listed == set<string>( names.begin(), names.end() ) );
 
     for ( const string& name : names )
     {
-        std::ifstream file( root / PathFromUtf8( name ) );
+        ifstream file( root / PathFromUtf8( name ) );
         string content;
-        std::getline( file, content );
+        getline( file, content );
         CHECK( content == name );
     }
 
@@ -147,7 +147,7 @@ TEST_CASE( "Files with names in any script are written, listed and read back" )
     if ( file )
         std::fclose( file );
 
-    std::filesystem::remove_all( root );
+    fs::remove_all( root );
 }
 
 TEST_CASE( "The log keeps UTF-8 as it was given" )

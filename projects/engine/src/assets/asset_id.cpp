@@ -1,5 +1,5 @@
 #include "bubble/assets/asset_id.hpp"
-#include <format>
+#include "bubble/types/format.hpp"
 
 namespace bubble
 {
@@ -28,7 +28,7 @@ opt<u64> ParseHex( string_view text )
         else if ( c >= 'a' and c <= 'f' )
             digit = static_cast<u64>( c - 'a' + 10 );
         else
-            return std::nullopt;
+            return nullopt;
         value = value << 4 | digit;
     }
     return value;
@@ -43,16 +43,16 @@ AssetId AssetId::MakeFrom( string_view path )
 opt<AssetId> AssetId::Parse( string_view text )
 {
     if ( text.size() != 32 )
-        return std::nullopt;
+        return nullopt;
     const auto high = ParseHex( text.substr( 0, 16 ) );
     const auto low = ParseHex( text.substr( 16 ) );
     if ( not high or not low )
-        return std::nullopt;
+        return nullopt;
     return AssetId{ *high, *low };
 }
 
 string AssetId::ToString() const
 {
-    return std::format( "{:016x}{:016x}", mHigh, mLow );
+    return format( "{:016x}{:016x}", mHigh, mLow );
 }
 }

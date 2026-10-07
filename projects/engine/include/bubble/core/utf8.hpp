@@ -1,8 +1,8 @@
 #pragma once
+#include "bubble/types/filesystem.hpp"
 #include "bubble/types/string.hpp"
-#include <filesystem>
 
-// Every string in the engine is UTF-8 in a plain std::string. A string from
+// Every string in the engine is UTF-8 in a plain string. A string from
 // outside - a file, typed text, a file name, Luau - is checked once, where it
 // comes in; inside, it is trusted. size() counts bytes, which is right for
 // memory, files, hashes and comparison. What a person counts as characters
@@ -30,8 +30,8 @@ size_t Utf8CodePoints( string_view text );
 // point.
 string_view Utf8Truncate( string_view text, size_t maxBytes );
 
-// File system paths from and to UTF-8. Never build a path from a std::string
+// File system paths from and to UTF-8. Never build a path from a string
 // directly: on Windows that reads the bytes in the ANSI code page.
-std::filesystem::path PathFromUtf8( string_view utf8 );
-string PathToUtf8( const std::filesystem::path& path );
+OsPath PathFromUtf8( string_view utf8 );
+string PathToUtf8( const OsPath& path );
 }

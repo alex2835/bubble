@@ -2,15 +2,27 @@
 #include "bubble/assets/asset_id.hpp"
 #include "bubble/core/asset_path.hpp"
 #include "bubble/types/containers.hpp"
+#include "bubble/types/function.hpp"
 #include "bubble/types/handle.hpp"
 #include "bubble/types/opt_ref.hpp"
 #include "bubble/types/pointer.hpp"
-#include <functional>
-#include <typeindex>
+#include "bubble/types/utility.hpp"
 
 namespace bubble
 {
 class AssetRegistry;
+class AssetEntryBase;
+
+namespace detail
+{
+// Where the registry finds entries, by path and by id. Weak: an entry lives
+// as long as its refs do, and takes itself out of the index when it goes.
+struct AssetIndex
+{
+    hmap<string, WeakRef<AssetEntryBase>> mByPath;
+    hmap<AssetId, WeakRef<AssetEntryBase>> mById;
+};
+}
 
 enum class AssetState
 {
@@ -19,9 +31,9 @@ enum class AssetState
     Failed,
 };
 
-// One asset in memory, shared by every handle to it. A reload puts the new
-// version into the same slot, so handles taken before see it.
-class AssetSlotBase
+// One asset in memory, shared by every ref to it. A reload puts the new
+// version into the same entry, so refs taken before see it.
+class AssetEntryBase
 {
 public:
     const AssetId& Id() const { return mId; }
@@ -34,88 +46,94 @@ public:
 
 protected:
     friend class AssetRegistry;
-    AssetSlotBase( AssetId id, AssetPath path, std::type_index type )
-        : mId( id ),
-          mPath( std::move( path ) ),
-          mType( type )
+    AssetEntryBase( AssetId id, AssetPath path, type_index type ) : mId( id ), mPath( std::move( path ) ), mType( type )
     {
     }
+    ~AssetEntryBase();
 
     AssetId mId;
     AssetPath mPath;
-    std::type_index mType;
+    type_index mType;
     AssetState mState = AssetState::Loading;
     string mError;
     u32 mVersion = 0;
+    // Empty for an entry the registry does not list (a file asked for as the
+    // wrong kind), and once the registry is gone.
+    WeakRef<detail::AssetIndex> mIndex;
 };
 
 template <typename T>
-class AssetSlot : public AssetSlotBase
+class AssetEntry : public AssetEntryBase
 {
 public:
-    AssetSlot( AssetId id, AssetPath path ) : AssetSlotBase( id, std::move( path ), typeid( T ) ) {}
+    AssetEntry( AssetId id, AssetPath path ) : AssetEntryBase( id, std::move( path ), typeid( T ) ) {}
 
 private:
     friend class AssetRegistry;
     template <typename>
-    friend class AssetHandle;
+    friend class AssetRef;
     opt<T> mData;
 };
 
-// What a component's runtime holds: a counted reference to a slot. The
-// slot stays while any handle to it does. Get() is empty until the asset is
-// Ready - code checks rather than waits, because loading will not always
-// finish at once. What Get() returns is good until the next reload; keep
-// the handle, not the reference.
+// What a component's runtime holds: a counted reference to an entry, which
+// stays while any ref to it does. Unlike a Handle it never goes stale. Get()
+// is empty until the asset is Ready - code checks rather than waits, because
+// loading will not always finish at once. What Get() returns is good until
+// the next reload; keep the AssetRef, not the reference.
 template <typename T>
-class AssetHandle
+class AssetRef
 {
 public:
-    AssetHandle() = default;
+    AssetRef() = default;
 
-    explicit operator bool() const { return mSlot != nullptr; }
-    AssetState State() const { return mSlot ? mSlot->State() : AssetState::Failed; }
+    explicit operator bool() const { return mEntry != nullptr; }
+    AssetState State() const { return mEntry ? mEntry->State() : AssetState::Failed; }
     bool Ready() const { return State() == AssetState::Ready; }
     OptRef<const T> Get() const
     {
         if ( not Ready() )
-            return std::nullopt;
-        return *mSlot->mData;
+            return nullopt;
+        return *mEntry->mData;
     }
-    const AssetSlotBase& Slot() const { return *mSlot; }
+    const AssetEntryBase& Entry() const
+    {
+        if ( mEntry == nullptr )
+            throw logic_error( "Entry() of an empty asset ref" );
+        return *mEntry;
+    }
 
-    friend bool operator==( const AssetHandle& a, const AssetHandle& b ) { return a.mSlot == b.mSlot; }
+    friend bool operator==( const AssetRef& a, const AssetRef& b ) { return a.mEntry == b.mEntry; }
 
 private:
     friend class AssetRegistry;
-    explicit AssetHandle( Ref<AssetSlot<T>> slot ) : mSlot( std::move( slot ) ) {}
-    Ref<AssetSlot<T>> mSlot;
+    explicit AssetRef( Ref<AssetEntry<T>> entry ) : mEntry( std::move( entry ) ) {}
+    Ref<AssetEntry<T>> mEntry;
 };
 
 using AssetListenerHandle = Handle<struct AssetListenerTag>;
 
-// Every asset of the project in memory, one slot each, by path and by id.
+// Every asset of the project in memory, one entry each, by path and by id.
 // One per process, shared by its worlds. Importers turn a file's bytes into
 // the asset by its extension.
 //
 // For now loading is synchronous and imports from the source file on the
 // spot; later it reads the import cache in the background and Load returns
-// a handle that is Loading. The calls stay the same, so code written against
+// a ref that is Loading. The calls stay the same, so code written against
 // this one already checks State.
 class AssetRegistry
 {
 public:
     // The bytes of a project file: from a directory, from memory in tests,
     // from fetch on the web.
-    using ReadFile = std::function<expected<string, string>( const AssetPath& path )>;
+    using ReadFile = function<expected<string, string>( const AssetPath& path )>;
     // A file's bytes into the asset.
     template <typename T>
-    using Importer = std::function<expected<T, string>( string_view bytes, const AssetPath& path )>;
-    using ChangedListener = std::function<void( const AssetSlotBase& slot )>;
+    using Importer = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
+    using ChangedListener = function<void( const AssetEntryBase& entry )>;
 
     explicit AssetRegistry( ReadFile read );
     // Reads files under `root`.
-    static ReadFile FromDirectory( std::filesystem::path root );
+    static ReadFile FromDirectory( OsPath root );
 
     // `kind` names it in errors: "script", "texture".
     template <typename T>
@@ -123,76 +141,78 @@ public:
     {
         mImporters.insert_or_assign(
             string( extension ),
-            ImporterEntry{
+            RegisteredImporter{
                 typeid( T ), string( kind ),
-                [import = std::move( import )]( string_view bytes, AssetSlotBase& slot ) -> expected<void, string> {
-                    auto asset = import( bytes, slot.Path() );
+                [import = std::move( import )]( string_view bytes, AssetEntryBase& entry ) -> expected<void, string> {
+                    auto asset = import( bytes, entry.Path() );
                     if ( not asset )
-                        return std::unexpected( std::move( asset.error() ) );
-                    static_cast<AssetSlot<T>&>( slot ).mData.emplace( std::move( *asset ) );
+                        return unexpected( std::move( asset.error() ) );
+                    static_cast<AssetEntry<T>&>( entry ).mData.emplace( std::move( *asset ) );
                     return {};
                 } } );
     }
 
-    // The asset at `path`; the same slot when it is in memory already. A
+    // The asset at `path`; the same entry when it is in memory already. A
     // file that is missing, of an unknown kind or fails to import gives a
-    // Failed handle with the reason in Error(); whoever asked reports it.
+    // Failed ref with the reason in Error(); whoever asked reports it.
     template <typename T>
-    AssetHandle<T> Load( const AssetPath& path )
+    AssetRef<T> Load( const AssetPath& path )
     {
-        return AssetHandle<T>( std::static_pointer_cast<AssetSlot<T>>( LoadSlot(
-            path, typeid( T ), [&] { return CreateRef<AssetSlot<T>>( AssetId::MakeFrom( path.View() ), path ); } ) ) );
+        return AssetRef<T>( static_pointer_cast<AssetEntry<T>>( LoadEntry(
+            path, typeid( T ), [&] { return CreateRef<AssetEntry<T>>( AssetId::MakeFrom( path.View() ), path ); } ) ) );
     }
 
     // The asset if it is in memory - never loads.
     template <typename T>
-    AssetHandle<T> Find( const AssetPath& path ) const
+    AssetRef<T> Find( const AssetPath& path ) const
     {
-        return Typed<T>( FindSlot( path ) );
+        return Typed<T>( FindEntry( path ) );
     }
 
     template <typename T>
-    AssetHandle<T> Find( const AssetId& id ) const
+    AssetRef<T> Find( const AssetId& id ) const
     {
-        const auto found = mById.find( id );
-        return Typed<T>( found == mById.end() ? nullptr : found->second.lock() );
+        const auto found = mIndex->mById.find( id );
+        return Typed<T>( found == mIndex->mById.end() ? nullptr : found->second.lock() );
     }
 
-    // The file changed: imports it again into its slot and tells the
+    // How many assets are in memory.
+    size_t Count() const { return mIndex->mByPath.size(); }
+
+    // The file changed: imports it again into its entry and tells the
     // listeners. If the new version fails, the old one stays and the error
     // comes back. A file nobody holds is not loaded, and nothing happens.
     expected<void, string> Reload( const AssetPath& path );
 
-    // Called after every reload that took, with the slot.
+    // Called after every reload that took, with the entry.
     AssetListenerHandle OnChanged( ChangedListener listener );
     void RemoveListener( AssetListenerHandle listener );
 
 private:
-    struct ImporterEntry
+    struct RegisteredImporter
     {
-        std::type_index mType;
+        type_index mType;
         string mKind;
-        std::function<expected<void, string>( string_view bytes, AssetSlotBase& slot )> mImport;
+        function<expected<void, string>( string_view bytes, AssetEntryBase& entry )> mImport;
     };
 
     template <typename T>
-    static AssetHandle<T> Typed( Ref<AssetSlotBase> slot )
+    static AssetRef<T> Typed( Ref<AssetEntryBase> entry )
     {
-        if ( slot == nullptr or slot->mType != std::type_index( typeid( T ) ) )
+        if ( entry == nullptr or entry->mType != type_index( typeid( T ) ) )
             return {};
-        return AssetHandle<T>( std::static_pointer_cast<AssetSlot<T>>( std::move( slot ) ) );
+        return AssetRef<T>( static_pointer_cast<AssetEntry<T>>( std::move( entry ) ) );
     }
 
-    Ref<AssetSlotBase> LoadSlot( const AssetPath& path, std::type_index type,
-                                 const std::function<Ref<AssetSlotBase>()>& make );
-    Ref<AssetSlotBase> FindSlot( const AssetPath& path ) const;
-    expected<void, string> Import( AssetSlotBase& slot );
+    Ref<AssetEntryBase> LoadEntry( const AssetPath& path, type_index type,
+                                   const function<Ref<AssetEntryBase>()>& make );
+    Ref<AssetEntryBase> FindEntry( const AssetPath& path ) const;
+    expected<void, string> Import( AssetEntryBase& entry );
 
     ReadFile mRead;
-    hmap<string, ImporterEntry> mImporters;
-    // Weak: a slot lives as long as its handles do.
-    hmap<string, std::weak_ptr<AssetSlotBase>> mByPath;
-    hmap<AssetId, std::weak_ptr<AssetSlotBase>> mById;
+    hmap<string, RegisteredImporter> mImporters;
+    // Shared with the entries, which may outlive the registry.
+    Ref<detail::AssetIndex> mIndex = CreateRef<detail::AssetIndex>();
     SlotMap<ChangedListener, AssetListenerTag> mListeners;
 };
 }

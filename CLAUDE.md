@@ -36,7 +36,7 @@ deps/luaubind/                our own small sol-like C++ binding for Luau; depen
 projects/engine/include/bubble/
     types/                    aliases, Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process
-    assets/                   AssetId, AssetRegistry (slots, AssetHandle<T>, reload events)
+    assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
@@ -49,7 +49,7 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
 - **Errors.** Nothing there and that is normal: `opt` / `OptRef`. Can fail
   and someone should hear why: `expected<T, E>` with a message a person can
   act on (what is wrong, what there is instead). Cannot happen if the code is
-  right: `std::logic_error`, never caught to carry on; the engine's own
+  right: `logic_error`, never caught to carry on; the engine's own
   costly invariants: `BUBBLE_ASSERT`, debug only. Context is added once per
   level on the way up; the code that stops an error logs it, once, and does
   not return it again. No error codes, bool + out-param or null for "failed".
@@ -57,10 +57,13 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   `sName`, constants `cName`, files `snake_case`. Everything a user sees -
   components, fields, Luau API, operators, files - is `snake_case`.
 - **Formatting.** Four spaces, braces on their own line, spaces inside
-  parentheses: `Foo( a, b )`. `and`, `or`, `not`. 120 columns. Aliases from
-  `bubble/types` (`string`, `vector`, `hmap`, `opt`, `expected`, `Scope`,
-  `Ref`, `u32`, `f32`...).
-- **Pointers.** Owning: `Scope`/`Ref`. A link to something that outlives you:
+  parentheses: `Foo( a, b )`. `and`, `or`, `not`. 120 columns.
+- **No `std::`.** The standard library comes through `bubble/types`
+  (`string`, `vector`, `hmap`, `opt`, `expected`, `unexpected`, `function`,
+  `format`, `OsPath`, `Ref`, `u32`...); a missing name is added there as a
+  `using`. Left as `std::`: `move`, `forward`, `hash` specializations, the C
+  library at a C boundary.
+- **Pointers.** Owning: `Scope`/`Ref`; a shared asset: `AssetRef<T>`. A link to something that outlives you:
   `T&`. A link to something that can go away: `Handle` from a `SlotMap`.
   Maybe-missing results and parameters: `OptRef<T>`, never a member. Raw
   pointers only at a C API boundary inside the low layers.
@@ -69,8 +72,8 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   the type: `handle`, not `id`.
 - **Comments** say why, in plain sentences, at the density of the code around
   them. No commented-out code.
-- **Strings** are UTF-8 in `std::string`; identifiers ASCII; never build a
-  `std::filesystem::path` from `std::string` (use `PathFromUtf8`).
+- **Strings** are UTF-8 in `string`; identifiers ASCII; never build an
+  `OsPath` from a `string` (use `PathFromUtf8`).
 - **No globals** besides the log and the profiler. **No migration code.**
   **Profiling** through `bubble/core/profile.hpp` macros only.
 - **Tests**: doctest, named as sentences, in the folder that mirrors the

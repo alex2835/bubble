@@ -1,9 +1,9 @@
 #include "bubble/core/log.hpp"
 #include "bubble/core/profile.hpp"
-#include <deque>
-#include <fstream>
-#include <iostream>
-#include <mutex>
+#include "bubble/types/algorithm.hpp"
+#include "bubble/types/containers.hpp"
+#include "bubble/types/stream.hpp"
+#include "bubble/types/thread.hpp"
 
 namespace bubble
 {
@@ -15,10 +15,10 @@ constexpr size_t cMaxEntries = 20000;
 
 struct LogState
 {
-    std::mutex mMutex;
-    std::deque<LogEntry> mEntries;
+    mutex mMutex;
+    deque<LogEntry> mEntries;
     u64 mNextIndex = 0;
-    std::ofstream mFile;
+    ofstream mFile;
     bool mMuted = false;
 };
 
@@ -44,11 +44,11 @@ string_view Prefix( LogLevel level )
 void LogMessage( LogLevel level, string text )
 {
     LogState& state = State();
-    std::lock_guard lock( state.mMutex );
+    lock_guard lock( state.mMutex );
     if ( not state.mMuted )
-        std::cout << Prefix( level ) << text << std::endl;
+        cout << Prefix( level ) << text << endl;
     if ( state.mFile.is_open() )
-        state.mFile << Prefix( level ) << text << std::endl;
+        state.mFile << Prefix( level ) << text << endl;
     // On the profiler's timeline too, beside the frame it happened in.
     BUBBLE_PROFILE_MESSAGE( text.data(), text.size() );
 
@@ -60,28 +60,28 @@ void LogMessage( LogLevel level, string text )
 u64 LogReadSince( u64 index, vector<LogEntry>& out )
 {
     LogState& state = State();
-    std::lock_guard lock( state.mMutex );
+    lock_guard lock( state.mMutex );
     if ( state.mEntries.empty() )
         return state.mNextIndex;
     const u64 first = state.mEntries.front().mIndex;
-    for ( u64 i = std::max( index, first ); i < state.mNextIndex; i++ )
+    for ( u64 i = max( index, first ); i < state.mNextIndex; i++ )
         out.push_back( state.mEntries[size_t( i - first )] );
     return state.mNextIndex;
 }
 
-void LogToFile( const std::filesystem::path& file )
+void LogToFile( const OsPath& file )
 {
     LogState& state = State();
-    std::lock_guard lock( state.mMutex );
+    lock_guard lock( state.mMutex );
     state.mFile.close();
     if ( not file.empty() )
-        state.mFile.open( file, std::ios::trunc );
+        state.mFile.open( file, ios::trunc );
 }
 
 void LogMuteOutput( bool mute )
 {
     LogState& state = State();
-    std::lock_guard lock( state.mMutex );
+    lock_guard lock( state.mMutex );
     state.mMuted = mute;
 }
 }
