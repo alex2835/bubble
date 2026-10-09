@@ -49,7 +49,8 @@ Ref<AssetEntryBase> AssetRegistry::FindEntry( const AssetPath& path ) const
     return found == mIndex->mByPath.end() ? nullptr : found->second.lock();
 }
 
-Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetPath& path, type_index type,
+Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetPath& path,
+                                              type_index type,
                                               const function<Ref<AssetEntryBase>()>& make )
 {
     if ( Ref<AssetEntryBase> entry = FindEntry( path ) )

@@ -257,8 +257,10 @@ private:
     // The value on top of the active thread, popped.
     LuaValue Take();
     LuaValue GetImpl( const LuaValue& table, const std::function<void( lua_State* )>& pushKey, bool raw );
-    void SetImpl( const LuaValue& table, const std::function<void( lua_State* )>& pushKey,
-                  const std::function<void( lua_State* )>& pushValue, bool raw );
+    void SetImpl( const LuaValue& table,
+                  const std::function<void( lua_State* )>& pushKey,
+                  const std::function<void( lua_State* )>& pushValue,
+                  bool raw );
     expected<LuaValue, ScriptError> CallImpl( lua_State* L, int top );
     lua_State* ThreadOf( const LuaValue& thread );
     LuaResume ResumeImpl( lua_State* co, int nargs );

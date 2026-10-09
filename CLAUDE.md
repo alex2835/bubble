@@ -38,7 +38,7 @@ projects/engine/include/bubble/
     core/                     log, profile, utf8, AssetPath, process
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
-projects/engine/src/...       same tree
+projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
 ```
 

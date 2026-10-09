@@ -204,7 +204,8 @@ private:
         return AssetRef<T>( static_pointer_cast<AssetEntry<T>>( std::move( entry ) ) );
     }
 
-    Ref<AssetEntryBase> LoadEntry( const AssetPath& path, type_index type,
+    Ref<AssetEntryBase> LoadEntry( const AssetPath& path,
+                                   type_index type,
                                    const function<Ref<AssetEntryBase>()>& make );
     Ref<AssetEntryBase> FindEntry( const AssetPath& path ) const;
     expected<void, string> Import( AssetEntryBase& entry );

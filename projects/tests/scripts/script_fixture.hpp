@@ -101,7 +101,8 @@ struct Scripts
     }
 
     // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle script, string_view overrides,
+    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle script,
+                                                     string_view overrides,
                                                      string label = "/player" )
     {
         return mRuntime.Create( script, std::move( label ), LuaTable( Evaluate( overrides ) ) );

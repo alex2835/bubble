@@ -186,7 +186,8 @@ private:
     LuaTable NewFileEnvironment( string_view path );
     // Runs the top of a file in `env`, once; after it, a new global is an
     // error. Returns what the file returned.
-    expected<LuaValue, ScriptError> RunFile( string_view path, const AssetRef<ScriptAsset>& asset,
+    expected<LuaValue, ScriptError> RunFile( string_view path,
+                                             const AssetRef<ScriptAsset>& asset,
                                              const LuaTable& env );
     // What `passport` keeps for the file run in `env`; an empty table, kept,
     // when it keeps nothing yet.

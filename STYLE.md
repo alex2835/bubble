@@ -59,6 +59,8 @@ their own style. What it enforces:
 - Four spaces; braces on their own line; spaces inside parentheses and
   brackets of calls: `Foo( a, b )`, `{ 1, 2 }`.
 - Lines up to 120 columns.
+- Parameters of a declaration fit on its line, or go one per line under the
+  first; the return type stays on the line with the name.
 - `and`, `or`, `not` instead of `&&`, `||`, `!`.
 - One statement per line; a one-line body without braces is fine, two lines
   get braces.
@@ -107,6 +109,10 @@ their own style. What it enforces:
 
 - `include/bubble/<area>/<name>.hpp` with `src/<area>/<name>.cpp`; tests in
   `projects/tests/<area>/<name>_test.cpp`.
+- A class too big to read in one file keeps its one header and spreads its
+  `.cpp` over a folder, one file per question it answers:
+  `src/scripts/runtime/require.cpp`, `reload.cpp`... Helpers they share go in
+  a header in that folder, included by its own name (`"text.hpp"`).
 - `#pragma once`. The file's own header first in a `.cpp`, then project
   headers, then libraries, then the standard library, each group sorted.
 - A header includes what it uses and nothing for its users' convenience.

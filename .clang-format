@@ -43,6 +43,13 @@ SpacesInAngles: Never
 SpaceAfterTemplateKeyword: true
 PointerAlignment: Left
 
+# Parameters of a declaration on one line, or one per line under the first.
+AlignAfterOpenBracket: Align
+BinPackParameters: OnePerLine
+AllowAllParametersOfDeclarationOnNextLine: false
+# The return type stays with the name rather than on a line of its own.
+PenaltyReturnTypeOnItsOwnLine: 10000
+
 AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false

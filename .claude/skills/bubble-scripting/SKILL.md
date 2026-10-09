@@ -28,7 +28,7 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 | `luaubind/data` | raw `LuaEncode`/`LuaDecode`/`LuaDeepCopy` under `LuaState::Encode`/`Decode`/`DeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
 | `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptImporter`: `.luau` → bytecode in the asset registry; compiles on the spot for now |
-| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*` |
+| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `RunFile`/`RunScript`/`RunLibrary`, passport), `require`, `scripts` (`Load`/`Unload`), `reload` (`Changed`, `Rerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
 
 Not there yet (stage 7): the World module that owns a runtime and a
 runtime component per entity, `self.entity`, `Value` ↔ Luau and the

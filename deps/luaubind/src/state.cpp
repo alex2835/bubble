@@ -140,8 +140,10 @@ LuaValue LuaState::GetImpl( const LuaValue& table, const std::function<void( lua
     return LuaValue( L, -1 );
 }
 
-void LuaState::SetImpl( const LuaValue& table, const std::function<void( lua_State* )>& pushKey,
-                        const std::function<void( lua_State* )>& pushValue, bool raw )
+void LuaState::SetImpl( const LuaValue& table,
+                        const std::function<void( lua_State* )>& pushKey,
+                        const std::function<void( lua_State* )>& pushValue,
+                        bool raw )
 {
     lua_State* L = mActive;
     const StackRestore restore( L, lua_gettop( L ) );
