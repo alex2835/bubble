@@ -65,6 +65,7 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
         throw logic_error( "ScriptRuntime adds globals: build it before the state is sealed" );
     mPathOf = mLua.NewWeakKeyTable();
     mPropsOf = mLua.NewWeakKeyTable();
+    mLocalsOf = mLua.NewWeakKeyTable();
     mLibraryOf = mLua.NewWeakKeyTable();
 
     mOpenEnvironment = mLua.NewTable();
@@ -99,6 +100,15 @@ void ScriptRuntime::RegisterGlobals()
         if ( not mPropsOf[file].IsNil() )
             throw LuaError( "props is declared once, at the top of the file" );
         mPropsOf[file] = props;
+    };
+
+    globals["locals"] = [this]( const LuaTable& locals ) {
+        const LuaTable file = mLua.CallerEnvironment();
+        if ( mLibraryOf[file].Truthy() )
+            throw LuaError( "locals belong to entity scripts; a library keeps its state in its own locals" );
+        if ( not mLocalsOf[file].IsNil() )
+            throw LuaError( "locals is declared once, at the top of the file" );
+        mLocalsOf[file] = locals;
     };
 
     // The hints are for the inspector and are read on import; at run time
@@ -225,6 +235,15 @@ ScriptRuntime::RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bo
     if ( auto checked = CheckProps( result.mProps ); not checked )
         return fail( format( "{}: {}", path, checked.error() ) );
 
+    result.mLocals = mLocalsOf[env].As<LuaTable>().value_or( LuaTable() );
+    if ( result.mLocals.IsNil() )
+    {
+        result.mLocals = mLua.NewTable();
+        mLocalsOf[env] = result.mLocals;
+    }
+    if ( auto checked = CheckLocals( result.mLocals, result.mProps ); not checked )
+        return fail( format( "{}: {}", path, checked.error() ) );
+
     for ( const string& name : mCallbacks )
     {
         const LuaValue callback = env.RawGet( name );
@@ -267,6 +286,23 @@ expected<void, string> ScriptRuntime::CheckProps( const LuaTable& props )
             return unexpected( "a prop cannot be called 'entity': self.entity is the engine's"s );
         if ( auto encoded = mLua.Encode( value ); not encoded )
             return unexpected( format( "prop {}: {}", *name, encoded.error() ) );
+    }
+    return {};
+}
+
+// Locals are not saved, so any value will do; what matters is that self
+// has one meaning for each name.
+expected<void, string> ScriptRuntime::CheckLocals( const LuaTable& locals, const LuaTable& props )
+{
+    for ( const auto& [key, value] : locals.Pairs() )
+    {
+        const auto name = key.As<string>();
+        if ( not name )
+            return unexpected( "locals are named, " + key.Describe() + " is not a name" );
+        if ( *name == "entity" )
+            return unexpected( "a local cannot be called 'entity': self.entity is the engine's"s );
+        if ( not props.RawGet( key ).IsNil() )
+            return unexpected( format( "{} is both a prop and a local; self has one of each name", *name ) );
     }
     return {};
 }
@@ -399,7 +435,7 @@ expected<ScriptModuleHandle, ScriptError> ScriptRuntime::Load( string_view path 
         return unexpected( std::move( ran.error() ) );
     const ScriptModuleHandle handle =
         mModules.Add( Module{ asset->String(), std::move( script ), std::move( ran->mEnvironment ),
-                              std::move( ran->mProps ), std::move( ran->mCallbacks ) } );
+                              std::move( ran->mProps ), std::move( ran->mLocals ), std::move( ran->mCallbacks ) } );
     mModulesByPath[asset->String()] = handle;
     return handle;
 }
@@ -417,17 +453,22 @@ expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
         return unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
     module->mEnvironment = std::move( ran->mEnvironment );
     module->mProps = std::move( ran->mProps );
+    module->mLocals = std::move( ran->mLocals );
     module->mCallbacks = std::move( ran->mCallbacks );
 
-    // Instances keep self, gain the new props, and come back on.
+    // Instances keep self, gain the new props and locals, and come back on.
     const LuaTable props = module->mProps;
+    const LuaTable locals = module->mLocals;
     for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
     {
         auto instance = mInstances.Get( instanceHandle );
         if ( instance->mModule != handle )
             continue;
-        // Props are data and copy; a failure here would have failed the run.
+        // Props copy as Create copied them, a failure there would have failed
+        // the run; a copy fails only on tables nested past the limit, and
+        // then the instance goes on without the new value.
         (void)CopyInto( instance->mSelf, props, true );
+        (void)CopyInto( instance->mSelf, locals, true );
         instance->mEnabled = true;
     }
     return {};
@@ -502,17 +543,24 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle
     if ( not module )
         return unexpected( label + ": its script was unloaded" );
     const LuaTable props = module->mProps;
+    const LuaTable locals = module->mLocals;
     const string chunk = module->mChunk;
 
-    // Each instance gets its own copy: a table among the props is not
-    // shared between entities.
+    // Each instance gets its own copy: a table among the props or locals is
+    // not shared between entities.
     LuaTable self = mLua.NewTable();
     if ( auto copied = CopyInto( self, props, false ); not copied )
+        return unexpected( label + ": " + copied.error() );
+    if ( auto copied = CopyInto( self, locals, false ); not copied )
         return unexpected( label + ": " + copied.error() );
 
     for ( const auto& [key, value] : overrides.Pairs() )
     {
         const LuaValue fallback = props.RawGet( key );
+        if ( not locals.RawGet( key ).IsNil() )
+            return unexpected( format( "{}: {} is a local of {}: it starts the same in every instance, the scene "
+                                       "cannot set it",
+                                       label, key.Describe(), chunk ) );
         if ( fallback.IsNil() or not key.Is( LuaKind::String ) )
         {
             vector<string> names;

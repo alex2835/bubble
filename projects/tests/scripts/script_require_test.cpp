@@ -106,18 +106,21 @@ function on_start( self ) self.value = doubler.double( 21 ) end
     CHECK( scripts.Number( a, "value" ) == 42 );
 }
 
-TEST_CASE( "A library returns what it shares and has no props or callbacks" )
+TEST_CASE( "A library returns what it shares and has no props, locals or callbacks" )
 {
     Project scripts;
     scripts.AddLibrary( "scripts/lib/silent.luau", "local x = 1" );
     scripts.AddLibrary( "scripts/lib/with_props.luau", "props { speed = 1 }\nreturn {}" );
     scripts.AddLibrary( "scripts/lib/with_callback.luau", "function on_update( self, dt ) end\nreturn {}" );
+    scripts.AddLibrary( "scripts/lib/with_locals.luau", "locals { l_count = 0 }\nreturn {}" );
     CHECK( scripts.LoadError( "scripts/a.luau", "require( '@lib/silent' )" )
                .find( "scripts/lib/silent.luau: a library returns what it shares" ) != string::npos );
     CHECK( scripts.LoadError( "scripts/b.luau", "require( '@lib/with_props' )" )
                .find( "props belong to entity scripts" ) != string::npos );
     CHECK( scripts.LoadError( "scripts/c.luau", "require( '@lib/with_callback' )" )
                .find( "on_update is a callback of entity scripts" ) != string::npos );
+    CHECK( scripts.LoadError( "scripts/d.luau", "require( '@lib/with_locals' )" )
+               .find( "locals belong to entity scripts" ) != string::npos );
 }
 
 TEST_CASE( "A library is strict about globals like any file" )

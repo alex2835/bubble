@@ -61,6 +61,46 @@ TEST_CASE( "Overrides lay over the defaults and must match them" )
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
+TEST_CASE( "Locals are each instance's own state, which the scene cannot set" )
+{
+    Scripts scripts;
+    const auto gun = scripts.Load( "gun.luau", R"(
+props { reload_time = 2 }
+locals { l_reload = 0, l_shots = {} }
+
+function on_hit( self )
+    self.l_reload = self.reload_time
+    table.insert( self.l_shots, self.l_reload )
+end
+)" );
+    const auto a = scripts.Make( gun, "/a" );
+    const auto b = scripts.Make( gun, "/b" );
+    REQUIRE( scripts.Call( a, OnHit ) );
+    CHECK( scripts.Number( a, "l_reload" ) == 2 );
+    CHECK( scripts.Number( b, "l_reload" ) == 0 );
+    CHECK( LuaTable( scripts.Field( a, "l_shots" ) ).Length() == 1 );
+    CHECK( LuaTable( scripts.Field( b, "l_shots" ) ).Length() == 0 );
+    // Not a setting: the props leave it out and the scene cannot set it.
+    CHECK( scripts.mRuntime.Props( gun ).RawGet( "l_reload" ).IsNil() );
+    auto overridden = scripts.MakeWith( gun, "{ l_reload = 5 }" );
+    REQUIRE_FALSE( overridden );
+    CHECK( overridden.error() ==
+           "/player: \"l_reload\" is a local of gun.luau: it starts the same in every instance, the scene cannot "
+           "set it" );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
+TEST_CASE( "locals is declared once, with names of its own" )
+{
+    Scripts scripts;
+    CHECK( scripts.LoadError( "a.luau", "locals { a = 1 }\nlocals { b = 2 }" )
+               .find( "locals is declared once, at the top of the file" ) != string::npos );
+    CHECK( scripts.LoadError( "b.luau", "props { speed = 1 }\nlocals { speed = 0 }" )
+               .find( "b.luau: speed is both a prop and a local; self has one of each name" ) != string::npos );
+    CHECK( scripts.LoadError( "c.luau", "locals { entity = 1 }" ).find( "a local cannot be called 'entity'" ) !=
+           string::npos );
+}
+
 TEST_CASE( "Props that a scene file could not hold are refused on load" )
 {
     Scripts scripts;
@@ -94,6 +134,40 @@ end
     CHECK_FALSE( scripts.Call( a, OnHit ) );
     CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
     CHECK( log.Saw( LogLevel::Error, { "/player", "undeclared global 'score'" } ) );
+}
+
+TEST_CASE( "Each instance keeps its own state in self" )
+{
+    Scripts scripts;
+    const auto gun = scripts.Load( "gun.luau", R"(
+props { reload_time = 2 }
+
+function on_start( self )
+    self.reload_progress = 0
+end
+
+function on_update( self, dt )
+    if self.reload_progress > 0 then
+        self.reload_progress -= dt
+    end
+end
+
+function on_hit( self )
+    self.reload_progress = self.reload_time
+end
+)" );
+    const auto a = scripts.Make( gun, "/a" );
+    const auto b = scripts.Make( gun, "/b" );
+    for ( const auto handle : { a, b } )
+        REQUIRE( scripts.Call( handle, OnStart ) );
+
+    REQUIRE( scripts.Call( a, OnHit ) );
+    for ( const auto handle : { a, b } )
+        REQUIRE( scripts.mRuntime.Call( handle, OnUpdate, 0.5 ) );
+
+    CHECK( scripts.Number( a, "reload_progress" ) == 1.5 );
+    // Never hit: its reload never started.
+    CHECK( scripts.Number( b, "reload_progress" ) == 0 );
 }
 
 TEST_CASE( "A failing instance is logged and switched off; the others go on" )
@@ -192,9 +266,11 @@ TEST_CASE( "A changed file swaps the functions of every instance and keeps self"
     Scripts scripts;
     const auto door = scripts.Load( "door.luau", R"(
 props { speed = 1 }
+locals { l_open = 0 }
 function on_update( self, dt )
     self.version = 1
     self.calls = ( self.calls or 0 ) + 1
+    self.l_open = 7
 end
 function on_hit( self )
     error( "not yet" )
@@ -207,6 +283,7 @@ end
 
     REQUIRE( scripts.Change( "door.luau", R"(
 props { speed = 1, armor = 5 }
+locals { l_open = 0, l_lock = 3 }
 function on_update( self, dt )
     self.version = 2
     self.calls = ( self.calls or 0 ) + 1
@@ -217,6 +294,9 @@ end
     CHECK( scripts.Number( a, "version" ) == 2 );
     CHECK( scripts.Number( a, "calls" ) == 2 );
     CHECK( scripts.Number( a, "armor" ) == 5 );
+    // A local keeps what the instance made of it; a new one starts.
+    CHECK( scripts.Number( a, "l_open" ) == 7 );
+    CHECK( scripts.Number( a, "l_lock" ) == 3 );
     CHECK_FALSE( scripts.mRuntime.Has( door, OnHit ) );
 
     // A file that fails as it runs leaves the old one working, and says so.

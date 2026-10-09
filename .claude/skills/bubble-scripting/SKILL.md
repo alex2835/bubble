@@ -45,6 +45,8 @@ props {
     patrol      = { vector.create( 0, 0, 0 ) },
 }
 
+locals { l_reload = 0 }         -- each instance's own state; the scene cannot set it
+
 local TIME_TO_APEX = 0.5        -- file-level: shared by every instance
 hits = 0                        -- a global of this file, declared at the top
 
@@ -67,6 +69,12 @@ function on_update( self, dt ) end
   on - flat, `self.speed`, no `self.props`. After that a prop is plain state.
   An override with an unknown key or another kind than the default is an
   error. `entity` is reserved. Props must be data (`Encode`-able).
+- **`locals { ... }`** is the instance's own state - a reload timer, a
+  counter: deep-copied into `self` next to the props, flat as they are, but
+  not in `Props`, not settable by an override (an error saying so) and not
+  saved. A name is a prop or a local, never both. A prefix like `l_` is a
+  convention, not a rule. A file-level `local` is the opposite: one for the
+  whole module, shared by every instance.
 - **Callbacks** are the names given to `ScriptRuntime`'s constructor, called
   by index. A missing one is not called. A function named `on_*` that is not
   a callback logs a warning.
@@ -78,8 +86,8 @@ function on_update( self, dt ) end
   `emit( name, ... )` / `ScriptRuntime::Emit` call subscribers in
   subscription order with `( self, ... )`. Gone with the instance.
 - **Hot reload** (from the registry): new functions for every instance,
-  `self` kept, new props added, instances switched back on; a failing file
-  leaves the old one in place.
+  `self` kept, new props and locals added, instances switched back on; a
+  failing file leaves the old one in place.
 
 ## Libraries
 
@@ -94,7 +102,8 @@ local inventory = require( "@lib/inventory" )   -- alias from .luaurc
 local tuning = require( "./player_tuning" )     -- next to this file
 ```
 
-- A library has no `props` and no callbacks and **returns** what it shares.
+- A library has no `props`, no `locals` and no callbacks and **returns**
+  what it shares.
 - Paths follow Luau's own require so luau-lsp agrees: `./x`, `../x` from the
   requiring file, `@alias/x` through `SetAlias`; no extension; a bare path is
   an error. Use string literals - import will read them from the AST.

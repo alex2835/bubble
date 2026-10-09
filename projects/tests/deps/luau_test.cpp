@@ -48,6 +48,8 @@ TEST_CASE( "Luau runs a script with its vector type" )
     CHECK( p[0] == 1.0f );
     CHECK( p[1] == 3.0f );
     CHECK( p[2] == 3.0f );
+    lua_pop( state.L, 1 );
+    CHECK( lua_gettop( state.L ) == 0 );
 }
 
 TEST_CASE( "A Luau error comes back as a message, not a crash" )

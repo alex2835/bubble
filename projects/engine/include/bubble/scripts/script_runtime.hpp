@@ -12,8 +12,8 @@ namespace bubble
 // instance and the handle stays the same across reloads.
 using ScriptModuleHandle = Handle<struct ScriptModuleTag>;
 // One entity's run of a module: its self table - the props with the
-// entity's overrides, and whatever the script keeps there - with its
-// coroutines and subscriptions, which go when it goes.
+// entity's overrides, the locals, and whatever the script keeps there - with
+// its coroutines and subscriptions, which go when it goes.
 using ScriptInstanceHandle = Handle<struct ScriptInstanceTag>;
 
 // The scripts of one World: the functions every script file sees, the
@@ -22,6 +22,8 @@ using ScriptInstanceHandle = Handle<struct ScriptInstanceTag>;
 // rather than something else. Built on a LuaState before it is sealed.
 // Globals:
 //   props { name = default, ... }   the file's properties, declared once
+//   locals { name = start, ... }    each instance's own state: in self like
+//                                   props, but not set by the scene or saved
 //   prop( default, info )           a property with hints for the inspector
 //   require( "./x" | "@alias/x" )   a library's value, shared by the world
 //   start( fn, ... )                runs fn as a coroutine of the instance
@@ -69,8 +71,8 @@ public:
 
     // `label` names the instance in errors - the entity's path.
     // `overrides`, when given, is a table laid over the defaults; a key
-    // that is not a prop, or a value of another kind than the default, is
-    // an error.
+    // that is not a prop (a local included), or a value of another kind
+    // than the default, is an error.
     expected<ScriptInstanceHandle, string> Create( ScriptModuleHandle module, string label,
                                                    const LuaTable& overrides = {} );
     // Takes it off its events and stops its coroutines. Safe from inside
@@ -111,6 +113,8 @@ private:
         AssetRef<ScriptAsset> mAsset;
         LuaTable mEnvironment;
         LuaTable mProps;
+        // State each instance starts with, not set from the scene.
+        LuaTable mLocals;
         // By callback index; nil where the file has none.
         vector<LuaFunction> mCallbacks;
     };
@@ -155,6 +159,7 @@ private:
         LuaTable mEnvironment;
         // A script's.
         LuaTable mProps;
+        LuaTable mLocals;
         vector<LuaFunction> mCallbacks;
         // A library's.
         LuaValue mResult;
@@ -178,6 +183,7 @@ private:
     expected<FileResult, ScriptError> RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bool library );
     expected<FileResult, ScriptError> RunTracked( string_view path, const AssetRef<ScriptAsset>& asset, bool library );
     expected<void, string> CheckProps( const LuaTable& props );
+    expected<void, string> CheckLocals( const LuaTable& locals, const LuaTable& props );
     expected<void, string> CopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
     expected<string, string> Resolve( string_view from, string_view request ) const;
     expected<LuaValue, string> Require( const string& from, const string& request );
@@ -207,11 +213,13 @@ private:
     hmap<string, Library> mLibraries;
     hmap<string, vector<Subscriber>> mEvents;
 
-    // File environment -> its path, its props, whether it is a library:
-    // what props and require read about the file that called them. Weak,
-    // so an environment of a file run again goes with its old code.
+    // File environment -> its path, its props and locals, whether it is a
+    // library: what props, locals and require read about the file that
+    // called them. Weak, so an environment of a file run again goes with its
+    // old code.
     LuaTable mPathOf;
     LuaTable mPropsOf;
+    LuaTable mLocalsOf;
     LuaTable mLibraryOf;
     // Metatables of a file's environment while it runs (reads go to the
     // globals) and after (a new global is an error).
