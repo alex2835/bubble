@@ -28,7 +28,7 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 | `luaubind/data` | raw `LuaEncode`/`LuaDecode`/`LuaDeepCopy` under `LuaState::Encode`/`Decode`/`DeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
 | `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptImporter`: `.luau` → bytecode in the asset registry; compiles on the spot for now |
-| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; modules (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptModuleHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*` |
+| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*` |
 
 Not there yet (stage 7): the World module that owns a runtime and a
 runtime component per entity, `self.entity`, `Value` ↔ Luau and the
@@ -74,7 +74,7 @@ function on_update( self, dt ) end
   not in `Props`, not settable by an override (an error saying so) and not
   saved. A name is a prop or a local, never both. A prefix like `l_` is a
   convention, not a rule. A file-level `local` is the opposite: one for the
-  whole module, shared by every instance.
+  whole file, shared by every instance.
 - **Callbacks** are the names given to `ScriptRuntime`'s constructor, called
   by index. A missing one is not called. A function named `on_*` that is not
   a callback logs a warning.
@@ -104,6 +104,10 @@ local tuning = require( "./player_tuning" )     -- next to this file
 
 - A library has no `props`, no `locals` and no callbacks and **returns**
   what it shares.
+- **Names:** an entity's file is a *script* (`ScriptHandle`, `RunScript`),
+  a required one a *library* (`RunLibrary`); both run their top through
+  `RunFile`. Luau and Roblox call a required file a module, so nothing of
+  ours is called that.
 - Paths follow Luau's own require so luau-lsp agrees: `./x`, `../x` from the
   requiring file, `@alias/x` through `SetAlias`; no extension; a bare path is
   an error. Use string literals - import will read them from the AST.
@@ -115,11 +119,15 @@ local tuning = require( "./player_tuning" )     -- next to this file
   chain. An error inside a library fails the requiring file with both
   places in the message.
 - **Hot reload comes from the registry**: `AssetRegistry::Reload( path )`
-  imports the file into the same slot and tells listeners; the runtime then
+  imports the file into the same entry and tells listeners; the runtime then
   re-runs a changed script, or drops a changed library's value (it runs again
   at its next require) and re-runs every script that required it, directly or
-  through other libraries (`mRequires` is the graph). A file that fails keeps
-  its old code; a file that does not compile never leaves the registry.
+  through other libraries. A file that fails keeps its old code; a file that
+  does not compile never leaves the registry.
+- **The graph is in the passport**: `require` records the library in
+  `mRequiresOf[env]` of the run that called it, so what is known is what the
+  code running now required. A failed run's environment is dropped with
+  everything it recorded - no bookkeeping to undo.
 
 ## C++ recipes
 
@@ -136,8 +144,8 @@ runtime.SetAlias( "lib", "scripts/lib" );
 // The world loads what it needs first and holds the handles.
 auto held = { assets.Load<ScriptAsset>( *AssetPath::From( "scripts/player.luau" ) ),
               assets.Load<ScriptAsset>( *AssetPath::From( "scripts/lib/inventory.luau" ) ) };
-auto module = runtime.Load( "scripts/player.luau" );   // one module per path
-auto player = runtime.Create( *module, "/player" );
+auto script = runtime.Load( "scripts/player.luau" );   // one script per path
+auto player = runtime.Create( *script, "/player" );
 runtime.Call( *player, OnUpdate, dt );                 // self first, then the args
 runtime.Emit( "door_opened", "north" );
 
@@ -200,8 +208,9 @@ for ( const auto& [key, value] : self.Pairs() ) … ;    // a snapshot: the loop
 - `#s` is bytes; characters are `utf8.len`/`utf8.codes`.
 - Chunk names: `Load` prefixes `@` so errors read `player.luau:12:`; `=name`
   for something that is not a file.
-- Per-file data (path, props, library or not) is kept in weak-keyed tables
-  by the file's environment; `props` and `require` find their file with
+- Per-file data - the passport: path, props, locals, library or not, the
+  libraries required - is kept in weak-keyed tables by the environment of
+  one run of the file; `props`, `locals` and `require` find their file with
   `CallerEnvironment()`.
 - Luau is built as C++: errors are exceptions, destructors in bindings run.
 

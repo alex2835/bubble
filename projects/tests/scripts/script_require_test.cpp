@@ -234,6 +234,30 @@ function on_update( self, dt ) self.calls = ( self.calls or 0 ) + 1 end
     CHECK( scripts.Number( c, "calls" ) == 2 );
 }
 
+TEST_CASE( "A run that fails changes nothing of what the file is known to require" )
+{
+    Project scripts;
+    scripts.AddLibrary( "scripts/lib/tuning.luau", "return { speed = 1 }" );
+    scripts.AddLibrary( "scripts/lib/other.luau", "return {}" );
+    scripts.Load( "scripts/main.luau", "local tuning = require( '@lib/tuning' )" );
+
+    // The new version requires another library, then fails: the code that
+    // runs is still the old one, which needs tuning and not other.
+    LogWatch log;
+    REQUIRE( scripts.Change( "scripts/main.luau", R"(
+record( "main ran" )
+local other = require( "@lib/other" )
+error( "half-saved" )
+)" ) );
+    CHECK( log.Saw( LogLevel::Error, { "half-saved" } ) );
+
+    scripts.mRecorded.clear();
+    REQUIRE( scripts.Change( "scripts/lib/other.luau", "return { more = true }" ) );
+    CHECK( scripts.mRecorded.empty() );
+    REQUIRE( scripts.Change( "scripts/lib/tuning.luau", "return { speed = 2 }" ) );
+    CHECK( scripts.mRecorded == vector<string>{ "main ran" } );
+}
+
 TEST_CASE( "require takes libraries the registry holds and never reads a file itself" )
 {
     Project scripts;

@@ -27,7 +27,7 @@ struct Scripts
             return unexpected( "no such file"s );
         return found->second;
     } };
-    // What the world holds loaded - as its scripts module would.
+    // What the world holds loaded - as the world's scripts module would.
     vector<AssetRef<ScriptAsset>> mHeld;
     LuaState mState{ PrintToLog };
     ScriptRuntime mRuntime{ mState, mAssets, { "on_start", "on_update", "on_hit" } };
@@ -67,25 +67,25 @@ struct Scripts
         return mAssets.Reload( *AssetPath::From( path ) );
     }
 
-    ScriptModuleHandle Load( string_view path, string_view source )
+    ScriptHandle Load( string_view path, string_view source )
     {
         AddFile( path, source );
-        auto module = mRuntime.Load( path );
-        REQUIRE_MESSAGE( module.has_value(), ( module ? "" : module.error().mMessage ) );
-        return *module;
+        auto script = mRuntime.Load( path );
+        REQUIRE_MESSAGE( script.has_value(), ( script ? "" : script.error().mMessage ) );
+        return *script;
     }
 
     string LoadError( string_view path, string_view source )
     {
         AddFile( path, source );
-        auto module = mRuntime.Load( path );
-        REQUIRE_FALSE( module.has_value() );
-        return module.error().mMessage;
+        auto script = mRuntime.Load( path );
+        REQUIRE_FALSE( script.has_value() );
+        return script.error().mMessage;
     }
 
-    ScriptInstanceHandle Make( ScriptModuleHandle module, string label = "/player" )
+    ScriptInstanceHandle Make( ScriptHandle script, string label = "/player" )
     {
-        auto instance = mRuntime.Create( module, std::move( label ) );
+        auto instance = mRuntime.Create( script, std::move( label ) );
         REQUIRE_MESSAGE( instance.has_value(), ( instance ? "" : instance.error() ) );
         return *instance;
     }
@@ -101,10 +101,10 @@ struct Scripts
     }
 
     // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceHandle, string> MakeWith( ScriptModuleHandle module, string_view overrides,
+    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle script, string_view overrides,
                                                      string label = "/player" )
     {
-        return mRuntime.Create( module, std::move( label ), LuaTable( Evaluate( overrides ) ) );
+        return mRuntime.Create( script, std::move( label ), LuaTable( Evaluate( overrides ) ) );
     }
 
     bool Call( ScriptInstanceHandle instance, u32 callback ) { return mRuntime.Call( instance, callback ); }

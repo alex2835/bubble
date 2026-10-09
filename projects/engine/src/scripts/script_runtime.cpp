@@ -67,6 +67,7 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
     mPropsOf = mLua.NewWeakKeyTable();
     mLocalsOf = mLua.NewWeakKeyTable();
     mLibraryOf = mLua.NewWeakKeyTable();
+    mRequiresOf = mLua.NewWeakKeyTable();
 
     mOpenEnvironment = mLua.NewTable();
     mOpenEnvironment["__index"] = mLua.Globals();
@@ -120,10 +121,7 @@ void ScriptRuntime::RegisterGlobals()
     };
 
     globals["require"] = [this]( const string& request ) {
-        const auto from = mPathOf[mLua.CallerEnvironment()].As<string>();
-        if ( not from )
-            throw LuaError( "require works in script files" );
-        auto value = Require( *from, request );
+        auto value = Require( mLua.CallerEnvironment(), request );
         if ( not value )
             throw LuaError( value.error() );
         return *value;
@@ -180,76 +178,72 @@ expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view di
 
 // ---- files -----------------------------------------------------------------
 
-expected<ScriptRuntime::FileResult, ScriptError>
-ScriptRuntime::RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bool library )
+LuaTable ScriptRuntime::NewFileEnvironment( string_view path )
 {
-    const auto fail = [&]( string message ) -> expected<FileResult, ScriptError> {
-        return unexpected( ScriptError{ std::move( message ), {} } );
-    };
-    if ( not mLua.Sealed() )
-        return fail( "scripts load once the Luau state is sealed" );
-    if ( not asset.Ready() )
-        return fail( format( "{} is not loaded", path ) );
-
-    // The file's own globals, reading through to the engine's; what props
-    // and require need to know of the file, by its environment.
-    FileResult result;
-    result.mEnvironment = mLua.NewTable();
-    const LuaTable env = result.mEnvironment;
+    // The file's own globals, reading through to the engine's; what props,
+    // locals and require need to know of the file, by its environment.
+    LuaTable env = mLua.NewTable();
     env.SetMetatable( mOpenEnvironment );
     mPathOf[env] = path;
-    if ( library )
-        mLibraryOf[env] = true;
+    return env;
+}
+
+expected<LuaValue, ScriptError> ScriptRuntime::RunFile( string_view path, const AssetRef<ScriptAsset>& asset,
+                                                        const LuaTable& env )
+{
+    if ( not mLua.Sealed() )
+        return unexpected( ScriptError{ "scripts load once the Luau state is sealed", {} } );
+    if ( not asset.Ready() )
+        return unexpected( ScriptError{ format( "{} is not loaded", path ), {} } );
 
     auto chunk = mLua.Load( path, asset.Get()->mBytecode, env );
     if ( not chunk )
-        return fail( chunk.error() );
+        return unexpected( ScriptError{ std::move( chunk.error() ), {} } );
     mRunning.emplace_back( path );
     auto ran = ( *chunk )();
     mRunning.pop_back();
-    if ( not ran )
-        return unexpected( std::move( ran.error() ) );
     // From here on a new global is a mistake.
-    env.SetMetatable( mStrictEnvironment );
+    if ( ran )
+        env.SetMetatable( mStrictEnvironment );
+    return ran;
+}
 
-    if ( library )
-    {
-        if ( ran->IsNil() )
-            return fail( format( "{}: a library returns what it shares - end it with return", path ) );
-        for ( const string& name : mCallbacks )
-            if ( not env.RawGet( name ).IsNil() )
-                return fail( format( "{}: {} is a callback of entity scripts; a library only returns what it shares",
-                                     path, name ) );
-        result.mResult = std::move( *ran );
-        return result;
-    }
+LuaTable ScriptRuntime::PassportOf( LuaTable& passport, const LuaTable& env )
+{
+    if ( auto kept = passport[env].As<LuaTable>() )
+        return *kept;
+    // For props and locals an empty table kept also makes a later
+    // declaration an error.
+    LuaTable none = mLua.NewTable();
+    passport[env] = none;
+    return none;
+}
 
-    result.mProps = mPropsOf[env].As<LuaTable>().value_or( LuaTable() );
-    if ( result.mProps.IsNil() )
-    {
-        // None declared: an empty table, which also makes a later
-        // props { } an error.
-        result.mProps = mLua.NewTable();
-        mPropsOf[env] = result.mProps;
-    }
-    if ( auto checked = CheckProps( result.mProps ); not checked )
-        return fail( format( "{}: {}", path, checked.error() ) );
+expected<ScriptRuntime::ScriptFile, ScriptError> ScriptRuntime::RunScript( string_view path,
+                                                                           const AssetRef<ScriptAsset>& asset )
+{
+    const auto fail = [&]( string message ) -> expected<ScriptFile, ScriptError> {
+        return unexpected( ScriptError{ format( "{}: {}", path, message ), {} } );
+    };
+    ScriptFile file;
+    file.mEnvironment = NewFileEnvironment( path );
+    const LuaTable env = file.mEnvironment;
+    if ( auto ran = RunFile( path, asset, env ); not ran )
+        return unexpected( std::move( ran.error() ) );
 
-    result.mLocals = mLocalsOf[env].As<LuaTable>().value_or( LuaTable() );
-    if ( result.mLocals.IsNil() )
-    {
-        result.mLocals = mLua.NewTable();
-        mLocalsOf[env] = result.mLocals;
-    }
-    if ( auto checked = CheckLocals( result.mLocals, result.mProps ); not checked )
-        return fail( format( "{}: {}", path, checked.error() ) );
+    file.mProps = PassportOf( mPropsOf, env );
+    if ( auto checked = CheckProps( file.mProps ); not checked )
+        return fail( checked.error() );
+    file.mLocals = PassportOf( mLocalsOf, env );
+    if ( auto checked = CheckLocals( file.mLocals, file.mProps ); not checked )
+        return fail( checked.error() );
 
     for ( const string& name : mCallbacks )
     {
         const LuaValue callback = env.RawGet( name );
         if ( not callback.IsNil() and not callback.Is( LuaKind::Function ) )
-            return fail( format( "{}: {} is {}, not a function", path, name, KindName( callback.Kind() ) ) );
-        result.mCallbacks.emplace_back( callback );
+            return fail( format( "{} is {}, not a function", name, KindName( callback.Kind() ) ) );
+        file.mCallbacks.emplace_back( callback );
     }
 
     // on_updte would never run; say so instead of staying silent.
@@ -260,19 +254,31 @@ ScriptRuntime::RunFile( string_view path, const AssetRef<ScriptAsset>& asset, bo
              ranges::find( mCallbacks, *name ) == mCallbacks.end() )
             LogWarning( "{}: {} is not a callback the engine calls ({})", path, *name, Join( mCallbacks ) );
     }
-    return result;
+    return file;
 }
 
-expected<ScriptRuntime::FileResult, ScriptError>
-ScriptRuntime::RunTracked( string_view path, const AssetRef<ScriptAsset>& asset, bool library )
+expected<ScriptRuntime::LibraryFile, ScriptError> ScriptRuntime::RunLibrary( string_view path,
+                                                                             const AssetRef<ScriptAsset>& asset )
 {
-    // A file that fails keeps the record of its last good run, as it keeps
-    // its code.
-    hset<string> previous = exchange( mRequires[string( path )], {} );
-    auto ran = RunFile( path, asset, library );
+    const auto fail = [&]( string message ) -> expected<LibraryFile, ScriptError> {
+        return unexpected( ScriptError{ format( "{}: {}", path, message ), {} } );
+    };
+    LibraryFile file;
+    file.mEnvironment = NewFileEnvironment( path );
+    const LuaTable env = file.mEnvironment;
+    // Marked before it runs, so props and locals refuse it at their line.
+    mLibraryOf[env] = true;
+    auto ran = RunFile( path, asset, env );
     if ( not ran )
-        mRequires[string( path )] = std::move( previous );
-    return ran;
+        return unexpected( std::move( ran.error() ) );
+
+    if ( ran->IsNil() )
+        return fail( "a library returns what it shares - end it with return" );
+    for ( const string& name : mCallbacks )
+        if ( not env.RawGet( name ).IsNil() )
+            return fail( format( "{} is a callback of entity scripts; a library only returns what it shares", name ) );
+    file.mResult = std::move( *ran );
+    return file;
 }
 
 expected<void, string> ScriptRuntime::CheckProps( const LuaTable& props )
@@ -378,9 +384,12 @@ expected<string, string> ScriptRuntime::Resolve( string_view from, string_view r
     return path;
 }
 
-expected<LuaValue, string> ScriptRuntime::Require( const string& from, const string& request )
+expected<LuaValue, string> ScriptRuntime::Require( const LuaTable& file, const string& request )
 {
-    auto path = Resolve( from, request );
+    const auto from = mPathOf[file].As<string>();
+    if ( not from )
+        return unexpected( "require works in script files"s );
+    auto path = Resolve( *from, request );
     if ( not path )
         return unexpected( format( "require( '{}' ): {}", request, path.error() ) );
     auto found = mLibraries.find( *path );
@@ -393,7 +402,8 @@ expected<LuaValue, string> ScriptRuntime::Require( const string& from, const str
             return unexpected( format( "require( '{}' ): no library {} is loaded", request, *path ) );
         found = mLibraries.emplace( *path, Library{ std::move( asset ), {}, {} } ).first;
     }
-    mRequires[from].insert( *path );
+    // Recorded by this run of the file: a run that fails takes it away.
+    PassportOf( mRequiresOf, file ).RawSet( *path, true );
     if ( not found->second.mResult.IsNil() )
         return found->second.mResult;
 
@@ -407,7 +417,7 @@ expected<LuaValue, string> ScriptRuntime::Require( const string& from, const str
 
     // A copy of the handle keeps the bytecode while it runs.
     const AssetRef<ScriptAsset> asset = found->second.mAsset;
-    auto ran = RunTracked( *path, asset, true );
+    auto ran = RunLibrary( *path, asset );
     if ( not ran )
     {
         const ScriptError& error = ran.error();
@@ -419,50 +429,50 @@ expected<LuaValue, string> ScriptRuntime::Require( const string& from, const str
     return library.mResult;
 }
 
-// ---- modules ---------------------------------------------------------------
+// ---- scripts ---------------------------------------------------------------
 
-expected<ScriptModuleHandle, ScriptError> ScriptRuntime::Load( string_view path )
+expected<ScriptHandle, ScriptError> ScriptRuntime::Load( string_view path )
 {
-    if ( const auto known = mModulesByPath.find( path ); known != mModulesByPath.end() )
+    if ( const auto known = mScriptsByPath.find( path ); known != mScriptsByPath.end() )
         return known->second;
-    auto asset = AssetPath::From( path );
-    if ( not asset )
-        return unexpected( ScriptError{ format( "{}: {}", path, asset.error() ), {} } );
-    AssetRef<ScriptAsset> script = mAssets.Find<ScriptAsset>( *asset );
+    auto valid = AssetPath::From( path );
+    if ( not valid )
+        return unexpected( ScriptError{ format( "{}: {}", path, valid.error() ), {} } );
+    AssetRef<ScriptAsset> asset = mAssets.Find<ScriptAsset>( *valid );
 
-    auto ran = RunTracked( asset->View(), script, false );
+    auto ran = RunScript( valid->View(), asset );
     if ( not ran )
         return unexpected( std::move( ran.error() ) );
-    const ScriptModuleHandle handle =
-        mModules.Add( Module{ asset->String(), std::move( script ), std::move( ran->mEnvironment ),
+    const ScriptHandle handle =
+        mScripts.Add( Script{ valid->String(), std::move( asset ), std::move( ran->mEnvironment ),
                               std::move( ran->mProps ), std::move( ran->mLocals ), std::move( ran->mCallbacks ) } );
-    mModulesByPath[asset->String()] = handle;
+    mScriptsByPath[valid->String()] = handle;
     return handle;
 }
 
-expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
+expected<void, ScriptError> ScriptRuntime::Rerun( ScriptHandle handle )
 {
-    // Copies held through the run: it may load and unload modules.
-    const string chunk = mModules.Get( handle )->mChunk;
-    const AssetRef<ScriptAsset> asset = mModules.Get( handle )->mAsset;
-    auto ran = RunTracked( chunk, asset, false );
+    // Copies held through the run: it may load and unload scripts.
+    const string chunk = mScripts.Get( handle )->mChunk;
+    const AssetRef<ScriptAsset> asset = mScripts.Get( handle )->mAsset;
+    auto ran = RunScript( chunk, asset );
     if ( not ran )
         return unexpected( std::move( ran.error() ) );
-    auto module = mModules.Get( handle );
-    if ( not module )
+    auto script = mScripts.Get( handle );
+    if ( not script )
         return unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
-    module->mEnvironment = std::move( ran->mEnvironment );
-    module->mProps = std::move( ran->mProps );
-    module->mLocals = std::move( ran->mLocals );
-    module->mCallbacks = std::move( ran->mCallbacks );
+    script->mEnvironment = std::move( ran->mEnvironment );
+    script->mProps = std::move( ran->mProps );
+    script->mLocals = std::move( ran->mLocals );
+    script->mCallbacks = std::move( ran->mCallbacks );
 
     // Instances keep self, gain the new props and locals, and come back on.
-    const LuaTable props = module->mProps;
-    const LuaTable locals = module->mLocals;
+    const LuaTable props = script->mProps;
+    const LuaTable locals = script->mLocals;
     for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
     {
         auto instance = mInstances.Get( instanceHandle );
-        if ( instance->mModule != handle )
+        if ( instance->mScript != handle )
             continue;
         // Props copy as Create copied them, a failure there would have failed
         // the run; a copy fails only on tables nested past the limit, and
@@ -474,77 +484,88 @@ expected<void, ScriptError> ScriptRuntime::Rerun( ScriptModuleHandle handle )
     return {};
 }
 
+bool ScriptRuntime::Requires( const LuaTable& env, const hset<string>& libraries )
+{
+    // A library dropped after a change has no environment until it runs
+    // again, and is to run again anyway.
+    if ( env.IsNil() )
+        return false;
+    const auto required = mRequiresOf[env].As<LuaTable>();
+    if ( not required )
+        return false;
+    return ranges::any_of( required->Pairs(), [&]( const auto& entry ) {
+        return libraries.contains( entry.first.template As<string>().value_or( "" ) );
+    } );
+}
+
 void ScriptRuntime::Changed( const AssetEntryBase& entry )
 {
     const string& path = entry.Path().String();
     // Everything that holds a value of the old file: the library itself,
-    // the libraries that required it, theirs in turn.
+    // the libraries whose code required it, theirs in turn.
     hset<string> changed;
     if ( mLibraries.contains( path ) )
         changed.insert( path );
-    const auto touches = [&]( const hset<string>& required ) {
-        return ranges::any_of( required, [&]( const string& library ) { return changed.contains( library ); } );
-    };
     for ( bool grew = not changed.empty(); grew; )
     {
         grew = false;
-        for ( const auto& [file, required] : mRequires )
-            if ( mLibraries.contains( file ) and not changed.contains( file ) and touches( required ) )
+        for ( const auto& [file, library] : mLibraries )
+            if ( not changed.contains( file ) and Requires( library.mEnvironment, changed ) )
                 grew = changed.insert( file ).second;
     }
     for ( const string& library : changed )
     {
-        Library& entry = mLibraries.find( library )->second;
-        entry.mResult = {};
-        entry.mEnvironment = {};
+        Library& dropped = mLibraries.find( library )->second;
+        dropped.mResult = {};
+        dropped.mEnvironment = {};
     }
 
     // Then the scripts: the changed one, and those that required any of
     // the changed libraries. A failure is logged and leaves the old code.
-    for ( const ScriptModuleHandle handle : mModules.Handles() )
+    for ( const ScriptHandle handle : mScripts.Handles() )
     {
-        const string chunk = mModules.Get( handle )->mChunk;
-        const auto required = mRequires.find( chunk );
-        if ( chunk != path and ( required == mRequires.end() or not touches( required->second ) ) )
+        // Another script's run may have unloaded this one.
+        const auto script = mScripts.Get( handle );
+        if ( not script or ( script->mChunk != path and not Requires( script->mEnvironment, changed ) ) )
             continue;
         if ( auto rerun = Rerun( handle ); not rerun )
             LogError( "{}\n{}", rerun.error().mMessage, rerun.error().mTraceback );
     }
 }
 
-void ScriptRuntime::Unload( ScriptModuleHandle handle )
+void ScriptRuntime::Unload( ScriptHandle handle )
 {
-    if ( const auto module = mModules.Get( handle ) )
-        mModulesByPath.erase( module->mChunk );
+    if ( const auto script = mScripts.Get( handle ) )
+        mScriptsByPath.erase( script->mChunk );
     for ( const ScriptInstanceHandle instance : mInstances.Handles() )
-        if ( mInstances.Get( instance )->mModule == handle )
+        if ( mInstances.Get( instance )->mScript == handle )
             Destroy( instance );
-    mModules.Remove( handle );
+    mScripts.Remove( handle );
 }
 
-bool ScriptRuntime::Has( ScriptModuleHandle handle, u32 callback ) const
+bool ScriptRuntime::Has( ScriptHandle handle, u32 callback ) const
 {
-    const auto module = mModules.Get( handle );
-    return module and callback < module->mCallbacks.size() and not module->mCallbacks[callback].IsNil();
+    const auto script = mScripts.Get( handle );
+    return script and callback < script->mCallbacks.size() and not script->mCallbacks[callback].IsNil();
 }
 
-LuaTable ScriptRuntime::Props( ScriptModuleHandle handle ) const
+LuaTable ScriptRuntime::Props( ScriptHandle handle ) const
 {
-    const auto module = mModules.Get( handle );
-    return module ? module->mProps : LuaTable();
+    const auto script = mScripts.Get( handle );
+    return script ? script->mProps : LuaTable();
 }
 
 // ---- instances -------------------------------------------------------------
 
-expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle moduleHandle, string label,
+expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptHandle scriptHandle, string label,
                                                               const LuaTable& overrides )
 {
-    const auto module = mModules.Get( moduleHandle );
-    if ( not module )
+    const auto script = mScripts.Get( scriptHandle );
+    if ( not script )
         return unexpected( label + ": its script was unloaded" );
-    const LuaTable props = module->mProps;
-    const LuaTable locals = module->mLocals;
-    const string chunk = module->mChunk;
+    const LuaTable props = script->mProps;
+    const LuaTable locals = script->mLocals;
+    const string chunk = script->mChunk;
 
     // Each instance gets its own copy: a table among the props or locals is
     // not shared between entities.
@@ -579,7 +600,7 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptModuleHandle
         self.RawSet( key, *copy );
     }
 
-    return mInstances.Add( Instance{ moduleHandle, std::move( label ), std::move( self ), {}, {}, true } );
+    return mInstances.Add( Instance{ scriptHandle, std::move( label ), std::move( self ), {}, {}, true } );
 }
 
 void ScriptRuntime::Destroy( ScriptInstanceHandle handle )
@@ -627,9 +648,9 @@ bool ScriptRuntime::CallWith( ScriptInstanceHandle handle, u32 callback, const L
     const auto instance = mInstances.Get( handle );
     if ( not instance )
         return false;
-    if ( not instance->mEnabled or not Has( instance->mModule, callback ) )
+    if ( not instance->mEnabled or not Has( instance->mScript, callback ) )
         return true;
-    const LuaFunction fn = mModules.Get( instance->mModule )->mCallbacks[callback];
+    const LuaFunction fn = mScripts.Get( instance->mScript )->mCallbacks[callback];
     const LuaTable self = instance->mSelf;
 
     expected<LuaValue, ScriptError> called;

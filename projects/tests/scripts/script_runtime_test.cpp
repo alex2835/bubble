@@ -321,7 +321,7 @@ TEST_CASE( "Unloading a file destroys its instances" )
     scripts.mRuntime.Unload( door );
     CHECK_FALSE( scripts.mRuntime.Alive( a ) );
     CHECK_FALSE( scripts.mRuntime.Create( door, "/late" ).has_value() );
-    // Loading it again runs it anew, as a new module.
+    // Loading it again runs it anew, as a new script.
     const auto again = scripts.mRuntime.Load( "door.luau" );
     REQUIRE( again );
     CHECK( *again != door );
@@ -331,7 +331,7 @@ TEST_CASE( "The runtime runs what the registry holds, each file once" )
 {
     Scripts scripts;
     const auto door = scripts.Load( "door.luau", "record( 'ran' )" );
-    // The same path is the same module; the file does not run again.
+    // The same path is the same script; the file does not run again.
     CHECK( scripts.mRuntime.Load( "door.luau" ) == door );
     CHECK( scripts.mRecorded == vector<string>{ "ran" } );
 
