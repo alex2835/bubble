@@ -64,23 +64,25 @@ public:
     // must be loaded in the registry and the state sealed.
     expected<ScriptHandle, ScriptError> Load( string_view path );
     // Destroys the script's instances with it.
-    void Unload( ScriptHandle script );
-    bool Has( ScriptHandle script, u32 callback ) const;
+    void Unload( ScriptHandle scriptHandle );
+    bool Has( ScriptHandle scriptHandle, u32 callback ) const;
     // The props' defaults; nil for a script that is gone.
-    LuaTable Props( ScriptHandle script ) const;
+    LuaTable Props( ScriptHandle scriptHandle ) const;
 
     // `label` names the instance in errors - the entity's path.
     // `overrides`, when given, is a table laid over the defaults; a key
     // that is not a prop (a local included), or a value of another kind
     // than the default, is an error.
-    expected<ScriptInstanceHandle, string> Create( ScriptHandle script, string label, const LuaTable& overrides = {} );
+    expected<ScriptInstanceHandle, string> Create( ScriptHandle scriptHandle,
+                                                   string label,
+                                                   const LuaTable& overrides = {} );
     // Takes it off its events and stops its coroutines. Safe from inside
     // its own callback, and on a handle that is gone already.
-    void Destroy( ScriptInstanceHandle instance );
-    bool Alive( ScriptInstanceHandle instance ) const;
-    bool Enabled( ScriptInstanceHandle instance ) const;
+    void Destroy( ScriptInstanceHandle instanceHandle );
+    bool Alive( ScriptInstanceHandle instanceHandle ) const;
+    bool Enabled( ScriptInstanceHandle instanceHandle ) const;
     // Its self table; nil for an instance that is gone.
-    LuaTable Self( ScriptInstanceHandle instance ) const;
+    LuaTable Self( ScriptInstanceHandle instanceHandle ) const;
 
     // Calls the callback with self and `args`; false when it failed or the
     // instance is gone. A script error is the runtime's to handle: it logs
@@ -88,9 +90,9 @@ public:
     // changes, so the caller has nothing more to do about it. A file without
     // that callback, or an instance switched off, does nothing and is true.
     template <typename... Args>
-    bool Call( ScriptInstanceHandle instance, u32 callback, const Args&... args )
+    bool Call( ScriptInstanceHandle instanceHandle, u32 callback, const Args&... args )
     {
-        return CallWith( instance, callback, LuaRest{ { mLua.Value( args )... } } );
+        return CallWith( instanceHandle, callback, LuaRest{ { mLua.Value( args )... } } );
     }
 
     // Resumes the coroutines whose wait is over, instance by instance in a
@@ -108,8 +110,8 @@ public:
 private:
     struct Script
     {
-        string mChunk;
-        AssetRef<ScriptAsset> mAsset;
+        string mPath;
+        AssetRef<ScriptAsset> mAssetRef;
         LuaTable mEnvironment;
         LuaTable mProps;
         // State each instance starts with, not set from the scene.
@@ -129,7 +131,7 @@ private:
 
     struct Instance
     {
-        ScriptHandle mScript;
+        ScriptHandle mScriptHandle;
         string mLabel;
         LuaTable mSelf;
         vector<Task> mTasks;
@@ -140,7 +142,7 @@ private:
 
     struct Library
     {
-        AssetRef<ScriptAsset> mAsset;
+        AssetRef<ScriptAsset> mAssetRef;
         // Nil until its first require, and again after it changes.
         LuaValue mResult;
         LuaTable mEnvironment;
@@ -148,7 +150,7 @@ private:
 
     struct Subscriber
     {
-        ScriptInstanceHandle mInstance;
+        ScriptInstanceHandle mInstanceHandle;
         LuaFunction mFunction;
     };
 
@@ -172,14 +174,14 @@ private:
     class CurrentScope
     {
     public:
-        CurrentScope( ScriptRuntime& runtime, ScriptInstanceHandle instance );
+        CurrentScope( ScriptRuntime& runtime, ScriptInstanceHandle instanceHandle );
         ~CurrentScope();
         CurrentScope( const CurrentScope& ) = delete;
         CurrentScope& operator=( const CurrentScope& ) = delete;
 
     private:
         ScriptRuntime& mRuntime;
-        ScriptInstanceHandle mPrevious;
+        ScriptInstanceHandle mPreviousHandle;
     };
 
     void RegisterGlobals();
@@ -187,13 +189,13 @@ private:
     // Runs the top of a file in `env`, once; after it, a new global is an
     // error. Returns what the file returned.
     expected<LuaValue, ScriptError> RunFile( string_view path,
-                                             const AssetRef<ScriptAsset>& asset,
+                                             const AssetRef<ScriptAsset>& assetRef,
                                              const LuaTable& env );
     // What `passport` keeps for the file run in `env`; an empty table, kept,
     // when it keeps nothing yet.
     LuaTable PassportOf( LuaTable& passport, const LuaTable& env );
-    expected<ScriptFile, ScriptError> RunScript( string_view path, const AssetRef<ScriptAsset>& asset );
-    expected<LibraryFile, ScriptError> RunLibrary( string_view path, const AssetRef<ScriptAsset>& asset );
+    expected<ScriptFile, ScriptError> RunScript( string_view path, const AssetRef<ScriptAsset>& assetRef );
+    expected<LibraryFile, ScriptError> RunLibrary( string_view path, const AssetRef<ScriptAsset>& assetRef );
     expected<void, string> CheckProps( const LuaTable& props );
     expected<void, string> CheckLocals( const LuaTable& locals, const LuaTable& props );
     expected<void, string> CopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
@@ -206,19 +208,19 @@ private:
     // A script asset changed: it runs again, and so does everything that
     // required it - libraries at their next require, scripts at once.
     void Changed( const AssetEntryBase& entry );
-    expected<void, ScriptError> Rerun( ScriptHandle script );
+    expected<void, ScriptError> Rerun( ScriptHandle scriptHandle );
 
-    bool CallWith( ScriptInstanceHandle instance, u32 callback, const LuaRest& args );
+    bool CallWith( ScriptInstanceHandle instanceHandle, u32 callback, const LuaRest& args );
     void EmitWith( string_view event, const LuaRest& args );
-    void Fail( ScriptInstanceHandle instance, const ScriptError& error );
-    void Start( ScriptInstanceHandle instance, const LuaFunction& fn, const LuaRest& args );
-    void Resume( ScriptInstanceHandle instance, const LuaThread& thread, const LuaRest& args );
-    void TickInstance( ScriptInstanceHandle instance, f32 dt );
+    void Fail( ScriptInstanceHandle instanceHandle, const ScriptError& error );
+    void Start( ScriptInstanceHandle instanceHandle, const LuaFunction& fn, const LuaRest& args );
+    void Resume( ScriptInstanceHandle instanceHandle, const LuaThread& thread, const LuaRest& args );
+    void TickInstance( ScriptInstanceHandle instanceHandle, f32 dt );
     ScriptInstanceHandle Current( const char* what ) const;
 
     LuaState& mLua;
     AssetRegistry& mAssets;
-    AssetListenerHandle mListener;
+    AssetListenerHandle mListenerHandle;
     vector<string> mCallbacks;
     hmap<string, string> mAliases;
 
@@ -246,6 +248,6 @@ private:
     // require cycle.
     vector<string> mRunning;
     // Whose callback or coroutine is running: what start and on act on.
-    ScriptInstanceHandle mCurrent;
+    ScriptInstanceHandle mCurrentHandle;
 };
 }

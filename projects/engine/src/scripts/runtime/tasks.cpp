@@ -5,29 +5,29 @@
 // that resumes them.
 namespace bubble
 {
-void ScriptRuntime::Start( ScriptInstanceHandle handle, const LuaFunction& fn, const LuaRest& args )
+void ScriptRuntime::Start( ScriptInstanceHandle instanceHandle, const LuaFunction& fn, const LuaRest& args )
 {
     const LuaThread thread = mLua.NewThread( fn );
-    mInstances.Get( handle )->mTasks.push_back( Task{ thread, {}, false } );
+    mInstances.Get( instanceHandle )->mTasks.push_back( Task{ thread, {}, false } );
     // To its first wait, at once.
-    Resume( handle, thread, args );
+    Resume( instanceHandle, thread, args );
 }
 
-void ScriptRuntime::Resume( ScriptInstanceHandle handle, const LuaThread& thread, const LuaRest& args )
+void ScriptRuntime::Resume( ScriptInstanceHandle instanceHandle, const LuaThread& thread, const LuaRest& args )
 {
     LuaResume resumed;
     {
-        const CurrentScope scope( *this, handle );
+        const CurrentScope scope( *this, instanceHandle );
         resumed = thread.Resume( args );
     }
     if ( resumed.mStatus == LuaResume::Status::Failed )
     {
-        Fail( handle, resumed.mError );
+        Fail( instanceHandle, resumed.mError );
         return;
     }
     // Found again by its thread: the coroutine may have started others,
     // or destroyed its own instance.
-    const auto instance = mInstances.Get( handle );
+    const auto instance = mInstances.Get( instanceHandle );
     if ( not instance )
         return;
     for ( Task& task : instance->mTasks )
@@ -38,15 +38,15 @@ void ScriptRuntime::Resume( ScriptInstanceHandle handle, const LuaThread& thread
         }
 }
 
-void ScriptRuntime::TickInstance( ScriptInstanceHandle handle, f32 dt )
+void ScriptRuntime::TickInstance( ScriptInstanceHandle instanceHandle, f32 dt )
 {
-    if ( not Enabled( handle ) )
+    if ( not Enabled( instanceHandle ) )
         return;
     // Coroutines started during this tick have run already.
-    const size_t count = mInstances.Get( handle )->mTasks.size();
-    for ( size_t i = 0; i < count and Enabled( handle ); ++i )
+    const size_t count = mInstances.Get( instanceHandle )->mTasks.size();
+    for ( size_t i = 0; i < count and Enabled( instanceHandle ); ++i )
     {
-        const auto instance = mInstances.Get( handle );
+        const auto instance = mInstances.Get( instanceHandle );
         if ( i >= instance->mTasks.size() )
             break;
         const Task task = instance->mTasks[i];
@@ -65,20 +65,20 @@ void ScriptRuntime::TickInstance( ScriptInstanceHandle handle, f32 dt )
         {
             expected<LuaValue, ScriptError> polled;
             {
-                const CurrentScope scope( *this, handle );
+                const CurrentScope scope( *this, instanceHandle );
                 polled = ( *condition )();
             }
             if ( not polled )
             {
-                Fail( handle, polled.error() );
+                Fail( instanceHandle, polled.error() );
                 break;
             }
             ready = polled->Truthy();
         }
         if ( ready )
-            Resume( handle, task.mThread, {} );
+            Resume( instanceHandle, task.mThread, {} );
     }
-    if ( const auto instance = mInstances.Get( handle ) )
+    if ( const auto instance = mInstances.Get( instanceHandle ) )
         erase_if( instance->mTasks, []( const Task& task ) { return task.mDone; } );
 }
 
@@ -86,7 +86,7 @@ void ScriptRuntime::Tick( f32 dt )
 {
     BUBBLE_PROFILE_ZONE();
     // An instance made during the tick waits for the next one.
-    for ( const ScriptInstanceHandle handle : mInstances.Handles() )
-        TickInstance( handle, dt );
+    for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
+        TickInstance( instanceHandle, dt );
 }
 }

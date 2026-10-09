@@ -45,7 +45,12 @@ Three tools, chosen by what the caller is to do about it.
 - Everything a user sees is `snake_case`: components, fields, Luau API,
   operators, files, names of new entities.
 - `...Id` is an identity that is saved (`uid`, `AssetId`); `...Handle` is a
-  run-time link with a generation, never saved. Variables follow the type.
+  run-time link with a generation, never saved.
+- A variable that links to something says what, and what kind of link:
+  `scriptHandle`, `mInstanceHandle`, `assetRef`, `assetId` - so the link and
+  the thing it finds read apart: `const auto instance = mInstances.Get(
+  instanceHandle )`. A bare `handle` only where nothing else is known, as in
+  `SlotMap`. A thing's own identity stays short: `AssetEntry::mId`.
 - Names say what a thing is in the game's terms: `mRequires`, not
   `mDependencyMap2`. No abbreviations beyond the common ones (`dt`, `id`,
   `L` for a `lua_State*`).
@@ -89,6 +94,10 @@ their own style. What it enforces:
   parameters: `OptRef<T>`, never a member. Raw pointers only at a C API
   boundary inside the low layers (luaubind, platform, GPU, physics).
 - Views (`span`, `string_view`) do not outlive the call that got them.
+- A parameter the function only reads: `string_view`, `span` or `const T&`.
+  One it keeps - stores in a member or a container: by value, then
+  `std::move` it in (`Create( ..., string label )`, `AssetRegistry( ReadFile
+  read )`), so a caller that hands over a temporary pays no copy.
 - `const` wherever a value does not change: locals, parameters by
   reference, member functions.
 - `auto` when the type is on the same line or obvious (`auto handle =

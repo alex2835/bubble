@@ -241,11 +241,11 @@ function on_hit( self )
     record( "still running" )
 end
 )" );
-    scripts.mDoomed = scripts.Make( unit );
-    REQUIRE( scripts.Call( scripts.mDoomed, OnStart ) );
-    REQUIRE( scripts.Call( scripts.mDoomed, OnHit ) );
+    scripts.mDoomedHandle = scripts.Make( unit );
+    REQUIRE( scripts.Call( scripts.mDoomedHandle, OnStart ) );
+    REQUIRE( scripts.Call( scripts.mDoomedHandle, OnHit ) );
     CHECK( scripts.mRecorded == vector<string>{ "still running" } );
-    CHECK_FALSE( scripts.mRuntime.Alive( scripts.mDoomed ) );
+    CHECK_FALSE( scripts.mRuntime.Alive( scripts.mDoomedHandle ) );
 
     // Its subscription and coroutine went with it.
     scripts.mRuntime.Emit( "ping" );
@@ -423,8 +423,8 @@ end
     auto b = scripts.MakeWith( listener, "{ name = 'b' }", "/b" );
     auto c = scripts.MakeWith( listener, "{ name = 'c' }", "/c" );
     REQUIRE( ( a and grumpy and b and c ) );
-    for ( const ScriptInstanceHandle instance : { *a, *grumpy, *b, *c } )
-        REQUIRE( scripts.Call( instance, OnStart ) );
+    for ( const ScriptInstanceHandle instanceHandle : { *a, *grumpy, *b, *c } )
+        REQUIRE( scripts.Call( instanceHandle, OnStart ) );
 
     const auto door = scripts.Make( opener, "/door" );
     REQUIRE( scripts.Call( door, OnHit ) );

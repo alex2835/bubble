@@ -28,8 +28,8 @@ struct AssetId
 template <>
 struct std::hash<bubble::AssetId>
 {
-    size_t operator()( const bubble::AssetId& id ) const
+    size_t operator()( const bubble::AssetId& assetId ) const
     {
-        return std::hash<bubble::u64>{}( id.mHigh ^ ( id.mLow * 0x9e3779b97f4a7c15ull ) );
+        return std::hash<bubble::u64>{}( assetId.mHigh ^ ( assetId.mLow * 0x9e3779b97f4a7c15ull ) );
     }
 };

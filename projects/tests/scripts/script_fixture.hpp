@@ -34,13 +34,13 @@ struct Scripts
     // What scripts passed to record( text ), in order.
     vector<string> mRecorded;
     // What destroy() destroys - as a World's would the entity's.
-    ScriptInstanceHandle mDoomed;
+    ScriptInstanceHandle mDoomedHandle;
 
     Scripts()
     {
         LuaTable globals = mState.Globals();
         globals["record"] = [this]( string text ) { mRecorded.push_back( std::move( text ) ); };
-        globals["destroy"] = [this]() { mRuntime.Destroy( mDoomed ); };
+        globals["destroy"] = [this]() { mRuntime.Destroy( mDoomedHandle ); };
         mState.Seal();
         RegisterScriptImporter( mAssets );
     }
@@ -83,9 +83,9 @@ struct Scripts
         return script.error().mMessage;
     }
 
-    ScriptInstanceHandle Make( ScriptHandle script, string label = "/player" )
+    ScriptInstanceHandle Make( ScriptHandle scriptHandle, string label = "/player" )
     {
-        auto instance = mRuntime.Create( script, std::move( label ) );
+        auto instance = mRuntime.Create( scriptHandle, std::move( label ) );
         REQUIRE_MESSAGE( instance.has_value(), ( instance ? "" : instance.error() ) );
         return *instance;
     }
@@ -101,28 +101,28 @@ struct Scripts
     }
 
     // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle script,
+    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle scriptHandle,
                                                      string_view overrides,
                                                      string label = "/player" )
     {
-        return mRuntime.Create( script, std::move( label ), LuaTable( Evaluate( overrides ) ) );
+        return mRuntime.Create( scriptHandle, std::move( label ), LuaTable( Evaluate( overrides ) ) );
     }
 
-    bool Call( ScriptInstanceHandle instance, u32 callback ) { return mRuntime.Call( instance, callback ); }
+    bool Call( ScriptInstanceHandle instanceHandle, u32 callback ) { return mRuntime.Call( instanceHandle, callback ); }
 
-    LuaValue Field( ScriptInstanceHandle instance, const char* field ) const
+    LuaValue Field( ScriptInstanceHandle instanceHandle, const char* field ) const
     {
-        return mRuntime.Self( instance ).RawGet( field );
+        return mRuntime.Self( instanceHandle ).RawGet( field );
     }
 
-    double Number( ScriptInstanceHandle instance, const char* field ) const
+    double Number( ScriptInstanceHandle instanceHandle, const char* field ) const
     {
-        return Field( instance, field ).As<f64>().value_or( 0.0 );
+        return Field( instanceHandle, field ).As<f64>().value_or( 0.0 );
     }
 
-    void Set( ScriptInstanceHandle instance, const char* field, bool value ) const
+    void Set( ScriptInstanceHandle instanceHandle, const char* field, bool value ) const
     {
-        mRuntime.Self( instance ).RawSet( field, value );
+        mRuntime.Self( instanceHandle ).RawSet( field, value );
     }
 };
 }

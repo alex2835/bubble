@@ -76,10 +76,12 @@ expected<LuaValue, string> ScriptRuntime::Require( const LuaTable& file, const s
     {
         // First require of this file in the world: the registry has it
         // loaded, or the world was started without it.
-        AssetRef<ScriptAsset> asset = mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
-        if ( not asset.Ready() )
+        AssetRef<ScriptAsset> assetRef = mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
+        if ( not assetRef.Ready() )
             return unexpected( format( "require( '{}' ): no library {} is loaded", request, *path ) );
-        found = mLibraries.emplace( *path, Library{ std::move( asset ), {}, {} } ).first;
+        found = mLibraries
+                    .emplace( *path, Library{ .mAssetRef = std::move( assetRef ), .mResult = {}, .mEnvironment = {} } )
+                    .first;
     }
     // Recorded by this run of the file: a run that fails takes it away.
     PassportOf( mRequiresOf, file ).RawSet( *path, true );
@@ -95,8 +97,8 @@ expected<LuaValue, string> ScriptRuntime::Require( const LuaTable& file, const s
     }
 
     // A copy of the handle keeps the bytecode while it runs.
-    const AssetRef<ScriptAsset> asset = found->second.mAsset;
-    auto ran = RunLibrary( *path, asset );
+    const AssetRef<ScriptAsset> assetRef = found->second.mAssetRef;
+    auto ran = RunLibrary( *path, assetRef );
     if ( not ran )
     {
         const ScriptError& error = ran.error();

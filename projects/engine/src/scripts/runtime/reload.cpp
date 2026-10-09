@@ -6,17 +6,17 @@
 // required it, directly or through other libraries.
 namespace bubble
 {
-expected<void, ScriptError> ScriptRuntime::Rerun( ScriptHandle handle )
+expected<void, ScriptError> ScriptRuntime::Rerun( ScriptHandle scriptHandle )
 {
     // Copies held through the run: it may load and unload scripts.
-    const string chunk = mScripts.Get( handle )->mChunk;
-    const AssetRef<ScriptAsset> asset = mScripts.Get( handle )->mAsset;
-    auto ran = RunScript( chunk, asset );
+    const string path = mScripts.Get( scriptHandle )->mPath;
+    const AssetRef<ScriptAsset> assetRef = mScripts.Get( scriptHandle )->mAssetRef;
+    auto ran = RunScript( path, assetRef );
     if ( not ran )
         return unexpected( std::move( ran.error() ) );
-    auto script = mScripts.Get( handle );
+    auto script = mScripts.Get( scriptHandle );
     if ( not script )
-        return unexpected( ScriptError{ chunk + " was unloaded while it ran", {} } );
+        return unexpected( ScriptError{ path + " was unloaded while it ran", {} } );
     script->mEnvironment = std::move( ran->mEnvironment );
     script->mProps = std::move( ran->mProps );
     script->mLocals = std::move( ran->mLocals );
@@ -28,7 +28,7 @@ expected<void, ScriptError> ScriptRuntime::Rerun( ScriptHandle handle )
     for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
     {
         auto instance = mInstances.Get( instanceHandle );
-        if ( instance->mScript != handle )
+        if ( instance->mScriptHandle != scriptHandle )
             continue;
         // Props copy as Create copied them, a failure there would have failed
         // the run; a copy fails only on tables nested past the limit, and
@@ -78,13 +78,13 @@ void ScriptRuntime::Changed( const AssetEntryBase& entry )
 
     // Then the scripts: the changed one, and those that required any of
     // the changed libraries. A failure is logged and leaves the old code.
-    for ( const ScriptHandle handle : mScripts.Handles() )
+    for ( const ScriptHandle scriptHandle : mScripts.Handles() )
     {
         // Another script's run may have unloaded this one.
-        const auto script = mScripts.Get( handle );
-        if ( not script or ( script->mChunk != path and not Requires( script->mEnvironment, changed ) ) )
+        const auto script = mScripts.Get( scriptHandle );
+        if ( not script or ( script->mPath != path and not Requires( script->mEnvironment, changed ) ) )
             continue;
-        if ( auto rerun = Rerun( handle ); not rerun )
+        if ( auto rerun = Rerun( scriptHandle ); not rerun )
             LogError( "{}\n{}", rerun.error().mMessage, rerun.error().mTraceback );
     }
 }

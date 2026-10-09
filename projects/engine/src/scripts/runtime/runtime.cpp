@@ -11,16 +11,16 @@
 // up again.
 namespace bubble
 {
-ScriptRuntime::CurrentScope::CurrentScope( ScriptRuntime& runtime, ScriptInstanceHandle instance )
+ScriptRuntime::CurrentScope::CurrentScope( ScriptRuntime& runtime, ScriptInstanceHandle instanceHandle )
     : mRuntime( runtime ),
-      mPrevious( runtime.mCurrent )
+      mPreviousHandle( runtime.mCurrentHandle )
 {
-    mRuntime.mCurrent = instance;
+    mRuntime.mCurrentHandle = instanceHandle;
 }
 
 ScriptRuntime::CurrentScope::~CurrentScope()
 {
-    mRuntime.mCurrent = mPrevious;
+    mRuntime.mCurrentHandle = mPreviousHandle;
 }
 
 ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<string> callbacks )
@@ -49,12 +49,12 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
     mStrictEnvironment.Freeze();
 
     RegisterGlobals();
-    mListener = mAssets.OnChanged( [this]( const AssetEntryBase& entry ) { Changed( entry ); } );
+    mListenerHandle = mAssets.OnChanged( [this]( const AssetEntryBase& entry ) { Changed( entry ); } );
 }
 
 ScriptRuntime::~ScriptRuntime()
 {
-    mAssets.RemoveListener( mListener );
+    mAssets.RemoveListener( mListenerHandle );
 }
 
 void ScriptRuntime::RegisterGlobals()
@@ -109,9 +109,9 @@ void ScriptRuntime::RegisterGlobals()
     };
 
     globals["on"] = [this]( const string& event, const LuaFunction& fn ) {
-        const ScriptInstanceHandle instance = Current( "on" );
-        mEvents[event].push_back( Subscriber{ instance, fn } );
-        mInstances.Get( instance )->mEvents.insert( event );
+        const ScriptInstanceHandle instanceHandle = Current( "on" );
+        mEvents[event].push_back( Subscriber{ instanceHandle, fn } );
+        mInstances.Get( instanceHandle )->mEvents.insert( event );
     };
 
     globals["emit"] = [this]( const string& event, const LuaRest& args ) { EmitWith( event, args ); };
@@ -119,9 +119,9 @@ void ScriptRuntime::RegisterGlobals()
 
 ScriptInstanceHandle ScriptRuntime::Current( const char* what ) const
 {
-    if ( not mInstances.Alive( mCurrent ) )
+    if ( not mInstances.Alive( mCurrentHandle ) )
         throw LuaError( format( "{} works in an entity's callbacks, not at the top of a file", what ) );
-    return mCurrent;
+    return mCurrentHandle;
 }
 
 expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view directory )

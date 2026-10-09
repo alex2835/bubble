@@ -46,7 +46,10 @@ public:
 
 protected:
     friend class AssetRegistry;
-    AssetEntryBase( AssetId id, AssetPath path, type_index type ) : mId( id ), mPath( std::move( path ) ), mType( type )
+    AssetEntryBase( AssetId assetId, AssetPath path, type_index type )
+        : mId( assetId ),
+          mPath( std::move( path ) ),
+          mType( type )
     {
     }
     ~AssetEntryBase();
@@ -66,7 +69,7 @@ template <typename T>
 class AssetEntry : public AssetEntryBase
 {
 public:
-    AssetEntry( AssetId id, AssetPath path ) : AssetEntryBase( id, std::move( path ), typeid( T ) ) {}
+    AssetEntry( AssetId assetId, AssetPath path ) : AssetEntryBase( assetId, std::move( path ), typeid( T ) ) {}
 
 private:
     friend class AssetRegistry;
@@ -170,9 +173,9 @@ public:
     }
 
     template <typename T>
-    AssetRef<T> Find( const AssetId& id ) const
+    AssetRef<T> Find( const AssetId& assetId ) const
     {
-        const auto found = mIndex->mById.find( id );
+        const auto found = mIndex->mById.find( assetId );
         return Typed<T>( found == mIndex->mById.end() ? nullptr : found->second.lock() );
     }
 
@@ -186,7 +189,7 @@ public:
 
     // Called after every reload that took, with the entry.
     AssetListenerHandle OnChanged( ChangedListener listener );
-    void RemoveListener( AssetListenerHandle listener );
+    void RemoveListener( AssetListenerHandle listenerHandle );
 
 private:
     struct RegisteredImporter

@@ -13,15 +13,15 @@ void ScriptRuntime::EmitWith( string_view event, const LuaRest& args )
     const vector<Subscriber> subscribers = found->second;
     for ( const Subscriber& subscriber : subscribers )
     {
-        if ( not Enabled( subscriber.mInstance ) )
+        if ( not Enabled( subscriber.mInstanceHandle ) )
             continue;
         expected<LuaValue, ScriptError> called;
         {
-            const CurrentScope scope( *this, subscriber.mInstance );
-            called = subscriber.mFunction( Self( subscriber.mInstance ), args );
+            const CurrentScope scope( *this, subscriber.mInstanceHandle );
+            called = subscriber.mFunction( Self( subscriber.mInstanceHandle ), args );
         }
         if ( not called )
-            Fail( subscriber.mInstance, called.error() );
+            Fail( subscriber.mInstanceHandle, called.error() );
     }
 }
 }

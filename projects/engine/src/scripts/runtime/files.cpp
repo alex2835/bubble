@@ -19,15 +19,15 @@ LuaTable ScriptRuntime::NewFileEnvironment( string_view path )
 }
 
 expected<LuaValue, ScriptError> ScriptRuntime::RunFile( string_view path,
-                                                        const AssetRef<ScriptAsset>& asset,
+                                                        const AssetRef<ScriptAsset>& assetRef,
                                                         const LuaTable& env )
 {
     if ( not mLua.Sealed() )
         return unexpected( ScriptError{ "scripts load once the Luau state is sealed", {} } );
-    if ( not asset.Ready() )
+    if ( not assetRef.Ready() )
         return unexpected( ScriptError{ format( "{} is not loaded", path ), {} } );
 
-    auto chunk = mLua.Load( path, asset.Get()->mBytecode, env );
+    auto chunk = mLua.Load( path, assetRef.Get()->mBytecode, env );
     if ( not chunk )
         return unexpected( ScriptError{ std::move( chunk.error() ), {} } );
     mRunning.emplace_back( path );
@@ -51,7 +51,7 @@ LuaTable ScriptRuntime::PassportOf( LuaTable& passport, const LuaTable& env )
 }
 
 expected<ScriptRuntime::ScriptFile, ScriptError> ScriptRuntime::RunScript( string_view path,
-                                                                           const AssetRef<ScriptAsset>& asset )
+                                                                           const AssetRef<ScriptAsset>& assetRef )
 {
     const auto fail = [&]( string message ) -> expected<ScriptFile, ScriptError> {
         return unexpected( ScriptError{ format( "{}: {}", path, message ), {} } );
@@ -59,7 +59,7 @@ expected<ScriptRuntime::ScriptFile, ScriptError> ScriptRuntime::RunScript( strin
     ScriptFile file;
     file.mEnvironment = NewFileEnvironment( path );
     const LuaTable env = file.mEnvironment;
-    if ( auto ran = RunFile( path, asset, env ); not ran )
+    if ( auto ran = RunFile( path, assetRef, env ); not ran )
         return unexpected( std::move( ran.error() ) );
 
     file.mProps = PassportOf( mPropsOf, env );
@@ -89,7 +89,7 @@ expected<ScriptRuntime::ScriptFile, ScriptError> ScriptRuntime::RunScript( strin
 }
 
 expected<ScriptRuntime::LibraryFile, ScriptError> ScriptRuntime::RunLibrary( string_view path,
-                                                                             const AssetRef<ScriptAsset>& asset )
+                                                                             const AssetRef<ScriptAsset>& assetRef )
 {
     const auto fail = [&]( string message ) -> expected<LibraryFile, ScriptError> {
         return unexpected( ScriptError{ format( "{}: {}", path, message ), {} } );
@@ -99,7 +99,7 @@ expected<ScriptRuntime::LibraryFile, ScriptError> ScriptRuntime::RunLibrary( str
     const LuaTable env = file.mEnvironment;
     // Marked before it runs, so props and locals refuse it at their line.
     mLibraryOf[env] = true;
-    auto ran = RunFile( path, asset, env );
+    auto ran = RunFile( path, assetRef, env );
     if ( not ran )
         return unexpected( std::move( ran.error() ) );
 

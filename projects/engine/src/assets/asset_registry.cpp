@@ -110,8 +110,8 @@ expected<void, string> AssetRegistry::Reload( const AssetPath& path )
     entry->mState = AssetState::Ready;
     entry->mError.clear();
     ++entry->mVersion;
-    for ( const AssetListenerHandle listener : mListeners.Handles() )
-        if ( const auto found = mListeners.Get( listener ) )
+    for ( const AssetListenerHandle listenerHandle : mListeners.Handles() )
+        if ( const auto found = mListeners.Get( listenerHandle ) )
         {
             // A copy: a listener may take itself off while it runs.
             const ChangedListener call = *found;
@@ -125,8 +125,8 @@ AssetListenerHandle AssetRegistry::OnChanged( ChangedListener listener )
     return mListeners.Add( std::move( listener ) );
 }
 
-void AssetRegistry::RemoveListener( AssetListenerHandle listener )
+void AssetRegistry::RemoveListener( AssetListenerHandle listenerHandle )
 {
-    mListeners.Remove( listener );
+    mListeners.Remove( listenerHandle );
 }
 }

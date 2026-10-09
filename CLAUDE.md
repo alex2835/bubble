@@ -68,8 +68,9 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   Maybe-missing results and parameters: `OptRef<T>`, never a member. Raw
   pointers only at a C API boundary inside the low layers.
 - **`Id` vs `Handle`.** `...Id` is saved (`uid`, `AssetId`); `...Handle` is a
-  run-time link with a generation, never written to a file. Variables follow
-  the type: `handle`, not `id`.
+  run-time link with a generation, never written to a file. A variable that
+  links says what and how: `scriptHandle`, `mInstanceHandle`, `assetRef`,
+  `assetId`; a bare `handle` only in generic code like `SlotMap`.
 - **Comments** say why, in plain sentences, at the density of the code around
   them. No commented-out code.
 - **Strings** are UTF-8 in `string`; identifiers ASCII; never build an
