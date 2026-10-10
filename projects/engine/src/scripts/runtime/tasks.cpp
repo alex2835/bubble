@@ -15,6 +15,10 @@ void ScriptRuntime::Start( ScriptInstanceHandle instanceHandle, const LuaFunctio
 
 void ScriptRuntime::Resume( ScriptInstanceHandle instanceHandle, const LuaThread& thread, const LuaRest& args )
 {
+    // The caller's copy of the thread outlives the instance: a wait_until
+    // condition may have destroyed it or switched it off just now.
+    if ( not Enabled( instanceHandle ) )
+        return;
     LuaResume resumed;
     {
         const CurrentScope scope( *this, instanceHandle );

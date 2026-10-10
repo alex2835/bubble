@@ -253,6 +253,27 @@ end
     CHECK( scripts.mRecorded == vector<string>{ "still running" } );
 }
 
+TEST_CASE( "A coroutine whose wait_until destroys its instance goes no further" )
+{
+    Scripts scripts;
+    const auto unit = scripts.Load( "unit.luau", R"(
+function on_start( self )
+    start( function()
+        wait_until( function()
+            destroy()
+            return true
+        end )
+        record( "went on" )
+    end )
+end
+)" );
+    scripts.mDoomedHandle = scripts.Make( unit );
+    REQUIRE( scripts.Call( scripts.mDoomedHandle, OnStart ) );
+    scripts.mRuntime.Tick( 1 );
+    CHECK_FALSE( scripts.mRuntime.Alive( scripts.mDoomedHandle ) );
+    CHECK( scripts.mRecorded.empty() );
+}
+
 TEST_CASE( "A misspelt callback is pointed out" )
 {
     Scripts scripts;
