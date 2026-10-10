@@ -188,6 +188,32 @@ end
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
+TEST_CASE( "The top of a library belongs to no instance, whoever required it first" )
+{
+    Project scripts;
+    // Called from an instance, a library's function works for that instance;
+    // its top runs once for the world and has no one to subscribe.
+    scripts.AddLibrary( "scripts/lib/music.luau", R"(
+on( "boss_appeared", function( self ) end )
+return {}
+)" );
+    scripts.AddLibrary( "scripts/lib/waves.luau", R"(
+start( function() end )
+return {}
+)" );
+    const auto unit = scripts.Load( "scripts/unit.luau", R"(
+function on_start( self ) require( "@lib/music" ) end
+function on_hit( self ) require( "@lib/waves" ) end
+)" );
+    const auto a = scripts.Make( unit );
+    LogWatch log;
+    CHECK_FALSE( scripts.Call( a, OnStart ) );
+    CHECK( log.Saw( LogLevel::Error, { "scripts/lib/music.luau:2: on works in an entity's callbacks" } ) );
+    const auto b = scripts.Make( unit );
+    CHECK_FALSE( scripts.Call( b, OnHit ) );
+    CHECK( log.Saw( LogLevel::Error, { "scripts/lib/waves.luau:2: start works in an entity's callbacks" } ) );
+}
+
 TEST_CASE( "A changed library reaches every script that required it, through other libraries too" )
 {
     Project scripts;

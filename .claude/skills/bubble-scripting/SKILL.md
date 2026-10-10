@@ -104,6 +104,11 @@ local tuning = require( "./player_tuning" )     -- next to this file
 
 - A library has no `props`, no `locals` and no callbacks and **returns**
   what it shares.
+- **Behaviour over time belongs to an instance.** A library's function
+  called from an instance runs for it (`start`/`on` inside are that
+  instance's). The top of any file belongs to no one, even when a callback's
+  `require` runs it (`RunFile` sets an empty `CurrentScope`), so `on`/`start`
+  there are errors. Something world-wide is an entity with a script.
 - **Names:** an entity's file is a *script* (`ScriptHandle`, `RunScript`),
   a required one a *library* (`RunLibrary`); both run their top through
   `RunFile`. Luau and Roblox call a required file a module, so nothing of

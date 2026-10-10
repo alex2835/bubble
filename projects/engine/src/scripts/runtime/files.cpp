@@ -31,7 +31,14 @@ expected<LuaValue, ScriptError> ScriptRuntime::RunFile( string_view path,
     if ( not chunk )
         return unexpected( ScriptError{ std::move( chunk.error() ), {} } );
     mRunning.emplace_back( path );
-    auto ran = ( *chunk )();
+    expected<LuaValue, ScriptError> ran;
+    {
+        // The top of a file runs once for the world and belongs to no
+        // instance, even when an instance's require runs it: on and start
+        // there would tie a world's file to whoever came first.
+        const CurrentScope scope( *this, {} );
+        ran = ( *chunk )();
+    }
     mRunning.pop_back();
     // From here on a new global is a mistake.
     if ( ran )
