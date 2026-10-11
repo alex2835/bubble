@@ -70,6 +70,11 @@ if( BUBBLE_PROFILE )
     endif()
 endif()
 
+# EnTT 3.16.0 - header only: the scene's registry, later the reflection's
+# meta. SYSTEM, so its headers are under its own warnings, not ours.
+add_library( entt INTERFACE )
+target_include_directories( entt SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/entt/include )
+
 # luaubind - our own small C++ binding for Luau, kept apart from the engine so
 # it depends on Luau alone.
 add_subdirectory( luaubind )

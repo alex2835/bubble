@@ -16,12 +16,12 @@ using std::u8string_view;
 
 using std::to_string;
 
-// The whole of `text` as an integer, or nothing.
+// The whole of `text` as an integer in `base`, or nothing.
 template <typename Int = int>
-opt<Int> TryParse( string_view text )
+opt<Int> TryParse( string_view text, int base = 10 )
 {
     Int value = 0;
-    const auto [end, error] = std::from_chars( text.data(), text.data() + text.size(), value );
+    const auto [end, error] = std::from_chars( text.data(), text.data() + text.size(), value, base );
     if ( error != std::errc() or end != text.data() + text.size() )
         return std::nullopt;
     return value;

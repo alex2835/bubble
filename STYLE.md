@@ -44,8 +44,10 @@ Three tools, chosen by what the caller is to do about it.
   constants `cName`; locals and parameters `camelCase`; files `snake_case`.
 - Everything a user sees is `snake_case`: components, fields, Luau API,
   operators, files, names of new entities.
-- `...Id` is an identity that is saved (`uid`, `AssetId`); `...Handle` is a
-  run-time link with a generation, never saved.
+- `...Id` is an identity that is saved (`Uid`, `AssetId`); `...Handle` is a
+  run-time link with a generation, never saved. `Entity` is a handle by
+  nature (index and version) and keeps EnTT's name; a variable of it is
+  `entity`.
 - A variable that links to something says what, and what kind of link:
   `scriptHandle`, `mInstanceHandle`, `assetRef`, `assetId` - so the link and
   the thing it finds read apart: `const auto instance = mInstances.Get(
@@ -131,10 +133,16 @@ their own style. What it enforces:
 Nothing exotic, just care: a file that takes many seconds to compile is a
 bug to look at.
 
+- Code lives in the `.cpp` by default; a header holds what has to be there.
+  A template goes in a header when it must, and stays there when moving it
+  out would take contortions: the balance is between reading and compiling,
+  not a rule to win at any cost. `Scene::Add<T>` is in its header because
+  it is EnTT's template; `AssetRef<T>` is a thin shell over
+  `AssetEntryBase`, whose work is in the `.cpp`.
 - Heavy libraries (EnTT, JSON, Tracy) stay in `.cpp` files where they can;
-  a public header shows the engine's own types.
-- A template is a thin typed shell; work that does not need the type goes
-  into a plain function in a `.cpp` (`AssetRef<T>` over `AssetEntryBase`).
+  a public header shows the engine's own types. Where the library is the
+  type - the scene is an EnTT registry - its header is included and that is
+  the price.
 - Bindings and other code that instantiates a lot live in one `.cpp`, not in
   a header everyone includes.
 

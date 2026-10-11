@@ -37,6 +37,7 @@ projects/engine/include/bubble/
     types/                    aliases, Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
+    scene/                    Entity, Uid, Scene (an EnTT registry; components by type)
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
@@ -58,6 +59,9 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   components, fields, Luau API, operators, files - is `snake_case`.
 - **Formatting.** Four spaces, braces on their own line, spaces inside
   parentheses: `Foo( a, b )`. `and`, `or`, `not`. 120 columns.
+- **Build time.** Code goes in the `.cpp` by default; a template goes in a
+  header when it has to, and stays there when moving it out would take
+  contortions - a balance of reading and compiling.
 - **No `std::`.** The standard library comes through `bubble/types`
   (`string`, `vector`, `hmap`, `opt`, `expected`, `unexpected`, `function`,
   `format`, `OsPath`, `Ref`, `u32`...); a missing name is added there as a
