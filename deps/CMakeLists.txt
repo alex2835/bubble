@@ -75,6 +75,21 @@ endif()
 add_library( entt INTERFACE )
 target_include_directories( entt SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/entt/include )
 
+# GLM 1.0.3 - header only: vectors, matrices, quaternions.
+add_library( glm INTERFACE )
+target_include_directories( glm SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/glm )
+
+# utf8proc 2.12.0 - Unicode normalization (NFC) and grapheme boundaries for
+# Text. One C file; its tables come in through #include of utf8proc_data.c.
+add_library( utf8proc STATIC ${CMAKE_CURRENT_SOURCE_DIR}/utf8proc/utf8proc.c )
+target_include_directories( utf8proc SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/utf8proc )
+target_compile_definitions( utf8proc PUBLIC UTF8PROC_STATIC )
+if( MSVC )
+    target_compile_options( utf8proc PRIVATE /w )
+else()
+    target_compile_options( utf8proc PRIVATE -w )
+endif()
+
 # luaubind - our own small C++ binding for Luau, kept apart from the engine so
 # it depends on Luau alone.
 add_subdirectory( luaubind )

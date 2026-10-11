@@ -34,10 +34,11 @@ out\build\windows-debug\bin\bubble_tests.exe
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 projects/engine/include/bubble/
-    types/                    aliases, Handle/SlotMap, OptRef
-    core/                     log, profile, utf8, AssetPath, process
+    types/                    aliases (std, glm), Handle/SlotMap, OptRef
+    core/                     log, profile, utf8, AssetPath, process, Name, Text, Color
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
-    scene/                    Entity, Scene (an EnTT registry; components by type)
+    scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type)
+    data/                     Value (what a file keeps for a prop), ValueType, Check
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
@@ -79,7 +80,7 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   them. No commented-out code.
 - **Strings** are UTF-8 in `string`; identifiers ASCII; never build an
   `OsPath` from a `string` (use `PathFromUtf8`).
-- **No globals** besides the log and the profiler. **No migration code.**
+- **No globals** besides the log, the profiler and the Name table. **No migration code.**
   **Profiling** through `bubble/core/profile.hpp` macros only.
 - **Tests**: doctest, named as sentences, in the folder that mirrors the
   code; error messages checked by their text; Luau tests check the stack is

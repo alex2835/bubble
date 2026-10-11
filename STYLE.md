@@ -107,7 +107,7 @@ their own style. What it enforces:
   registry.Load<ScriptAsset>( path )`), the type written out otherwise.
 - Strings are UTF-8 in `string`; identifiers ASCII; never an `OsPath` from
   a `string` - `PathFromUtf8`.
-- No globals besides the log and the profiler.
+- No globals besides the log, the profiler and the table of Name texts.
 
 ## Comments
 

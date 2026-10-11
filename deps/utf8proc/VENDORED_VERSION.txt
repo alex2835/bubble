@@ -1,0 +1,7 @@
+utf8proc 2.12.0
+https://github.com/JuliaStrings/utf8proc (tag v2.12.0)
+
+The library itself: utf8proc.c, utf8proc.h, utf8proc_data.c and LICENSE.md.
+Dropped: everything else (tests, data generators, benchmarks, build scripts).
+
+No patches.

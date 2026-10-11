@@ -1,0 +1,9 @@
+GLM 1.0.3
+https://github.com/g-truc/glm (tag 1.0.3)
+
+The library headers only: glm/, and copying.txt.
+Dropped: everything else (tests, docs, build scripts, util), and from glm/
+CMakeLists.txt, detail/glm.cpp and glm.cppm, which only build a library or a
+module of it.
+
+No patches.
