@@ -44,9 +44,10 @@ Three tools, chosen by what the caller is to do about it.
   constants `cName`; locals and parameters `camelCase`; files `snake_case`.
 - Everything a user sees is `snake_case`: components, fields, Luau API,
   operators, files, names of new entities.
-- `...Id` is an identity that is saved (`Uid`, `AssetId`); `...Handle` is a
+- `...Id` is an identity that is saved (`AssetId`); `...Handle` is a
   run-time link with a generation, never saved. `Entity` is a handle by
-  nature (index and version) and keeps EnTT's name; a variable of it is
+  nature (index and version), keeps EnTT's name and is never saved: a file
+  names an entity by its path in the tree (`/props/chair`). A variable of it is
   `entity`.
 - A variable that links to something says what, and what kind of link:
   `scriptHandle`, `mInstanceHandle`, `assetRef`, `assetId` - so the link and

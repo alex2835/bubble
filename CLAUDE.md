@@ -37,7 +37,7 @@ projects/engine/include/bubble/
     types/                    aliases, Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
-    scene/                    Entity, Uid, Scene (an EnTT registry; components by type)
+    scene/                    Entity, Scene (an EnTT registry; components by type)
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
@@ -71,7 +71,7 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   `T&`. A link to something that can go away: `Handle` from a `SlotMap`.
   Maybe-missing results and parameters: `OptRef<T>`, never a member. Raw
   pointers only at a C API boundary inside the low layers.
-- **`Id` vs `Handle`.** `...Id` is saved (`uid`, `AssetId`); `...Handle` is a
+- **`Id` vs `Handle`.** `...Id` is saved (`AssetId`); `...Handle` is a
   run-time link with a generation, never written to a file. A variable that
   links says what and how: `scriptHandle`, `mInstanceHandle`, `assetRef`,
   `assetId`; a bare `handle` only in generic code like `SlotMap`.

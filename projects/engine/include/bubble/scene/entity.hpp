@@ -8,7 +8,7 @@ namespace bubble
 // and 12 of version. An index is reused once its entity is gone, with the
 // version moved on, so an Entity kept past its removal never names the one
 // made in its place - Scene::Alive says no. A handle by nature, for this run
-// only: what a file keeps is the entity's Uid.
+// only: what a file keeps is the entity's path in the tree.
 //
 // A class rather than EnTT's enum, so it can have a Luau type of its own.
 // EnTT takes any class with an entity_type and the two conversions.
