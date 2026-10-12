@@ -49,6 +49,9 @@ public:
     // A name from outside - a file, a script, a declaration: checked, and
     // its text put in the table.
     static expected<Name, string> From( string_view text );
+    // The name behind a hash someone else kept - EnTT keeps a reflected
+    // type's or field's name as one.
+    static constexpr Name FromHash( u32 hash ) { return Name( hash ); }
 
     constexpr u32 Hash() const { return mHash; }
     constexpr bool Empty() const { return mHash == 0; }
