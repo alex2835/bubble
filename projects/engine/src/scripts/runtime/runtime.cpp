@@ -44,7 +44,7 @@ ScriptRuntime::ScriptRuntime( LuaState& lua, AssetRegistry& assets, vector<strin
     mStrictEnvironment["__newindex"] = []( const LuaValue&, const LuaValue& key ) {
         throw LuaError( format( "assignment to undeclared global '{}': declare it at the top of the file, "
                                 "or keep it in self",
-                                key.As<string>().value_or( key.Describe() ) ) );
+                                key.TryAs<string>().value_or( key.Describe() ) ) );
     };
     mStrictEnvironment.Freeze();
 
@@ -88,18 +88,18 @@ void ScriptRuntime::RegisterGlobals()
     };
 
     globals["require"] = [this]( const string& request ) {
-        auto value = Require( mLua.CallerEnvironment(), request );
-        if ( not value )
-            throw LuaError( value.error() );
-        return *value;
+        auto valueMaybe = TryRequire( mLua.CallerEnvironment(), request );
+        if ( not valueMaybe )
+            throw LuaError( valueMaybe.error() );
+        return *valueMaybe;
     };
 
     globals["start"] = [this]( const LuaFunction& fn, const LuaRest& args ) { Start( Current( "start" ), fn, args ); };
 
-    globals["wait"] = [this]( opt<f64> seconds ) {
+    globals["wait"] = [this]( opt<f64> secondsMaybe ) {
         if ( not mLua.Yieldable() )
             throw LuaError( "wait works inside start( fn ), not in a callback" );
-        return LuaYield{ mLua.Value( seconds.value_or( 0.0 ) ) };
+        return LuaYield{ mLua.Value( secondsMaybe.value_or( 0.0 ) ) };
     };
 
     globals["wait_until"] = [this]( const LuaFunction& condition ) {
@@ -111,7 +111,7 @@ void ScriptRuntime::RegisterGlobals()
     globals["on"] = [this]( const string& event, const LuaFunction& fn ) {
         const ScriptInstanceHandle instanceHandle = Current( "on" );
         mEvents[event].push_back( Subscriber{ instanceHandle, fn } );
-        mInstances.Get( instanceHandle )->mEvents.insert( event );
+        mInstances.TryGet( instanceHandle )->mEvents.insert( event );
     };
 
     globals["emit"] = [this]( const string& event, const LuaRest& args ) { EmitWith( event, args ); };
@@ -124,7 +124,7 @@ ScriptInstanceHandle ScriptRuntime::Current( const char* what ) const
     return mCurrentHandle;
 }
 
-expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view directory )
+expected<void, string> ScriptRuntime::TrySetAlias( string_view name, string_view directory )
 {
     const bool named = not name.empty() and ranges::all_of( name, []( char c ) {
         return ( c >= 'a' and c <= 'z' ) or ( c >= '0' and c <= '9' ) or c == '_' or c == '-';
@@ -134,10 +134,10 @@ expected<void, string> ScriptRuntime::SetAlias( string_view name, string_view di
     string path;
     if ( not directory.empty() )
     {
-        auto valid = AssetPath::From( directory );
-        if ( not valid )
-            return unexpected( format( "alias @{}: {}", name, valid.error() ) );
-        path = valid->String();
+        auto validMaybe = AssetPath::TryFrom( directory );
+        if ( not validMaybe )
+            return unexpected( format( "alias @{}: {}", name, validMaybe.error() ) );
+        path = validMaybe->String();
     }
     mAliases[string( name )] = std::move( path );
     return {};

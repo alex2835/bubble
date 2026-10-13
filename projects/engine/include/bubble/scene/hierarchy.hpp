@@ -57,7 +57,7 @@ Text Rename( Scene& scene, Entity entity, const Text& wanted );
 // change of place. Its name is made unique there. Refuses, changing
 // nothing, to move the root or an entity outside the tree, and to put an
 // entity inside itself.
-expected<void, string> SetParent( Scene& scene, Entity child, Entity parent, size_t index = cAtEnd );
+expected<void, string> TrySetParent( Scene& scene, Entity child, Entity parent, size_t index = cAtEnd );
 
 // "/props/chair"; the root's is "/"; empty outside the tree.
 EntityPath PathOf( const Scene& scene, Entity entity );
@@ -67,7 +67,7 @@ EntityPath RelativePath( const Scene& scene, Entity from, Entity to );
 // The entity a path names: an absolute one from the root, a relative one
 // from `from`. The error says where the path stopped and what is there:
 // "/props/chiar: /props has no child 'chiar' (children: 'chair', 'table')".
-expected<Entity, string> Resolve( const Scene& scene, const EntityPath& path, Entity from = Entity::Null );
+expected<Entity, string> TryResolve( const Scene& scene, const EntityPath& path, Entity from = Entity::Null );
 
 // An entity as a message names it: its path; "entity 7 (not in the tree)",
 // "entity 7 (gone)", "no entity".

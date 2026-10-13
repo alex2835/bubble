@@ -46,18 +46,18 @@ TEST_CASE( "Overrides lay over the defaults and must match them" )
     Scripts scripts;
     const auto player = scripts.Load( "player.luau", "props { speed = 40, jump_height = 10 }" );
 
-    auto fast = scripts.MakeWith( player, "{ speed = 80 }" );
-    REQUIRE( fast );
-    CHECK( scripts.Number( *fast, "speed" ) == 80 );
-    CHECK( scripts.Number( *fast, "jump_height" ) == 10 );
+    auto fastMaybe = scripts.TryMakeWith( player, "{ speed = 80 }" );
+    REQUIRE( fastMaybe );
+    CHECK( scripts.Number( *fastMaybe, "speed" ) == 80 );
+    CHECK( scripts.Number( *fastMaybe, "jump_height" ) == 10 );
 
-    auto misspelt = scripts.MakeWith( player, "{ speeed = 80 }" );
-    REQUIRE_FALSE( misspelt );
-    CHECK( misspelt.error() == "/player: \"speeed\" is not a prop of player.luau (props: jump_height, speed)" );
+    auto misspeltMaybe = scripts.TryMakeWith( player, "{ speeed = 80 }" );
+    REQUIRE_FALSE( misspeltMaybe );
+    CHECK( misspeltMaybe.error() == "/player: \"speeed\" is not a prop of player.luau (props: jump_height, speed)" );
 
-    auto wrongType = scripts.MakeWith( player, "{ speed = 'fast' }" );
-    REQUIRE_FALSE( wrongType );
-    CHECK( wrongType.error() == "/player: prop speed is a number in player.luau, the override is a string" );
+    auto wrongTypeMaybe = scripts.TryMakeWith( player, "{ speed = 'fast' }" );
+    REQUIRE_FALSE( wrongTypeMaybe );
+    CHECK( wrongTypeMaybe.error() == "/player: prop speed is a number in player.luau, the override is a string" );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
@@ -82,9 +82,9 @@ end
     CHECK( LuaTable( scripts.Field( b, "l_shots" ) ).Length() == 0 );
     // Not a setting: the props leave it out and the scene cannot set it.
     CHECK( scripts.mRuntime.Props( gun ).RawGet( "l_reload" ).IsNil() );
-    auto overridden = scripts.MakeWith( gun, "{ l_reload = 5 }" );
-    REQUIRE_FALSE( overridden );
-    CHECK( overridden.error() ==
+    auto overriddenMaybe = scripts.TryMakeWith( gun, "{ l_reload = 5 }" );
+    REQUIRE_FALSE( overriddenMaybe );
+    CHECK( overriddenMaybe.error() ==
            "/player: \"l_reload\" is a local of gun.luau: it starts the same in every instance, the scene cannot "
            "set it" );
     CHECK( lua_gettop( scripts.L() ) == 0 );
@@ -183,19 +183,19 @@ function on_update( self, dt )
     self.ticks = ( self.ticks or 0 ) + 1
 end
 )" );
-    auto weak = scripts.MakeWith( unit, "{ fragile = true }", "/weak" );
-    REQUIRE( weak );
+    auto weakMaybe = scripts.TryMakeWith( unit, "{ fragile = true }", "/weak" );
+    REQUIRE( weakMaybe );
     const auto strong = scripts.Make( unit, "/strong" );
 
-    CHECK_FALSE( scripts.mRuntime.Call( *weak, OnUpdate, 0.016 ) );
+    CHECK_FALSE( scripts.mRuntime.Call( *weakMaybe, OnUpdate, 0.016 ) );
     CHECK( scripts.mRuntime.Call( strong, OnUpdate, 0.016 ) );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 
-    CHECK_FALSE( scripts.mRuntime.Enabled( *weak ) );
+    CHECK_FALSE( scripts.mRuntime.Enabled( *weakMaybe ) );
     CHECK( scripts.mRuntime.Enabled( strong ) );
     CHECK( log.Saw( LogLevel::Error, { "/weak", "unit.luau:5: broke", "on_update" } ) );
     // Switched off: no call, no error.
-    CHECK( scripts.mRuntime.Call( *weak, OnUpdate, 0.016 ) );
+    CHECK( scripts.mRuntime.Call( *weakMaybe, OnUpdate, 0.016 ) );
     CHECK( lua_gettop( scripts.L() ) == 0 );
 }
 
@@ -302,7 +302,7 @@ end
     CHECK_FALSE( scripts.Call( a, OnHit ) );
     CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
 
-    REQUIRE( scripts.Change( "door.luau", R"(
+    REQUIRE( scripts.TryChange( "door.luau", R"(
 props { speed = 1, armor = 5 }
 locals { l_open = 0, l_lock = 3 }
 function on_update( self, dt )
@@ -322,14 +322,14 @@ end
 
     // A file that fails as it runs leaves the old one working, and says so.
     LogWatch log;
-    REQUIRE( scripts.Change( "door.luau", "error( 'half-saved' )" ) );
+    REQUIRE( scripts.TryChange( "door.luau", "error( 'half-saved' )" ) );
     CHECK( log.Saw( LogLevel::Error, { "door.luau:1: half-saved" } ) );
     REQUIRE( scripts.Call( a, OnUpdate ) );
     CHECK( scripts.Number( a, "calls" ) == 3 );
 
     // One that does not compile never reaches the runtime: the registry
     // keeps the version it had.
-    CHECK_FALSE( scripts.Change( "door.luau", "function on_update( self" ) );
+    CHECK_FALSE( scripts.TryChange( "door.luau", "function on_update( self" ) );
     REQUIRE( scripts.Call( a, OnUpdate ) );
     CHECK( scripts.Number( a, "calls" ) == 4 );
 }
@@ -341,11 +341,11 @@ TEST_CASE( "Unloading a file destroys its instances" )
     const auto a = scripts.Make( door );
     scripts.mRuntime.Unload( door );
     CHECK_FALSE( scripts.mRuntime.Alive( a ) );
-    CHECK_FALSE( scripts.mRuntime.Create( door, "/late" ).has_value() );
+    CHECK_FALSE( scripts.mRuntime.TryCreate( door, "/late" ).has_value() );
     // Loading it again runs it anew, as a new script.
-    const auto again = scripts.mRuntime.Load( "door.luau" );
-    REQUIRE( again );
-    CHECK( *again != door );
+    const auto againMaybe = scripts.mRuntime.TryLoad( "door.luau" );
+    REQUIRE( againMaybe );
+    CHECK( *againMaybe != door );
 }
 
 TEST_CASE( "The runtime runs what the registry holds, each file once" )
@@ -353,14 +353,14 @@ TEST_CASE( "The runtime runs what the registry holds, each file once" )
     Scripts scripts;
     const auto door = scripts.Load( "door.luau", "record( 'ran' )" );
     // The same path is the same script; the file does not run again.
-    CHECK( scripts.mRuntime.Load( "door.luau" ) == door );
+    CHECK( scripts.mRuntime.TryLoad( "door.luau" ) == door );
     CHECK( scripts.mRecorded == vector<string>{ "ran" } );
 
     // A file the registry has not loaded is an error, not a read from disk.
     scripts.mFiles["late.luau"] = "props {}";
-    auto late = scripts.mRuntime.Load( "late.luau" );
-    REQUIRE_FALSE( late );
-    CHECK( late.error().mMessage == "late.luau is not loaded" );
+    auto lateMaybe = scripts.mRuntime.TryLoad( "late.luau" );
+    REQUIRE_FALSE( lateMaybe );
+    CHECK( lateMaybe.error().mMessage == "late.luau is not loaded" );
 }
 
 TEST_CASE( "Coroutines wait for time and for conditions" )
@@ -439,25 +439,25 @@ function on_hit( self )
     emit( "door_opened", "north" )
 end
 )" );
-    auto a = scripts.MakeWith( listener, "{ name = 'a' }", "/a" );
-    auto grumpy = scripts.MakeWith( listener, "{ name = 'grumpy' }", "/grumpy" );
-    auto b = scripts.MakeWith( listener, "{ name = 'b' }", "/b" );
-    auto c = scripts.MakeWith( listener, "{ name = 'c' }", "/c" );
-    REQUIRE( ( a and grumpy and b and c ) );
-    for ( const ScriptInstanceHandle instanceHandle : { *a, *grumpy, *b, *c } )
+    auto aMaybe = scripts.TryMakeWith( listener, "{ name = 'a' }", "/a" );
+    auto grumpyMaybe = scripts.TryMakeWith( listener, "{ name = 'grumpy' }", "/grumpy" );
+    auto bMaybe = scripts.TryMakeWith( listener, "{ name = 'b' }", "/b" );
+    auto cMaybe = scripts.TryMakeWith( listener, "{ name = 'c' }", "/c" );
+    REQUIRE( ( aMaybe and grumpyMaybe and bMaybe and cMaybe ) );
+    for ( const ScriptInstanceHandle instanceHandle : { *aMaybe, *grumpyMaybe, *bMaybe, *cMaybe } )
         REQUIRE( scripts.Call( instanceHandle, OnStart ) );
 
     const auto door = scripts.Make( opener, "/door" );
     REQUIRE( scripts.Call( door, OnHit ) );
     CHECK( scripts.mRecorded == vector<string>{ "a:north", "b:north", "c:north" } );
-    CHECK_FALSE( scripts.mRuntime.Enabled( *grumpy ) );
+    CHECK_FALSE( scripts.mRuntime.Enabled( *grumpyMaybe ) );
 
     // b leaves, and a newcomer takes its slot without inheriting its
     // subscription; C++ emits too.
-    scripts.mRuntime.Destroy( *b );
-    auto newcomer = scripts.MakeWith( listener, "{ name = 'new' }", "/new" );
-    REQUIRE( newcomer );
-    CHECK( newcomer->mIndex == b->mIndex );
+    scripts.mRuntime.Destroy( *bMaybe );
+    auto newcomerMaybe = scripts.TryMakeWith( listener, "{ name = 'new' }", "/new" );
+    REQUIRE( newcomerMaybe );
+    CHECK( newcomerMaybe->mIndex == bMaybe->mIndex );
     scripts.mRecorded.clear();
     scripts.mRuntime.Emit( "door_opened", "south" );
     CHECK( scripts.mRecorded == vector<string>{ "a:south", "c:south" } );

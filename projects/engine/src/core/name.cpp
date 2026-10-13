@@ -22,7 +22,7 @@ NameTable& Table()
 }
 }
 
-expected<Name, string> Name::From( string_view text )
+expected<Name, string> Name::TryFrom( string_view text )
 {
     if ( not detail::NameValid( text ) )
         return unexpected( format( "'{}' is not a name: a name is ASCII snake_case - a lowercase letter, then "

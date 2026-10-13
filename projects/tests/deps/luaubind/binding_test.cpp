@@ -17,9 +17,9 @@ struct Vec3
 
 string ErrorOf( lua_State* L, string_view source )
 {
-    auto ran = RunLua( L, source );
-    REQUIRE_FALSE( ran.has_value() );
-    return ran.error().mMessage;
+    auto ranMaybe = TryRunLua( L, source );
+    REQUIRE_FALSE( ranMaybe.has_value() );
+    return ranMaybe.error().mMessage;
 }
 }
 
@@ -33,11 +33,11 @@ TEST_CASE( "A LuaValue keeps its value through a collection; a copy is the same 
     LuaValue copy = table;
     table = {};
     CHECK( table.IsNil() );
-    CHECK( state.RawGet( copy, "answer" ).As<int>() == 42 );
+    CHECK( state.RawGet( copy, "answer" ).TryAs<int>() == 42 );
     // The same table, not a second one.
     LuaValue again = copy;
     state.RawSet( again, "answer", 7 );
-    CHECK( state.RawGet( copy, "answer" ).As<int>() == 7 );
+    CHECK( state.RawGet( copy, "answer" ).TryAs<int>() == 7 );
     CHECK( again == copy );
     CHECK_FALSE( again == state.NewTable() );
     CHECK( lua_gettop( state.L() ) == 0 );
@@ -71,7 +71,7 @@ TEST_CASE( "A bound function checks its arguments and says which one is wrong" )
     LuaPushFunction( L, "scale", []( f32 value, int times ) { return value * static_cast<f32>( times ); } );
     lua_setglobal( L, "scale" );
 
-    REQUIRE( RunLua( L, "return scale( 1.5, 4 )", 1 ) );
+    REQUIRE( TryRunLua( L, "return scale( 1.5, 4 )", 1 ) );
     CHECK( lua_tonumber( L, -1 ) == 6 );
     lua_pop( L, 1 );
 
@@ -93,7 +93,7 @@ TEST_CASE( "A bound function keeps its captures, takes the state and returns sev
     } );
     lua_setglobal( L, "split" );
 
-    REQUIRE( RunLua( L, "return split( vector.create( 1, 2, 3 ) )", 3 ) );
+    REQUIRE( TryRunLua( L, "return split( vector.create( 1, 2, 3 ) )", 3 ) );
     CHECK( lua_tonumber( L, -3 ) == 1 );
     CHECK( lua_tonumber( L, -1 ) == 3 );
     CHECK( calls == 1 );
@@ -124,7 +124,7 @@ TEST_CASE( "A bound lambda is destroyed with the state" )
 TEST_CASE( "A script error carries the traceback of where it happened" )
 {
     LuaState state;
-    auto ran = RunLua( state.L(), R"(
+    auto ranMaybe = TryRunLua( state.L(), R"(
 local function inner()
     local t = nil
     return t.x
@@ -132,18 +132,18 @@ end
 local function outer() return inner() end
 outer()
 )" );
-    REQUIRE_FALSE( ran.has_value() );
-    CHECK( ran.error().mMessage.find( "test:4" ) != string::npos );
-    CHECK( ran.error().mTraceback.find( "inner" ) != string::npos );
-    CHECK( ran.error().mTraceback.find( "outer" ) != string::npos );
+    REQUIRE_FALSE( ranMaybe.has_value() );
+    CHECK( ranMaybe.error().mMessage.find( "test:4" ) != string::npos );
+    CHECK( ranMaybe.error().mTraceback.find( "inner" ) != string::npos );
+    CHECK( ranMaybe.error().mTraceback.find( "outer" ) != string::npos );
     CHECK( lua_gettop( state.L() ) == 0 );
 }
 
 TEST_CASE( "A compile error names the line" )
 {
-    auto bytecode = CompileScript( "local x = 1\nlocal = 2" );
-    REQUIRE_FALSE( bytecode.has_value() );
-    CHECK( bytecode.error().find( "2" ) != string::npos );
+    auto bytecodeMaybe = TryCompileScript( "local x = 1\nlocal = 2" );
+    REQUIRE_FALSE( bytecodeMaybe.has_value() );
+    CHECK( bytecodeMaybe.error().find( "2" ) != string::npos );
 }
 
 TEST_CASE( "Atoms number names once each" )
@@ -161,8 +161,8 @@ TEST_CASE( "Sealed globals are read-only to scripts" )
 {
     LuaState state;
     state.Seal();
-    CHECK_FALSE( RunLua( state.L(), "math.pi = 3" ).has_value() );
-    CHECK_FALSE( RunLua( state.L(), "print = nil" ).has_value() );
+    CHECK_FALSE( TryRunLua( state.L(), "math.pi = 3" ).has_value() );
+    CHECK_FALSE( TryRunLua( state.L(), "print = nil" ).has_value() );
 }
 
 namespace
@@ -197,12 +197,12 @@ TEST_CASE( "An engine type's fields read and write by name" )
     Light& light = type.PushNew<Light>( L );
     lua_setglobal( L, "lamp" );
 
-    REQUIRE( RunLua( L, R"(
+    REQUIRE( TryRunLua( L, R"(
 lamp.brightness = lamp.brightness * 3
 lamp.color = vector.create( 1, 0.5, 0 )
 return lamp:dim( 0.5 ), lamp.id, typeof( lamp )
 )",
-                     3 ) );
+                        3 ) );
     CHECK( light.mBrightness == 2.5f );
     CHECK( light.mColor.y == 0.5f );
     CHECK( lua_tonumber( L, -3 ) == 2.5 );
@@ -227,7 +227,7 @@ TEST_CASE( "An engine type says what is wrong and what it has" )
     CHECK( ErrorOf( L, "lamp:glow()" ).find( "light has no method 'glow' (methods: dim)" ) != string::npos );
     CHECK( ErrorOf( L, "lamp:dim( 'a lot' )" ).find( "number expected" ) != string::npos );
     // The metamethods stay out of reach.
-    REQUIRE( RunLua( L, "return getmetatable( lamp )", 1 ) );
+    REQUIRE( TryRunLua( L, "return getmetatable( lamp )", 1 ) );
     CHECK( string( lua_tostring( L, -1 ) ) == "light" );
     lua_pop( L, 1 );
 }
@@ -244,8 +244,8 @@ TEST_CASE( "An engine type hands its object back typed, and only as the type it 
     REQUIRE( light );
     CHECK( light->mId == 12 );
     CHECK_FALSE( type.To<Light>( L, 2 ) );
-    CHECK( state.FindType( type.Tag() ) == &type );
-    CHECK( state.FindType( type.Tag() + 1 ) == nullptr );
+    CHECK( state.TryFindType( type.Tag() ) == &type );
+    CHECK( state.TryFindType( type.Tag() + 1 ) == nullptr );
     // Asking for another C++ type is a bug in the engine, not in a script.
     CHECK_THROWS_AS( (void)type.To<Vec3>( L, 1 ), std::logic_error );
     lua_settop( L, 0 );

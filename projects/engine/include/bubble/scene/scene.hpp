@@ -34,8 +34,9 @@ public:
     size_t Count() const;
 
     // Components by type. Add replaces one the entity has; adding to an
-    // entity that is gone is a bug, a logic_error. The rest find nothing on
-    // an entity that is gone.
+    // entity that is gone is a bug, a logic_error. Get is for a component
+    // that has to be there - one missing is a logic_error too - and TryGet
+    // for one that may not be; on an entity that is gone it finds nothing.
     template <typename Component, typename... Args>
     Component& Add( Entity entity, Args&&... args )
     {
@@ -44,23 +45,41 @@ public:
     }
 
     template <typename Component>
-    OptRef<Component> Get( Entity entity )
+    OptRef<Component> TryGet( Entity entity )
     {
         Component* component = Alive( entity ) ? mRegistry.try_get<Component>( entity ) : nullptr;
         return component ? OptRef<Component>( *component ) : nullopt;
     }
 
     template <typename Component>
-    OptRef<const Component> Get( Entity entity ) const
+    OptRef<const Component> TryGet( Entity entity ) const
     {
         const Component* component = Alive( entity ) ? mRegistry.try_get<Component>( entity ) : nullptr;
         return component ? OptRef<const Component>( *component ) : nullopt;
     }
 
     template <typename Component>
+    Component& Get( Entity entity )
+    {
+        const auto componentMaybe = TryGet<Component>( entity );
+        if ( not componentMaybe )
+            Missing( entity, entt::type_name<Component>::value() );
+        return *componentMaybe;
+    }
+
+    template <typename Component>
+    const Component& Get( Entity entity ) const
+    {
+        const auto componentMaybe = TryGet<Component>( entity );
+        if ( not componentMaybe )
+            Missing( entity, entt::type_name<Component>::value() );
+        return *componentMaybe;
+    }
+
+    template <typename Component>
     bool Has( Entity entity ) const
     {
-        return Get<Component>( entity ).HasValue();
+        return TryGet<Component>( entity ).HasValue();
     }
 
     template <typename Component>
@@ -90,6 +109,7 @@ public:
 
 private:
     void RequireAlive( Entity entity, string_view what ) const;
+    [[noreturn]] void Missing( Entity entity, string_view component ) const;
     void DestroyWithSubtree( Entity entity );
 
     entt::basic_registry<Entity> mRegistry;

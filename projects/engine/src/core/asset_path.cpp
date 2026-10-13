@@ -5,7 +5,7 @@
 
 namespace bubble
 {
-expected<AssetPath, string> AssetPath::From( string_view text )
+expected<AssetPath, string> AssetPath::TryFrom( string_view text )
 {
     if ( not Utf8Valid( text ) )
         return unexpected( "the path is not valid UTF-8" );
@@ -63,11 +63,11 @@ AssetPath AssetPath::Parent() const
     return slash == string::npos ? AssetPath() : AssetPath( mPath.substr( 0, slash ) );
 }
 
-expected<AssetPath, string> AssetPath::Join( string_view relative ) const
+expected<AssetPath, string> AssetPath::TryJoin( string_view relative ) const
 {
     if ( mPath.empty() )
-        return From( relative );
-    return From( format( "{}/{}", mPath, relative ) );
+        return TryFrom( relative );
+    return TryFrom( format( "{}/{}", mPath, relative ) );
 }
 
 OsPath AssetPath::ToOsPath( const OsPath& projectRoot ) const

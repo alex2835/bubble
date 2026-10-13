@@ -10,9 +10,9 @@ namespace bubble::test
 {
 inline string Bytecode( string_view source )
 {
-    auto bytecode = CompileScript( source );
-    REQUIRE_MESSAGE( bytecode.has_value(), bytecode.error() );
-    return *bytecode;
+    auto bytecodeMaybe = TryCompileScript( source );
+    REQUIRE_MESSAGE( bytecodeMaybe.has_value(), bytecodeMaybe.error() );
+    return *bytecodeMaybe;
 }
 
 // The messages logged from here on.

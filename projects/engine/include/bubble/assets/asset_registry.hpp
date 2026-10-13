@@ -75,13 +75,13 @@ private:
     friend class AssetRegistry;
     template <typename>
     friend class AssetRef;
-    opt<T> mData;
+    opt<T> mDataMaybe;
 };
 
 // What a component's runtime holds: a counted reference to an entry, which
-// stays while any ref to it does. Unlike a Handle it never goes stale. Get()
+// stays while any ref to it does. Unlike a Handle it never goes stale. TryGet()
 // is empty until the asset is Ready - code checks rather than waits, because
-// loading will not always finish at once. What Get() returns is good until
+// loading will not always finish at once. What TryGet() returns is good until
 // the next reload; keep the AssetRef, not the reference.
 template <typename T>
 class AssetRef
@@ -92,11 +92,11 @@ public:
     explicit operator bool() const { return mEntry != nullptr; }
     AssetState State() const { return mEntry ? mEntry->State() : AssetState::Failed; }
     bool Ready() const { return State() == AssetState::Ready; }
-    OptRef<const T> Get() const
+    OptRef<const T> TryGet() const
     {
         if ( not Ready() )
             return nullopt;
-        return *mEntry->mData;
+        return *mEntry->mDataMaybe;
     }
     const AssetEntryBase& Entry() const
     {
@@ -147,10 +147,10 @@ public:
             RegisteredImporter{
                 typeid( T ), string( kind ),
                 [import = std::move( import )]( string_view bytes, AssetEntryBase& entry ) -> expected<void, string> {
-                    auto asset = import( bytes, entry.Path() );
-                    if ( not asset )
-                        return unexpected( std::move( asset.error() ) );
-                    static_cast<AssetEntry<T>&>( entry ).mData.emplace( std::move( *asset ) );
+                    auto assetMaybe = import( bytes, entry.Path() );
+                    if ( not assetMaybe )
+                        return unexpected( std::move( assetMaybe.error() ) );
+                    static_cast<AssetEntry<T>&>( entry ).mDataMaybe.emplace( std::move( *assetMaybe ) );
                     return {};
                 } } );
     }
@@ -167,13 +167,13 @@ public:
 
     // The asset if it is in memory - never loads.
     template <typename T>
-    AssetRef<T> Find( const AssetPath& path ) const
+    AssetRef<T> TryFind( const AssetPath& path ) const
     {
-        return Typed<T>( FindEntry( path ) );
+        return Typed<T>( TryFindEntry( path ) );
     }
 
     template <typename T>
-    AssetRef<T> Find( const AssetId& assetId ) const
+    AssetRef<T> TryFind( const AssetId& assetId ) const
     {
         const auto found = mIndex->mById.find( assetId );
         return Typed<T>( found == mIndex->mById.end() ? nullptr : found->second.lock() );
@@ -185,7 +185,7 @@ public:
     // The file changed: imports it again into its entry and tells the
     // listeners. If the new version fails, the old one stays and the error
     // comes back. A file nobody holds is not loaded, and nothing happens.
-    expected<void, string> Reload( const AssetPath& path );
+    expected<void, string> TryReload( const AssetPath& path );
 
     // Called after every reload that took, with the entry.
     AssetListenerHandle OnChanged( ChangedListener listener );
@@ -210,8 +210,8 @@ private:
     Ref<AssetEntryBase> LoadEntry( const AssetPath& path,
                                    type_index type,
                                    const function<Ref<AssetEntryBase>()>& make );
-    Ref<AssetEntryBase> FindEntry( const AssetPath& path ) const;
-    expected<void, string> Import( AssetEntryBase& entry );
+    Ref<AssetEntryBase> TryFindEntry( const AssetPath& path ) const;
+    expected<void, string> TryImport( AssetEntryBase& entry );
 
     ReadFile mRead;
     hmap<string, RegisteredImporter> mImporters;

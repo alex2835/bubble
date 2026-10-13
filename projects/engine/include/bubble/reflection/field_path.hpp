@@ -17,7 +17,7 @@ public:
     // A field's name, or a position in a list from 1.
     using Step = variant<Name, size_t>;
 
-    static expected<FieldPath, string> Parse( string_view text );
+    static expected<FieldPath, string> TryParse( string_view text );
 
     span<const Step> Steps() const { return mSteps; }
     // The first `count` steps as text: what a message says got that far.

@@ -18,7 +18,7 @@ class Text
 public:
     Text() = default;
 
-    static expected<Text, string> From( string_view utf8 );
+    static expected<Text, string> TryFrom( string_view utf8 );
 
     const string& String() const { return mText; }
     string_view View() const { return mText; }

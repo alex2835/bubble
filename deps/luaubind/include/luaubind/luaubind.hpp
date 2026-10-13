@@ -5,7 +5,7 @@
 //   LuaValue, LuaTable,           values held from C++; table["key"],
 //   LuaFunction, LuaThread        fn( args... ), thread.Resume( args... )
 //   LuaTypeBuilder<T>             C++ structs as Luau userdata types
-//   CompileScript                 source to bytecode
+//   TryCompileScript              source to bytecode
 //   LuaError, LuaRest, LuaYield   what bound functions throw, take, return
 #include "luaubind/call.hpp"
 #include "luaubind/data.hpp"

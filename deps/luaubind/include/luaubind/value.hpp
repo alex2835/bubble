@@ -45,10 +45,10 @@ public:
     bool Is( LuaKind kind ) const { return Kind() == kind; }
     // Lua's own truth: everything but nil and false.
     bool Truthy() const;
-    // As T, or nothing when it is not one: As<f64>(), As<string>(),
-    // As<LuaTable>().
+    // As T, or nothing when it is not one: TryAs<f64>(), TryAs<string>(),
+    // TryAs<LuaTable>().
     template <typename T>
-    opt<T> As() const;
+    opt<T> TryAs() const;
     // As a person reads it in an error: nil, 42, "jump", table.
     string Describe() const;
 
@@ -70,7 +70,7 @@ private:
 };
 
 // A table. Entries read and write like a C++ map - `table["speed"] = 5`,
-// `table["speed"].As<f64>()` - and nest: `table["stats"]["hp"]`. Reading is
+// `table["speed"].TryAs<f64>()` - and nest: `table["stats"]["hp"]`. Reading is
 // always explicit: nothing converts to a C++ type behind your back.
 class LuaTable : public LuaValue
 {
@@ -154,9 +154,9 @@ public:
     LuaValue Value() const { return mTable.Get( mKey ); }
     operator LuaValue() const { return Value(); }
     template <typename T>
-    opt<T> As() const
+    opt<T> TryAs() const
     {
-        return Value().template As<T>();
+        return Value().template TryAs<T>();
     }
     bool IsNil() const { return Value().IsNil(); }
     LuaKind Kind() const { return Value().Kind(); }

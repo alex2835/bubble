@@ -8,11 +8,11 @@ void RegisterScriptImporter( AssetRegistry& registry )
 {
     registry.RegisterImporter<ScriptAsset>(
         ".luau", "script", []( string_view source, const AssetPath& path ) -> expected<ScriptAsset, string> {
-            auto bytecode = CompileScript( source );
-            if ( not bytecode )
+            auto bytecodeMaybe = TryCompileScript( source );
+            if ( not bytecodeMaybe )
                 // Luau's message starts with the line: ":3: Expected ...".
-                return unexpected( path.String() + bytecode.error() );
-            return ScriptAsset{ std::move( *bytecode ) };
+                return unexpected( path.String() + bytecodeMaybe.error() );
+            return ScriptAsset{ std::move( *bytecodeMaybe ) };
         } );
 }
 }

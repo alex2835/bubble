@@ -16,7 +16,7 @@ struct AssetId
 
     // Temporary, until .import files: the same path gives the same id.
     static AssetId MakeFrom( string_view path );
-    static opt<AssetId> Parse( string_view text );
+    static opt<AssetId> TryParse( string_view text );
     string ToString() const;
 
     explicit operator bool() const { return mHigh != 0 or mLow != 0; }

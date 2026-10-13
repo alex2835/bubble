@@ -8,38 +8,38 @@
 // callbacks called on it.
 namespace bubble
 {
-expected<void, string> ScriptRuntime::CopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing )
+expected<void, string> ScriptRuntime::TryCopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing )
 {
     for ( const auto& [key, value] : from.Pairs() )
     {
         if ( onlyMissing and not self.RawGet( key ).IsNil() )
             continue;
-        auto copy = mLua.DeepCopy( value );
-        if ( not copy )
-            return unexpected( std::move( copy.error() ) );
-        self.RawSet( key, *copy );
+        auto copyMaybe = mLua.TryDeepCopy( value );
+        if ( not copyMaybe )
+            return unexpected( std::move( copyMaybe.error() ) );
+        self.RawSet( key, *copyMaybe );
     }
     return {};
 }
 
-expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptHandle scriptHandle,
-                                                              string label,
-                                                              const LuaTable& overrides )
+expected<ScriptInstanceHandle, string> ScriptRuntime::TryCreate( ScriptHandle scriptHandle,
+                                                                 string label,
+                                                                 const LuaTable& overrides )
 {
-    const auto script = mScripts.Get( scriptHandle );
-    if ( not script )
+    const auto scriptMaybe = mScripts.TryGet( scriptHandle );
+    if ( not scriptMaybe )
         return unexpected( label + ": its script was unloaded" );
-    const LuaTable props = script->mProps;
-    const LuaTable locals = script->mLocals;
-    const string path = script->mPath;
+    const LuaTable props = scriptMaybe->mProps;
+    const LuaTable locals = scriptMaybe->mLocals;
+    const string path = scriptMaybe->mPath;
 
     // Each instance gets its own copy: a table among the props or locals is
     // not shared between entities.
     LuaTable self = mLua.NewTable();
-    if ( auto copied = CopyInto( self, props, false ); not copied )
-        return unexpected( label + ": " + copied.error() );
-    if ( auto copied = CopyInto( self, locals, false ); not copied )
-        return unexpected( label + ": " + copied.error() );
+    if ( auto copiedMaybe = TryCopyInto( self, props, false ); not copiedMaybe )
+        return unexpected( label + ": " + copiedMaybe.error() );
+    if ( auto copiedMaybe = TryCopyInto( self, locals, false ); not copiedMaybe )
+        return unexpected( label + ": " + copiedMaybe.error() );
 
     for ( const auto& [key, value] : overrides.Pairs() )
     {
@@ -52,18 +52,18 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptHandle scrip
         {
             vector<string> names;
             for ( const auto& entry : props.Pairs() )
-                names.push_back( entry.first.As<string>().value_or( "?" ) );
+                names.push_back( entry.first.TryAs<string>().value_or( "?" ) );
             ranges::sort( names );
             return unexpected( format( "{}: {} is not a prop of {} (props: {})", label, key.Describe(), path,
                                        detail::Join( names ) ) );
         }
         if ( fallback.Kind() != value.Kind() )
-            return unexpected( format( "{}: prop {} is {} in {}, the override is {}", label, *key.As<string>(),
+            return unexpected( format( "{}: prop {} is {} in {}, the override is {}", label, *key.TryAs<string>(),
                                        detail::KindName( fallback.Kind() ), path, detail::KindName( value.Kind() ) ) );
-        auto copy = mLua.DeepCopy( value );
-        if ( not copy )
-            return unexpected( label + ": " + copy.error() );
-        self.RawSet( key, *copy );
+        auto copyMaybe = mLua.TryDeepCopy( value );
+        if ( not copyMaybe )
+            return unexpected( label + ": " + copyMaybe.error() );
+        self.RawSet( key, *copyMaybe );
     }
 
     return mInstances.Add( Instance{ scriptHandle, std::move( label ), std::move( self ), {}, {}, true } );
@@ -71,10 +71,10 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::Create( ScriptHandle scrip
 
 void ScriptRuntime::Destroy( ScriptInstanceHandle instanceHandle )
 {
-    const auto instance = mInstances.Get( instanceHandle );
-    if ( not instance )
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    if ( not instanceMaybe )
         return;
-    for ( const string& event : instance->mEvents )
+    for ( const string& event : instanceMaybe->mEvents )
         erase_if( mEvents[event],
                   [&]( const Subscriber& subscriber ) { return subscriber.mInstanceHandle == instanceHandle; } );
     // Its coroutines and self go with it; a callback of its own still
@@ -89,45 +89,45 @@ bool ScriptRuntime::Alive( ScriptInstanceHandle instanceHandle ) const
 
 bool ScriptRuntime::Enabled( ScriptInstanceHandle instanceHandle ) const
 {
-    const auto instance = mInstances.Get( instanceHandle );
-    return instance and instance->mEnabled;
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    return instanceMaybe and instanceMaybe->mEnabled;
 }
 
 LuaTable ScriptRuntime::Self( ScriptInstanceHandle instanceHandle ) const
 {
-    const auto instance = mInstances.Get( instanceHandle );
-    return instance ? instance->mSelf : LuaTable();
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    return instanceMaybe ? instanceMaybe->mSelf : LuaTable();
 }
 
 void ScriptRuntime::Fail( ScriptInstanceHandle instanceHandle, const ScriptError& error )
 {
-    const auto instance = mInstances.Get( instanceHandle );
-    if ( not instance )
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    if ( not instanceMaybe )
         return;
-    LogError( "{}: {}\n{}", instance->mLabel, error.mMessage, error.mTraceback );
-    instance->mEnabled = false;
+    LogError( "{}: {}\n{}", instanceMaybe->mLabel, error.mMessage, error.mTraceback );
+    instanceMaybe->mEnabled = false;
     // Its coroutines stop with it; a changed file starts it over.
-    instance->mTasks.clear();
+    instanceMaybe->mTasks.clear();
 }
 
 bool ScriptRuntime::CallWith( ScriptInstanceHandle instanceHandle, u32 callback, const LuaRest& args )
 {
-    const auto instance = mInstances.Get( instanceHandle );
-    if ( not instance )
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    if ( not instanceMaybe )
         return false;
-    if ( not instance->mEnabled or not Has( instance->mScriptHandle, callback ) )
+    if ( not instanceMaybe->mEnabled or not Has( instanceMaybe->mScriptHandle, callback ) )
         return true;
-    const LuaFunction fn = mScripts.Get( instance->mScriptHandle )->mCallbacks[callback];
-    const LuaTable self = instance->mSelf;
+    const LuaFunction fn = mScripts.TryGet( instanceMaybe->mScriptHandle )->mCallbacks[callback];
+    const LuaTable self = instanceMaybe->mSelf;
 
-    expected<LuaValue, ScriptError> called;
+    expected<LuaValue, ScriptError> calledMaybe;
     {
         const CurrentScope scope( *this, instanceHandle );
-        called = fn( self, args );
+        calledMaybe = fn( self, args );
     }
-    if ( not called )
+    if ( not calledMaybe )
     {
-        Fail( instanceHandle, called.error() );
+        Fail( instanceHandle, calledMaybe.error() );
         return false;
     }
     return true;

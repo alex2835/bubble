@@ -20,22 +20,22 @@ void Scene::Destroy( Entity entity )
         return;
     if ( entity == mRoot )
         throw logic_error( "Destroy on the root: it goes with the scene" );
-    if ( const auto node = Get<Hierarchy>( entity ) )
+    if ( const auto nodeMaybe = TryGet<Hierarchy>( entity ) )
     {
-        Hierarchy& parent = *Get<Hierarchy>( node->mParent );
+        Hierarchy& parent = Get<Hierarchy>( nodeMaybe->mParent );
         erase( parent.mChildren, entity );
-        parent.mChildByName.erase( parent.mChildByName.find( node->mName.View() ) );
+        parent.mChildByName.erase( parent.mChildByName.find( nodeMaybe->mName.View() ) );
     }
     DestroyWithSubtree( entity );
 }
 
 void Scene::DestroyWithSubtree( Entity entity )
 {
-    if ( const auto node = Get<Hierarchy>( entity ) )
+    if ( const auto nodeMaybe = TryGet<Hierarchy>( entity ) )
     {
         // A copy: destroying a child moves another Hierarchy into its slot,
         // and this one may be it.
-        const vector<Entity> children = node->mChildren;
+        const vector<Entity> children = nodeMaybe->mChildren;
         for ( const Entity child : children )
             DestroyWithSubtree( child );
     }
@@ -52,6 +52,11 @@ size_t Scene::Count() const
     // The entities' own storage keeps the live ones first, the freed ones
     // after: free_list() is where the freed begin.
     return mRegistry.storage<Entity>()->free_list();
+}
+
+void Scene::Missing( Entity entity, string_view component ) const
+{
+    throw logic_error( format( "Get<{}> on {}, which has none", component, Describe( *this, entity ) ) );
 }
 
 void Scene::RequireAlive( Entity entity, string_view what ) const

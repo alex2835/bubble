@@ -162,18 +162,18 @@ public:
     // in errors: "scripts/player.luau", or "=console" for no file.
     // `environment` is promised to read through to the sealed globals, so
     // their lookups may be cached.
-    expected<LuaFunction, string> Load( string_view chunk, string_view bytecode, const LuaTable& environment );
+    expected<LuaFunction, string> TryLoad( string_view chunk, string_view bytecode, const LuaTable& environment );
 
     // Calls fn( args... ) - LuaRest arguments spread out - and returns its
     // first result. LuaFunction's call operator is this.
     template <typename... Args>
-    expected<LuaValue, ScriptError> Call( const LuaValue& fn, const Args&... args )
+    expected<LuaValue, ScriptError> TryCall( const LuaValue& fn, const Args&... args )
     {
         lua_State* L = mActive;
         const int top = lua_gettop( L );
         fn.Push( L );
         ( PushValue( L, args ), ... );
-        return CallImpl( L, top );
+        return TryCallImpl( L, top );
     }
 
     // The environment of the Luau function that called the C++ running
@@ -198,11 +198,11 @@ public:
 
     // ---- data ------------------------------------------------------------
 
-    // Data as bytes and back; see LuaEncode.
-    expected<string, string> Encode( const LuaValue& value );
-    expected<LuaValue, string> Decode( string_view bytes );
-    // A copy all the way down, sharing and cycles kept; see LuaDeepCopy.
-    expected<LuaValue, string> DeepCopy( const LuaValue& value );
+    // Data as bytes and back; see TryLuaEncode.
+    expected<string, string> TryEncode( const LuaValue& value );
+    expected<LuaValue, string> TryDecode( string_view bytes );
+    // A copy all the way down, sharing and cycles kept; see TryLuaDeepCopy.
+    expected<LuaValue, string> TryDeepCopy( const LuaValue& value );
 
     // ---- atoms and types -------------------------------------------------
 
@@ -217,7 +217,7 @@ public:
 
     // Registered types by their userdata tag, null for none; LuaTypeBuilder
     // adds them.
-    LuaType* FindType( int tag ) const;
+    LuaType* TryFindType( int tag ) const;
 
 private:
     friend class LuaType;
@@ -261,7 +261,7 @@ private:
                   const std::function<void( lua_State* )>& pushKey,
                   const std::function<void( lua_State* )>& pushValue,
                   bool raw );
-    expected<LuaValue, ScriptError> CallImpl( lua_State* L, int top );
+    expected<LuaValue, ScriptError> TryCallImpl( lua_State* L, int top );
     lua_State* ThreadOf( const LuaValue& thread );
     LuaResume ResumeImpl( lua_State* co, int nargs );
 
@@ -276,24 +276,24 @@ private:
     vector<string> mAtomNames;
     StringMap<i16> mAtoms;
     vector<std::unique_ptr<LuaType>> mTypes;
-    // The stack where the last error of a PCall was raised.
+    // The stack where the last error of a TryPCall was raised.
     string mLastTraceback;
 };
 
 // ---- the value types' templates, which need LuaState -------------------
 
 template <typename T>
-opt<T> LuaValue::As() const
+opt<T> LuaValue::TryAs() const
 {
     if ( IsNil() )
         return std::nullopt;
     lua_State* L = LuaState::Of( mL ).Active();
     Push( L );
-    opt<T> result;
+    opt<T> resultMaybe;
     if ( LuaTraits<T>::Is( L, -1 ) )
-        result = LuaTraits<T>::Check( L, -1 );
+        resultMaybe = LuaTraits<T>::Check( L, -1 );
     lua_pop( L, 1 );
-    return result;
+    return resultMaybe;
 }
 
 template <typename K>
@@ -343,7 +343,7 @@ expected<LuaValue, ScriptError> LuaFunction::operator()( const Args&... args ) c
 {
     if ( IsNil() )
         return std::unexpected( ScriptError{ "attempt to call nil", {} } );
-    return State()->Call( *this, args... );
+    return State()->TryCall( *this, args... );
 }
 
 template <typename... Args>

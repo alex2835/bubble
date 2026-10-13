@@ -49,7 +49,7 @@ public:
             mFree.pop_back();
         }
         Slot& slot = mSlots[index];
-        slot.mValue.emplace( std::move( value ) );
+        slot.mValueMaybe.emplace( std::move( value ) );
         ++mSize;
         return Handle<Tag>{ index, slot.mGeneration };
     }
@@ -63,7 +63,7 @@ public:
         // The generation moves first: code the destructor runs sees the
         // entry as gone.
         ++slot.mGeneration;
-        slot.mValue.reset();
+        slot.mValueMaybe.reset();
         mFree.push_back( handle.mIndex );
         --mSize;
         return true;
@@ -72,21 +72,21 @@ public:
     bool Alive( Handle<Tag> handle ) const
     {
         return handle.mIndex < mSlots.size() and mSlots[handle.mIndex].mGeneration == handle.mGeneration and
-               mSlots[handle.mIndex].mValue.has_value();
+               mSlots[handle.mIndex].mValueMaybe.has_value();
     }
 
-    OptRef<T> Get( Handle<Tag> handle )
+    OptRef<T> TryGet( Handle<Tag> handle )
     {
         if ( not Alive( handle ) )
             return std::nullopt;
-        return *mSlots[handle.mIndex].mValue;
+        return *mSlots[handle.mIndex].mValueMaybe;
     }
 
-    OptRef<const T> Get( Handle<Tag> handle ) const
+    OptRef<const T> TryGet( Handle<Tag> handle ) const
     {
         if ( not Alive( handle ) )
             return std::nullopt;
-        return *mSlots[handle.mIndex].mValue;
+        return *mSlots[handle.mIndex].mValueMaybe;
     }
 
     size_t Size() const { return mSize; }
@@ -98,7 +98,7 @@ public:
         vector<Handle<Tag>> handles;
         handles.reserve( mSize );
         for ( u32 i = 0; i < mSlots.size(); ++i )
-            if ( mSlots[i].mValue )
+            if ( mSlots[i].mValueMaybe )
                 handles.push_back( Handle<Tag>{ i, mSlots[i].mGeneration } );
         return handles;
     }
@@ -106,7 +106,7 @@ public:
 private:
     struct Slot
     {
-        opt<T> mValue;
+        opt<T> mValueMaybe;
         u32 mGeneration = 0;
     };
 

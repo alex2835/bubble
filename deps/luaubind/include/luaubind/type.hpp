@@ -82,7 +82,7 @@ private:
     void AddField( string_view name, Getter get, Setter set );
     void AddMethod( string_view name, Method method );
     Member& Add( string_view name );
-    const Member* Find( int atom, string_view name ) const;
+    const Member* TryFind( int atom, string_view name ) const;
     [[noreturn]] void NoMember( lua_State* L, string_view name, bool method ) const;
 
     static int Index( lua_State* L );

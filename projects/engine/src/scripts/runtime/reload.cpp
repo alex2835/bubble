@@ -6,36 +6,36 @@
 // required it, directly or through other libraries.
 namespace bubble
 {
-expected<void, ScriptError> ScriptRuntime::Rerun( ScriptHandle scriptHandle )
+expected<void, ScriptError> ScriptRuntime::TryRerun( ScriptHandle scriptHandle )
 {
     // Copies held through the run: it may load and unload scripts.
-    const string path = mScripts.Get( scriptHandle )->mPath;
-    const AssetRef<ScriptAsset> assetRef = mScripts.Get( scriptHandle )->mAssetRef;
-    auto ran = RunScript( path, assetRef );
-    if ( not ran )
-        return unexpected( std::move( ran.error() ) );
-    auto script = mScripts.Get( scriptHandle );
-    if ( not script )
+    const string path = mScripts.TryGet( scriptHandle )->mPath;
+    const AssetRef<ScriptAsset> assetRef = mScripts.TryGet( scriptHandle )->mAssetRef;
+    auto ranMaybe = TryRunScript( path, assetRef );
+    if ( not ranMaybe )
+        return unexpected( std::move( ranMaybe.error() ) );
+    auto scriptMaybe = mScripts.TryGet( scriptHandle );
+    if ( not scriptMaybe )
         return unexpected( ScriptError{ path + " was unloaded while it ran", {} } );
-    script->mEnvironment = std::move( ran->mEnvironment );
-    script->mProps = std::move( ran->mProps );
-    script->mLocals = std::move( ran->mLocals );
-    script->mCallbacks = std::move( ran->mCallbacks );
+    scriptMaybe->mEnvironment = std::move( ranMaybe->mEnvironment );
+    scriptMaybe->mProps = std::move( ranMaybe->mProps );
+    scriptMaybe->mLocals = std::move( ranMaybe->mLocals );
+    scriptMaybe->mCallbacks = std::move( ranMaybe->mCallbacks );
 
     // Instances keep self, gain the new props and locals, and come back on.
-    const LuaTable props = script->mProps;
-    const LuaTable locals = script->mLocals;
+    const LuaTable props = scriptMaybe->mProps;
+    const LuaTable locals = scriptMaybe->mLocals;
     for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
     {
-        auto instance = mInstances.Get( instanceHandle );
-        if ( instance->mScriptHandle != scriptHandle )
+        auto instanceMaybe = mInstances.TryGet( instanceHandle );
+        if ( instanceMaybe->mScriptHandle != scriptHandle )
             continue;
         // Props copy as Create copied them, a failure there would have failed
         // the run; a copy fails only on tables nested past the limit, and
         // then the instance goes on without the new value.
-        (void)CopyInto( instance->mSelf, props, true );
-        (void)CopyInto( instance->mSelf, locals, true );
-        instance->mEnabled = true;
+        (void)TryCopyInto( instanceMaybe->mSelf, props, true );
+        (void)TryCopyInto( instanceMaybe->mSelf, locals, true );
+        instanceMaybe->mEnabled = true;
     }
     return {};
 }
@@ -46,11 +46,11 @@ bool ScriptRuntime::Requires( const LuaTable& env, const hset<string>& libraries
     // again, and is to run again anyway.
     if ( env.IsNil() )
         return false;
-    const auto required = mRequiresOf[env].As<LuaTable>();
-    if ( not required )
+    const auto requiredMaybe = mRequiresOf[env].TryAs<LuaTable>();
+    if ( not requiredMaybe )
         return false;
-    return ranges::any_of( required->Pairs(), [&]( const auto& entry ) {
-        return libraries.contains( entry.first.template As<string>().value_or( "" ) );
+    return ranges::any_of( requiredMaybe->Pairs(), [&]( const auto& entry ) {
+        return libraries.contains( entry.first.template TryAs<string>().value_or( "" ) );
     } );
 }
 
@@ -81,11 +81,11 @@ void ScriptRuntime::Changed( const AssetEntryBase& entry )
     for ( const ScriptHandle scriptHandle : mScripts.Handles() )
     {
         // Another script's run may have unloaded this one.
-        const auto script = mScripts.Get( scriptHandle );
-        if ( not script or ( script->mPath != path and not Requires( script->mEnvironment, changed ) ) )
+        const auto scriptMaybe = mScripts.TryGet( scriptHandle );
+        if ( not scriptMaybe or ( scriptMaybe->mPath != path and not Requires( scriptMaybe->mEnvironment, changed ) ) )
             continue;
-        if ( auto rerun = Rerun( scriptHandle ); not rerun )
-            LogError( "{}\n{}", rerun.error().mMessage, rerun.error().mTraceback );
+        if ( auto rerunMaybe = TryRerun( scriptHandle ); not rerunMaybe )
+            LogError( "{}\n{}", rerunMaybe.error().mMessage, rerunMaybe.error().mTraceback );
     }
 }
 }

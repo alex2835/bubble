@@ -85,7 +85,7 @@ void LuaType::AddMethod( string_view name, Method method )
     Add( name ).mMethod = std::move( method );
 }
 
-const LuaType::Member* LuaType::Find( int atom, string_view name ) const
+const LuaType::Member* LuaType::TryFind( int atom, string_view name ) const
 {
     if ( atom >= 0 )
     {
@@ -129,7 +129,7 @@ int LuaType::Index( lua_State* L )
     if ( key == nullptr )
         luaL_error( L, "%s fields are named, not %s", type.mName.c_str(), luaL_typename( L, 2 ) );
     const string_view name( key, length );
-    const auto member = type.Find( atom, name );
+    const auto member = type.TryFind( atom, name );
     if ( not member )
         type.NoMember( L, name, false );
     if ( not member->mGet )
@@ -148,7 +148,7 @@ int LuaType::NewIndex( lua_State* L )
     if ( key == nullptr )
         luaL_error( L, "%s fields are named, not %s", type.mName.c_str(), luaL_typename( L, 2 ) );
     const string_view name( key, length );
-    const auto member = type.Find( atom, name );
+    const auto member = type.TryFind( atom, name );
     if ( not member or not member->mGet )
         type.NoMember( L, name, false );
     if ( not member->mSet )
@@ -164,7 +164,7 @@ int LuaType::Namecall( lua_State* L )
     int atom = -1;
     const char* key = lua_namecallatom( L, &atom );
     const string_view name = key != nullptr ? string_view( key ) : string_view();
-    const auto member = type.Find( atom, name );
+    const auto member = type.TryFind( atom, name );
     if ( not member or not member->mMethod )
         type.NoMember( L, name, true );
     return member->mMethod( L, data );

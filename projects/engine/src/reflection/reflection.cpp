@@ -9,10 +9,10 @@ namespace detail
 {
 Name DeclareName( string_view name )
 {
-    auto declared = Name::From( name );
-    if ( not declared )
-        throw logic_error( declared.error() );
-    return *declared;
+    auto declaredMaybe = Name::TryFrom( name );
+    if ( not declaredMaybe )
+        throw logic_error( declaredMaybe.error() );
+    return *declaredMaybe;
 }
 }
 
@@ -38,7 +38,7 @@ string_view Arguments( size_t count )
 Reflection::Reflection() = default;
 Reflection::~Reflection() = default;
 
-opt<MetaType> Reflection::Find( Name type ) const
+opt<MetaType> Reflection::TryFind( Name type ) const
 {
     const MetaType found = entt::resolve( mContext, type.Hash() );
     if ( not found or not mDescribed.contains( type ) )
@@ -99,7 +99,7 @@ string Reflection::MethodNames( const MetaType& type ) const
     return names;
 }
 
-expected<MetaAny, string> Reflection::Get( const MetaAny& object, Name field ) const
+expected<MetaAny, string> Reflection::TryGet( const MetaAny& object, Name field ) const
 {
     const MetaType type = object.type();
     const MetaField data = type.data( field.Hash() );
@@ -109,7 +109,7 @@ expected<MetaAny, string> Reflection::Get( const MetaAny& object, Name field ) c
     return data.get( object );
 }
 
-expected<void, string> Reflection::Set( MetaAny& object, Name field, MetaAny value )
+expected<void, string> Reflection::TrySet( MetaAny& object, Name field, MetaAny value )
 {
     const MetaType type = object.type();
     const MetaField data = type.data( field.Hash() );
@@ -125,7 +125,7 @@ expected<void, string> Reflection::Set( MetaAny& object, Name field, MetaAny val
     return {};
 }
 
-expected<MetaAny, string> Reflection::Call( MetaAny& object, Name method, span<MetaAny> args ) const
+expected<MetaAny, string> Reflection::TryCall( MetaAny& object, Name method, span<MetaAny> args ) const
 {
     const MetaType type = object.type();
     const MetaMethod function = type.func( method.Hash() );
@@ -161,11 +161,11 @@ void Reflection::NotifyChanged( MetaAny& owner, Name field )
     const u32 type = owner.type().id();
     for ( const FieldListenerHandle handle : mListeners.Handles() )
     {
-        const auto listener = mListeners.Get( handle );
-        if ( not listener or listener->mType != type or listener->mField != field )
+        const auto listenerMaybe = mListeners.TryGet( handle );
+        if ( not listenerMaybe or listenerMaybe->mType != type or listenerMaybe->mField != field )
             continue;
         // A copy: a listener may take itself off while it runs.
-        const FieldListener fn = listener->mFn;
+        const FieldListener fn = listenerMaybe->mFn;
         fn( owner );
     }
 }

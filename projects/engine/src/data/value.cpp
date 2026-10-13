@@ -34,6 +34,7 @@ string Noun( const ValueType& type )
                 fields += ( fields.empty() ? "" : ", " ) + field.mName.ToString();
             return "record (" + fields + ")";
         }
+        case ValueKind::Any: return "value";
     }
     return "value";
 }
@@ -46,7 +47,7 @@ string FieldNames( const ValueType& type )
     return names;
 }
 
-expected<void, string> CheckAt( const Value& value, const ValueType& type, const string& path )
+expected<void, string> TryCheckAt( const Value& value, const ValueType& type, const string& path )
 {
     const auto mismatch = [&] {
         return unexpected( format( "{}: {} expected, got {}", path, type.Describe(), value.Describe() ) );
@@ -57,8 +58,8 @@ expected<void, string> CheckAt( const Value& value, const ValueType& type, const
         case ValueKind::Number: return value.Is<f64>() ? expected<void, string>() : mismatch();
         case ValueKind::Integer:
         {
-            const auto number = value.As<f64>();
-            return number and Whole( *number ) ? expected<void, string>() : mismatch();
+            const auto numberMaybe = value.TryAs<f64>();
+            return numberMaybe and Whole( *numberMaybe ) ? expected<void, string>() : mismatch();
         }
         case ValueKind::Text: return value.Is<Text>() ? expected<void, string>() : mismatch();
         case ValueKind::Vec3: return value.Is<vec3>() ? expected<void, string>() : mismatch();
@@ -68,24 +69,25 @@ expected<void, string> CheckAt( const Value& value, const ValueType& type, const
         case ValueKind::Entity: return value.Is<EntityPath>() ? expected<void, string>() : mismatch();
         case ValueKind::List:
         {
-            const auto list = value.As<Value::List>();
-            if ( not list )
+            const auto listMaybe = value.TryAs<Value::List>();
+            if ( not listMaybe )
                 return mismatch();
             if ( not type.mElement )
                 throw logic_error( format( "{}: a list type without an element type", path ) );
-            for ( size_t i = 0; i < list->size(); ++i )
-                if ( auto checked = CheckAt( ( *list )[i], *type.mElement, format( "{}[{}]", path, i + 1 ) );
-                     not checked )
-                    return checked;
+            for ( size_t i = 0; i < listMaybe->size(); ++i )
+                if ( auto checkedMaybe =
+                         TryCheckAt( ( *listMaybe )[i], *type.mElement, format( "{}[{}]", path, i + 1 ) );
+                     not checkedMaybe )
+                    return checkedMaybe;
             return {};
         }
         case ValueKind::Record:
         {
-            const auto record = value.As<Value::Record>();
-            if ( not record )
+            const auto recordMaybe = value.TryAs<Value::Record>();
+            if ( not recordMaybe )
                 return mismatch();
             hset<Name> seen;
-            for ( const ValueField& field : *record )
+            for ( const ValueField& field : *recordMaybe )
             {
                 const string fieldPath = path + "." + field.mName.ToString();
                 if ( not seen.insert( field.mName ).second )
@@ -93,14 +95,15 @@ expected<void, string> CheckAt( const Value& value, const ValueType& type, const
                 const auto declared = ranges::find( type.mFields, field.mName, &ValueTypeField::mName );
                 if ( declared == type.mFields.end() )
                     return unexpected( format( "{}: not a field (fields: {})", fieldPath, FieldNames( type ) ) );
-                if ( auto checked = CheckAt( field.mValue, declared->mType, fieldPath ); not checked )
-                    return checked;
+                if ( auto checkedMaybe = TryCheckAt( field.mValue, declared->mType, fieldPath ); not checkedMaybe )
+                    return checkedMaybe;
             }
             for ( const ValueTypeField& field : type.mFields )
                 if ( not seen.contains( field.mName ) )
                     return unexpected( format( "{}: no field {}", path, field.mName.ToString() ) );
             return {};
         }
+        case ValueKind::Any: return {};
     }
     return mismatch();
 }
@@ -174,25 +177,30 @@ string_view Value::Kind() const
 
 string Value::Describe() const
 {
-    if ( const auto value = As<bool>() )
-        return *value ? "true" : "false";
-    if ( const auto value = As<f64>() )
-        return format( "{}", *value );
-    if ( const auto value = As<Text>() )
-        return format( "\"{}\"", value->View() );
-    if ( const auto value = As<vec3>() )
-        return format( "vec3( {}, {}, {} )", value->x, value->y, value->z );
-    if ( const auto value = As<Color>() )
-        return format( "color( {}, {}, {}, {} )", value->mR, value->mG, value->mB, value->mA );
-    if ( const auto value = As<Name>() )
-        return format( "name {}", value->ToString() );
-    if ( const auto value = As<AssetId>() )
-        return format( "asset {}", value->ToString() );
-    if ( const auto value = As<EntityPath>() )
-        return format( "entity {}", value->mPath.View() );
-    if ( const auto value = As<List>() )
-        return format( "a list of {}", value->size() );
+    if ( const auto valueMaybe = TryAs<bool>() )
+        return *valueMaybe ? "true" : "false";
+    if ( const auto valueMaybe = TryAs<f64>() )
+        return format( "{}", *valueMaybe );
+    if ( const auto valueMaybe = TryAs<Text>() )
+        return format( "\"{}\"", valueMaybe->View() );
+    if ( const auto valueMaybe = TryAs<vec3>() )
+        return format( "vec3( {}, {}, {} )", valueMaybe->x, valueMaybe->y, valueMaybe->z );
+    if ( const auto valueMaybe = TryAs<Color>() )
+        return format( "color( {}, {}, {}, {} )", valueMaybe->mR, valueMaybe->mG, valueMaybe->mB, valueMaybe->mA );
+    if ( const auto valueMaybe = TryAs<Name>() )
+        return format( "name {}", valueMaybe->ToString() );
+    if ( const auto valueMaybe = TryAs<AssetId>() )
+        return format( "asset {}", valueMaybe->ToString() );
+    if ( const auto valueMaybe = TryAs<EntityPath>() )
+        return format( "entity {}", valueMaybe->mPath.View() );
+    if ( const auto valueMaybe = TryAs<List>() )
+        return format( "a list of {}", valueMaybe->size() );
     return "a record";
+}
+
+ValueType ValueType::Of( ValueKind kind )
+{
+    return ValueType{ kind, nullptr, {} };
 }
 
 ValueType ValueType::ListOf( ValueType element )
@@ -214,8 +222,17 @@ string ValueType::Describe() const
     return ( vowel ? "an " : "a " ) + noun;
 }
 
-expected<void, string> Check( const Value& value, const ValueType& type, string_view name )
+f64 WidenFloat( f32 value )
 {
-    return CheckAt( value, type, string( name ) );
+    char buffer[32];
+    const auto written = to_chars( buffer, buffer + sizeof( buffer ), value );
+    f64 wide = value;
+    from_chars( buffer, written.ptr, wide );
+    return wide;
+}
+
+expected<void, string> TryCheck( const Value& value, const ValueType& type, string_view name )
+{
+    return TryCheckAt( value, type, string( name ) );
 }
 }

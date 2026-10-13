@@ -9,8 +9,8 @@ Three tools, chosen by what the caller is to do about it.
 
 | situation | tool | example |
 | --- | --- | --- |
-| **Nothing there, and that is normal** - a lookup, an optional value | `opt<T>`, `OptRef<T>` | `Find( path )`, `value.As<int>()`, `SlotMap::Get` |
-| **It can fail, and someone should hear why** - a file, input from a person or a script, a format | `expected<T, E>` | `AssetPath::From`, `CompileScript`, `ScriptRuntime::Load`, `AssetRegistry::Reload` |
+| **Nothing there, and that is normal** - a lookup, an optional value | `opt<T>`, `OptRef<T>` | `TryFind( path )`, `value.TryAs<int>()`, `scene.TryGet<Light>( entity )` |
+| **It can fail, and someone should hear why** - a file, input from a person or a script, a format | `expected<T, E>` | `AssetPath::TryFrom`, `TryCompileScript`, `ScriptRuntime::TryLoad`, `AssetRegistry::TryReload` |
 | **It cannot happen if the code is right** - a caller broke the contract | exception (`std::logic_error`), every build | the wrong C++ type asked of a Luau type, a write to a frozen table, a runtime built after `Seal()` |
 | **The engine's own invariant**, too costly to check always or on a hot path | `BUBBLE_ASSERT( condition, "message" )`, debug builds only | a sorted list still sorted, a slot index in range inside a tight loop |
 
@@ -26,7 +26,7 @@ Three tools, chosen by what the caller is to do about it.
   keeps the old version - logs it, once, and gives its caller at most a
   `bool` of how it went (`ScriptRuntime::Call`), not the error again.
 - **An `expected` is never dropped silently.** When ignoring one is right,
-  say so: `(void)CopyInto( ... ); // props are data; a failure would have
+  say so: `(void)TryCopyInto( ... ); // props are data; a failure would have
   failed the run`.
 - **Exceptions and asserts are not for control flow.** Nothing catches a
   `logic_error` to carry on; a failed `BUBBLE_ASSERT` stops the program.
@@ -51,9 +51,23 @@ Three tools, chosen by what the caller is to do about it.
   `entity`.
 - A variable that links to something says what, and what kind of link:
   `scriptHandle`, `mInstanceHandle`, `assetRef`, `assetId` - so the link and
-  the thing it finds read apart: `const auto instance = mInstances.Get(
+  the thing it finds read apart: `const auto instanceMaybe = mInstances.Get(
   instanceHandle )`. A bare `handle` only where nothing else is known, as in
   `SlotMap`. A thing's own identity stays short: `AssetEntry::mId`.
+- A variable, parameter or member that has to be checked before it is used -
+  an `opt`, an `OptRef`, an `expected` - ends in `Maybe`: `lightMaybe`,
+  `textMaybe`, `mValueMaybe`. Where it is read, the name says a check is due;
+  once checked, `*lightMaybe` is the thing. Not the types' own code
+  (`OptRef`'s operators).
+- A function that does not throw for a result it may not have says so in
+  its name: one returning an `opt`, an `OptRef` or an `expected` - or what
+  may be empty the same way, an `AssetRef`, a pointer at a C boundary - is
+  `Try...`: `TryGet`, `TryAs`, `TryFind`, `TryParse`, `TryFrom`, `TryLoad`.
+  A call reads as "check what comes back" before its type is looked up.
+  A plain `Get` or `As` always has a result; one missing is a bug, a
+  `logic_error`. Where callers need both, there are both: `scene.Get<T>`
+  returns `T&`, `scene.TryGet<T>` an `OptRef<T>`. Operators and overrides
+  of another library's interface keep their names.
 - Names say what a thing is in the game's terms: `mRequires`, not
   `mDependencyMap2`. No abbreviations beyond the common ones (`dt`, `id`,
   `L` for a `lua_State*`).

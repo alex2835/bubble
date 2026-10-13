@@ -8,7 +8,7 @@
 // once per world, at its first require.
 namespace bubble
 {
-expected<string, string> ScriptRuntime::Resolve( string_view from, string_view request ) const
+expected<string, string> ScriptRuntime::TryResolve( string_view from, string_view request ) const
 {
     string joined;
     if ( request.starts_with( "./" ) or request.starts_with( "../" ) )
@@ -58,55 +58,56 @@ expected<string, string> ScriptRuntime::Resolve( string_view from, string_view r
     for ( const string_view step : steps )
         path += ( path.empty() ? "" : "/" ) + string( step );
     path += ".luau";
-    if ( auto valid = AssetPath::From( path ); not valid )
-        return unexpected( valid.error() );
+    if ( auto validMaybe = AssetPath::TryFrom( path ); not validMaybe )
+        return unexpected( validMaybe.error() );
     return path;
 }
 
-expected<LuaValue, string> ScriptRuntime::Require( const LuaTable& file, const string& request )
+expected<LuaValue, string> ScriptRuntime::TryRequire( const LuaTable& file, const string& request )
 {
-    const auto from = mPathOf[file].As<string>();
-    if ( not from )
+    const auto fromMaybe = mPathOf[file].TryAs<string>();
+    if ( not fromMaybe )
         return unexpected( "require works in script files"s );
-    auto path = Resolve( *from, request );
-    if ( not path )
-        return unexpected( format( "require( '{}' ): {}", request, path.error() ) );
-    auto found = mLibraries.find( *path );
+    auto pathMaybe = TryResolve( *fromMaybe, request );
+    if ( not pathMaybe )
+        return unexpected( format( "require( '{}' ): {}", request, pathMaybe.error() ) );
+    auto found = mLibraries.find( *pathMaybe );
     if ( found == mLibraries.end() )
     {
         // First require of this file in the world: the registry has it
         // loaded, or the world was started without it.
-        AssetRef<ScriptAsset> assetRef = mAssets.Find<ScriptAsset>( *AssetPath::From( *path ) );
+        AssetRef<ScriptAsset> assetRef = mAssets.TryFind<ScriptAsset>( *AssetPath::TryFrom( *pathMaybe ) );
         if ( not assetRef.Ready() )
-            return unexpected( format( "require( '{}' ): no library {} is loaded", request, *path ) );
-        found = mLibraries
-                    .emplace( *path, Library{ .mAssetRef = std::move( assetRef ), .mResult = {}, .mEnvironment = {} } )
-                    .first;
+            return unexpected( format( "require( '{}' ): no library {} is loaded", request, *pathMaybe ) );
+        found =
+            mLibraries
+                .emplace( *pathMaybe, Library{ .mAssetRef = std::move( assetRef ), .mResult = {}, .mEnvironment = {} } )
+                .first;
     }
     // Recorded by this run of the file: a run that fails takes it away.
-    PassportOf( mRequiresOf, file ).RawSet( *path, true );
+    PassportOf( mRequiresOf, file ).RawSet( *pathMaybe, true );
     if ( not found->second.mResult.IsNil() )
         return found->second.mResult;
 
-    if ( const auto running = ranges::find( mRunning, *path ); running != mRunning.end() )
+    if ( const auto running = ranges::find( mRunning, *pathMaybe ); running != mRunning.end() )
     {
         string chain;
         for ( auto step = running; step != mRunning.end(); ++step )
             chain += *step + " -> ";
-        return unexpected( "require cycle: " + chain + *path );
+        return unexpected( "require cycle: " + chain + *pathMaybe );
     }
 
     // A copy of the handle keeps the bytecode while it runs.
     const AssetRef<ScriptAsset> assetRef = found->second.mAssetRef;
-    auto ran = RunLibrary( *path, assetRef );
-    if ( not ran )
+    auto ranMaybe = TryRunLibrary( *pathMaybe, assetRef );
+    if ( not ranMaybe )
     {
-        const ScriptError& error = ran.error();
+        const ScriptError& error = ranMaybe.error();
         return unexpected( error.mTraceback.empty() ? error.mMessage : error.mMessage + "\n" + error.mTraceback );
     }
-    Library& library = mLibraries.find( *path )->second;
-    library.mResult = std::move( ran->mResult );
-    library.mEnvironment = std::move( ran->mEnvironment );
+    Library& library = mLibraries.find( *pathMaybe )->second;
+    library.mResult = std::move( ranMaybe->mResult );
+    library.mEnvironment = std::move( ranMaybe->mEnvironment );
     return library.mResult;
 }
 }

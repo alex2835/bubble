@@ -80,35 +80,35 @@ TEST_CASE( "Utf8Truncate never cuts a character in half" )
 
 TEST_CASE( "AssetPath tidies separators and steps" )
 {
-    CHECK( AssetPath::From( "models\\cube.obj" )->View() == "models/cube.obj" );
-    CHECK( AssetPath::From( "./models//props/./chair.glb" )->View() == "models/props/chair.glb" );
-    CHECK( AssetPath::From( "модели/куб.obj" )->View() == "модели/куб.obj" );
-    CHECK( AssetPath::From( "" )->Empty() );
+    CHECK( AssetPath::TryFrom( "models\\cube.obj" )->View() == "models/cube.obj" );
+    CHECK( AssetPath::TryFrom( "./models//props/./chair.glb" )->View() == "models/props/chair.glb" );
+    CHECK( AssetPath::TryFrom( "модели/куб.obj" )->View() == "модели/куб.obj" );
+    CHECK( AssetPath::TryFrom( "" )->Empty() );
 }
 
 TEST_CASE( "AssetPath refuses what is not a file inside the project" )
 {
-    CHECK_FALSE( AssetPath::From( "/etc/passwd" ) );
-    CHECK_FALSE( AssetPath::From( "\\share\\x" ) );
-    CHECK_FALSE( AssetPath::From( "C:/models/cube.obj" ) );
-    CHECK_FALSE( AssetPath::From( "models/../../secret" ) );
-    CHECK( AssetPath::From( "a/../b" ).error().find( "'..'" ) != string::npos );
-    CHECK_FALSE( AssetPath::From( "bad\xFF.png" ) );
+    CHECK_FALSE( AssetPath::TryFrom( "/etc/passwd" ) );
+    CHECK_FALSE( AssetPath::TryFrom( "\\share\\x" ) );
+    CHECK_FALSE( AssetPath::TryFrom( "C:/models/cube.obj" ) );
+    CHECK_FALSE( AssetPath::TryFrom( "models/../../secret" ) );
+    CHECK( AssetPath::TryFrom( "a/../b" ).error().find( "'..'" ) != string::npos );
+    CHECK_FALSE( AssetPath::TryFrom( "bad\xFF.png" ) );
 }
 
 TEST_CASE( "AssetPath splits into its parts" )
 {
-    const AssetPath path = *AssetPath::From( "models/props/chair.glb" );
+    const AssetPath path = *AssetPath::TryFrom( "models/props/chair.glb" );
     CHECK( path.Filename() == "chair.glb" );
     CHECK( path.Stem() == "chair" );
     CHECK( path.Extension() == ".glb" );
     CHECK( path.Parent().View() == "models/props" );
     CHECK( path.Parent().Parent().Parent().Empty() );
-    CHECK( path.Parent().Join( "table.glb" )->View() == "models/props/table.glb" );
-    CHECK( AssetPath::From( ".gitignore" )->Extension().empty() );
+    CHECK( path.Parent().TryJoin( "table.glb" )->View() == "models/props/table.glb" );
+    CHECK( AssetPath::TryFrom( ".gitignore" )->Extension().empty() );
 
     hset<AssetPath> set{ path };
-    CHECK( set.contains( *AssetPath::From( "models\\props\\chair.glb" ) ) );
+    CHECK( set.contains( *AssetPath::TryFrom( "models\\props\\chair.glb" ) ) );
 }
 
 TEST_CASE( "Files with names in any script are written, listed and read back" )

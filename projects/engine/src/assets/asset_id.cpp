@@ -17,7 +17,7 @@ u64 Fnv( string_view text, u64 basis )
     return hash;
 }
 
-opt<u64> ParseHex( string_view text )
+opt<u64> TryParseHex( string_view text )
 {
     u64 value = 0;
     for ( const char c : text )
@@ -40,15 +40,15 @@ AssetId AssetId::MakeFrom( string_view path )
     return AssetId{ Fnv( path, 0xcbf29ce484222325ull ), Fnv( path, 0x84222325cbf29ce4ull ) };
 }
 
-opt<AssetId> AssetId::Parse( string_view text )
+opt<AssetId> AssetId::TryParse( string_view text )
 {
     if ( text.size() != 32 )
         return nullopt;
-    const auto high = ParseHex( text.substr( 0, 16 ) );
-    const auto low = ParseHex( text.substr( 16 ) );
-    if ( not high or not low )
+    const auto highMaybe = TryParseHex( text.substr( 0, 16 ) );
+    const auto lowMaybe = TryParseHex( text.substr( 16 ) );
+    if ( not highMaybe or not lowMaybe )
         return nullopt;
-    return AssetId{ *high, *low };
+    return AssetId{ *highMaybe, *lowMaybe };
 }
 
 string AssetId::ToString() const

@@ -38,7 +38,7 @@ public:
     Value( EntityPath value );
     Value( List value );
     Value( Record value );
-    // A literal would turn into a bool: text is Text::From's.
+    // A literal would turn into a bool: text is Text::TryFrom's.
     Value( const char* ) = delete;
 
     Value( const Value& );
@@ -54,14 +54,14 @@ public:
     }
 
     template <typename T>
-    OptRef<const T> As() const
+    OptRef<const T> TryAs() const
     {
         const T* value = get_if<T>( &mData );
         return value ? OptRef<const T>( *value ) : nullopt;
     }
 
     template <typename T>
-    OptRef<T> As()
+    OptRef<T> TryAs()
     {
         T* value = get_if<T>( &mData );
         return value ? OptRef<T>( *value ) : nullopt;
@@ -104,6 +104,10 @@ enum class ValueKind : u8
     Entity,
     List,
     Record,
+    // Whatever a Value holds, its kind told by the value itself: a field of
+    // type Value, such as a script's props before the script declares them.
+    // In a file such a value says its kind where JSON alone would not.
+    Any,
 };
 
 struct ValueTypeField;
@@ -117,6 +121,8 @@ struct ValueType
     Ref<const ValueType> mElement;
     vector<ValueTypeField> mFields;
 
+    // A kind with nothing more to say: not a list, not a record.
+    static ValueType Of( ValueKind kind );
     static ValueType ListOf( ValueType element );
     static ValueType RecordOf( vector<ValueTypeField> fields );
 
@@ -130,8 +136,13 @@ struct ValueTypeField
     ValueType mType;
 };
 
+// An f32 as the f64 a person would write for it: 0.1f becomes 0.1, not
+// 0.10000000149011612 - the shortest decimal that reads back as the same
+// f32. What a float field turns into in a Value and in a file.
+f64 WidenFloat( f32 value );
+
 // Whether `value` is what `type` says. The error says where, as a path from
 // `name`, and what it got: "waves[2].count: an integer expected, got 2.5".
 // Positions in a list count from 1, as in Luau.
-expected<void, string> Check( const Value& value, const ValueType& type, string_view name );
+expected<void, string> TryCheck( const Value& value, const ValueType& type, string_view name );
 }

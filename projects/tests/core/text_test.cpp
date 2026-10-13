@@ -9,16 +9,16 @@ namespace
 {
 Text Make( string_view utf8 )
 {
-    auto text = Text::From( utf8 );
-    REQUIRE( text );
-    return *text;
+    auto textMaybe = Text::TryFrom( utf8 );
+    REQUIRE( textMaybe );
+    return *textMaybe;
 }
 }
 
 TEST_CASE( "Text refuses what is not UTF-8" )
 {
-    CHECK( Text::From( "\xC3\x28" ).error() == "the text is not valid UTF-8" );
-    CHECK( Text::From( "" ) );
+    CHECK( Text::TryFrom( "\xC3\x28" ).error() == "the text is not valid UTF-8" );
+    CHECK( Text::TryFrom( "" ) );
     CHECK( Make( "дверь" ).View() == "дверь" );
 }
 

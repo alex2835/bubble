@@ -13,7 +13,7 @@ namespace
 {
 Text Make( string_view utf8 )
 {
-    return *Text::From( utf8 );
+    return *Text::TryFrom( utf8 );
 }
 
 EntityPath Path( string_view text )
@@ -37,16 +37,16 @@ struct Fixture
 
     Entity Find( string_view path, Entity from = Entity::Null ) const
     {
-        const auto found = Resolve( mScene, Path( path ), from );
-        REQUIRE_MESSAGE( found, found.error() );
-        return *found;
+        const auto foundMaybe = TryResolve( mScene, Path( path ), from );
+        REQUIRE_MESSAGE( foundMaybe, foundMaybe.error() );
+        return *foundMaybe;
     }
 
     string Why( string_view path, Entity from = Entity::Null ) const
     {
-        const auto found = Resolve( mScene, Path( path ), from );
-        REQUIRE_FALSE( found );
-        return found.error();
+        const auto foundMaybe = TryResolve( mScene, Path( path ), from );
+        REQUIRE_FALSE( foundMaybe );
+        return foundMaybe.error();
     }
 };
 }
@@ -128,7 +128,7 @@ TEST_CASE( "A path that leads nowhere says where it stopped and what is there" )
     CHECK( f.Why( "/props//chair" ) == "/props//chair: an empty name between slashes" );
     CHECK( f.Why( "/props/" ) == "/props/: an empty name between slashes" );
     CHECK( f.Why( "chair" ) == "chair: a relative path, from no entity" );
-    CHECK( Resolve( f.mScene, EntityPath{} ).error() == "an empty path" );
+    CHECK( TryResolve( f.mScene, EntityPath{} ).error() == "an empty path" );
 
     for ( int i = 0; i < 20; ++i )
         CreateChild( f.mScene, f.mPlayer, Make( "item" ) );
@@ -156,7 +156,7 @@ TEST_CASE( "A rename changes the name the parent knows it by, and keeps it uniqu
     Fixture f;
     CHECK( Rename( f.mScene, f.mTable, Make( "desk" ) ) == Make( "desk" ) );
     CHECK( f.Find( "/props/desk" ) == f.mTable );
-    CHECK_FALSE( Resolve( f.mScene, Path( "/props/table" ) ) );
+    CHECK_FALSE( TryResolve( f.mScene, Path( "/props/table" ) ) );
 
     CHECK( Rename( f.mScene, f.mTable, Make( "chair" ) ) == Make( "chair_2" ) );
     // Its own name is not taken by itself.
@@ -171,30 +171,30 @@ TEST_CASE( "SetParent moves an entity with what is under it, and refuses a loop"
 {
     Fixture f;
     const Entity leg = CreateChild( f.mScene, f.mChair, Make( "leg" ) );
-    REQUIRE( SetParent( f.mScene, f.mChair, f.mPlayer ) );
+    REQUIRE( TrySetParent( f.mScene, f.mChair, f.mPlayer ) );
     CHECK( ParentOf( f.mScene, f.mChair ) == f.mPlayer );
     CHECK( PathText( f.mScene, leg ) == "/player/chair/leg" );
     CHECK( ChildrenOf( f.mScene, f.mProps ).size() == 1 );
-    CHECK_FALSE( Resolve( f.mScene, Path( "/props/chair" ) ) );
+    CHECK_FALSE( TryResolve( f.mScene, Path( "/props/chair" ) ) );
 
     // Into a parent with a child of that name: renamed.
     CreateChild( f.mScene, f.mProps, Make( "chair" ) );
-    REQUIRE( SetParent( f.mScene, f.mChair, f.mProps, 0 ) );
+    REQUIRE( TrySetParent( f.mScene, f.mChair, f.mProps, 0 ) );
     CHECK( NameOf( f.mScene, f.mChair ) == Make( "chair_2" ) );
     CHECK( ChildrenOf( f.mScene, f.mProps )[0] == f.mChair );
 
     // Within one parent: a change of place.
-    REQUIRE( SetParent( f.mScene, f.mChair, f.mProps ) );
+    REQUIRE( TrySetParent( f.mScene, f.mChair, f.mProps ) );
     CHECK( ChildrenOf( f.mScene, f.mProps ).back() == f.mChair );
     CHECK( NameOf( f.mScene, f.mChair ) == Make( "chair_2" ) );
 
-    CHECK( SetParent( f.mScene, f.mProps, leg ).error() ==
+    CHECK( TrySetParent( f.mScene, f.mProps, leg ).error() ==
            "/props cannot go under /props/chair_2/leg: that is inside it" );
-    CHECK( SetParent( f.mScene, f.mProps, f.mProps ).error() == "/props cannot go under /props: that is inside it" );
-    CHECK( SetParent( f.mScene, f.mScene.Root(), f.mProps ).error() ==
+    CHECK( TrySetParent( f.mScene, f.mProps, f.mProps ).error() == "/props cannot go under /props: that is inside it" );
+    CHECK( TrySetParent( f.mScene, f.mScene.Root(), f.mProps ).error() ==
            "/ cannot go under /props: the root stays the root" );
     const Entity loose = f.mScene.Create();
-    CHECK( SetParent( f.mScene, loose, f.mProps ).error() ==
+    CHECK( TrySetParent( f.mScene, loose, f.mProps ).error() ==
            format( "entity {} (not in the tree) cannot go under /props: it is not in the tree",
                    static_cast<u32>( loose ) ) );
 }

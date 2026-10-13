@@ -56,13 +56,13 @@ public:
 
     // `@name/...` reads from `directory`, a path from the project's root;
     // what .luaurc's aliases say.
-    expected<void, string> SetAlias( string_view name, string_view directory );
+    expected<void, string> TrySetAlias( string_view name, string_view directory );
 
     // Runs the script at `path` - a path from the project's root, what its
     // relative requires start from - once: its own environment, its props,
     // its callbacks. The same path again gives the same script. The asset
     // must be loaded in the registry and the state sealed.
-    expected<ScriptHandle, ScriptError> Load( string_view path );
+    expected<ScriptHandle, ScriptError> TryLoad( string_view path );
     // Destroys the script's instances with it.
     void Unload( ScriptHandle scriptHandle );
     bool Has( ScriptHandle scriptHandle, u32 callback ) const;
@@ -73,9 +73,9 @@ public:
     // `overrides`, when given, is a table laid over the defaults; a key
     // that is not a prop (a local included), or a value of another kind
     // than the default, is an error.
-    expected<ScriptInstanceHandle, string> Create( ScriptHandle scriptHandle,
-                                                   string label,
-                                                   const LuaTable& overrides = {} );
+    expected<ScriptInstanceHandle, string> TryCreate( ScriptHandle scriptHandle,
+                                                      string label,
+                                                      const LuaTable& overrides = {} );
     // Takes it off its events and stops its coroutines. Safe from inside
     // its own callback, and on a handle that is gone already.
     void Destroy( ScriptInstanceHandle instanceHandle );
@@ -188,27 +188,27 @@ private:
     LuaTable NewFileEnvironment( string_view path );
     // Runs the top of a file in `env`, once; after it, a new global is an
     // error. Returns what the file returned.
-    expected<LuaValue, ScriptError> RunFile( string_view path,
-                                             const AssetRef<ScriptAsset>& assetRef,
-                                             const LuaTable& env );
+    expected<LuaValue, ScriptError> TryRunFile( string_view path,
+                                                const AssetRef<ScriptAsset>& assetRef,
+                                                const LuaTable& env );
     // What `passport` keeps for the file run in `env`; an empty table, kept,
     // when it keeps nothing yet.
     LuaTable PassportOf( LuaTable& passport, const LuaTable& env );
-    expected<ScriptFile, ScriptError> RunScript( string_view path, const AssetRef<ScriptAsset>& assetRef );
-    expected<LibraryFile, ScriptError> RunLibrary( string_view path, const AssetRef<ScriptAsset>& assetRef );
-    expected<void, string> CheckProps( const LuaTable& props );
-    expected<void, string> CheckLocals( const LuaTable& locals, const LuaTable& props );
-    expected<void, string> CopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
-    expected<string, string> Resolve( string_view from, string_view request ) const;
+    expected<ScriptFile, ScriptError> TryRunScript( string_view path, const AssetRef<ScriptAsset>& assetRef );
+    expected<LibraryFile, ScriptError> TryRunLibrary( string_view path, const AssetRef<ScriptAsset>& assetRef );
+    expected<void, string> TryCheckProps( const LuaTable& props );
+    expected<void, string> TryCheckLocals( const LuaTable& locals, const LuaTable& props );
+    expected<void, string> TryCopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
+    expected<string, string> TryResolve( string_view from, string_view request ) const;
     // `file` is the environment of the code that called require.
-    expected<LuaValue, string> Require( const LuaTable& file, const string& request );
+    expected<LuaValue, string> TryRequire( const LuaTable& file, const string& request );
     // Whether the code run in `env` required any of `libraries`.
     bool Requires( const LuaTable& env, const hset<string>& libraries );
 
     // A script asset changed: it runs again, and so does everything that
     // required it - libraries at their next require, scripts at once.
     void Changed( const AssetEntryBase& entry );
-    expected<void, ScriptError> Rerun( ScriptHandle scriptHandle );
+    expected<void, ScriptError> TryRerun( ScriptHandle scriptHandle );
 
     bool CallWith( ScriptInstanceHandle instanceHandle, u32 callback, const LuaRest& args );
     void EmitWith( string_view event, const LuaRest& args );

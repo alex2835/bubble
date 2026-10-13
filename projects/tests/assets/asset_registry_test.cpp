@@ -48,7 +48,7 @@ struct Project
     template <typename T = TextAsset>
     AssetRef<T> Load( string_view path )
     {
-        return mAssets.Load<T>( *AssetPath::From( path ) );
+        return mAssets.Load<T>( *AssetPath::TryFrom( path ) );
     }
 };
 }
@@ -59,18 +59,18 @@ TEST_CASE( "A loaded asset is Ready, and the same path is the same entry" )
     project.mFiles["notes/hello.txt"] = "hello";
     const auto hello = project.Load( "notes/hello.txt" );
     REQUIRE( hello.Ready() );
-    CHECK( hello.Get()->mText == "hello" );
+    CHECK( hello.TryGet()->mText == "hello" );
     CHECK( hello.Entry().Path().View() == "notes/hello.txt" );
     CHECK( hello.Entry().Id() == AssetId::MakeFrom( "notes/hello.txt" ) );
     CHECK( project.Load( "notes/hello.txt" ) == hello );
 
-    // Find never loads, by path or by id.
-    CHECK( project.mAssets.Find<TextAsset>( *AssetPath::From( "notes/hello.txt" ) ) == hello );
-    CHECK( project.mAssets.Find<TextAsset>( hello.Entry().Id() ) == hello );
+    // TryFind never loads, by path or by id.
+    CHECK( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "notes/hello.txt" ) ) == hello );
+    CHECK( project.mAssets.TryFind<TextAsset>( hello.Entry().Id() ) == hello );
     project.mFiles["notes/other.txt"] = "other";
-    CHECK_FALSE( project.mAssets.Find<TextAsset>( *AssetPath::From( "notes/other.txt" ) ) );
+    CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "notes/other.txt" ) ) );
     // Nor finds an asset as another kind.
-    CHECK_FALSE( project.mAssets.Find<NumberAsset>( *AssetPath::From( "notes/hello.txt" ) ) );
+    CHECK_FALSE( project.mAssets.TryFind<NumberAsset>( *AssetPath::TryFrom( "notes/hello.txt" ) ) );
 }
 
 TEST_CASE( "An asset that cannot load fails with the reason" )
@@ -82,7 +82,7 @@ TEST_CASE( "An asset that cannot load fails with the reason" )
     const auto missing = project.Load( "missing.txt" );
     CHECK( missing.State() == AssetState::Failed );
     CHECK( missing.Entry().Error() == "no such file" );
-    CHECK_FALSE( missing.Get() );
+    CHECK_FALSE( missing.TryGet() );
 
     CHECK( project.Load( "bad.txt" ).Entry().Error() == "cannot read it" );
     CHECK( project.Load( "image.png" ).Entry().Error() == "no importer for '.png' files" );
@@ -106,25 +106,25 @@ TEST_CASE( "A reload puts the new version into the same entry and tells the list
         project.mAssets.OnChanged( [&]( const AssetEntryBase& entry ) { heard.push_back( entry.Path().String() ); } );
 
     project.mFiles["a.txt"] = "second";
-    REQUIRE( project.mAssets.Reload( *AssetPath::From( "a.txt" ) ) );
-    CHECK( a.Get()->mText == "second" );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( a.TryGet()->mText == "second" );
     CHECK( a.Entry().Version() == 1 );
     CHECK( heard == vector<string>{ "a.txt" } );
 
     // A failed reload keeps the version it had and tells nobody.
     project.mFiles["a.txt"] = "broken";
-    CHECK_FALSE( project.mAssets.Reload( *AssetPath::From( "a.txt" ) ) );
-    CHECK( a.Get()->mText == "second" );
+    CHECK_FALSE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( a.TryGet()->mText == "second" );
     CHECK( heard.size() == 1 );
 
     // A file nobody holds is not reloaded.
     project.mFiles["b.txt"] = "b";
-    CHECK( project.mAssets.Reload( *AssetPath::From( "b.txt" ) ) );
+    CHECK( project.mAssets.TryReload( *AssetPath::TryFrom( "b.txt" ) ) );
     CHECK( heard.size() == 1 );
 
     project.mAssets.RemoveListener( listener );
     project.mFiles["a.txt"] = "third";
-    REQUIRE( project.mAssets.Reload( *AssetPath::From( "a.txt" ) ) );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
     CHECK( heard.size() == 1 );
 }
 
@@ -137,11 +137,11 @@ TEST_CASE( "An entry lives as long as a ref to it" )
         const auto copy = a;
         // A file asked for as the wrong kind is not listed.
         const auto wrong = project.Load<NumberAsset>( "a.txt" );
-        REQUIRE( project.mAssets.Find<TextAsset>( *AssetPath::From( "a.txt" ) ) );
+        REQUIRE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
         CHECK( project.mAssets.Count() == 1 );
     }
-    CHECK_FALSE( project.mAssets.Find<TextAsset>( *AssetPath::From( "a.txt" ) ) );
-    CHECK_FALSE( project.mAssets.Find<TextAsset>( AssetId::MakeFrom( "a.txt" ) ) );
+    CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK_FALSE( project.mAssets.TryFind<TextAsset>( AssetId::MakeFrom( "a.txt" ) ) );
     // Its entries went with it.
     CHECK( project.mAssets.Count() == 0 );
 
@@ -159,7 +159,7 @@ TEST_CASE( "An asset ref may outlive the registry" )
         project.mFiles["a.txt"] = "a";
         kept = project.Load( "a.txt" );
     }
-    CHECK( kept.Get()->mText == "a" );
+    CHECK( kept.TryGet()->mText == "a" );
 }
 
 TEST_CASE( "An empty asset ref has no entry to ask" )
@@ -167,7 +167,7 @@ TEST_CASE( "An empty asset ref has no entry to ask" )
     const AssetRef<TextAsset> empty;
     CHECK_FALSE( empty );
     CHECK( empty.State() == AssetState::Failed );
-    CHECK_FALSE( empty.Get() );
+    CHECK_FALSE( empty.TryGet() );
     CHECK_THROWS_WITH_AS( empty.Entry(), "Entry() of an empty asset ref", logic_error );
 }
 
@@ -178,9 +178,9 @@ TEST_CASE( "An asset id is written as 32 hex digits and read back" )
     CHECK( id == AssetId::MakeFrom( "models/hero.glb" ) );
     CHECK( id != AssetId::MakeFrom( "models/hero2.glb" ) );
     CHECK( id.ToString().size() == 32 );
-    CHECK( AssetId::Parse( id.ToString() ) == id );
-    CHECK_FALSE( AssetId::Parse( "not an id" ) );
-    CHECK_FALSE( AssetId::Parse( string( 32, 'g' ) ) );
+    CHECK( AssetId::TryParse( id.ToString() ) == id );
+    CHECK_FALSE( AssetId::TryParse( "not an id" ) );
+    CHECK_FALSE( AssetId::TryParse( string( 32, 'g' ) ) );
 }
 
 TEST_CASE( "The registry reads a project directory, names in any script included" )
@@ -193,8 +193,8 @@ TEST_CASE( "The registry reads a project directory, names in any script included
     assets.RegisterImporter<TextAsset>( ".txt", "text", []( string_view bytes, const AssetPath& ) {
         return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
     } );
-    const auto text = assets.Load<TextAsset>( *AssetPath::From( "заметки/привет.txt" ) );
+    const auto text = assets.Load<TextAsset>( *AssetPath::TryFrom( "заметки/привет.txt" ) );
     REQUIRE( text.Ready() );
-    CHECK( text.Get()->mText == "привет" );
+    CHECK( text.TryGet()->mText == "привет" );
     fs::remove_all( root );
 }

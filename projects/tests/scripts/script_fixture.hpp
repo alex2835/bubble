@@ -52,7 +52,7 @@ struct Scripts
     void AddFile( string_view path, string_view source )
     {
         mFiles[string( path )] = string( source );
-        auto asset = mAssets.Load<ScriptAsset>( *AssetPath::From( path ) );
+        auto asset = mAssets.Load<ScriptAsset>( *AssetPath::TryFrom( path ) );
         REQUIRE_MESSAGE( asset.Ready(), asset.Entry().Error() );
         mHeld.push_back( std::move( asset ) );
     }
@@ -61,51 +61,51 @@ struct Scripts
 
     // The file changed on disk: the registry imports it again and the
     // runtime hears of it. Fails only if the new version does not compile.
-    expected<void, string> Change( string_view path, string_view source )
+    expected<void, string> TryChange( string_view path, string_view source )
     {
         mFiles[string( path )] = string( source );
-        return mAssets.Reload( *AssetPath::From( path ) );
+        return mAssets.TryReload( *AssetPath::TryFrom( path ) );
     }
 
     ScriptHandle Load( string_view path, string_view source )
     {
         AddFile( path, source );
-        auto script = mRuntime.Load( path );
-        REQUIRE_MESSAGE( script.has_value(), ( script ? "" : script.error().mMessage ) );
-        return *script;
+        auto scriptMaybe = mRuntime.TryLoad( path );
+        REQUIRE_MESSAGE( scriptMaybe.has_value(), ( scriptMaybe ? "" : scriptMaybe.error().mMessage ) );
+        return *scriptMaybe;
     }
 
     string LoadError( string_view path, string_view source )
     {
         AddFile( path, source );
-        auto script = mRuntime.Load( path );
-        REQUIRE_FALSE( script.has_value() );
-        return script.error().mMessage;
+        auto scriptMaybe = mRuntime.TryLoad( path );
+        REQUIRE_FALSE( scriptMaybe.has_value() );
+        return scriptMaybe.error().mMessage;
     }
 
     ScriptInstanceHandle Make( ScriptHandle scriptHandle, string label = "/player" )
     {
-        auto instance = mRuntime.Create( scriptHandle, std::move( label ) );
-        REQUIRE_MESSAGE( instance.has_value(), ( instance ? "" : instance.error() ) );
-        return *instance;
+        auto instanceMaybe = mRuntime.TryCreate( scriptHandle, std::move( label ) );
+        REQUIRE_MESSAGE( instanceMaybe.has_value(), ( instanceMaybe ? "" : instanceMaybe.error() ) );
+        return *instanceMaybe;
     }
 
     // What a Luau expression evaluates to, run in the globals.
     LuaValue Evaluate( string_view expression )
     {
-        auto chunk = mState.Load( "=test", Bytecode( "return " + string( expression ) ), mState.Globals() );
-        REQUIRE_MESSAGE( chunk.has_value(), ( chunk ? "" : chunk.error() ) );
-        auto value = ( *chunk )();
-        REQUIRE_MESSAGE( value.has_value(), ( value ? "" : value.error().mMessage ) );
-        return *value;
+        auto chunkMaybe = mState.TryLoad( "=test", Bytecode( "return " + string( expression ) ), mState.Globals() );
+        REQUIRE_MESSAGE( chunkMaybe.has_value(), ( chunkMaybe ? "" : chunkMaybe.error() ) );
+        auto valueMaybe = ( *chunkMaybe )();
+        REQUIRE_MESSAGE( valueMaybe.has_value(), ( valueMaybe ? "" : valueMaybe.error().mMessage ) );
+        return *valueMaybe;
     }
 
     // Made with the overrides of the table `overrides` evaluates to.
-    expected<ScriptInstanceHandle, string> MakeWith( ScriptHandle scriptHandle,
-                                                     string_view overrides,
-                                                     string label = "/player" )
+    expected<ScriptInstanceHandle, string> TryMakeWith( ScriptHandle scriptHandle,
+                                                        string_view overrides,
+                                                        string label = "/player" )
     {
-        return mRuntime.Create( scriptHandle, std::move( label ), LuaTable( Evaluate( overrides ) ) );
+        return mRuntime.TryCreate( scriptHandle, std::move( label ), LuaTable( Evaluate( overrides ) ) );
     }
 
     bool Call( ScriptInstanceHandle instanceHandle, u32 callback ) { return mRuntime.Call( instanceHandle, callback ); }
@@ -117,7 +117,7 @@ struct Scripts
 
     double Number( ScriptInstanceHandle instanceHandle, const char* field ) const
     {
-        return Field( instanceHandle, field ).As<f64>().value_or( 0.0 );
+        return Field( instanceHandle, field ).TryAs<f64>().value_or( 0.0 );
     }
 
     void Set( ScriptInstanceHandle instanceHandle, const char* field, bool value ) const

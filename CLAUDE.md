@@ -79,6 +79,11 @@ projects/tests/               doctest; folders follow the engine's, deps/ tests 
   run-time link with a generation, never written to a file. A variable that
   links says what and how: `scriptHandle`, `mInstanceHandle`, `assetRef`,
   `assetId`; a bare `handle` only in generic code like `SlotMap`.
+- **`Maybe` and `Try`.** A variable, parameter or member of type `opt`, `OptRef`
+  or `expected` ends in `Maybe`: `const auto lightMaybe = scene.TryGet<Light>( entity )`.
+  A function returning `opt`, `OptRef`, `expected` (or an `AssetRef`/pointer that may
+  be empty) is `Try...`: `TryGet`, `TryFind`, `TryFrom`, `TryLoad`; a plain `Get`/`As`
+  always has a result (missing is a `logic_error`).
 - **Comments** say why, in plain sentences, at the density of the code around
   them. No commented-out code.
 - **Strings** are UTF-8 in `string`; identifiers ASCII; never build an

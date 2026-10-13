@@ -10,7 +10,7 @@ namespace
 // A world whose project has scripts/lib behind @lib.
 struct Project : Scripts
 {
-    Project() { REQUIRE( mRuntime.SetAlias( "lib", "scripts/lib" ) ); }
+    Project() { REQUIRE( mRuntime.TrySetAlias( "lib", "scripts/lib" ) ); }
 };
 
 const char* const cInventory = R"(
@@ -161,7 +161,7 @@ TEST_CASE( "An error inside a library fails the file that required it, with both
     CHECK( error.find( "scripts/lib/broken.luau:3: bad tuning" ) != string::npos );
 
     // Not cached as loaded: fixed, it runs the next time.
-    REQUIRE( scripts.Change( "scripts/lib/broken.luau", "return { fine = true }" ) );
+    REQUIRE( scripts.TryChange( "scripts/lib/broken.luau", "return { fine = true }" ) );
     scripts.Load( "scripts/again.luau", "local broken = require( '@lib/broken' )" );
 }
 
@@ -247,7 +247,7 @@ function on_update( self, dt ) self.calls = ( self.calls or 0 ) + 1 end
         REQUIRE( scripts.Call( handle, OnUpdate ) );
 
     scripts.mRecorded.clear();
-    REQUIRE( scripts.Change( "scripts/lib/tuning.luau", "return { speed = 5 }" ) );
+    REQUIRE( scripts.TryChange( "scripts/lib/tuning.luau", "return { speed = 5 }" ) );
     for ( const auto handle : { a, b, c } )
         REQUIRE( scripts.Call( handle, OnUpdate ) );
     CHECK( scripts.Number( a, "speed" ) == 5 );
@@ -270,7 +270,7 @@ TEST_CASE( "A run that fails changes nothing of what the file is known to requir
     // The new version requires another library, then fails: the code that
     // runs is still the old one, which needs tuning and not other.
     LogWatch log;
-    REQUIRE( scripts.Change( "scripts/main.luau", R"(
+    REQUIRE( scripts.TryChange( "scripts/main.luau", R"(
 record( "main ran" )
 local other = require( "@lib/other" )
 error( "half-saved" )
@@ -278,9 +278,9 @@ error( "half-saved" )
     CHECK( log.Saw( LogLevel::Error, { "half-saved" } ) );
 
     scripts.mRecorded.clear();
-    REQUIRE( scripts.Change( "scripts/lib/other.luau", "return { more = true }" ) );
+    REQUIRE( scripts.TryChange( "scripts/lib/other.luau", "return { more = true }" ) );
     CHECK( scripts.mRecorded.empty() );
-    REQUIRE( scripts.Change( "scripts/lib/tuning.luau", "return { speed = 2 }" ) );
+    REQUIRE( scripts.TryChange( "scripts/lib/tuning.luau", "return { speed = 2 }" ) );
     CHECK( scripts.mRecorded == vector<string>{ "main ran" } );
 }
 
@@ -291,6 +291,6 @@ TEST_CASE( "require takes libraries the registry holds and never reads a file it
     scripts.mFiles["scripts/lib/unloaded.luau"] = "return {}";
     CHECK( scripts.LoadError( "scripts/main.luau", "require( '@lib/unloaded' )" )
                .find( "no library scripts/lib/unloaded.luau is loaded" ) != string::npos );
-    CHECK_FALSE( scripts.mRuntime.SetAlias( "Lib", "scripts/lib" ) );
-    CHECK_FALSE( scripts.mRuntime.SetAlias( "up", "../outside" ) );
+    CHECK_FALSE( scripts.mRuntime.TrySetAlias( "Lib", "scripts/lib" ) );
+    CHECK_FALSE( scripts.mRuntime.TrySetAlias( "up", "../outside" ) );
 }

@@ -7,7 +7,6 @@
 namespace bubble
 {
 using luaubind::CompileOptions;
-using luaubind::CompileScript;
 using luaubind::LuaError;
 using luaubind::LuaFunction;
 using luaubind::LuaKind;
@@ -22,6 +21,7 @@ using luaubind::LuaTypeBuilder;
 using luaubind::LuaValue;
 using luaubind::LuaYield;
 using luaubind::ScriptError;
+using luaubind::TryCompileScript;
 
 // What a LuaState of the engine gives as its print handler: script output
 // into the log, as script messages.

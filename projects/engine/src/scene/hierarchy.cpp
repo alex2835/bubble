@@ -12,10 +12,10 @@ constexpr size_t cListedChildren = 12;
 
 Hierarchy& NodeOf( Scene& scene, Entity entity, string_view what )
 {
-    const auto node = scene.Get<Hierarchy>( entity );
-    if ( not node )
+    const auto nodeMaybe = scene.TryGet<Hierarchy>( entity );
+    if ( not nodeMaybe )
         throw logic_error( format( "{} on {}", what, Describe( scene, entity ) ) );
-    return *node;
+    return *nodeMaybe;
 }
 
 Text Fit( const Text& wanted )
@@ -24,7 +24,7 @@ Text Fit( const Text& wanted )
     ranges::replace( name, '/', '_' );
     if ( name.empty() or name == "." or name == ".." )
         name = "entity";
-    return *Text::From( name );
+    return *Text::TryFrom( name );
 }
 
 // `wanted` made fit and free among `parent`'s children other than `self`:
@@ -44,10 +44,10 @@ Text UniqueName( const Hierarchy& parent, const Text& wanted, Entity self )
     if ( const size_t underscore = base.rfind( '_' ); underscore != string_view::npos )
     {
         const string_view digits = base.substr( underscore + 1 );
-        const auto parsed = TryParse<u32>( digits );
-        if ( parsed and *parsed >= 2 and digits.front() != '0' )
+        const auto parsedMaybe = TryParse<u32>( digits );
+        if ( parsedMaybe and *parsedMaybe >= 2 and digits.front() != '0' )
         {
-            number = *parsed;
+            number = *parsedMaybe;
             base = base.substr( 0, underscore );
         }
     }
@@ -55,7 +55,7 @@ Text UniqueName( const Hierarchy& parent, const Text& wanted, Entity self )
     {
         string candidate = format( "{}_{}", base, next );
         if ( not taken( candidate ) )
-            return *Text::From( candidate );
+            return *Text::TryFrom( candidate );
     }
 }
 
@@ -110,20 +110,20 @@ Entity CreateChild( Scene& scene, Entity parent, const Text& name, size_t index 
 
 Entity ParentOf( const Scene& scene, Entity entity )
 {
-    const auto node = scene.Get<Hierarchy>( entity );
-    return node ? node->mParent : Entity::Null;
+    const auto nodeMaybe = scene.TryGet<Hierarchy>( entity );
+    return nodeMaybe ? nodeMaybe->mParent : Entity::Null;
 }
 
 span<const Entity> ChildrenOf( const Scene& scene, Entity entity )
 {
-    const auto node = scene.Get<Hierarchy>( entity );
-    return node ? span<const Entity>( node->mChildren ) : span<const Entity>();
+    const auto nodeMaybe = scene.TryGet<Hierarchy>( entity );
+    return nodeMaybe ? span<const Entity>( nodeMaybe->mChildren ) : span<const Entity>();
 }
 
 Text NameOf( const Scene& scene, Entity entity )
 {
-    const auto node = scene.Get<Hierarchy>( entity );
-    return node ? node->mName : Text();
+    const auto nodeMaybe = scene.TryGet<Hierarchy>( entity );
+    return nodeMaybe ? nodeMaybe->mName : Text();
 }
 
 bool InTree( const Scene& scene, Entity entity )
@@ -144,7 +144,7 @@ Text Rename( Scene& scene, Entity entity, const Text& wanted )
     Hierarchy& node = NodeOf( scene, entity, "Rename" );
     if ( node.mParent == Entity::Null )
         throw logic_error( "Rename on the root, which has no name" );
-    Hierarchy& parent = *scene.Get<Hierarchy>( node.mParent );
+    Hierarchy& parent = scene.Get<Hierarchy>( node.mParent );
     Text unique = UniqueName( parent, wanted, entity );
     if ( unique != node.mName )
     {
@@ -156,7 +156,7 @@ Text Rename( Scene& scene, Entity entity, const Text& wanted )
     return unique;
 }
 
-expected<void, string> SetParent( Scene& scene, Entity child, Entity parent, size_t index )
+expected<void, string> TrySetParent( Scene& scene, Entity child, Entity parent, size_t index )
 {
     const auto refuse = [&]( string_view why ) {
         return unexpected(
@@ -171,9 +171,9 @@ expected<void, string> SetParent( Scene& scene, Entity child, Entity parent, siz
     if ( parent == child or IsAncestor( scene, child, parent ) )
         return refuse( "that is inside it" );
 
-    Hierarchy& node = *scene.Get<Hierarchy>( child );
-    Unlink( *scene.Get<Hierarchy>( node.mParent ), child, node.mName );
-    Hierarchy& newParent = *scene.Get<Hierarchy>( parent );
+    Hierarchy& node = scene.Get<Hierarchy>( child );
+    Unlink( scene.Get<Hierarchy>( node.mParent ), child, node.mName );
+    Hierarchy& newParent = scene.Get<Hierarchy>( parent );
     node.mName = UniqueName( newParent, node.mName, child );
     node.mParent = parent;
     Link( newParent, child, node.mName, index );
@@ -186,11 +186,11 @@ EntityPath PathOf( const Scene& scene, Entity entity )
     if ( chain.empty() )
         return {};
     if ( chain.size() == 1 )
-        return EntityPath{ *Text::From( "/" ) };
+        return EntityPath{ *Text::TryFrom( "/" ) };
     string path;
     for ( auto at = chain.rbegin() + 1; at != chain.rend(); ++at )
         path += "/" + NameOf( scene, *at ).String();
-    return EntityPath{ *Text::From( path ) };
+    return EntityPath{ *Text::TryFrom( path ) };
 }
 
 EntityPath RelativePath( const Scene& scene, Entity from, Entity to )
@@ -209,10 +209,10 @@ EntityPath RelativePath( const Scene& scene, Entity from, Entity to )
         path += path.empty() ? ".." : "/..";
     for ( size_t i = down.size() - shared; i-- > 0; )
         path += ( path.empty() ? "" : "/" ) + NameOf( scene, down[i] ).String();
-    return EntityPath{ *Text::From( path.empty() ? "." : path ) };
+    return EntityPath{ *Text::TryFrom( path.empty() ? "." : path ) };
 }
 
-expected<Entity, string> Resolve( const Scene& scene, const EntityPath& path, Entity from )
+expected<Entity, string> TryResolve( const Scene& scene, const EntityPath& path, Entity from )
 {
     string_view rest = path.mPath.View();
     const auto fail = [&]( string_view why ) { return unexpected( format( "{}: {}", path.mPath.View(), why ) ); };
@@ -244,7 +244,7 @@ expected<Entity, string> Resolve( const Scene& scene, const EntityPath& path, En
         }
         else if ( step != "." )
         {
-            const Hierarchy& node = *scene.Get<Hierarchy>( at );
+            const Hierarchy& node = scene.Get<Hierarchy>( at );
             const auto found = node.mChildByName.find( step );
             if ( found == node.mChildByName.end() )
                 return fail(

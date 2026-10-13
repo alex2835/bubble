@@ -134,10 +134,10 @@ struct LuaTraits<opt<T>>
 {
     static constexpr const char* cName = LuaTraits<T>::cName;
     static bool Is( lua_State* L, int index ) { return lua_isnoneornil( L, index ) or LuaTraits<T>::Is( L, index ); }
-    static void Push( lua_State* L, const opt<T>& value )
+    static void Push( lua_State* L, const opt<T>& valueMaybe )
     {
-        if ( value )
-            LuaTraits<T>::Push( L, *value );
+        if ( valueMaybe )
+            LuaTraits<T>::Push( L, *valueMaybe );
         else
             lua_pushnil( L );
     }

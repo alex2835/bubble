@@ -15,9 +15,9 @@ lua.Seal();                                                           // globals
 
 LuaTable env = lua.NewTable();
 env["speed"] = 5;
-f64 speed = env["speed"].As<f64>().value_or( 0 );                    // reads are explicit
+f64 speed = env["speed"].TryAs<f64>().value_or( 0 );                    // reads are explicit
 
-auto chunk = lua.Load( "=demo", *CompileScript( "return greet( 'luau' )" ), globals );
+auto chunk = lua.TryLoad( "=demo", *TryCompileScript( "return greet( 'luau' )" ), globals );
 auto result = ( *chunk )();                                           // expected<LuaValue, ScriptError>
 ```
 
@@ -38,9 +38,9 @@ What it has:
   for an error at the calling script line.
 - **`LuaTypeBuilder<T>`** - a C++ struct as a userdata type: fields and
   methods found by name atom, errors that list what the type has.
-- **Data** - `Encode`/`Decode` (values to bytes and back, for saves) and
-  `DeepCopy`.
+- **Data** - `TryEncode`/`TryDecode` (values to bytes and back, for saves) and
+  `TryDeepCopy`.
 
 What it leaves out on purpose: implicit conversions to C++ types (a read is
-always `As<T>()`, an `opt`), exceptions out of calls (they are `expected`),
+always `TryAs<T>()`, an `opt`), exceptions out of calls (they are `expected`),
 overloads and inheritance for userdata types.

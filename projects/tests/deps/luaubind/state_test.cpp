@@ -16,13 +16,13 @@ TEST_CASE( "A table reads and writes like a map, nested too" )
     table[1] = 10;
     table.Append( 20 );
 
-    CHECK( table["name"].As<string>() == "chest" );
-    CHECK( table["stats"]["hp"].As<int>() == 30 );
+    CHECK( table["name"].TryAs<string>() == "chest" );
+    CHECK( table["stats"]["hp"].TryAs<int>() == 30 );
     CHECK( table.Length() == 2 );
-    CHECK( table[2].As<int>() == 20 );
+    CHECK( table[2].TryAs<int>() == 20 );
     CHECK( table["missing"].IsNil() );
     // Reads are explicit: not a number is nothing, not a zero.
-    CHECK_FALSE( table["name"].As<int>() );
+    CHECK_FALSE( table["name"].TryAs<int>() );
     CHECK( table["missing"]["deeper"].IsNil() );
     CHECK( Balanced( lua ) );
 }
@@ -40,7 +40,7 @@ TEST_CASE( "Get goes through metatables, RawGet does not; a clone is separate" )
     table["name"] = "chest";
     LuaTable clone = table.Clone();
     clone["name"] = "copy";
-    CHECK( table["name"].As<string>() == "chest" );
+    CHECK( table["name"].TryAs<string>() == "chest" );
     CHECK( Balanced( lua ) );
 }
 
@@ -51,7 +51,7 @@ TEST_CASE( "Pairs takes every entry, and the loop may change the table" )
     int sum = 0;
     for ( const auto& [key, value] : table.Pairs() )
     {
-        sum += value.As<int>().value_or( 0 );
+        sum += value.TryAs<int>().value_or( 0 );
         table.RawSet( key, LuaValue() );
     }
     CHECK( sum == 6 );
@@ -76,9 +76,9 @@ TEST_CASE( "Typed values are what they say or nil" )
     LuaState lua;
     CHECK( LuaTable( lua.Value( 5 ) ).IsNil() );
     CHECK( LuaFunction( lua.NewTable() ).IsNil() );
-    CHECK( lua.Value( 5 ).As<int>() == 5 );
-    CHECK( lua.Value( "word" ).As<string>() == "word" );
-    CHECK_FALSE( lua.Value( 2.5 ).As<int>() );
+    CHECK( lua.Value( 5 ).TryAs<int>() == 5 );
+    CHECK( lua.Value( "word" ).TryAs<string>() == "word" );
+    CHECK_FALSE( lua.Value( 2.5 ).TryAs<int>() );
     CHECK( lua.Value( true ).Is( LuaKind::Boolean ) );
     CHECK( lua.Value( "x" ).Describe() == "\"x\"" );
     CHECK( LuaValue().Describe() == "nil" );
@@ -91,12 +91,12 @@ TEST_CASE( "A function is called like one and gives back its first result or the
 {
     LuaState lua;
     LuaFunction add( Evaluate( lua, "return function( a, b, c ) return a + b + ( c or 0 ), 'ignored' end" ) );
-    CHECK( add( 1, 2 )->As<int>() == 3 );
-    CHECK( add( 1, LuaRest{ { lua.Value( 2 ), lua.Value( 4 ) } } )->As<int>() == 7 );
+    CHECK( add( 1, 2 )->TryAs<int>() == 3 );
+    CHECK( add( 1, LuaRest{ { lua.Value( 2 ), lua.Value( 4 ) } } )->TryAs<int>() == 7 );
 
-    auto failed = add( "one", 2 );
-    REQUIRE_FALSE( failed );
-    CHECK( failed.error().mMessage.find( "attempt to perform arithmetic" ) != string::npos );
+    auto failedMaybe = add( "one", 2 );
+    REQUIRE_FALSE( failedMaybe );
+    CHECK( failedMaybe.error().mMessage.find( "attempt to perform arithmetic" ) != string::npos );
     CHECK_FALSE( LuaFunction()() );
     CHECK( Balanced( lua ) );
 }
@@ -106,14 +106,14 @@ TEST_CASE( "A lambda stored in a table is a function, named after its key" )
     LuaState lua;
     LuaTable globals = lua.Globals();
     globals["greet"] = []( const string& name ) { return "hello, " + name; };
-    CHECK( Evaluate( lua, "return greet( 'luau' )" ).As<string>() == "hello, luau" );
+    CHECK( Evaluate( lua, "return greet( 'luau' )" ).TryAs<string>() == "hello, luau" );
 
     globals["fail"] = []() { throw LuaError( "no" ); };
-    auto chunk = lua.Load( "=named", Bytecode( "fail()" ), globals );
-    REQUIRE( chunk );
-    auto called = ( *chunk )();
-    REQUIRE_FALSE( called );
-    CHECK( called.error().mTraceback.find( "fail" ) != string::npos );
+    auto chunkMaybe = lua.TryLoad( "=named", Bytecode( "fail()" ), globals );
+    REQUIRE( chunkMaybe );
+    auto calledMaybe = ( *chunkMaybe )();
+    REQUIRE_FALSE( calledMaybe );
+    CHECK( calledMaybe.error().mTraceback.find( "fail" ) != string::npos );
 }
 
 TEST_CASE( "A bound function's LuaError points at the script line that called it" )
@@ -124,11 +124,12 @@ TEST_CASE( "A bound function's LuaError points at the script line that called it
             throw LuaError( "check needs a positive number" );
         return value * 2;
     };
-    auto chunk = lua.Load( "scripts/use.luau", Bytecode( "local x = check( 2 )\nreturn check( -1 )" ), lua.Globals() );
-    REQUIRE( chunk );
-    auto called = ( *chunk )();
-    REQUIRE_FALSE( called );
-    CHECK( called.error().mMessage == "scripts/use.luau:2: check needs a positive number" );
+    auto chunkMaybe =
+        lua.TryLoad( "scripts/use.luau", Bytecode( "local x = check( 2 )\nreturn check( -1 )" ), lua.Globals() );
+    REQUIRE( chunkMaybe );
+    auto calledMaybe = ( *chunkMaybe )();
+    REQUIRE_FALSE( calledMaybe );
+    CHECK( calledMaybe.error().mMessage == "scripts/use.luau:2: check needs a positive number" );
     CHECK( Balanced( lua ) );
 }
 
@@ -160,10 +161,10 @@ TEST_CASE( "A coroutine yields through LuaYield and resumes with values" )
 
     LuaResume first = thread.Resume( 5 );
     REQUIRE( first.mStatus == LuaResume::Status::Waiting );
-    CHECK( first.mWait.As<int>() == 5 );
+    CHECK( first.mWait.TryAs<int>() == 5 );
     LuaResume second = thread.Resume( 10 );
     REQUIRE( second.mStatus == LuaResume::Status::Waiting );
-    CHECK( second.mWait.As<int>() == 11 );
+    CHECK( second.mWait.TryAs<int>() == 11 );
     CHECK( thread.Resume( 0 ).mStatus == LuaResume::Status::Finished );
 
     // Outside a coroutine the same function refuses.
@@ -174,9 +175,10 @@ TEST_CASE( "A coroutine yields through LuaYield and resumes with values" )
 TEST_CASE( "A failing coroutine says where, with its traceback" )
 {
     LuaState lua;
-    auto chunk = lua.Load( "scripts/co.luau", Bytecode( "return function()\n  error( 'deep' )\nend" ), lua.Globals() );
-    REQUIRE( chunk );
-    LuaThread thread = lua.NewThread( LuaFunction( *( *chunk )() ) );
+    auto chunkMaybe =
+        lua.TryLoad( "scripts/co.luau", Bytecode( "return function()\n  error( 'deep' )\nend" ), lua.Globals() );
+    REQUIRE( chunkMaybe );
+    LuaThread thread = lua.NewThread( LuaFunction( *( *chunkMaybe )() ) );
     LuaResume resumed = thread.Resume();
     REQUIRE( resumed.mStatus == LuaResume::Status::Failed );
     CHECK( resumed.mError.mMessage == "scripts/co.luau:2: deep" );
@@ -218,9 +220,9 @@ TEST_CASE( "CallerEnvironment is the environment of the file that called" )
     LuaTable meta = lua.NewTable();
     meta["__index"] = lua.Globals();
     environment.SetMetatable( meta );
-    auto chunk = lua.Load( "=file", Bytecode( "whoami()" ), environment );
-    REQUIRE( chunk );
-    REQUIRE( ( *chunk )() );
+    auto chunkMaybe = lua.TryLoad( "=file", Bytecode( "whoami()" ), environment );
+    REQUIRE( chunkMaybe );
+    REQUIRE( ( *chunkMaybe )() );
     CHECK( seen == environment );
 }
 
@@ -241,16 +243,16 @@ TEST_CASE( "Data goes to bytes and back, and copies deep" )
 {
     LuaState lua;
     LuaTable data( Evaluate( lua, "return { name = 'hero', stats = { hp = 3 } }" ) );
-    auto bytes = lua.Encode( data );
-    REQUIRE( bytes );
-    auto back = lua.Decode( *bytes );
-    REQUIRE( back );
-    CHECK( LuaTable( *back )["stats"]["hp"].As<int>() == 3 );
+    auto bytesMaybe = lua.TryEncode( data );
+    REQUIRE( bytesMaybe );
+    auto backMaybe = lua.TryDecode( *bytesMaybe );
+    REQUIRE( backMaybe );
+    CHECK( LuaTable( *backMaybe )["stats"]["hp"].TryAs<int>() == 3 );
 
-    auto copy = lua.DeepCopy( data );
-    REQUIRE( copy );
-    CHECK_FALSE( LuaTable( *copy )["stats"].Value() == data["stats"].Value() );
-    CHECK_FALSE( lua.Encode( Evaluate( lua, "return { f = print }" ) ) );
+    auto copyMaybe = lua.TryDeepCopy( data );
+    REQUIRE( copyMaybe );
+    CHECK_FALSE( LuaTable( *copyMaybe )["stats"].Value() == data["stats"].Value() );
+    CHECK_FALSE( lua.TryEncode( Evaluate( lua, "return { f = print }" ) ) );
     CHECK( Balanced( lua ) );
 }
 
@@ -259,7 +261,7 @@ TEST_CASE( "Globals are written before sealing, never after" )
     LuaState lua;
     lua.Globals()["answer"] = 42;
     lua.Seal();
-    CHECK( lua.Globals()["answer"].As<int>() == 42 );
+    CHECK( lua.Globals()["answer"].TryAs<int>() == 42 );
     CHECK_THROWS_AS( lua.Globals()["late"] = 1, std::logic_error );
 }
 

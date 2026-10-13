@@ -81,7 +81,7 @@ class Encoder
 public:
     explicit Encoder( lua_State* L ) : mL( L ) { mOut.push_back( static_cast<char>( cFormat ) ); }
 
-    expected<void, string> Value( int index, int depth )
+    expected<void, string> TryValue( int index, int depth )
     {
         lua_State* L = mL;
         index = lua_absindex( L, index );
@@ -110,7 +110,7 @@ public:
                 Put( Tag::Vector );
                 Put( lua_tovector( L, index ), 3 * sizeof( float ) );
                 return {};
-            case LUA_TTABLE: return Table( index, depth );
+            case LUA_TTABLE: return TryTable( index, depth );
             default:
                 return std::unexpected(
                     std::format( "{}: a {} cannot be saved", mPath.Where(), luaL_typename( L, index ) ) );
@@ -120,7 +120,7 @@ public:
     string Take() { return std::move( mOut ); }
 
 private:
-    expected<void, string> Table( int index, int depth )
+    expected<void, string> TryTable( int index, int depth )
     {
         lua_State* L = mL;
         if ( depth >= cMaxDepth )
@@ -144,11 +144,11 @@ private:
             if ( type != LUA_TSTRING and type != LUA_TNUMBER and type != LUA_TBOOLEAN )
                 return std::unexpected(
                     std::format( "{}: a {} key cannot be saved", mPath.Where(), luaL_typename( L, key ) ) );
-            if ( auto done = Value( key, depth + 1 ); not done )
-                return done;
+            if ( auto doneMaybe = TryValue( key, depth + 1 ); not doneMaybe )
+                return doneMaybe;
             mPath.PushKey( L, key );
-            if ( auto done = Value( key + 1, depth + 1 ); not done )
-                return done;
+            if ( auto doneMaybe = TryValue( key + 1, depth + 1 ); not doneMaybe )
+                return doneMaybe;
             mPath.Pop();
             lua_pop( L, 1 );
             ++count;
@@ -173,12 +173,12 @@ class Decoder
 public:
     Decoder( lua_State* L, string_view in ) : mL( L ), mIn( in ) {}
 
-    expected<void, string> Value( int depth )
+    expected<void, string> TryValue( int depth )
     {
         lua_State* L = mL;
         u8 tag = 0;
         if ( not Get( &tag, 1 ) )
-            return Short();
+            return TryShort();
         switch ( static_cast<Tag>( tag ) )
         {
             case Tag::Nil: lua_pushnil( L ); return {};
@@ -188,7 +188,7 @@ public:
             {
                 double number = 0;
                 if ( not Get( &number, sizeof( number ) ) )
-                    return Short();
+                    return TryShort();
                 lua_pushnumber( L, number );
                 return {};
             }
@@ -196,7 +196,7 @@ public:
             {
                 u32 size = 0;
                 if ( not Get( &size, sizeof( size ) ) or mIn.size() - mAt < size )
-                    return Short();
+                    return TryShort();
                 lua_pushlstring( L, mIn.data() + mAt, size );
                 mAt += size;
                 return {};
@@ -205,11 +205,11 @@ public:
             {
                 float v[3] = {};
                 if ( not Get( v, sizeof( v ) ) )
-                    return Short();
+                    return TryShort();
                 lua_pushvector( L, v[0], v[1], v[2] );
                 return {};
             }
-            case Tag::Table: return Table( depth );
+            case Tag::Table: return TryTable( depth );
         }
         return std::unexpected( "the data is damaged: unknown value"s );
     }
@@ -226,31 +226,31 @@ public:
     }
 
 private:
-    expected<void, string> Table( int depth )
+    expected<void, string> TryTable( int depth )
     {
         lua_State* L = mL;
         if ( depth >= cMaxDepth )
             return std::unexpected( "the data is damaged: nested too deep"s );
         u32 count = 0;
         if ( not Get( &count, sizeof( count ) ) )
-            return Short();
+            return TryShort();
         luaL_checkstack( L, 4, "loading nested tables" );
         lua_newtable( L );
         for ( u32 i = 0; i < count; ++i )
         {
-            if ( auto done = Value( depth + 1 ); not done )
-                return done;
+            if ( auto doneMaybe = TryValue( depth + 1 ); not doneMaybe )
+                return doneMaybe;
             const bool nan = lua_type( L, -1 ) == LUA_TNUMBER and lua_tonumber( L, -1 ) != lua_tonumber( L, -1 );
             if ( lua_isnil( L, -1 ) or nan )
                 return std::unexpected( "the data is damaged: a nil or NaN key"s );
-            if ( auto done = Value( depth + 1 ); not done )
-                return done;
+            if ( auto doneMaybe = TryValue( depth + 1 ); not doneMaybe )
+                return doneMaybe;
             lua_rawset( L, -3 );
         }
         return {};
     }
 
-    static expected<void, string> Short() { return std::unexpected( "the data is cut short"s ); }
+    static expected<void, string> TryShort() { return std::unexpected( "the data is cut short"s ); }
 
     lua_State* mL;
     string_view mIn;
@@ -262,7 +262,7 @@ class Copier
 public:
     Copier( lua_State* L, int memo ) : mL( L ), mMemo( memo ) {}
 
-    expected<void, string> Copy( int index, int depth )
+    expected<void, string> TryCopy( int index, int depth )
     {
         lua_State* L = mL;
         index = lua_absindex( L, index );
@@ -293,10 +293,10 @@ public:
         while ( lua_next( L, index ) )
         {
             const int key = lua_gettop( L ) - 1;
-            if ( auto done = Copy( key, depth + 1 ); not done )
-                return done;
-            if ( auto done = Copy( key + 1, depth + 1 ); not done )
-                return done;
+            if ( auto doneMaybe = TryCopy( key, depth + 1 ); not doneMaybe )
+                return doneMaybe;
+            if ( auto doneMaybe = TryCopy( key + 1, depth + 1 ); not doneMaybe )
+                return doneMaybe;
             lua_rawset( L, copy );
             lua_pop( L, 1 );
         }
@@ -309,19 +309,19 @@ private:
 };
 }
 
-expected<string, string> LuaEncode( lua_State* L, int index )
+expected<string, string> TryLuaEncode( lua_State* L, int index )
 {
     index = lua_absindex( L, index );
     const int top = lua_gettop( L );
     Encoder encoder( L );
-    auto done = encoder.Value( index, 0 );
+    auto doneMaybe = encoder.TryValue( index, 0 );
     lua_settop( L, top );
-    if ( not done )
-        return std::unexpected( std::move( done.error() ) );
+    if ( not doneMaybe )
+        return std::unexpected( std::move( doneMaybe.error() ) );
     return encoder.Take();
 }
 
-expected<void, string> LuaDecode( lua_State* L, string_view bytes )
+expected<void, string> TryLuaDecode( lua_State* L, string_view bytes )
 {
     const int top = lua_gettop( L );
     Decoder decoder( L, bytes );
@@ -330,28 +330,28 @@ expected<void, string> LuaDecode( lua_State* L, string_view bytes )
         return std::unexpected( "the data is empty"s );
     if ( format != cFormat )
         return std::unexpected( std::format( "the data is of format {}, this build reads {}", format, cFormat ) );
-    auto done = decoder.Value( 0 );
-    if ( done and not decoder.AtEnd() )
-        done = std::unexpected( "the data is damaged: bytes after the value"s );
-    if ( not done )
+    auto doneMaybe = decoder.TryValue( 0 );
+    if ( doneMaybe and not decoder.AtEnd() )
+        doneMaybe = std::unexpected( "the data is damaged: bytes after the value"s );
+    if ( not doneMaybe )
     {
         lua_settop( L, top );
-        return done;
+        return doneMaybe;
     }
     return {};
 }
 
-expected<void, string> LuaDeepCopy( lua_State* L, int index )
+expected<void, string> TryLuaDeepCopy( lua_State* L, int index )
 {
     index = lua_absindex( L, index );
     const int top = lua_gettop( L );
     lua_newtable( L );
     Copier copier( L, top + 1 );
-    auto done = copier.Copy( index, 0 );
-    if ( not done )
+    auto doneMaybe = copier.TryCopy( index, 0 );
+    if ( not doneMaybe )
     {
         lua_settop( L, top );
-        return done;
+        return doneMaybe;
     }
     lua_remove( L, top + 1 );
     return {};

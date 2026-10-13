@@ -5,44 +5,44 @@
 // Entity scripts: loaded once per path, unloaded with their instances.
 namespace bubble
 {
-expected<ScriptHandle, ScriptError> ScriptRuntime::Load( string_view path )
+expected<ScriptHandle, ScriptError> ScriptRuntime::TryLoad( string_view path )
 {
     if ( const auto known = mScriptsByPath.find( path ); known != mScriptsByPath.end() )
         return known->second;
-    auto valid = AssetPath::From( path );
-    if ( not valid )
-        return unexpected( ScriptError{ format( "{}: {}", path, valid.error() ), {} } );
-    AssetRef<ScriptAsset> assetRef = mAssets.Find<ScriptAsset>( *valid );
+    auto validMaybe = AssetPath::TryFrom( path );
+    if ( not validMaybe )
+        return unexpected( ScriptError{ format( "{}: {}", path, validMaybe.error() ), {} } );
+    AssetRef<ScriptAsset> assetRef = mAssets.TryFind<ScriptAsset>( *validMaybe );
 
-    auto ran = RunScript( valid->View(), assetRef );
-    if ( not ran )
-        return unexpected( std::move( ran.error() ) );
-    const ScriptHandle scriptHandle =
-        mScripts.Add( Script{ valid->String(), std::move( assetRef ), std::move( ran->mEnvironment ),
-                              std::move( ran->mProps ), std::move( ran->mLocals ), std::move( ran->mCallbacks ) } );
-    mScriptsByPath[valid->String()] = scriptHandle;
+    auto ranMaybe = TryRunScript( validMaybe->View(), assetRef );
+    if ( not ranMaybe )
+        return unexpected( std::move( ranMaybe.error() ) );
+    const ScriptHandle scriptHandle = mScripts.Add(
+        Script{ validMaybe->String(), std::move( assetRef ), std::move( ranMaybe->mEnvironment ),
+                std::move( ranMaybe->mProps ), std::move( ranMaybe->mLocals ), std::move( ranMaybe->mCallbacks ) } );
+    mScriptsByPath[validMaybe->String()] = scriptHandle;
     return scriptHandle;
 }
 
 void ScriptRuntime::Unload( ScriptHandle scriptHandle )
 {
-    if ( const auto script = mScripts.Get( scriptHandle ) )
-        mScriptsByPath.erase( script->mPath );
+    if ( const auto scriptMaybe = mScripts.TryGet( scriptHandle ) )
+        mScriptsByPath.erase( scriptMaybe->mPath );
     for ( const ScriptInstanceHandle instanceHandle : mInstances.Handles() )
-        if ( mInstances.Get( instanceHandle )->mScriptHandle == scriptHandle )
+        if ( mInstances.TryGet( instanceHandle )->mScriptHandle == scriptHandle )
             Destroy( instanceHandle );
     mScripts.Remove( scriptHandle );
 }
 
 bool ScriptRuntime::Has( ScriptHandle scriptHandle, u32 callback ) const
 {
-    const auto script = mScripts.Get( scriptHandle );
-    return script and callback < script->mCallbacks.size() and not script->mCallbacks[callback].IsNil();
+    const auto scriptMaybe = mScripts.TryGet( scriptHandle );
+    return scriptMaybe and callback < scriptMaybe->mCallbacks.size() and not scriptMaybe->mCallbacks[callback].IsNil();
 }
 
 LuaTable ScriptRuntime::Props( ScriptHandle scriptHandle ) const
 {
-    const auto script = mScripts.Get( scriptHandle );
-    return script ? script->mProps : LuaTable();
+    const auto scriptMaybe = mScripts.TryGet( scriptHandle );
+    return scriptMaybe ? scriptMaybe->mProps : LuaTable();
 }
 }

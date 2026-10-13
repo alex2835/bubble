@@ -15,7 +15,7 @@ public:
 
     // Accepts backslashes and redundant "." steps and slashes, and tidies
     // them; refuses what does not name a file inside the project.
-    static expected<AssetPath, string> From( string_view text );
+    static expected<AssetPath, string> TryFrom( string_view text );
 
     string_view View() const { return mPath; }
     const string& String() const { return mPath; }
@@ -28,7 +28,7 @@ public:
     // "models" for "models/cube.obj"; empty at the root.
     AssetPath Parent() const;
     // `relative` inside this one, as From reads it.
-    expected<AssetPath, string> Join( string_view relative ) const;
+    expected<AssetPath, string> TryJoin( string_view relative ) const;
 
     OsPath ToOsPath( const OsPath& projectRoot ) const;
 

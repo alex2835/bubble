@@ -13,14 +13,14 @@ namespace luaubind
 // thread, or a table inside itself, is an error with the path to it:
 // "inventory[3]: a function cannot be saved". A table reached twice by
 // different paths comes back as two tables.
-expected<string, string> LuaEncode( lua_State* L, int index );
+expected<string, string> TryLuaEncode( lua_State* L, int index );
 
-// Pushes the value LuaEncode turned into `bytes`.
-expected<void, string> LuaDecode( lua_State* L, string_view bytes );
+// Pushes the value TryLuaEncode turned into `bytes`.
+expected<void, string> TryLuaDecode( lua_State* L, string_view bytes );
 
 // Pushes a copy of the value at `index` for snapshots of `self`: tables are
 // copied all the way down, and a table reached twice is copied once, so
 // sharing and cycles stay as they were. Functions, userdata and threads are
 // the same values; metatables are shared.
-expected<void, string> LuaDeepCopy( lua_State* L, int index );
+expected<void, string> TryLuaDeepCopy( lua_State* L, int index );
 }

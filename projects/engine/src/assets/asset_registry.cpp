@@ -43,7 +43,7 @@ AssetRegistry::ReadFile AssetRegistry::FromDirectory( OsPath root )
     };
 }
 
-Ref<AssetEntryBase> AssetRegistry::FindEntry( const AssetPath& path ) const
+Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetPath& path ) const
 {
     const auto found = mIndex->mByPath.find( path.View() );
     return found == mIndex->mByPath.end() ? nullptr : found->second.lock();
@@ -53,7 +53,7 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetPath& path,
                                               type_index type,
                                               const function<Ref<AssetEntryBase>()>& make )
 {
-    if ( Ref<AssetEntryBase> entry = FindEntry( path ) )
+    if ( Ref<AssetEntryBase> entry = TryFindEntry( path ) )
     {
         if ( entry->mType == type )
             return entry;
@@ -69,17 +69,17 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetPath& path,
     mIndex->mByPath[path.String()] = entry;
     mIndex->mById[entry->mId] = entry;
     entry->mIndex = mIndex;
-    if ( auto imported = Import( *entry ); not imported )
+    if ( auto importedMaybe = TryImport( *entry ); not importedMaybe )
     {
         entry->mState = AssetState::Failed;
-        entry->mError = std::move( imported.error() );
+        entry->mError = std::move( importedMaybe.error() );
         return entry;
     }
     entry->mState = AssetState::Ready;
     return entry;
 }
 
-expected<void, string> AssetRegistry::Import( AssetEntryBase& entry )
+expected<void, string> AssetRegistry::TryImport( AssetEntryBase& entry )
 {
     const string_view extension = entry.mPath.Extension();
     const auto importer = mImporters.find( extension );
@@ -87,34 +87,34 @@ expected<void, string> AssetRegistry::Import( AssetEntryBase& entry )
         return unexpected( format( "no importer for '{}' files", extension ) );
     if ( importer->second.mType != entry.mType )
         return unexpected( format( "a {} file, asked for as something else", importer->second.mKind ) );
-    auto bytes = mRead( entry.mPath );
-    if ( not bytes )
-        return unexpected( std::move( bytes.error() ) );
-    return importer->second.mImport( *bytes, entry );
+    auto bytesMaybe = mRead( entry.mPath );
+    if ( not bytesMaybe )
+        return unexpected( std::move( bytesMaybe.error() ) );
+    return importer->second.mImport( *bytesMaybe, entry );
 }
 
-expected<void, string> AssetRegistry::Reload( const AssetPath& path )
+expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
 {
-    const Ref<AssetEntryBase> entry = FindEntry( path );
+    const Ref<AssetEntryBase> entry = TryFindEntry( path );
     if ( entry == nullptr )
         return {};
     // An importer fills the entry only when it succeeds: a failed import
     // leaves the old version in place.
-    if ( auto imported = Import( *entry ); not imported )
+    if ( auto importedMaybe = TryImport( *entry ); not importedMaybe )
     {
         // An entry that never loaded keeps saying why.
         if ( entry->mState != AssetState::Ready )
-            entry->mError = imported.error();
-        return imported;
+            entry->mError = importedMaybe.error();
+        return importedMaybe;
     }
     entry->mState = AssetState::Ready;
     entry->mError.clear();
     ++entry->mVersion;
     for ( const AssetListenerHandle listenerHandle : mListeners.Handles() )
-        if ( const auto found = mListeners.Get( listenerHandle ) )
+        if ( const auto foundMaybe = mListeners.TryGet( listenerHandle ) )
         {
             // A copy: a listener may take itself off while it runs.
-            const ChangedListener call = *found;
+            const ChangedListener call = *foundMaybe;
             call( *entry );
         }
     return {};

@@ -39,7 +39,7 @@ void ForEachBreak( string_view text, F&& onBreak )
 }
 }
 
-expected<Text, string> Text::From( string_view utf8 )
+expected<Text, string> Text::TryFrom( string_view utf8 )
 {
     if ( not Utf8Valid( utf8 ) )
         return unexpected( "the text is not valid UTF-8"s );

@@ -167,7 +167,7 @@ public:
         return entt::forward_as_meta( mContext, object );
     }
 
-    opt<MetaType> Find( Name type ) const;
+    opt<MetaType> TryFind( Name type ) const;
     // For messages: a described type's name, what a person calls a number,
     // a bool or a text, the C++ name for anything else.
     string NameOf( const MetaType& type ) const;
@@ -179,32 +179,35 @@ public:
 
     // One field of `object` by name: a reference into it for a Field, a copy
     // for a Property.
-    expected<MetaAny, string> Get( const MetaAny& object, Name field ) const;
+    expected<MetaAny, string> TryGet( const MetaAny& object, Name field ) const;
     // Sets one field, converting what converts (an integer to a float), then
     // tells the field's listeners.
-    expected<void, string> Set( MetaAny& object, Name field, MetaAny value );
+    expected<void, string> TrySet( MetaAny& object, Name field, MetaAny value );
 
-    expected<MetaAny, string> Call( MetaAny& object, Name method, span<MetaAny> args ) const;
+    expected<MetaAny, string> TryCall( MetaAny& object, Name method, span<MetaAny> args ) const;
 
     // The value at `path`: a reference into `object` while the path runs
     // through fields, a copy once it passes a Property. Into a Value - a
     // script's props - the path goes on through its lists and records.
-    expected<MetaAny, string> GetField( const MetaAny& object, const FieldPath& path ) const;
+    expected<MetaAny, string> TryGetField( const MetaAny& object, const FieldPath& path ) const;
     // The same, writable: a reference into `object` can be written through.
-    expected<MetaAny, string> GetField( MetaAny& object, const FieldPath& path ) const;
+    expected<MetaAny, string> TryGetField( MetaAny& object, const FieldPath& path ) const;
     // Sets the value at `path`, converting what converts; a Value given for
-    // a C++ field goes through FromValue. A copy on the way - a Property's
+    // a C++ field goes through TryFromValue. A copy on the way - a Property's
     // value - goes back through its setter, and every field the path passes
     // is reported changed, the innermost first. Inside a Value the kind
     // stays: a number is set to a number.
-    expected<void, string> SetField( MetaAny& object, const FieldPath& path, MetaAny value );
+    expected<void, string> TrySetField( MetaAny& object, const FieldPath& path, MetaAny value );
 
     // A field's value as a file and a script keep it, and back. Numbers,
     // bools, text, vec3, Color, Name, AssetId and EntityPath as themselves;
     // a sequence as a list; a described type as a record of its fields,
     // Transient ones left out.
-    expected<Value, string> ToValue( const MetaAny& value ) const;
-    expected<MetaAny, string> FromValue( const Value& value, const MetaType& type ) const;
+    expected<Value, string> TryToValue( const MetaAny& value ) const;
+    expected<MetaAny, string> TryFromValue( const Value& value, const MetaType& type ) const;
+    // What TryToValue makes of a `type`, as a declaration: how a file reader
+    // tells [1, 2, 3] for a vec3 from a list. A Value field is Any.
+    expected<ValueType, string> TryValueTypeOf( const MetaType& type ) const;
 
     // "This field of this type changed": a module fixes exactly what moved,
     // not everything about the type. Listeners are called with the owner.
@@ -225,16 +228,19 @@ private:
     string FieldNames( const MetaType& type ) const;
     string MethodNames( const MetaType& type ) const;
 
-    expected<MetaAny, string> Walk( MetaAny current, const FieldPath& path ) const;
-    expected<MetaAny, string> StepInto( MetaAny& current, const FieldPath::Step& step, const string& where ) const;
-    expected<void, string> Assign( MetaAny& current, const FieldPath::Step& step, MetaAny value, const string& where );
-    expected<void, string> SetAt( MetaAny& current,
-                                  const FieldPath& path,
-                                  size_t at,
-                                  MetaAny& value,
-                                  const string& root );
-    expected<Value, string> ToValueAt( const MetaAny& value, const string& where ) const;
-    expected<MetaAny, string> FromValueAt( const Value& value, const MetaType& type, const string& where ) const;
+    expected<MetaAny, string> TryWalk( MetaAny current, const FieldPath& path ) const;
+    expected<MetaAny, string> TryStepInto( MetaAny& current, const FieldPath::Step& step, const string& where ) const;
+    expected<void, string> TryAssign( MetaAny& current,
+                                      const FieldPath::Step& step,
+                                      MetaAny value,
+                                      const string& where );
+    expected<void, string> TrySetAt( MetaAny& current,
+                                     const FieldPath& path,
+                                     size_t at,
+                                     MetaAny& value,
+                                     const string& root );
+    expected<Value, string> TryToValueAt( const MetaAny& value, const string& where ) const;
+    expected<MetaAny, string> TryFromValueAt( const Value& value, const MetaType& type, const string& where ) const;
 
     entt::meta_ctx mContext;
     hset<Name> mDescribed;

@@ -3,7 +3,7 @@
 
 namespace bubble
 {
-expected<FieldPath, string> FieldPath::Parse( string_view text )
+expected<FieldPath, string> FieldPath::TryParse( string_view text )
 {
     if ( text.empty() )
         return unexpected( "an empty field path"s );
@@ -17,10 +17,10 @@ expected<FieldPath, string> FieldPath::Parse( string_view text )
         const string_view segment = text.substr( pos, end == string_view::npos ? string_view::npos : end - pos );
         if ( segment.empty() )
             return unexpected( format( "{}: an empty step", text ) );
-        const auto name = Name::From( segment );
-        if ( not name )
-            return unexpected( format( "{}: {}", text, name.error() ) );
-        path.mSteps.push_back( *name );
+        const auto nameMaybe = Name::TryFrom( segment );
+        if ( not nameMaybe )
+            return unexpected( format( "{}: {}", text, nameMaybe.error() ) );
+        path.mSteps.push_back( *nameMaybe );
         pos = end == string_view::npos ? text.size() : end;
 
         // Positions after it: [2], [2][1].
@@ -29,11 +29,11 @@ expected<FieldPath, string> FieldPath::Parse( string_view text )
             const size_t close = text.find( ']', pos );
             if ( close == string_view::npos )
                 return unexpected( format( "{}: [ without ]", text ) );
-            const auto index = TryParse<size_t>( text.substr( pos + 1, close - pos - 1 ) );
-            if ( not index or *index == 0 )
+            const auto indexMaybe = bubble::TryParse<size_t>( text.substr( pos + 1, close - pos - 1 ) );
+            if ( not indexMaybe or *indexMaybe == 0 )
                 return unexpected( format( "{}: a position is a whole number from 1, not '{}'", text,
                                            text.substr( pos + 1, close - pos - 1 ) ) );
-            path.mSteps.push_back( *index );
+            path.mSteps.push_back( *indexMaybe );
             pos = close + 1;
         }
 

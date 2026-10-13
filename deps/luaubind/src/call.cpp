@@ -25,7 +25,7 @@ int ErrorHandler( lua_State* L )
 }
 }
 
-expected<string, string> CompileScript( string_view source, const CompileOptions& options )
+expected<string, string> TryCompileScript( string_view source, const CompileOptions& options )
 {
     lua_CompileOptions compile = {};
     compile.optimizationLevel = options.mOptimization;
@@ -43,7 +43,7 @@ expected<string, string> CompileScript( string_view source, const CompileOptions
     return string( bytecode.get(), size );
 }
 
-expected<void, string> LoadScript( lua_State* L, string_view chunk, string_view bytecode, int env )
+expected<void, string> TryLoadScript( lua_State* L, string_view chunk, string_view bytecode, int env )
 {
     // "@" makes Luau print the name as it is, where a plain name would show
     // as [string "player.luau"].
@@ -58,7 +58,7 @@ expected<void, string> LoadScript( lua_State* L, string_view chunk, string_view 
     return {};
 }
 
-expected<void, ScriptError> PCall( lua_State* L, int nargs, int nresults )
+expected<void, ScriptError> TryPCall( lua_State* L, int nargs, int nresults )
 {
     const int function = lua_gettop( L ) - nargs;
     lua_pushcfunction( L, ErrorHandler, "error_handler" );

@@ -10,31 +10,31 @@ namespace luaubind::test
 {
 inline string Bytecode( string_view source )
 {
-    auto bytecode = CompileScript( source );
-    REQUIRE_MESSAGE( bytecode.has_value(), ( bytecode ? "" : bytecode.error() ) );
-    return *bytecode;
+    auto bytecodeMaybe = TryCompileScript( source );
+    REQUIRE_MESSAGE( bytecodeMaybe.has_value(), ( bytecodeMaybe ? "" : bytecodeMaybe.error() ) );
+    return *bytecodeMaybe;
 }
 
 // Compiles and runs `source` in L's globals with the raw API; on success
 // its results stay on the stack, else the error comes back.
-inline expected<void, ScriptError> RunLua( lua_State* L, string_view source, int results = 0 )
+inline expected<void, ScriptError> TryRunLua( lua_State* L, string_view source, int results = 0 )
 {
-    auto bytecode = CompileScript( source );
-    if ( not bytecode )
-        return std::unexpected( ScriptError{ bytecode.error(), {} } );
-    if ( auto loaded = LoadScript( L, "=test", *bytecode ); not loaded )
-        return std::unexpected( ScriptError{ loaded.error(), {} } );
-    return PCall( L, 0, results );
+    auto bytecodeMaybe = TryCompileScript( source );
+    if ( not bytecodeMaybe )
+        return std::unexpected( ScriptError{ bytecodeMaybe.error(), {} } );
+    if ( auto loadedMaybe = TryLoadScript( L, "=test", *bytecodeMaybe ); not loadedMaybe )
+        return std::unexpected( ScriptError{ loadedMaybe.error(), {} } );
+    return TryPCall( L, 0, results );
 }
 
 // What `source` returns, run in the globals.
 inline LuaValue Evaluate( LuaState& lua, string_view source )
 {
-    auto chunk = lua.Load( "=test", Bytecode( source ), lua.Globals() );
-    REQUIRE_MESSAGE( chunk.has_value(), ( chunk ? "" : chunk.error() ) );
-    auto value = ( *chunk )();
-    REQUIRE_MESSAGE( value.has_value(), ( value ? "" : value.error().mMessage ) );
-    return *value;
+    auto chunkMaybe = lua.TryLoad( "=test", Bytecode( source ), lua.Globals() );
+    REQUIRE_MESSAGE( chunkMaybe.has_value(), ( chunkMaybe ? "" : chunkMaybe.error() ) );
+    auto valueMaybe = ( *chunkMaybe )();
+    REQUIRE_MESSAGE( valueMaybe.has_value(), ( valueMaybe ? "" : valueMaybe.error().mMessage ) );
+    return *valueMaybe;
 }
 
 inline bool Balanced( const LuaState& lua )

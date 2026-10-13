@@ -8,7 +8,7 @@ namespace bubble
 void ScriptRuntime::Start( ScriptInstanceHandle instanceHandle, const LuaFunction& fn, const LuaRest& args )
 {
     const LuaThread thread = mLua.NewThread( fn );
-    mInstances.Get( instanceHandle )->mTasks.push_back( Task{ thread, {}, false } );
+    mInstances.TryGet( instanceHandle )->mTasks.push_back( Task{ thread, {}, false } );
     // To its first wait, at once.
     Resume( instanceHandle, thread, args );
 }
@@ -31,10 +31,10 @@ void ScriptRuntime::Resume( ScriptInstanceHandle instanceHandle, const LuaThread
     }
     // Found again by its thread: the coroutine may have started others,
     // or destroyed its own instance.
-    const auto instance = mInstances.Get( instanceHandle );
-    if ( not instance )
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    if ( not instanceMaybe )
         return;
-    for ( Task& task : instance->mTasks )
+    for ( Task& task : instanceMaybe->mTasks )
         if ( task.mThread == thread )
         {
             task.mWait = resumed.mWait;
@@ -47,43 +47,43 @@ void ScriptRuntime::TickInstance( ScriptInstanceHandle instanceHandle, f32 dt )
     if ( not Enabled( instanceHandle ) )
         return;
     // Coroutines started during this tick have run already.
-    const size_t count = mInstances.Get( instanceHandle )->mTasks.size();
+    const size_t count = mInstances.TryGet( instanceHandle )->mTasks.size();
     for ( size_t i = 0; i < count and Enabled( instanceHandle ); ++i )
     {
-        const auto instance = mInstances.Get( instanceHandle );
-        if ( i >= instance->mTasks.size() )
+        const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+        if ( i >= instanceMaybe->mTasks.size() )
             break;
-        const Task task = instance->mTasks[i];
+        const Task task = instanceMaybe->mTasks[i];
         if ( task.mDone )
             continue;
 
         bool ready = true;
-        if ( const auto seconds = task.mWait.As<f64>() )
+        if ( const auto secondsMaybe = task.mWait.TryAs<f64>() )
         {
-            const f64 left = *seconds - dt;
+            const f64 left = *secondsMaybe - dt;
             ready = left <= 0;
             if ( not ready )
-                instance->mTasks[i].mWait = mLua.Value( left );
+                instanceMaybe->mTasks[i].mWait = mLua.Value( left );
         }
-        else if ( const auto condition = task.mWait.As<LuaFunction>() )
+        else if ( const auto conditionMaybe = task.mWait.TryAs<LuaFunction>() )
         {
-            expected<LuaValue, ScriptError> polled;
+            expected<LuaValue, ScriptError> polledMaybe;
             {
                 const CurrentScope scope( *this, instanceHandle );
-                polled = ( *condition )();
+                polledMaybe = ( *conditionMaybe )();
             }
-            if ( not polled )
+            if ( not polledMaybe )
             {
-                Fail( instanceHandle, polled.error() );
+                Fail( instanceHandle, polledMaybe.error() );
                 break;
             }
-            ready = polled->Truthy();
+            ready = polledMaybe->Truthy();
         }
         if ( ready )
             Resume( instanceHandle, task.mThread, {} );
     }
-    if ( const auto instance = mInstances.Get( instanceHandle ) )
-        erase_if( instance->mTasks, []( const Task& task ) { return task.mDone; } );
+    if ( const auto instanceMaybe = mInstances.TryGet( instanceHandle ) )
+        erase_if( instanceMaybe->mTasks, []( const Task& task ) { return task.mDone; } );
 }
 
 void ScriptRuntime::Tick( f32 dt )

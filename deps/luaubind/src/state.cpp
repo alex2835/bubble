@@ -211,7 +211,7 @@ bool LuaState::Frozen( const LuaValue& table )
 
 // ---- code ------------------------------------------------------------------
 
-expected<LuaFunction, string> LuaState::Load( string_view chunk, string_view bytecode, const LuaTable& environment )
+expected<LuaFunction, string> LuaState::TryLoad( string_view chunk, string_view bytecode, const LuaTable& environment )
 {
     lua_State* L = mActive;
     const StackRestore restore( L, lua_gettop( L ) );
@@ -219,8 +219,8 @@ expected<LuaFunction, string> LuaState::Load( string_view chunk, string_view byt
     // The environment reads through to the sealed globals: lookups of
     // math.sqrt and friends may be cached, and run as builtins.
     lua_setsafeenv( L, -1, true );
-    if ( auto loaded = LoadScript( L, chunk, bytecode, lua_gettop( L ) ); not loaded )
-        return std::unexpected( std::move( loaded.error() ) );
+    if ( auto loadedMaybe = TryLoadScript( L, chunk, bytecode, lua_gettop( L ) ); not loadedMaybe )
+        return std::unexpected( std::move( loadedMaybe.error() ) );
 #ifdef LUAUBIND_CODEGEN
     if ( mNativeCode )
         luau_codegen_compile( L, -1 );
@@ -228,11 +228,11 @@ expected<LuaFunction, string> LuaState::Load( string_view chunk, string_view byt
     return LuaFunction( LuaValue( L, -1 ) );
 }
 
-expected<LuaValue, ScriptError> LuaState::CallImpl( lua_State* L, int top )
+expected<LuaValue, ScriptError> LuaState::TryCallImpl( lua_State* L, int top )
 {
     const StackRestore restore( L, top );
-    if ( auto called = PCall( L, lua_gettop( L ) - top - 1, 1 ); not called )
-        return std::unexpected( std::move( called.error() ) );
+    if ( auto calledMaybe = TryPCall( L, lua_gettop( L ) - top - 1, 1 ); not calledMaybe )
+        return std::unexpected( std::move( calledMaybe.error() ) );
     return LuaValue( L, -1 );
 }
 
@@ -302,29 +302,29 @@ bool LuaState::Yieldable()
 
 // ---- data ------------------------------------------------------------------
 
-expected<string, string> LuaState::Encode( const LuaValue& value )
+expected<string, string> LuaState::TryEncode( const LuaValue& value )
 {
     value.Push( mActive );
-    auto bytes = LuaEncode( mActive, -1 );
+    auto bytesMaybe = TryLuaEncode( mActive, -1 );
     lua_pop( mActive, 1 );
-    return bytes;
+    return bytesMaybe;
 }
 
-expected<LuaValue, string> LuaState::Decode( string_view bytes )
+expected<LuaValue, string> LuaState::TryDecode( string_view bytes )
 {
-    if ( auto decoded = LuaDecode( mActive, bytes ); not decoded )
-        return std::unexpected( std::move( decoded.error() ) );
+    if ( auto decodedMaybe = TryLuaDecode( mActive, bytes ); not decodedMaybe )
+        return std::unexpected( std::move( decodedMaybe.error() ) );
     return Take();
 }
 
-expected<LuaValue, string> LuaState::DeepCopy( const LuaValue& value )
+expected<LuaValue, string> LuaState::TryDeepCopy( const LuaValue& value )
 {
     value.Push( mActive );
-    auto copied = LuaDeepCopy( mActive, -1 );
-    if ( not copied )
+    auto copiedMaybe = TryLuaDeepCopy( mActive, -1 );
+    if ( not copiedMaybe )
     {
         lua_pop( mActive, 1 );
-        return std::unexpected( std::move( copied.error() ) );
+        return std::unexpected( std::move( copiedMaybe.error() ) );
     }
     LuaValue copy = Take();
     lua_pop( mActive, 1 );
@@ -352,7 +352,7 @@ string_view LuaState::AtomName( i16 atom ) const
     return mAtomNames[static_cast<size_t>( atom )];
 }
 
-LuaType* LuaState::FindType( int tag ) const
+LuaType* LuaState::TryFindType( int tag ) const
 {
     // Tag 0 is plain userdata; registered types start at 1.
     if ( tag < 1 or static_cast<size_t>( tag ) > mTypes.size() )

@@ -10,7 +10,7 @@ namespace
 {
 Text Make( string_view utf8 )
 {
-    return *Text::From( utf8 );
+    return *Text::TryFrom( utf8 );
 }
 
 ValueType Of( ValueKind kind )
@@ -21,8 +21,8 @@ ValueType Of( ValueKind kind )
 // waves: a list of { count: integer, delay: number }.
 ValueType Waves()
 {
-    REQUIRE( Name::From( "count" ) );
-    REQUIRE( Name::From( "delay" ) );
+    REQUIRE( Name::TryFrom( "count" ) );
+    REQUIRE( Name::TryFrom( "delay" ) );
     return ValueType::ListOf(
         ValueType::RecordOf( { { "count"_n, Of( ValueKind::Integer ) }, { "delay"_n, Of( ValueKind::Number ) } } ) );
 }
@@ -37,10 +37,10 @@ TEST_CASE( "A value holds one of a closed set of kinds" )
 {
     CHECK( Value().Is<bool>() );
     CHECK( Value( 3 ).Is<f64>() );
-    CHECK( *Value( 3 ).As<f64>() == 3.0 );
-    CHECK( Value( Make( "door" ) ).As<Text>()->View() == "door" );
+    CHECK( *Value( 3 ).TryAs<f64>() == 3.0 );
+    CHECK( Value( Make( "door" ) ).TryAs<Text>()->View() == "door" );
     CHECK( Value( vec3( 1, 2, 3 ) ).Is<vec3>() );
-    CHECK_FALSE( Value( 2.5 ).As<Text>() );
+    CHECK_FALSE( Value( 2.5 ).TryAs<Text>() );
     CHECK( Value( 2.5 ) == Value( 2.5 ) );
     CHECK( Value( 2.5 ) != Value( true ) );
     CHECK( Value( Value::List{ 1, 2 } ) == Value( Value::List{ 1, 2 } ) );
@@ -66,26 +66,26 @@ TEST_CASE( "A type describes itself for messages" )
 
 TEST_CASE( "Check passes a value that is what its type says" )
 {
-    CHECK( Check( 2, Of( ValueKind::Integer ), "count" ) );
-    CHECK( Check( 2.5, Of( ValueKind::Number ), "speed" ) );
-    CHECK( Check( Value::List{ Wave( 3, 1.5 ), Wave( 5, 0.5 ) }, Waves(), "waves" ) );
-    CHECK( Check( Value::List{}, Waves(), "waves" ) );
+    CHECK( TryCheck( 2, Of( ValueKind::Integer ), "count" ) );
+    CHECK( TryCheck( 2.5, Of( ValueKind::Number ), "speed" ) );
+    CHECK( TryCheck( Value::List{ Wave( 3, 1.5 ), Wave( 5, 0.5 ) }, Waves(), "waves" ) );
+    CHECK( TryCheck( Value::List{}, Waves(), "waves" ) );
 }
 
 TEST_CASE( "Check says where a value goes wrong and what it got" )
 {
-    CHECK( Check( 2.5, Of( ValueKind::Integer ), "count" ).error() == "count: an integer expected, got 2.5" );
-    CHECK( Check( Make( "fast" ), Of( ValueKind::Number ), "speed" ).error() ==
+    CHECK( TryCheck( 2.5, Of( ValueKind::Integer ), "count" ).error() == "count: an integer expected, got 2.5" );
+    CHECK( TryCheck( Make( "fast" ), Of( ValueKind::Number ), "speed" ).error() ==
            "speed: a number expected, got \"fast\"" );
-    CHECK( Check( Value::List{ Wave( 3, 1.5 ), Wave( 2.5, 1 ) }, Waves(), "waves" ).error() ==
+    CHECK( TryCheck( Value::List{ Wave( 3, 1.5 ), Wave( 2.5, 1 ) }, Waves(), "waves" ).error() ==
            "waves[2].count: an integer expected, got 2.5" );
-    CHECK( Check( Value::List{ Value::Record{ { "count"_n, 1 } } }, Waves(), "waves" ).error() ==
+    CHECK( TryCheck( Value::List{ Value::Record{ { "count"_n, 1 } } }, Waves(), "waves" ).error() ==
            "waves[1]: no field delay" );
-    REQUIRE( Name::From( "cnt" ) );
-    CHECK( Check( Value::List{ Value::Record{ { "cnt"_n, 1 }, { "delay"_n, 1 } } }, Waves(), "waves" ).error() ==
+    REQUIRE( Name::TryFrom( "cnt" ) );
+    CHECK( TryCheck( Value::List{ Value::Record{ { "cnt"_n, 1 }, { "delay"_n, 1 } } }, Waves(), "waves" ).error() ==
            "waves[1].cnt: not a field (fields: count, delay)" );
-    CHECK(
-        Check( Value::List{ Value::Record{ { "count"_n, 1 }, { "count"_n, 2 }, { "delay"_n, 1 } } }, Waves(), "waves" )
-            .error() == "waves[1].count: given twice" );
-    CHECK( Check( 1, Waves(), "waves" ).error() == "waves: a list of record (count, delay) expected, got 1" );
+    CHECK( TryCheck( Value::List{ Value::Record{ { "count"_n, 1 }, { "count"_n, 2 }, { "delay"_n, 1 } } }, Waves(),
+                     "waves" )
+               .error() == "waves[1].count: given twice" );
+    CHECK( TryCheck( 1, Waves(), "waves" ).error() == "waves: a list of record (count, delay) expected, got 1" );
 }

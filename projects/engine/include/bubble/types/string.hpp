@@ -14,6 +14,9 @@ using string_view = std::string_view;
 using std::u8string;
 using std::u8string_view;
 
+using std::errc;
+using std::from_chars;
+using std::to_chars;
 using std::to_string;
 
 // The whole of `text` as an integer, or nothing.

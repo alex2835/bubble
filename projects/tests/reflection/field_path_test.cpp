@@ -39,14 +39,14 @@ struct Light
 
 Text Make( string_view utf8 )
 {
-    return *Text::From( utf8 );
+    return *Text::TryFrom( utf8 );
 }
 
 FieldPath Path( string_view text )
 {
-    auto path = FieldPath::Parse( text );
-    REQUIRE_MESSAGE( path, path.error() );
-    return *path;
+    auto pathMaybe = FieldPath::TryParse( text );
+    REQUIRE_MESSAGE( pathMaybe, pathMaybe.error() );
+    return *pathMaybe;
 }
 
 struct Fixture
@@ -68,9 +68,9 @@ struct Fixture
             .Field<&Light::mCache>( "cache", { .mFlags = FieldInfo::Transient } )
             .Property<&Light::SetFarShadow, &Light::FarShadow>( "far_shadow" );
 
-        REQUIRE( Name::From( "speed" ) );
-        REQUIRE( Name::From( "waves" ) );
-        REQUIRE( Name::From( "count" ) );
+        REQUIRE( Name::TryFrom( "speed" ) );
+        REQUIRE( Name::TryFrom( "waves" ) );
+        REQUIRE( Name::TryFrom( "count" ) );
         mLight.mProps = Value::Record{
             { "speed"_n, 2 },
             { "waves"_n, Value::List{ Value::Record{ { "count"_n, 3 } } } },
@@ -78,9 +78,9 @@ struct Fixture
         mObject = mReflection.Ref( mLight );
     }
 
-    expected<void, string> Set( string_view path, MetaAny value )
+    expected<void, string> TrySet( string_view path, MetaAny value )
     {
-        return mReflection.SetField( mObject, Path( path ), std::move( value ) );
+        return mReflection.TrySetField( mObject, Path( path ), std::move( value ) );
     }
 };
 }
@@ -92,27 +92,27 @@ TEST_CASE( "A field path is parsed once and says what is wrong with it" )
     CHECK( get<size_t>( Path( "steps[2]" ).Steps()[1] ) == 2 );
     CHECK( Path( "props.waves[1].count" ).ToString() == "props.waves[1].count" );
 
-    CHECK( FieldPath::Parse( "" ).error() == "an empty field path" );
-    CHECK( FieldPath::Parse( "shadow." ).error() == "shadow.: an empty step" );
-    CHECK( FieldPath::Parse( "shadow..bias" ).error() == "shadow..bias: an empty step" );
-    CHECK( FieldPath::Parse( "Shadow" ).error().starts_with( "Shadow: 'Shadow' is not a name" ) );
-    CHECK( FieldPath::Parse( "steps[0]" ).error() == "steps[0]: a position is a whole number from 1, not '0'" );
-    CHECK( FieldPath::Parse( "steps[x]" ).error() == "steps[x]: a position is a whole number from 1, not 'x'" );
-    CHECK( FieldPath::Parse( "steps[2" ).error() == "steps[2: [ without ]" );
-    CHECK( FieldPath::Parse( "steps[2]x" ).error() == "steps[2]x: 'x' after a position, where . or [ goes" );
+    CHECK( FieldPath::TryParse( "" ).error() == "an empty field path" );
+    CHECK( FieldPath::TryParse( "shadow." ).error() == "shadow.: an empty step" );
+    CHECK( FieldPath::TryParse( "shadow..bias" ).error() == "shadow..bias: an empty step" );
+    CHECK( FieldPath::TryParse( "Shadow" ).error().starts_with( "Shadow: 'Shadow' is not a name" ) );
+    CHECK( FieldPath::TryParse( "steps[0]" ).error() == "steps[0]: a position is a whole number from 1, not '0'" );
+    CHECK( FieldPath::TryParse( "steps[x]" ).error() == "steps[x]: a position is a whole number from 1, not 'x'" );
+    CHECK( FieldPath::TryParse( "steps[2" ).error() == "steps[2: [ without ]" );
+    CHECK( FieldPath::TryParse( "steps[2]x" ).error() == "steps[2]x: 'x' after a position, where . or [ goes" );
 }
 
 TEST_CASE( "A path reads through fields and lists, by reference" )
 {
     Fixture f;
-    auto bias = f.mReflection.GetField( f.mObject, Path( "shadow.bias" ) );
-    REQUIRE( bias );
-    CHECK( bias->cast<f32>() == 0.1f );
+    auto biasMaybe = f.mReflection.TryGetField( f.mObject, Path( "shadow.bias" ) );
+    REQUIRE( biasMaybe );
+    CHECK( biasMaybe->cast<f32>() == 0.1f );
     // A reference: writing through it writes the light.
-    bias->cast<f32&>() = 0.3f;
+    biasMaybe->cast<f32&>() = 0.3f;
     CHECK( f.mLight.mShadow.mBias == 0.3f );
 
-    CHECK( f.mReflection.GetField( f.mObject, Path( "steps[2]" ) )->cast<f32>() == 2.0f );
+    CHECK( f.mReflection.TryGetField( f.mObject, Path( "steps[2]" ) )->cast<f32>() == 2.0f );
 }
 
 TEST_CASE( "A set deep in an object reports every field it passed, the innermost first" )
@@ -123,7 +123,7 @@ TEST_CASE( "A set deep in an object reports every field it passed, the innermost
                                   [&]( MetaAny& ) { heard.push_back( "shadow.bias" ); } );
     f.mReflection.OnFieldChanged( f.mReflection.TypeOf<Light>(), "shadow"_n,
                                   [&]( MetaAny& ) { heard.push_back( "light.shadow" ); } );
-    REQUIRE( f.Set( "shadow.bias", MetaAny( 0.5f ) ) );
+    REQUIRE( f.TrySet( "shadow.bias", MetaAny( 0.5f ) ) );
     CHECK( f.mLight.mShadow.mBias == 0.5f );
     CHECK( heard == vector<string>{ "shadow.bias", "light.shadow" } );
 }
@@ -133,7 +133,7 @@ TEST_CASE( "A path through a property changes a copy and sets it back" )
     Fixture f;
     int heard = 0;
     f.mReflection.OnFieldChanged( f.mReflection.TypeOf<Light>(), "far_shadow"_n, [&]( MetaAny& ) { ++heard; } );
-    REQUIRE( f.Set( "far_shadow.softness", MetaAny( 4.0f ) ) );
+    REQUIRE( f.TrySet( "far_shadow.softness", MetaAny( 4.0f ) ) );
     CHECK( f.mLight.mFar.mSoftness == 4.0f );
     CHECK( f.mLight.mFarSets == 1 );
     CHECK( heard == 1 );
@@ -142,13 +142,13 @@ TEST_CASE( "A path through a property changes a copy and sets it back" )
 TEST_CASE( "A path sets an element of a list, and says when there is none" )
 {
     Fixture f;
-    REQUIRE( f.Set( "steps[3]", MetaAny( 9 ) ) );
+    REQUIRE( f.TrySet( "steps[3]", MetaAny( 9 ) ) );
     CHECK( f.mLight.mSteps == vector<f32>{ 1, 2, 9 } );
-    CHECK( f.Set( "steps[5]", MetaAny( 1.0f ) ).error() == "light.steps[5]: no element 5, there are 3" );
-    CHECK( f.Set( "brightness[1]", MetaAny( 1.0f ) ).error() == "light.brightness[1]: not a list, it is a number" );
-    CHECK( f.Set( "shadow.blur", MetaAny( 1.0f ) ).error() ==
+    CHECK( f.TrySet( "steps[5]", MetaAny( 1.0f ) ).error() == "light.steps[5]: no element 5, there are 3" );
+    CHECK( f.TrySet( "brightness[1]", MetaAny( 1.0f ) ).error() == "light.brightness[1]: not a list, it is a number" );
+    CHECK( f.TrySet( "shadow.blur", MetaAny( 1.0f ) ).error() ==
            "light.shadow.blur: shadow has no field blur (fields: bias, softness)" );
-    CHECK( f.Set( "shadow.bias", MetaAny( string( "soft" ) ) ).error() ==
+    CHECK( f.TrySet( "shadow.bias", MetaAny( string( "soft" ) ) ).error() ==
            "light.shadow.bias: number expected, got text" );
 }
 
@@ -158,27 +158,28 @@ TEST_CASE( "A path goes on into a script's props, a Value, and keeps each slot's
     int heard = 0;
     f.mReflection.OnFieldChanged( f.mReflection.TypeOf<Light>(), "props"_n, [&]( MetaAny& ) { ++heard; } );
 
-    REQUIRE( f.Set( "props.speed", MetaAny( 5 ) ) );
-    REQUIRE( f.Set( "props.waves[1].count", MetaAny( 4 ) ) );
-    CHECK( f.mReflection.GetField( f.mObject, Path( "props.speed" ) )->cast<const Value&>() == Value( 5 ) );
-    CHECK( f.mReflection.GetField( f.mObject, Path( "props.waves[1].count" ) )->cast<const Value&>() == Value( 4 ) );
+    REQUIRE( f.TrySet( "props.speed", MetaAny( 5 ) ) );
+    REQUIRE( f.TrySet( "props.waves[1].count", MetaAny( 4 ) ) );
+    CHECK( f.mReflection.TryGetField( f.mObject, Path( "props.speed" ) )->cast<const Value&>() == Value( 5 ) );
+    CHECK( f.mReflection.TryGetField( f.mObject, Path( "props.waves[1].count" ) )->cast<const Value&>() == Value( 4 ) );
     CHECK( heard == 2 );
 
-    CHECK( f.Set( "props.speed", MetaAny( string( "fast" ) ) ).error() ==
+    CHECK( f.TrySet( "props.speed", MetaAny( string( "fast" ) ) ).error() ==
            "light.props.speed: number expected, got \"fast\"" );
-    REQUIRE( Name::From( "sped" ) );
-    CHECK( f.Set( "props.sped", MetaAny( 1 ) ).error() == "light.props.sped: no field sped (fields: speed, waves)" );
-    CHECK( f.Set( "props.waves[2].count", MetaAny( 1 ) ).error() == "light.props.waves[2]: no element 2, there are 1" );
+    REQUIRE( Name::TryFrom( "sped" ) );
+    CHECK( f.TrySet( "props.sped", MetaAny( 1 ) ).error() == "light.props.sped: no field sped (fields: speed, waves)" );
+    CHECK( f.TrySet( "props.waves[2].count", MetaAny( 1 ) ).error() ==
+           "light.props.waves[2]: no element 2, there are 1" );
 }
 
 TEST_CASE( "A Value given for a C++ field is made into the field's type" )
 {
     Fixture f;
-    REQUIRE( f.Set( "color", MetaAny( Value( vec3( 0, 1, 0 ) ) ) ) );
+    REQUIRE( f.TrySet( "color", MetaAny( Value( vec3( 0, 1, 0 ) ) ) ) );
     CHECK( f.mLight.mColor == vec3( 0, 1, 0 ) );
-    REQUIRE( f.Set( "flickers", MetaAny( Value( 3 ) ) ) );
+    REQUIRE( f.TrySet( "flickers", MetaAny( Value( 3 ) ) ) );
     CHECK( f.mLight.mFlickers == 3 );
-    CHECK( f.Set( "flickers", MetaAny( Value( 2.5 ) ) ).error() == "light.flickers: integer expected, got 2.5" );
+    CHECK( f.TrySet( "flickers", MetaAny( Value( 2.5 ) ) ).error() == "light.flickers: integer expected, got 2.5" );
 }
 
 TEST_CASE( "An object becomes a Value and comes back, its transient fields left out" )
@@ -187,16 +188,16 @@ TEST_CASE( "An object becomes a Value and comes back, its transient fields left 
     f.mLight.mBrightness = 3;
     f.mLight.mShadow.mBias = 0.25f;
     f.mLight.mCache = 7;
-    const auto value = f.mReflection.ToValue( f.mObject );
-    REQUIRE( value );
-    const auto record = value->As<Value::Record>();
-    REQUIRE( record );
-    for ( const ValueField& field : *record )
+    const auto valueMaybe = f.mReflection.TryToValue( f.mObject );
+    REQUIRE( valueMaybe );
+    const auto recordMaybe = valueMaybe->TryAs<Value::Record>();
+    REQUIRE( recordMaybe );
+    for ( const ValueField& field : *recordMaybe )
         CHECK( field.mName != "cache"_n );
 
-    const auto made = f.mReflection.FromValue( *value, f.mReflection.TypeOf<Light>() );
-    REQUIRE_MESSAGE( made, made.error() );
-    const Light& copy = made->cast<const Light&>();
+    const auto madeMaybe = f.mReflection.TryFromValue( *valueMaybe, f.mReflection.TypeOf<Light>() );
+    REQUIRE_MESSAGE( madeMaybe, madeMaybe.error() );
+    const Light& copy = madeMaybe->cast<const Light&>();
     CHECK( copy.mBrightness == 3.0f );
     CHECK( copy.mShadow.mBias == 0.25f );
     CHECK( copy.mSteps == f.mLight.mSteps );
@@ -204,6 +205,6 @@ TEST_CASE( "An object becomes a Value and comes back, its transient fields left 
     CHECK( copy.mCache == 0.0f );
 
     const Value wrong = Value::Record{ { "brightness"_n, Value( Make( "bright" ) ) } };
-    CHECK( f.mReflection.FromValue( wrong, f.mReflection.TypeOf<Light>() ).error() ==
+    CHECK( f.mReflection.TryFromValue( wrong, f.mReflection.TypeOf<Light>() ).error() ==
            "light.brightness: number expected, got \"bright\"" );
 }

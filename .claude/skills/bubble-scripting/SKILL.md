@@ -20,20 +20,20 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 
 | file | what it is |
 | --- | --- |
-| `luaubind/state` | **`LuaState`, the VM and the only door to it**: `NewTable`, `Globals`, `Value`, `Function`, `Load`, `Call`, `NewThread`/`Resume`/`Yieldable`, `CallerEnvironment`, `Encode`/`Decode`/`DeepCopy`, `Seal`, atoms, `FindType`, the print handler. Tracks the active thread |
-| `luaubind/value` | `LuaValue` (any value held from C++; copy = same value; nil when empty; `Kind`, `Truthy`, `As<T>`, `Describe`, `==`), `LuaTable` (`t["k"] = v`, `t["a"]["b"]`, `Get`/`RawGet`/`Set`/`RawSet`, `Pairs`, `Length`, `Append`, `SetMetatable`, `Freeze`, `Clone`), `LuaFunction` (`fn( args... )`), `LuaThread` (`Resume( args... )`) |
+| `luaubind/state` | **`LuaState`, the VM and the only door to it**: `NewTable`, `Globals`, `Value`, `Function`, `TryLoad`, `TryCall`, `NewThread`/`Resume`/`Yieldable`, `CallerEnvironment`, `TryEncode`/`TryDecode`/`TryDeepCopy`, `Seal`, atoms, `TryFindType`, the print handler. Tracks the active thread |
+| `luaubind/value` | `LuaValue` (any value held from C++; copy = same value; nil when empty; `Kind`, `Truthy`, `TryAs<T>`, `Describe`, `==`), `LuaTable` (`t["k"] = v`, `t["a"]["b"]`, `Get`/`RawGet`/`Set`/`RawSet`, `Pairs`, `Length`, `Append`, `SetMetatable`, `Freeze`, `Clone`), `LuaFunction` (`fn( args... )`), `LuaThread` (`Resume( args... )`) |
 | `luaubind/stack` | `LuaTraits<T>` (`cName`, `Is`, `Push`, `Check`), `LuaError`, `LuaRest`, `LuaYield`, `LuaPushFunction` - the binding machinery |
-| `luaubind/call` | `CompileScript`, `ScriptError`; raw `LoadScript`, `PCall`, `DescribeValue` under `LuaState` |
+| `luaubind/call` | `TryCompileScript`, `ScriptError`; raw `TryLoadScript`, `TryPCall`, `DescribeValue` under `LuaState` |
 | `luaubind/type` | `LuaType`/`LuaTypeBuilder<T>`: C++ structs as tagged userdata, fields and methods by atom |
-| `luaubind/data` | raw `LuaEncode`/`LuaDecode`/`LuaDeepCopy` under `LuaState::Encode`/`Decode`/`DeepCopy` |
+| `luaubind/data` | raw `TryLuaEncode`/`TryLuaDecode`/`TryLuaDeepCopy` under `LuaState::TryEncode`/`TryDecode`/`TryDeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
 | `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptImporter`: `.luau` → bytecode in the asset registry; compiles on the spot for now |
-| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `RunFile`/`RunScript`/`RunLibrary`, passport), `require`, `scripts` (`Load`/`Unload`), `reload` (`Changed`, `Rerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
+| `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `TryRunFile`/`TryRunScript`/`TryRunLibrary`, passport), `require`, `scripts` (`TryLoad`/`Unload`), `reload` (`Changed`, `TryRerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
 
 Not there yet (stage 7): the World module that owns a runtime and a
 runtime component per entity, `self.entity`, `Value` ↔ Luau and the
 `asset`/`entity`/`color`/`list` constructors, props and requires read from
-the AST on import, reading `.luaurc` (luau_config) into `SetAlias`,
+the AST on import, reading `.luaurc` (luau_config) into `TrySetAlias`,
 `bubble.d.luau`, the `interrupt` guard against endless loops.
 
 ## The script model
@@ -68,7 +68,7 @@ function on_update( self, dt ) end
 - **`self`** is a deep copy of the props with the instance's overrides laid
   on - flat, `self.speed`, no `self.props`. After that a prop is plain state.
   An override with an unknown key or another kind than the default is an
-  error. `entity` is reserved. Props must be data (`Encode`-able).
+  error. `entity` is reserved. Props must be data (`TryEncode`-able).
 - **`locals { ... }`** is the instance's own state - a reload timer, a
   counter: deep-copied into `self` next to the props, flat as they are, but
   not in `Props`, not settable by an override (an error saying so) and not
@@ -107,14 +107,14 @@ local tuning = require( "./player_tuning" )     -- next to this file
 - **Behaviour over time belongs to an instance.** A library's function
   called from an instance runs for it (`start`/`on` inside are that
   instance's). The top of any file belongs to no one, even when a callback's
-  `require` runs it (`RunFile` sets an empty `CurrentScope`), so `on`/`start`
+  `require` runs it (`TryRunFile` sets an empty `CurrentScope`), so `on`/`start`
   there are errors. Something world-wide is an entity with a script.
-- **Names:** an entity's file is a *script* (`ScriptHandle`, `RunScript`),
-  a required one a *library* (`RunLibrary`); both run their top through
-  `RunFile`. Luau and Roblox call a required file a module, so nothing of
+- **Names:** an entity's file is a *script* (`ScriptHandle`, `TryRunScript`),
+  a required one a *library* (`TryRunLibrary`); both run their top through
+  `TryRunFile`. Luau and Roblox call a required file a module, so nothing of
   ours is called that.
 - Paths follow Luau's own require so luau-lsp agrees: `./x`, `../x` from the
-  requiring file, `@alias/x` through `SetAlias`; no extension; a bare path is
+  requiring file, `@alias/x` through `TrySetAlias`; no extension; a bare path is
   an error. Use string literals - import will read them from the AST.
 - **require never loads**: it takes the library from the registry, which the
   world filled before its scripts ran; a library not loaded there is an error
@@ -123,7 +123,7 @@ local tuning = require( "./player_tuning" )     -- next to this file
   are shared by every entity of the world. Cycles are errors showing the
   chain. An error inside a library fails the requiring file with both
   places in the message.
-- **Hot reload comes from the registry**: `AssetRegistry::Reload( path )`
+- **Hot reload comes from the registry**: `AssetRegistry::TryReload( path )`
   imports the file into the same entry and tells listeners; the runtime then
   re-runs a changed script, or drops a changed library's value (it runs again
   at its next require) and re-runs every script that required it, directly or
@@ -145,23 +145,23 @@ lua.Globals()["raycast"] = [&]( Vec3 from, Vec3 to ) { return Hit( from, to ); }
 LuaTypeBuilder<Light>( lua, "light" ).Field( "brightness", &Light::mBrightness ).Method( "dim", &Dim );
 lua.Seal();                                            // globals and types first, then seal
 
-runtime.SetAlias( "lib", "scripts/lib" );
+runtime.TrySetAlias( "lib", "scripts/lib" );
 // The world loads what it needs first and holds the handles.
-auto held = { assets.Load<ScriptAsset>( *AssetPath::From( "scripts/player.luau" ) ),
-              assets.Load<ScriptAsset>( *AssetPath::From( "scripts/lib/inventory.luau" ) ) };
-auto script = runtime.Load( "scripts/player.luau" );   // one script per path
-auto player = runtime.Create( *script, "/player" );
-runtime.Call( *player, OnUpdate, dt );                 // self first, then the args
+auto held = { assets.Load<ScriptAsset>( *AssetPath::TryFrom( "scripts/player.luau" ) ),
+              assets.Load<ScriptAsset>( *AssetPath::TryFrom( "scripts/lib/inventory.luau" ) ) };
+auto scriptMaybe = runtime.TryLoad( "scripts/player.luau" );   // one script per path
+auto playerMaybe = runtime.TryCreate( *scriptMaybe, "/player" );
+runtime.Call( *playerMaybe, OnUpdate, dt );                 // self first, then the args
 runtime.Emit( "door_opened", "north" );
 
 LuaTable self = runtime.Self( *player );
-f64 speed = self["speed"].As<f64>().value_or( 0 );    // reads are explicit, never implicit
+f64 speed = self["speed"].TryAs<f64>().value_or( 0 );    // reads are explicit, never implicit
 self["stats"]["hp"] = 10;                              // nested, writes through
 for ( const auto& [key, value] : self.Pairs() ) … ;    // a snapshot: the loop may change the table
 ```
 
 - **Order:** `LuaState` → `ScriptRuntime` (adds globals) → engine bindings
-  and types → `Seal()` → load assets → `Load`. `Load` refuses an unsealed
+  and types → `Seal()` → load assets → `TryLoad`. `TryLoad` refuses an unsealed
   state and a script the registry has not loaded; the runtime refuses a
   sealed state.
 - **Who owns what:** the registry owns script assets (bytecode); the runtime
@@ -194,7 +194,7 @@ for ( const auto& [key, value] : self.Pairs() ) … ;    // a snapshot: the loop
    `Resume` switch it, so C++ called from a coroutine works on the
    coroutine's stack by itself. Raw code in the binding layer works on
    `lua.Active()`, not on `lua.L()`.
-4. **Script code runs only through `LuaState::Call`/`Resume`** (or the
+4. **Script code runs only through `LuaState::TryCall`/`Resume`** (or the
    runtime's `Call`/`Emit`/`Tick`), which are protected. `LuaError` is for
    bound functions; anywhere else an error is an `expected`.
 5. **A `LuaValue` must die before its `LuaState`.** Member order: state
@@ -202,7 +202,7 @@ for ( const auto& [key, value] : self.Pairs() ) … ;    // a snapshot: the loop
    function: per-file data goes in weak-keyed tables, not in closures that
    hold their own environment and so never go.
 6. **No `Any`.** What goes to a file is `Value` (stage 1); working state stays
-   in Luau as `LuaValue`s (`Encode`, `DeepCopy` for saves and snapshots).
+   in Luau as `LuaValue`s (`TryEncode`, `TryDeepCopy` for saves and snapshots).
 
 ## Luau facts that bite
 
@@ -211,7 +211,7 @@ for ( const auto& [key, value] : self.Pairs() ) … ;    // a snapshot: the loop
 - `vector` is three floats, no allocation; `LuaVectorLike` maps any `x, y, z`
   float struct (glm::vec3) to it.
 - `#s` is bytes; characters are `utf8.len`/`utf8.codes`.
-- Chunk names: `Load` prefixes `@` so errors read `player.luau:12:`; `=name`
+- Chunk names: `TryLoad` prefixes `@` so errors read `player.luau:12:`; `=name`
   for something that is not a file.
 - Per-file data - the passport: path, props, locals, library or not, the
   libraries required - is kept in weak-keyed tables by the environment of
@@ -229,7 +229,7 @@ The runtime is tested in `projects/tests/scripts/`: `script_helpers.hpp` has
 `Bytecode` and `LogWatch` (assert what was logged); `script_fixture.hpp` has
 the `Scripts` fixture - project files in memory behind a registry,
 `record( text )` and `destroy()` bound for observing order and lifetimes,
-`Load`/`AddLibrary` (write + load the asset), `Change` (write + registry
+`Load`/`AddLibrary` (write + load the asset), `TryChange` (write + registry
 reload, as an edit on disk), `Evaluate`, `Field`/`Number`/`Set` on self.
 Runtime tests are in `script_runtime_test.cpp`, libraries in
 `script_require_test.cpp`.

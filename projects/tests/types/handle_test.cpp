@@ -18,13 +18,13 @@ TEST_CASE( "A handle finds its entry until the entry is removed" )
     const ThingHandle sword = things.Add( "sword" );
     const ThingHandle shield = things.Add( "shield" );
     CHECK( things.Size() == 2 );
-    CHECK( *things.Get( sword ) == "sword" );
+    CHECK( *things.TryGet( sword ) == "sword" );
 
     CHECK( things.Remove( sword ) );
     CHECK_FALSE( things.Alive( sword ) );
-    CHECK_FALSE( things.Get( sword ) );
+    CHECK_FALSE( things.TryGet( sword ) );
     CHECK_FALSE( things.Remove( sword ) );
-    CHECK( *things.Get( shield ) == "shield" );
+    CHECK( *things.TryGet( shield ) == "shield" );
     CHECK( things.Size() == 1 );
 }
 
@@ -36,18 +36,18 @@ TEST_CASE( "A reused slot does not answer to the old handle" )
     const ThingHandle second = things.Add( "second" );
     CHECK( second.mIndex == first.mIndex );
     CHECK( second.mGeneration != first.mGeneration );
-    CHECK_FALSE( things.Get( first ) );
-    CHECK( *things.Get( second ) == "second" );
+    CHECK_FALSE( things.TryGet( first ) );
+    CHECK( *things.TryGet( second ) == "second" );
 }
 
 TEST_CASE( "An entry stays in place while others are added" )
 {
     Things things;
     const ThingHandle first = things.Add( "first" );
-    const string* address = &*things.Get( first );
+    const string* address = &*things.TryGet( first );
     for ( int i = 0; i < 10000; ++i )
         things.Add( to_string( i ) );
-    CHECK( &*things.Get( first ) == address );
+    CHECK( &*things.TryGet( first ) == address );
 }
 
 TEST_CASE( "Handles come in slot order and are a copy to change things by" )
@@ -68,13 +68,13 @@ TEST_CASE( "Handles come in slot order and are a copy to change things by" )
 TEST_CASE( "OptRef is a reference or nothing" )
 {
     int value = 3;
-    OptRef<int> some( value );
-    OptRef<int> none;
-    CHECK( some );
-    CHECK_FALSE( none );
-    *some = 4;
+    OptRef<int> someMaybe( value );
+    OptRef<int> noneMaybe;
+    CHECK( someMaybe );
+    CHECK_FALSE( noneMaybe );
+    *someMaybe = 4;
     CHECK( value == 4 );
-    const OptRef<const int> constant = some;
-    CHECK( *constant == 4 );
-    CHECK( none == nullopt );
+    const OptRef<const int> constantMaybe = someMaybe;
+    CHECK( *constantMaybe == 4 );
+    CHECK( noneMaybe == nullopt );
 }

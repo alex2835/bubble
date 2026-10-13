@@ -15,13 +15,13 @@ void ScriptRuntime::EmitWith( string_view event, const LuaRest& args )
     {
         if ( not Enabled( subscriber.mInstanceHandle ) )
             continue;
-        expected<LuaValue, ScriptError> called;
+        expected<LuaValue, ScriptError> calledMaybe;
         {
             const CurrentScope scope( *this, subscriber.mInstanceHandle );
-            called = subscriber.mFunction( Self( subscriber.mInstanceHandle ), args );
+            calledMaybe = subscriber.mFunction( Self( subscriber.mInstanceHandle ), args );
         }
-        if ( not called )
-            Fail( subscriber.mInstanceHandle, called.error() );
+        if ( not calledMaybe )
+            Fail( subscriber.mInstanceHandle, calledMaybe.error() );
     }
 }
 }
