@@ -38,8 +38,10 @@ projects/engine/include/bubble/
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type), Hierarchy (the
-                              tree from the root, names unique among siblings, PathOf/Resolve)
-    data/                     Value (what a file keeps for a prop), ValueType, Check
+                              tree from the root, names unique among siblings, PathOf/Resolve), ComponentTypes,
+                              SaveScene/LoadScene (nested JSON with "version")
+    data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
+                              parser and writer), Value <-> Json (plain by type, tagged for Any)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
