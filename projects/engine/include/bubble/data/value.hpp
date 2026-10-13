@@ -60,6 +60,18 @@ public:
         return value ? OptRef<const T>( *value ) : nullopt;
     }
 
+    template <typename T>
+    OptRef<T> As()
+    {
+        T* value = get_if<T>( &mData );
+        return value ? OptRef<T>( *value ) : nullopt;
+    }
+
+    // What it holds, as a word: "bool", "number", "text", "vec3", "color",
+    // "name", "asset", "entity", "list", "record". Two values of one kind
+    // can stand in for each other.
+    string_view Kind() const;
+
     // For messages: true, 2.5, "door", vec3( 1, 2, 3 ), a list of 3.
     string Describe() const;
 

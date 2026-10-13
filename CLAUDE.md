@@ -39,7 +39,8 @@ projects/engine/include/bubble/
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type)
     data/                     Value (what a file keeps for a prop), ValueType, Check
-    reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name, field listeners
+    reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
+                              FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)

@@ -18,6 +18,7 @@ template <typename T, typename E>
 using expected = std::expected<T, E>;
 
 using std::exchange;
+using std::in_place_type;
 using std::initializer_list;
 using std::logic_error;
 using std::nullopt;

@@ -165,6 +165,13 @@ bool operator==( const Value& a, const Value& b )
     return a.mData == b.mData;
 }
 
+string_view Value::Kind() const
+{
+    static constexpr string_view cKinds[] = { "bool", "number", "text",   "vec3", "color",
+                                              "name", "asset",  "entity", "list", "record" };
+    return cKinds[mData.index()];
+}
+
 string Value::Describe() const
 {
     if ( const auto value = As<bool>() )
