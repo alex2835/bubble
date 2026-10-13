@@ -9,7 +9,8 @@ namespace bubble
 {
 // The entities of a level or a prefab and their components, in an EnTT
 // registry. An Entity is this run's number; what lasts - in files, links
-// between objects, saves - is the entity's path in the tree.
+// between objects, saves - is the entity's path in the tree, which hangs
+// from the root every scene is made with (bubble/scene/hierarchy.hpp).
 //
 // A component stays where it is while other entities get one of its type:
 // EnTT keeps components in pages and never moves one to make room. Removing
@@ -18,11 +19,18 @@ namespace bubble
 class Scene
 {
 public:
+    Scene();
+
+    Entity Root() const { return mRoot; }
+    // An entity outside the tree; CreateChild makes one in it.
     Entity Create();
-    // An entity already gone is left alone.
+    // With everything under it, out of its parent's children. An entity
+    // already gone is left alone; the root goes with the scene only - asking
+    // to destroy it is a logic_error.
     void Destroy( Entity entity );
     // False for Entity::Null and for an entity that is gone.
     bool Alive( Entity entity ) const;
+    // The root among them.
     size_t Count() const;
 
     // Components by type. Add replaces one the entity has; adding to an
@@ -82,7 +90,9 @@ public:
 
 private:
     void RequireAlive( Entity entity, string_view what ) const;
+    void DestroyWithSubtree( Entity entity );
 
     entt::basic_registry<Entity> mRegistry;
+    Entity mRoot;
 };
 }

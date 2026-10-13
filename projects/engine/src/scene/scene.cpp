@@ -1,8 +1,14 @@
 #include "bubble/scene/scene.hpp"
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
 {
+Scene::Scene() : mRoot( Create() )
+{
+    Add<Hierarchy>( mRoot );
+}
+
 Entity Scene::Create()
 {
     return mRegistry.create();
@@ -10,8 +16,30 @@ Entity Scene::Create()
 
 void Scene::Destroy( Entity entity )
 {
-    if ( Alive( entity ) )
-        mRegistry.destroy( entity );
+    if ( not Alive( entity ) )
+        return;
+    if ( entity == mRoot )
+        throw logic_error( "Destroy on the root: it goes with the scene" );
+    if ( const auto node = Get<Hierarchy>( entity ) )
+    {
+        Hierarchy& parent = *Get<Hierarchy>( node->mParent );
+        erase( parent.mChildren, entity );
+        parent.mChildByName.erase( parent.mChildByName.find( node->mName.View() ) );
+    }
+    DestroyWithSubtree( entity );
+}
+
+void Scene::DestroyWithSubtree( Entity entity )
+{
+    if ( const auto node = Get<Hierarchy>( entity ) )
+    {
+        // A copy: destroying a child moves another Hierarchy into its slot,
+        // and this one may be it.
+        const vector<Entity> children = node->mChildren;
+        for ( const Entity child : children )
+            DestroyWithSubtree( child );
+    }
+    mRegistry.destroy( entity );
 }
 
 bool Scene::Alive( Entity entity ) const

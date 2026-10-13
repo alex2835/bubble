@@ -37,7 +37,8 @@ projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
-    scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type)
+    scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type), Hierarchy (the
+                              tree from the root, names unique among siblings, PathOf/Resolve)
     data/                     Value (what a file keeps for a prop), ValueType, Check
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners

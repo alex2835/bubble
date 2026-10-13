@@ -23,11 +23,12 @@ TEST_CASE( "An entity is alive until it is destroyed, and a stale one stays dead
     Scene scene;
     const Entity first = scene.Create();
     CHECK( scene.Alive( first ) );
-    CHECK( scene.Count() == 1 );
+    // It and the root.
+    CHECK( scene.Count() == 2 );
 
     scene.Destroy( first );
     CHECK_FALSE( scene.Alive( first ) );
-    CHECK( scene.Count() == 0 );
+    CHECK( scene.Count() == 1 );
     // Destroying it again is nothing.
     scene.Destroy( first );
 

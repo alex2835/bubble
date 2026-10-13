@@ -51,5 +51,6 @@ using hmap = std::unordered_map<K, V, typename hmap_hash<K>::type, std::equal_to
 template <typename T>
 using hset = std::unordered_set<T, typename hmap_hash<T>::type, std::equal_to<>>;
 
+using std::erase;
 using std::erase_if;
 }
