@@ -52,10 +52,13 @@ function( bubble_executable target )
 endfunction()
 
 # Script errors are C++ exceptions; the web needs them switched on, and
-# native wasm exceptions are the fast kind.
+# native wasm exceptions are the fast kind. Emscripten's stack is 64 KB
+# unless told otherwise - too little for a JSON parser that may go 256
+# levels deep - so it gets the 1 MB a Windows thread has; past it there is
+# no guard page, only "memory access out of bounds".
 if( EMSCRIPTEN )
     add_compile_options( -fwasm-exceptions )
-    add_link_options( -fwasm-exceptions )
+    add_link_options( -fwasm-exceptions -sSTACK_SIZE=1MB )
 endif()
 
 if( BUBBLE_ASAN )
