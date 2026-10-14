@@ -3,6 +3,10 @@ name: CI
 on:
   push:
   pull_request:
+  # Once a week, for the profile build below; by hand from the Actions tab.
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
 
 jobs:
   windows:
@@ -18,12 +22,22 @@ jobs:
         run: cmake --build --preset windows-debug
       - name: Test
         run: ctest --preset windows-debug
-      # The same tests with the Tracy client compiled in.
-      - name: Build with the profiler
-        run: |
-          cmake --preset windows-profile
-          cmake --build --preset windows-profile
-          out/build/windows-profile/bin/bubble_tests.exe
+
+  # The same tests optimized, with the Tracy client compiled in: the one
+  # optimized Windows build, and the one that builds Tracy. Weekly - a
+  # second Windows build on every push costs more than what it finds.
+  windows-profile:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure
+        run: cmake --preset windows-profile
+      - name: Build
+        run: cmake --build --preset windows-profile
+      - name: Test
+        run: out/build/windows-profile/bin/bubble_tests.exe
 
   linux:
     runs-on: ubuntu-24.04
