@@ -14,6 +14,18 @@ Entity Scene::Create()
     return mRegistry.create();
 }
 
+void Scene::Revive( Entity entity )
+{
+    // EnTT takes the number as it is while its slot is free, and makes a
+    // new one otherwise.
+    const Entity made = mRegistry.create( entity );
+    if ( made != entity )
+    {
+        mRegistry.destroy( made );
+        throw logic_error( format( "Revive of entity {}: its number is in use", static_cast<u32>( entity ) ) );
+    }
+}
+
 void Scene::Destroy( Entity entity )
 {
     if ( not Alive( entity ) )

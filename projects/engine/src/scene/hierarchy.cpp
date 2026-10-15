@@ -97,15 +97,23 @@ vector<Entity> ChainToRoot( const Scene& scene, Entity entity )
 
 Entity CreateChild( Scene& scene, Entity parent, const Text& name, size_t index )
 {
-    // Good across the Add below: adding never moves a component.
-    Hierarchy& parentNode = NodeOf( scene, parent, "CreateChild" );
-    const Text unique = UniqueName( parentNode, name, Entity::Null );
     const Entity child = scene.Create();
-    Hierarchy& node = scene.Add<Hierarchy>( child );
+    AddToTree( scene, child, parent, name, index );
+    return child;
+}
+
+Text AddToTree( Scene& scene, Entity entity, Entity parent, const Text& name, size_t index )
+{
+    if ( InTree( scene, entity ) )
+        throw logic_error( format( "AddToTree on {}, which is in it", Describe( scene, entity ) ) );
+    // Good across the Add below: adding never moves a component.
+    Hierarchy& parentNode = NodeOf( scene, parent, "AddToTree" );
+    const Text unique = UniqueName( parentNode, name, Entity::Null );
+    Hierarchy& node = scene.Add<Hierarchy>( entity );
     node.mName = unique;
     node.mParent = parent;
-    Link( parentNode, child, unique, index );
-    return child;
+    Link( parentNode, entity, unique, index );
+    return unique;
 }
 
 Entity ParentOf( const Scene& scene, Entity entity )

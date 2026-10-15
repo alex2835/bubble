@@ -215,3 +215,14 @@ TEST_CASE( "Destroying an entity takes what is under it and its place in the par
     // The name is free again.
     CHECK( NameOf( f.mScene, CreateChild( f.mScene, f.mProps, Make( "chair" ) ) ) == Make( "chair" ) );
 }
+
+TEST_CASE( "An entity outside the tree is hung in it as a child is made" )
+{
+    Fixture f;
+    const Entity loose = f.mScene.Create();
+    CHECK( AddToTree( f.mScene, loose, f.mProps, Make( "chair" ), 0 ) == Make( "chair_2" ) );
+    CHECK( PathText( f.mScene, loose ) == "/props/chair_2" );
+    CHECK( ChildrenOf( f.mScene, f.mProps ).front() == loose );
+    CHECK_THROWS_WITH_AS( AddToTree( f.mScene, loose, f.mScene.Root(), Make( "again" ) ),
+                          "AddToTree on /props/chair_2, which is in it", logic_error );
+}

@@ -42,6 +42,29 @@ TEST_CASE( "An entity is alive until it is destroyed, and a stale one stays dead
     CHECK_FALSE( scene.Alive( Entity::Null ) );
 }
 
+TEST_CASE( "An entity that is gone comes back under its number, and a number in use does not" )
+{
+    Scene scene;
+    const Entity first = scene.Create();
+    scene.Add<Health>( first );
+    scene.Destroy( first );
+
+    scene.Revive( first );
+    CHECK( scene.Alive( first ) );
+    // With nothing on it.
+    CHECK_FALSE( scene.Has<Health>( first ) );
+    CHECK_THROWS_WITH_AS(
+        scene.Revive( first ),
+        doctest::Contains( format( "Revive of entity {}: its number is in use", static_cast<u32>( first ) ).c_str() ),
+        logic_error );
+    CHECK( scene.Count() == 2 );
+
+    // Gone again, it can come back again.
+    scene.Destroy( first );
+    scene.Revive( first );
+    CHECK( scene.Alive( first ) );
+}
+
 TEST_CASE( "Components are added, found, replaced and removed by type" )
 {
     Scene scene;

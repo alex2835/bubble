@@ -24,6 +24,10 @@ public:
     Entity Root() const { return mRoot; }
     // An entity outside the tree; CreateChild makes one in it.
     Entity Create();
+    // Brings back an entity that is gone under its own number - version and
+    // all - with no components: undo puts back what was there, and whatever
+    // named it before names it again. A number in use is a logic_error.
+    void Revive( Entity entity );
     // With everything under it, out of its parent's children. An entity
     // already gone is left alone; the root goes with the scene only - asking
     // to destroy it is a logic_error.

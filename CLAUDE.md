@@ -46,7 +46,11 @@ projects/engine/include/bubble/
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
-projects/tests/               doctest; folders follow the engine's, deps/ tests deps (luaubind too)
+projects/editing/include/bubble/editing/
+                              bubble_editing, on the engine and never included by it: Document (a scene, its
+                              History, dirty by position), Command, the edits (TrySetField, TryCreateEntity...);
+                              undo brings an entity back under its own number (Scene::Revive)
+projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)
 ```
 
 ## Style

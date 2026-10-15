@@ -1,4 +1,5 @@
 #pragma once
+#include <concepts>
 #include <expected>
 #include <initializer_list>
 #include <optional>
@@ -17,6 +18,8 @@ using opt = std::optional<T>;
 template <typename T, typename E>
 using expected = std::expected<T, E>;
 
+using std::copy_constructible;
+using std::default_initializable;
 using std::exchange;
 using std::in_place_type;
 using std::initializer_list;

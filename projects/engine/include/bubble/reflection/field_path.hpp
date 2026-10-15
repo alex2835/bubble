@@ -24,6 +24,8 @@ public:
     string Prefix( size_t count ) const;
     string ToString() const { return Prefix( mSteps.size() ); }
 
+    friend bool operator==( const FieldPath&, const FieldPath& ) = default;
+
 private:
     vector<Step> mSteps;
 };

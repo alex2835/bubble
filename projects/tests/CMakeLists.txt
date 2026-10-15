@@ -3,7 +3,7 @@ include( CheckCXXCompilerFlag )
 file( GLOB_RECURSE BUBBLE_TEST_SOURCES CONFIGURE_DEPENDS *.cpp )
 
 add_executable( bubble_tests ${BUBBLE_TEST_SOURCES} )
-target_link_libraries( bubble_tests PRIVATE bubble_engine doctest luau luau_analysis )
+target_link_libraries( bubble_tests PRIVATE bubble_engine bubble_editing doctest luau luau_analysis )
 # Folders follow the engine's: core/, scripts/, scripts/lua/; deps/ checks
 # the vendored libraries. Shared helpers are included from the tests' root.
 target_include_directories( bubble_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )

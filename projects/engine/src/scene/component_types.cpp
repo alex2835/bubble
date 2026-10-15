@@ -19,9 +19,7 @@ string ComponentTypes::Names() const
     return names;
 }
 
-void ComponentTypes::AddType( const MetaType& type,
-                              function<MetaAny( const Scene&, Entity )> get,
-                              function<void( Scene&, Entity, MetaAny& )> add )
+void ComponentTypes::AddType( const MetaType& type, Type made )
 {
     if ( not type )
         throw logic_error( "ComponentTypes::Add of a type reflection has not described" );
@@ -31,6 +29,9 @@ void ComponentTypes::AddType( const MetaType& type,
     auto valueTypeMaybe = mReflection.TryValueTypeOf( type );
     if ( not valueTypeMaybe )
         throw logic_error( format( "ComponentTypes::Add of {}: {}", name.ToString(), valueTypeMaybe.error() ) );
-    mTypes.push_back( Type{ name, type, std::move( *valueTypeMaybe ), std::move( get ), std::move( add ) } );
+    made.mName = name;
+    made.mType = type;
+    made.mValueType = std::move( *valueTypeMaybe );
+    mTypes.push_back( std::move( made ) );
 }
 }

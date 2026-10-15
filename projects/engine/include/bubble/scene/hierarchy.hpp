@@ -35,6 +35,10 @@ constexpr size_t cAtEnd = ~size_t( 0 );
 // "entity" - and unique among its siblings: chair, chair_2, chair_3. A
 // parent outside the tree is a bug, a logic_error.
 Entity CreateChild( Scene& scene, Entity parent, const Text& name, size_t index = cAtEnd );
+// The same for an entity there is already, outside the tree - one brought
+// back by Scene::Revive; returns the name it got. An entity in the tree is
+// a logic_error: TrySetParent moves it.
+Text AddToTree( Scene& scene, Entity entity, Entity parent, const Text& name, size_t index = cAtEnd );
 
 // Entity::Null for the root and for an entity outside the tree.
 Entity ParentOf( const Scene& scene, Entity entity );
