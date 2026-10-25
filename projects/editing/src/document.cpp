@@ -5,7 +5,8 @@ namespace bubble
 Document::Document( const ComponentTypes& componentTypes, Scene scene )
     : mComponentTypes( componentTypes ),
       mScene( std::move( scene ) ),
-      mHistory( mScene )
+      mHistory( mScene ),
+      mSelection( mScene )
 {
 }
 }

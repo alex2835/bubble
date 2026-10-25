@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/editing/history.hpp"
+#include "bubble/editing/selection.hpp"
 #include "bubble/scene/component_types.hpp"
 
 namespace bubble
@@ -9,7 +10,7 @@ namespace bubble
 // level. The scene is read here and changed only through the edits in
 // bubble/editing/edits.hpp, so every change is a step that can be undone.
 //
-// Stays where it is made: its history holds its scene.
+// Stays where it is made: its history and its selection hold its scene.
 class Document
 {
 public:
@@ -21,6 +22,8 @@ public:
     const ComponentTypes& GetComponentTypes() const { return mComponentTypes; }
     History& GetHistory() { return mHistory; }
     const History& GetHistory() const { return mHistory; }
+    Selection& GetSelection() { return mSelection; }
+    const Selection& GetSelection() const { return mSelection; }
 
     // Whether the scene is not what was last saved. No flag is kept: the
     // history's position is compared with the one at the save, so undo back
@@ -32,6 +35,7 @@ private:
     const ComponentTypes& mComponentTypes;
     Scene mScene;
     History mHistory;
+    Selection mSelection;
     u64 mSavedAt = 0;
 };
 }

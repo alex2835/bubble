@@ -48,8 +48,9 @@ projects/engine/include/bubble/
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and never included by it: Document (a scene, its
-                              History, dirty by position), Command, the edits (TrySetField, TryCreateEntity...);
-                              undo brings an entity back under its own number (Scene::Revive)
+                              History, dirty by position, its Selection), Command, the edits (TrySetField,
+                              TryCreateEntity...; a rename or a move keeps links); undo brings an entity back
+                              under its own number (Scene::Revive)
 projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)
 ```
 
