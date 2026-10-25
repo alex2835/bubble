@@ -7,7 +7,7 @@ namespace bubble
 {
 namespace
 {
-expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const ComponentTypes& componentTypes )
+expected<Json, string> TryWriteEntity( const Scene& scene, Entity entity, const ComponentTypes& componentTypes )
 {
     Json::Object object;
     if ( entity != scene.Root() )
@@ -30,7 +30,7 @@ expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const
     Json::Array children;
     for ( const Entity child : ChildrenOf( scene, entity ) )
     {
-        auto childJsonMaybe = TryEntityToJson( scene, child, componentTypes );
+        auto childJsonMaybe = TryWriteEntity( scene, child, componentTypes );
         if ( not childJsonMaybe )
             return childJsonMaybe;
         children.push_back( std::move( *childJsonMaybe ) );
@@ -43,6 +43,24 @@ expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const
 unexpected<string> Fail( const Json& json, string_view where, string_view what )
 {
     return unexpected( format( "{}: {}: {}", json.Where(), where, what ) );
+}
+
+// The name of a child: `where` is its parent.
+expected<Text, string> TryReadName( const Json& json, string_view where )
+{
+    const auto nameMaybe = json.TryFind( "name" );
+    if ( not json.Is<Json::Object>() or not nameMaybe )
+        return Fail( json, where, "a child with no name" );
+    const auto textMaybe = nameMaybe->TryAs<string>();
+    if ( not textMaybe )
+        return Fail( *nameMaybe, where, format( "a name - text - expected, got {}", nameMaybe->Describe() ) );
+    auto childNameMaybe = Text::TryFrom( *textMaybe );
+    if ( not childNameMaybe )
+        return Fail( *nameMaybe, where, childNameMaybe.error() );
+    if ( childNameMaybe->Empty() or *textMaybe == "." or *textMaybe == ".." or textMaybe->find( '/' ) != string::npos )
+        return Fail( *nameMaybe, where,
+                     format( "\"{}\" is not a name an entity can have: not empty, no /, not . or ..", *textMaybe ) );
+    return childNameMaybe;
 }
 
 // Fills a scene from the tree of a file, an entity at a time.
@@ -122,25 +140,14 @@ private:
             return Fail( json, where, format( "children - an array - expected, got {}", json.Describe() ) );
         for ( const Json& childJson : *arrayMaybe )
         {
-            const auto nameMaybe = childJson.TryFind( "name" );
-            if ( not childJson.Is<Json::Object>() or not nameMaybe )
-                return Fail( childJson, where, "a child with no name" );
-            const auto textMaybe = nameMaybe->TryAs<string>();
-            if ( not textMaybe )
-                return Fail( *nameMaybe, where, format( "a name - text - expected, got {}", nameMaybe->Describe() ) );
-            auto childNameMaybe = Text::TryFrom( *textMaybe );
+            auto childNameMaybe = TryReadName( childJson, where );
             if ( not childNameMaybe )
-                return Fail( *nameMaybe, where, childNameMaybe.error() );
-
+                return unexpected( std::move( childNameMaybe.error() ) );
             // The name as it is, or the file is wrong: CreateChild would
             // change it, and a path to it would lead nowhere.
-            if ( childNameMaybe->Empty() or *textMaybe == "." or *textMaybe == ".." or
-                 textMaybe->find( '/' ) != string::npos )
-                return Fail(
-                    *nameMaybe, where,
-                    format( "\"{}\" is not a name an entity can have: not empty, no /, not . or ..", *textMaybe ) );
             if ( TryResolve( mScene, EntityPath{ *childNameMaybe }, entity ) )
-                return Fail( *nameMaybe, where, format( "a second child named \"{}\"", *textMaybe ) );
+                return Fail( *childJson.TryFind( "name" ), where,
+                             format( "a second child named \"{}\"", childNameMaybe->View() ) );
 
             const Entity child = CreateChild( mScene, entity, *childNameMaybe );
             if ( auto readMaybe = TryReadEntity( childJson, child ); not readMaybe )
@@ -156,7 +163,7 @@ private:
 
 expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes& componentTypes )
 {
-    auto rootMaybe = TryEntityToJson( scene, scene.Root(), componentTypes );
+    auto rootMaybe = TryWriteEntity( scene, scene.Root(), componentTypes );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
     Json::Object file;
@@ -197,5 +204,32 @@ expected<Scene, string> TryLoadScene( string_view text, const ComponentTypes& co
          not readMaybe )
         return unexpected( std::move( readMaybe.error() ) );
     return scene;
+}
+
+expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const ComponentTypes& componentTypes )
+{
+    if ( not InTree( scene, entity ) or entity == scene.Root() )
+        throw logic_error(
+            format( "TryEntityToJson of {}: an entity under the root is written", Describe( scene, entity ) ) );
+    return TryWriteEntity( scene, entity, componentTypes );
+}
+
+expected<Entity, string> TryEntityFromJson( Scene& scene,
+                                            const Json& json,
+                                            Entity parent,
+                                            const ComponentTypes& componentTypes,
+                                            size_t index )
+{
+    const string where( PathOf( scene, parent ).mPath.View() );
+    auto nameMaybe = TryReadName( json, where );
+    if ( not nameMaybe )
+        return unexpected( std::move( nameMaybe.error() ) );
+    const Entity entity = CreateChild( scene, parent, *nameMaybe, index );
+    if ( auto readMaybe = SceneReader( scene, componentTypes ).TryReadEntity( json, entity ); not readMaybe )
+    {
+        scene.Destroy( entity );
+        return unexpected( std::move( readMaybe.error() ) );
+    }
+    return entity;
 }
 }

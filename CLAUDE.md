@@ -39,7 +39,7 @@ projects/engine/include/bubble/
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type), Hierarchy (the
                               tree from the root, names unique among siblings, PathOf/Resolve), ComponentTypes,
-                              SaveScene/LoadScene (nested JSON with "version")
+                              SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
                               parser and writer), Value <-> Json (plain by type, tagged for Any)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
@@ -49,8 +49,8 @@ projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and never included by it: Document (a scene, its
                               History, dirty by position, its Selection), Command, the edits (TrySetField,
-                              TryCreateEntity...; a rename or a move keeps links); undo brings an entity back
-                              under its own number (Scene::Revive)
+                              TryCreateEntity...; a rename or a move keeps links), Clipboard and paste/duplicate;
+                              undo brings an entity back under its own number (Scene::Revive)
 projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)
 ```
 

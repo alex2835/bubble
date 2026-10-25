@@ -1,4 +1,5 @@
 #pragma once
+#include "bubble/editing/clipboard.hpp"
 #include "bubble/editing/document.hpp"
 #include "bubble/reflection/field_path.hpp"
 #include "bubble/scene/hierarchy.hpp"
@@ -37,6 +38,20 @@ expected<void, string> TryDestroyEntity( Document& document, Entity entity );
 expected<void, string> TryMoveEntity( Document& document, Entity entity, Entity parent, size_t index = cAtEnd );
 // Returns the name it got: `name` made fit and unique, as Rename makes it.
 expected<Text, string> TryRenameEntity( Document& document, Entity entity, const Text& name );
+
+// The clipboard's entities under `parent`, at `index` among its children or
+// after the last, each named as CreateChild names it - a chair beside a
+// chair becomes chair_2. An absolute link inside what was copied leads into
+// the copy; every other link is as it was copied. Returns what was made, in
+// the clipboard's order.
+expected<vector<Entity>, string> TryPasteEntities( Document& document,
+                                                   const Clipboard& clipboard,
+                                                   Entity parent,
+                                                   size_t index = cAtEnd );
+// A copy of each of `entities` right after it, as a paste makes one: links
+// among them lead among the copies. The clipboard is left alone. Give the top
+// of a selection. Returns the copies, in the order of `entities`.
+expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<const Entity> entities );
 
 // With the component's defaults.
 expected<void, string> TryAddComponent( Document& document, Entity entity, Name component );

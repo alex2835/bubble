@@ -1,5 +1,6 @@
 #include "bubble/editing/edits.hpp"
 #include "bubble/core/assert.hpp"
+#include "bubble/scene/scene_file.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "links.hpp"
@@ -136,40 +137,40 @@ private:
     Entity mEntity = Entity::Null;
 };
 
-class DestroyEntityCommand final : public Command
+// An entity with everything under it, taken out of the scene and kept as it
+// was, to be put back as it was: under the same numbers, in the same places,
+// with copies of its components - of the types ComponentTypes knows; the
+// rest was a cache, rebuilt.
+class TakenSubtree
 {
 public:
-    DestroyEntityCommand( const ComponentTypes& componentTypes, Entity entity )
-        : mComponentTypes( componentTypes ),
-          mEntity( entity )
+    explicit TakenSubtree( const ComponentTypes& componentTypes ) : mComponentTypes( componentTypes ) {}
+
+    void TakeOut( Scene& scene, Entity entity )
     {
+        Keep( scene, entity );
+        scene.Destroy( entity );
     }
 
-    expected<void, string> TryDo( Scene& scene ) override
-    {
-        Take( scene, mEntity );
-        scene.Destroy( mEntity );
-        return {};
-    }
-
-    void Undo( Scene& scene ) override
+    // The scene is as TakeOut left it.
+    void PutBack( Scene& scene )
     {
         // Parents before their children, each child last so far: the order
-        // they were taken in puts every one back in its place.
-        for ( Taken& taken : mTaken )
+        // they were kept in puts every one back in its place.
+        for ( Kept& kept : mKept )
         {
-            scene.Revive( taken.mEntity );
-            const Text name = AddToTree( scene, taken.mEntity, taken.mParent, taken.mName, taken.mIndex );
-            BUBBLE_ASSERT( name == taken.mName, "an undo brought an entity back with another name" );
-            for ( auto& [component, kept] : taken.mComponents )
-                TypeNamed( mComponentTypes, component ).mAdd( scene, taken.mEntity, kept );
+            scene.Revive( kept.mEntity );
+            const Text name = AddToTree( scene, kept.mEntity, kept.mParent, kept.mName, kept.mIndex );
+            BUBBLE_ASSERT( name == kept.mName, "an entity put back with another name" );
+            for ( auto& [component, value] : kept.mComponents )
+                TypeNamed( mComponentTypes, component ).mAdd( scene, kept.mEntity, value );
         }
-        mTaken.clear();
+        mKept.clear();
     }
 
 private:
     // One entity of the subtree as it was.
-    struct Taken
+    struct Kept
     {
         Entity mEntity;
         Entity mParent;
@@ -178,24 +179,137 @@ private:
         vector<pair<Name, MetaAny>> mComponents;
     };
 
-    void Take( const Scene& scene, Entity entity )
+    void Keep( const Scene& scene, Entity entity )
     {
-        Taken taken{ .mEntity = entity,
-                     .mParent = ParentOf( scene, entity ),
-                     .mIndex = IndexAmongSiblings( scene, entity ),
-                     .mName = NameOf( scene, entity ),
-                     .mComponents = {} };
+        Kept kept{ .mEntity = entity,
+                   .mParent = ParentOf( scene, entity ),
+                   .mIndex = IndexAmongSiblings( scene, entity ),
+                   .mName = NameOf( scene, entity ),
+                   .mComponents = {} };
         for ( const ComponentTypes::Type& type : mComponentTypes.All() )
             if ( const MetaAny component = type.mGet( scene, entity ) )
-                taken.mComponents.emplace_back( type.mName, Copy( component ) );
-        mTaken.push_back( std::move( taken ) );
+                kept.mComponents.emplace_back( type.mName, Copy( component ) );
+        mKept.push_back( std::move( kept ) );
         for ( const Entity child : ChildrenOf( scene, entity ) )
-            Take( scene, child );
+            Keep( scene, child );
     }
 
     const ComponentTypes& mComponentTypes;
+    vector<Kept> mKept;
+};
+
+class DestroyEntityCommand final : public Command
+{
+public:
+    DestroyEntityCommand( const ComponentTypes& componentTypes, Entity entity )
+        : mEntity( entity ),
+          mTaken( componentTypes )
+    {
+    }
+
+    expected<void, string> TryDo( Scene& scene ) override
+    {
+        mTaken.TakeOut( scene, mEntity );
+        return {};
+    }
+
+    void Undo( Scene& scene ) override { mTaken.PutBack( scene ); }
+
+private:
     Entity mEntity;
-    vector<Taken> mTaken;
+    TakenSubtree mTaken;
+};
+
+// Entities made from what a file holds - a paste, a duplicate - under their
+// parents. Undo takes them out, and redo puts the same ones back.
+class PasteCommand final : public Command
+{
+public:
+    struct Piece
+    {
+        Json mEntity;
+        // Where it was copied from: absolute links into it lead into what is
+        // made of it.
+        EntityPath mFrom;
+        Entity mParent;
+        // Right after this entity when there is one, else at mIndex.
+        Entity mAfter;
+        size_t mIndex = cAtEnd;
+    };
+
+    PasteCommand( const ComponentTypes& componentTypes, vector<Piece> pieces )
+        : mComponentTypes( componentTypes ),
+          mPieces( std::move( pieces ) )
+    {
+    }
+
+    span<const Entity> Made() const { return mMade; }
+
+    expected<void, string> TryDo( Scene& scene ) override
+    {
+        for ( const Piece& piece : mPieces )
+        {
+            const size_t index =
+                piece.mAfter != Entity::Null ? IndexAmongSiblings( scene, piece.mAfter ) + 1 : piece.mIndex;
+            auto madeMaybe = TryEntityFromJson( scene, piece.mEntity, piece.mParent, mComponentTypes, index );
+            if ( not madeMaybe )
+            {
+                for ( auto made = mMade.rbegin(); made != mMade.rend(); ++made )
+                    scene.Destroy( *made );
+                mMade.clear();
+                return unexpected( std::move( madeMaybe.error() ) );
+            }
+            mMade.push_back( *madeMaybe );
+        }
+        LeadLinksIntoCopies( scene );
+        // From here on undo keeps what was made.
+        mPieces.clear();
+        for ( size_t i = 0; i < mMade.size(); ++i )
+            mTaken.emplace_back( mComponentTypes );
+        return {};
+    }
+
+    // The last made first: putting them back in the order they were made
+    // then finds each place as it was.
+    void Undo( Scene& scene ) override
+    {
+        for ( size_t i = mMade.size(); i-- > 0; )
+            mTaken[i].TakeOut( scene, mMade[i] );
+    }
+
+    void Redo( Scene& scene ) override
+    {
+        for ( TakenSubtree& taken : mTaken )
+            taken.PutBack( scene );
+    }
+
+private:
+    void LeadLinksIntoCopies( Scene& scene )
+    {
+        vector<EntityPath> madeAt;
+        for ( const Entity made : mMade )
+            madeAt.push_back( PathOf( scene, made ) );
+        for ( const Entity made : mMade )
+            for ( const EntityLink& link : FindLinks( scene, mComponentTypes, made ) )
+            {
+                if ( not link.mLink.IsAbsolute() )
+                    continue;
+                for ( size_t i = 0; i < mPieces.size(); ++i )
+                    if ( const auto rebasedMaybe = TryRebase( link.mLink, mPieces[i].mFrom, madeAt[i] ) )
+                    {
+                        SetFieldCommand set( mComponentTypes, link.mHolder, link.mComponent, link.mPath,
+                                             MetaAny( Value( *rebasedMaybe ) ) );
+                        if ( auto setMaybe = set.TryDo( scene ); not setMaybe )
+                            throw logic_error( format( "a link set where one was: {}", setMaybe.error() ) );
+                        break;
+                    }
+            }
+    }
+
+    const ComponentTypes& mComponentTypes;
+    vector<Piece> mPieces;
+    vector<Entity> mMade;
+    vector<TakenSubtree> mTaken;
 };
 
 class MoveEntityCommand final : public Command
@@ -267,7 +381,7 @@ public:
 
     expected<void, string> TryDo( Scene& scene ) override
     {
-        const vector<EntityLink> links = FindLinks( scene, mComponentTypes );
+        const vector<EntityLink> links = FindLinks( scene, mComponentTypes, scene.Root() );
         if ( auto doneMaybe = mChange->TryDo( scene ); not doneMaybe )
             return doneMaybe;
         for ( const EntityLink& link : links )
@@ -416,6 +530,16 @@ expected<void, string> TryDo( Document& document, Scope<Command> command, string
 {
     return document.GetHistory().TryDo( std::move( command ), std::move( label ) );
 }
+
+expected<vector<Entity>, string> TryPaste( Document& document, vector<PasteCommand::Piece> pieces, string label )
+{
+    auto command = CreateScope<PasteCommand>( document.GetComponentTypes(), std::move( pieces ) );
+    const PasteCommand& paste = *command;
+    if ( auto doneMaybe = TryDo( document, std::move( command ), std::move( label ) ); not doneMaybe )
+        return unexpected( std::move( doneMaybe.error() ) );
+    // Kept by the history, which does not drop a step it has just taken.
+    return vector<Entity>( paste.Made().begin(), paste.Made().end() );
+}
 }
 
 expected<void, string> TrySetField( Document& document,
@@ -496,5 +620,48 @@ expected<void, string> TryRemoveComponent( Document& document, Entity entity, Na
         return checkedMaybe;
     return TryDo( document, CreateScope<RemoveComponentCommand>( document.GetComponentTypes(), entity, component ),
                   format( "remove {}", component.ToString() ) );
+}
+
+expected<vector<Entity>, string> TryPasteEntities( Document& document,
+                                                   const Clipboard& clipboard,
+                                                   Entity parent,
+                                                   size_t index )
+{
+    if ( auto inTreeMaybe = TryCheckInTree( document.GetScene(), parent ); not inTreeMaybe )
+        return unexpected( std::move( inTreeMaybe.error() ) );
+    if ( clipboard.Empty() )
+        return unexpected( "nothing to paste: the clipboard is empty"s );
+    vector<PasteCommand::Piece> pieces;
+    for ( const Clipboard::CopiedEntity& copied : clipboard.All() )
+        pieces.push_back( PasteCommand::Piece{ .mEntity = copied.mEntity,
+                                               .mFrom = copied.mFrom,
+                                               .mParent = parent,
+                                               .mAfter = Entity::Null,
+                                               .mIndex = index == cAtEnd ? cAtEnd : index + pieces.size() } );
+    return TryPaste( document, std::move( pieces ), "paste" );
+}
+
+expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<const Entity> entities )
+{
+    const Scene& scene = document.GetScene();
+    vector<PasteCommand::Piece> pieces;
+    for ( const Entity entity : entities )
+    {
+        if ( auto inTreeMaybe = TryCheckInTree( scene, entity ); not inTreeMaybe )
+            return unexpected( std::move( inTreeMaybe.error() ) );
+        if ( entity == scene.Root() )
+            return unexpected( "the root is not duplicated: it is the scene"s );
+        auto jsonMaybe = TryEntityToJson( scene, entity, document.GetComponentTypes() );
+        if ( not jsonMaybe )
+            return unexpected( std::move( jsonMaybe.error() ) );
+        pieces.push_back( PasteCommand::Piece{ .mEntity = std::move( *jsonMaybe ),
+                                               .mFrom = PathOf( scene, entity ),
+                                               .mParent = ParentOf( scene, entity ),
+                                               .mAfter = entity,
+                                               .mIndex = cAtEnd } );
+    }
+    if ( pieces.empty() )
+        return unexpected( "nothing to duplicate"s );
+    return TryPaste( document, std::move( pieces ), "duplicate" );
 }
 }

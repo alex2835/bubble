@@ -199,3 +199,26 @@ TEST_CASE( "A wrong scene file says where and what is wrong" )
            "1:38: the file: extra is not a key of a scene (keys: version, root)" );
     CHECK( f.Why( "[" ) == "1:2: a value expected, got the end" );
 }
+
+TEST_CASE( "One entity goes to JSON and back under a parent, its name made unique there" )
+{
+    const Fixture f;
+    Scene scene = f.Made();
+    const Entity props = *TryResolve( scene, EntityPath{ Make( "/props" ) } );
+    const Entity chair = *TryResolve( scene, EntityPath{ Make( "/props/chair" ) } );
+    const auto jsonMaybe = TryEntityToJson( scene, chair, f.mComponentTypes );
+    REQUIRE_MESSAGE( jsonMaybe, jsonMaybe.error() );
+    const auto madeMaybe = TryEntityFromJson( scene, *jsonMaybe, props, f.mComponentTypes, 0 );
+    REQUIRE_MESSAGE( madeMaybe, madeMaybe.error() );
+    CHECK( PathOf( scene, *madeMaybe ).mPath.View() == "/props/chair_2" );
+    CHECK( scene.Get<Health>( *madeMaybe ).mValue == 50 );
+    CHECK( ChildrenOf( scene, props ).front() == *madeMaybe );
+
+    // A wrong one leaves nothing behind.
+    const size_t count = scene.Count();
+    const auto wrongMaybe = Json::TryParse( R"({ "name": "box", "components": { "health": { "value": "lots" } } })" );
+    REQUIRE( wrongMaybe );
+    CHECK_FALSE( TryEntityFromJson( scene, *wrongMaybe, props, f.mComponentTypes ) );
+    CHECK( scene.Count() == count );
+    CHECK( ChildrenOf( scene, props ).size() == 2 );
+}

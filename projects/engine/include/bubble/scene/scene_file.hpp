@@ -1,5 +1,7 @@
 #pragma once
+#include "bubble/data/json.hpp"
 #include "bubble/scene/component_types.hpp"
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/scene.hpp"
 
 namespace bubble
@@ -34,4 +36,17 @@ expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes&
 // is an error that says where it is - "12:9: /lamp: light.brightness: a
 // number expected, got "bright"" - not a guess.
 expected<Scene, string> TryLoadScene( string_view text, const ComponentTypes& componentTypes );
+
+// One entity as a file holds it - its name, its components, what is under
+// it - for a copy kept apart from any file: what the editor copies and
+// pastes.
+expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const ComponentTypes& componentTypes );
+// Makes the entity `json` holds under `parent`, at `index`, its name made
+// unique there as CreateChild makes it; what is under it is read as
+// strictly as a file. On an error nothing is left of it.
+expected<Entity, string> TryEntityFromJson( Scene& scene,
+                                            const Json& json,
+                                            Entity parent,
+                                            const ComponentTypes& componentTypes,
+                                            size_t index = cAtEnd );
 }
