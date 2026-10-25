@@ -89,3 +89,15 @@ TEST_CASE( "Check says where a value goes wrong and what it got" )
                .error() == "waves[1].count: given twice" );
     CHECK( TryCheck( 1, Waves(), "waves" ).error() == "waves: a list of record (count, delay) expected, got 1" );
 }
+
+TEST_CASE( "A type says whether it can hold a kind anywhere in it" )
+{
+    CHECK( MayHold( Of( ValueKind::Entity ), ValueKind::Entity ) );
+    CHECK_FALSE( MayHold( Waves(), ValueKind::Entity ) );
+    CHECK( MayHold( ValueType::ListOf( ValueType::RecordOf( { { "count"_n, Of( ValueKind::Entity ) } } ) ),
+                    ValueKind::Entity ) );
+    // A Value field may hold anything.
+    CHECK( MayHold( ValueType::RecordOf( { { "count"_n, Of( ValueKind::Any ) } } ), ValueKind::Entity ) );
+    // So may a list that does not say of what.
+    CHECK( MayHold( Of( ValueKind::List ), ValueKind::Entity ) );
+}

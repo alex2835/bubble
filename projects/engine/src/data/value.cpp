@@ -222,6 +222,16 @@ string ValueType::Describe() const
     return ( vowel ? "an " : "a " ) + noun;
 }
 
+bool MayHold( const ValueType& type, ValueKind kind )
+{
+    if ( type.mKind == kind or type.mKind == ValueKind::Any )
+        return true;
+    // A list that does not say of what is a list of anything, as a file reads it.
+    if ( type.mKind == ValueKind::List )
+        return not type.mElement or MayHold( *type.mElement, kind );
+    return ranges::any_of( type.mFields, [&]( const ValueTypeField& field ) { return MayHold( field.mType, kind ); } );
+}
+
 f64 WidenFloat( f32 value )
 {
     char buffer[32];

@@ -11,6 +11,8 @@ struct EntityPath
 {
     Text mPath;
 
+    bool IsAbsolute() const { return mPath.View().starts_with( '/' ); }
+
     friend bool operator==( const EntityPath&, const EntityPath& ) = default;
 };
 }

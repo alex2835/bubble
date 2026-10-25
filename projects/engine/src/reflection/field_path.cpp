@@ -3,6 +3,13 @@
 
 namespace bubble
 {
+FieldPath FieldPath::Then( Step step ) const
+{
+    FieldPath next = *this;
+    next.mSteps.push_back( std::move( step ) );
+    return next;
+}
+
 expected<FieldPath, string> FieldPath::TryParse( string_view text )
 {
     if ( text.empty() )

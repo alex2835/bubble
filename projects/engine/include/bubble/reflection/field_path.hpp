@@ -20,6 +20,9 @@ public:
     static expected<FieldPath, string> TryParse( string_view text );
 
     span<const Step> Steps() const { return mSteps; }
+    // This path and one step more: how a walk over an object names what it
+    // finds.
+    FieldPath Then( Step step ) const;
     // The first `count` steps as text: what a message says got that far.
     string Prefix( size_t count ) const;
     string ToString() const { return Prefix( mSteps.size() ); }

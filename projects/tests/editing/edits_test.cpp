@@ -1,6 +1,7 @@
 // A document changed by its edits, each one undone and redone: fields,
 // entities made, removed, moved and renamed, components added and removed.
-// What a command names before a removal it still names after the undo.
+// What a command names before a removal it still names after the undo, and
+// a link to an entity leads to it after it is renamed or moved.
 #include "bubble/editing/edits.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/stream.hpp"
@@ -20,6 +21,12 @@ struct Light
 struct Health
 {
     i32 mValue = 100;
+};
+
+struct Follow
+{
+    EntityPath mTarget;
+    vector<EntityPath> mWaypoints;
 };
 
 Text Make( string_view utf8 )
@@ -59,8 +66,12 @@ struct Fixture
             .Field<&Light::mSteps>( "steps" )
             .Field<&Light::mProps>( "props" );
         mReflection.Type<Health>( "health" ).Field<&Health::mValue>( "value" );
+        mReflection.Type<Follow>( "follow" )
+            .Field<&Follow::mTarget>( "target" )
+            .Field<&Follow::mWaypoints>( "waypoints" );
         mComponentTypes.Add<Light>();
         mComponentTypes.Add<Health>();
+        mComponentTypes.Add<Follow>();
 
         mLamp = Create( Root(), "lamp" );
         mBulb = Create( mLamp, "bulb" );
@@ -96,6 +107,28 @@ struct Fixture
     f32 Brightness( Entity entity ) const { return GetScene().Get<Light>( entity ).mBrightness; }
 
     string PathText( Entity entity ) const { return PathOf( GetScene(), entity ).mPath.String(); }
+
+    // `holder` follows `target`, by way of `waypoints`.
+    void Follows( Entity holder, string_view target, vector<string_view> waypoints = {} )
+    {
+        Require( TryAddComponent( mDocument, holder, "follow"_n ) );
+        Value::List list;
+        for ( const string_view waypoint : waypoints )
+            list.push_back( EntityPath{ Make( waypoint ) } );
+        Require(
+            TrySetField( mDocument, holder, "follow"_n, Path( "target" ), MetaAny( EntityPath{ Make( target ) } ) ) );
+        Require( TrySetField( mDocument, holder, "follow"_n, Path( "waypoints" ), MetaAny( Value( list ) ) ) );
+    }
+
+    const Follow& FollowOf( Entity holder ) const { return GetScene().Get<Follow>( holder ); }
+
+    static vector<string> Texts( const vector<EntityPath>& paths )
+    {
+        vector<string> texts;
+        for ( const EntityPath& path : paths )
+            texts.push_back( path.mPath.String() );
+        return texts;
+    }
 
     vector<string> Children( Entity entity ) const
     {
@@ -181,10 +214,10 @@ TEST_CASE( "Edits refuse what is not there and what cannot be" )
     CHECK( TryAddComponent( document, f.mLamp, "light"_n ).error() == "/lamp has a light already" );
     CHECK( TryRemoveComponent( document, f.mProps, "light"_n ).error() == "/props has no light" );
     CHECK( TryAddComponent( document, f.mLamp, Declared( "lamp" ) ).error() ==
-           "/lamp: lamp is not a component (components: light, health)" );
+           "/lamp: lamp is not a component (components: light, health, follow)" );
     // The tree is changed by the tree's edits, not as a component.
     CHECK( TryAddComponent( document, f.mLamp, Declared( "hierarchy" ) ).error() ==
-           "/lamp: hierarchy is not a component (components: light, health)" );
+           "/lamp: hierarchy is not a component (components: light, health, follow)" );
 
     CHECK( TryDestroyEntity( document, f.Root() ).error() == "the root stays: it goes with the scene" );
     CHECK( TryRenameEntity( document, f.Root(), Make( "top" ) ).error() == "the root has no name to change" );
@@ -341,4 +374,66 @@ TEST_CASE( "A document is dirty until undo takes it back to where it was saved" 
     CHECK( f.mDocument.IsDirty() );
     f.GetHistory().CancelGroup();
     CHECK_FALSE( f.mDocument.IsDirty() );
+}
+
+TEST_CASE( "A rename leads the links to the entity and to what is under it to their new paths" )
+{
+    Fixture f;
+    const Entity door = f.Create( f.mProps, "door" );
+    f.Create( door, "handle" );
+    f.Follows( f.mLamp, "/props/door", { "/props/door/handle", "/lamp", "/props/doorway" } );
+    f.Set( f.mLamp, "props", MetaAny( Value( Value::Record{ { "door"_n, EntityPath{ Make( "/props/door" ) } } } ) ) );
+    const auto renamedValue = [&] {
+        return Value( Value::Record{ { "door"_n, EntityPath{ Make( "/props/gate" ) } } } );
+    };
+
+    REQUIRE( TryRenameEntity( f.mDocument, door, Make( "gate" ) ) );
+    CHECK( f.FollowOf( f.mLamp ).mTarget.mPath.View() == "/props/gate" );
+    // What led elsewhere, or nowhere, is as it was.
+    CHECK( Fixture::Texts( f.FollowOf( f.mLamp ).mWaypoints ) ==
+           vector<string>{ "/props/gate/handle", "/lamp", "/props/doorway" } );
+    // A link inside a Value too.
+    CHECK( f.GetScene().Get<Light>( f.mLamp ).mProps == renamedValue() );
+
+    f.GetHistory().Undo();
+    CHECK( f.FollowOf( f.mLamp ).mTarget.mPath.View() == "/props/door" );
+    CHECK( Fixture::Texts( f.FollowOf( f.mLamp ).mWaypoints ) ==
+           vector<string>{ "/props/door/handle", "/lamp", "/props/doorway" } );
+    CHECK( f.GetScene().Get<Light>( f.mLamp ).mProps ==
+           Value( Value::Record{ { "door"_n, EntityPath{ Make( "/props/door" ) } } } ) );
+    f.GetHistory().Redo();
+    CHECK( f.FollowOf( f.mLamp ).mTarget.mPath.View() == "/props/gate" );
+    CHECK( f.GetScene().Get<Light>( f.mLamp ).mProps == renamedValue() );
+}
+
+TEST_CASE( "A move keeps relative links relative, from the moved entity and to it" )
+{
+    Fixture f;
+    // From under the moved entity out, and from outside in.
+    f.Follows( f.mBulb, "../../props", { ".." } );
+    f.Follows( f.mProps, "../lamp/bulb", { "/lamp/bulb" } );
+
+    REQUIRE( TryMoveEntity( f.mDocument, f.mBulb, f.Root() ) );
+    CHECK( f.PathText( f.mBulb ) == "/bulb" );
+    CHECK( f.FollowOf( f.mBulb ).mTarget.mPath.View() == "../props" );
+    CHECK( Fixture::Texts( f.FollowOf( f.mBulb ).mWaypoints ) == vector<string>{ "../lamp" } );
+    CHECK( f.FollowOf( f.mProps ).mTarget.mPath.View() == "../bulb" );
+    CHECK( Fixture::Texts( f.FollowOf( f.mProps ).mWaypoints ) == vector<string>{ "/bulb" } );
+
+    f.GetHistory().Undo();
+    CHECK( f.PathText( f.mBulb ) == "/lamp/bulb" );
+    CHECK( f.FollowOf( f.mBulb ).mTarget.mPath.View() == "../../props" );
+    CHECK( Fixture::Texts( f.FollowOf( f.mBulb ).mWaypoints ) == vector<string>{ ".." } );
+    CHECK( f.FollowOf( f.mProps ).mTarget.mPath.View() == "../lamp/bulb" );
+    f.GetHistory().Redo();
+    CHECK( f.FollowOf( f.mProps ).mTarget.mPath.View() == "../bulb" );
+}
+
+TEST_CASE( "A link inside what moves, to what moves with it, stays as it is when relative" )
+{
+    Fixture f;
+    f.Follows( f.mLamp, "bulb", { "/lamp/bulb" } );
+    REQUIRE( TryMoveEntity( f.mDocument, f.mLamp, f.mProps ) );
+    CHECK( f.FollowOf( f.mLamp ).mTarget.mPath.View() == "bulb" );
+    CHECK( Fixture::Texts( f.FollowOf( f.mLamp ).mWaypoints ) == vector<string>{ "/props/lamp/bulb" } );
 }

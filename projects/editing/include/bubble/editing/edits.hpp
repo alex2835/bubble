@@ -27,6 +27,12 @@ expected<Entity, string> TryCreateEntity( Document& document, Entity parent, con
 // With everything under it. Its components come back on undo, those of the
 // types ComponentTypes knows; anything else on it was a cache, rebuilt.
 expected<void, string> TryDestroyEntity( Document& document, Entity entity );
+// A move and a rename keep links: every EntityPath in a component - a field,
+// or an entity in a Value - that led to the entity or to what is under it
+// leads there still, as do the relative links they hold themselves. They are
+// set in the same step, an absolute link to an absolute path, a relative one
+// to a relative path; a link that led nowhere is left as it is.
+//
 // As TrySetParent moves it: the name made unique under the new parent.
 expected<void, string> TryMoveEntity( Document& document, Entity entity, Entity parent, size_t index = cAtEnd );
 // Returns the name it got: `name` made fit and unique, as Rename makes it.

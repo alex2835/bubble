@@ -2,6 +2,7 @@
 #include "bubble/core/assert.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
+#include "links.hpp"
 #include <typeinfo>
 
 namespace bubble
@@ -252,6 +253,63 @@ private:
     Text mOldName;
 };
 
+// A change to the tree - a rename, a move - with the links it broke set to
+// lead where they led, in the same step: an absolute link stays absolute, a
+// relative one relative. A link that led nowhere is left as it is.
+class KeepLinksCommand final : public Command
+{
+public:
+    KeepLinksCommand( const ComponentTypes& componentTypes, Scope<Command> change )
+        : mComponentTypes( componentTypes ),
+          mChange( std::move( change ) )
+    {
+    }
+
+    expected<void, string> TryDo( Scene& scene ) override
+    {
+        const vector<EntityLink> links = FindLinks( scene, mComponentTypes );
+        if ( auto doneMaybe = mChange->TryDo( scene ); not doneMaybe )
+            return doneMaybe;
+        for ( const EntityLink& link : links )
+        {
+            if ( link.mTarget == Entity::Null )
+                continue;
+            if ( const auto nowMaybe = TryResolve( scene, link.mLink, link.mHolder );
+                 nowMaybe and *nowMaybe == link.mTarget )
+                continue;
+            const EntityPath kept = link.mLink.IsAbsolute() ? PathOf( scene, link.mTarget )
+                                                            : RelativePath( scene, link.mHolder, link.mTarget );
+            // As a Value, which goes into an EntityPath field and into a
+            // Value's entity alike.
+            auto fix = CreateScope<SetFieldCommand>( mComponentTypes, link.mHolder, link.mComponent, link.mPath,
+                                                     MetaAny( Value( kept ) ) );
+            if ( auto fixedMaybe = fix->TryDo( scene ); not fixedMaybe )
+                throw logic_error( format( "a link set where one was: {}", fixedMaybe.error() ) );
+            mFixes.push_back( std::move( fix ) );
+        }
+        return {};
+    }
+
+    void Undo( Scene& scene ) override
+    {
+        for ( auto fix = mFixes.rbegin(); fix != mFixes.rend(); ++fix )
+            ( *fix )->Undo( scene );
+        mChange->Undo( scene );
+    }
+
+    void Redo( Scene& scene ) override
+    {
+        mChange->Redo( scene );
+        for ( const Scope<Command>& fix : mFixes )
+            fix->Redo( scene );
+    }
+
+private:
+    const ComponentTypes& mComponentTypes;
+    Scope<Command> mChange;
+    vector<Scope<Command>> mFixes;
+};
+
 class AddComponentCommand final : public Command
 {
 public:
@@ -403,7 +461,9 @@ expected<void, string> TryDestroyEntity( Document& document, Entity entity )
 expected<void, string> TryMoveEntity( Document& document, Entity entity, Entity parent, size_t index )
 {
     // TrySetParent checks the rest, changing nothing when it refuses.
-    return TryDo( document, CreateScope<MoveEntityCommand>( entity, parent, index ),
+    return TryDo( document,
+                  CreateScope<KeepLinksCommand>( document.GetComponentTypes(),
+                                                 CreateScope<MoveEntityCommand>( entity, parent, index ) ),
                   format( "move {}", NameOf( document.GetScene(), entity ).View() ) );
 }
 
@@ -415,7 +475,9 @@ expected<Text, string> TryRenameEntity( Document& document, Entity entity, const
     if ( entity == scene.Root() )
         return unexpected( "the root has no name to change"s );
     const string label = format( "rename {}", NameOf( scene, entity ).View() );
-    if ( auto doneMaybe = TryDo( document, CreateScope<RenameEntityCommand>( entity, name ), label ); not doneMaybe )
+    auto rename =
+        CreateScope<KeepLinksCommand>( document.GetComponentTypes(), CreateScope<RenameEntityCommand>( entity, name ) );
+    if ( auto doneMaybe = TryDo( document, std::move( rename ), label ); not doneMaybe )
         return unexpected( std::move( doneMaybe.error() ) );
     return NameOf( scene, entity );
 }

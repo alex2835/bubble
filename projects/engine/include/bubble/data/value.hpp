@@ -136,6 +136,11 @@ struct ValueTypeField
     ValueType mType;
 };
 
+// Whether a value of `type` can hold a `kind` anywhere in it - a link to an
+// entity, say, deep in a component. Any can hold anything, and so can a list
+// that does not say of what.
+bool MayHold( const ValueType& type, ValueKind kind );
+
 // An f32 as the f64 a person would write for it: 0.1f becomes 0.1, not
 // 0.10000000149011612 - the shortest decimal that reads back as the same
 // f32. What a float field turns into in a Value and in a file.
