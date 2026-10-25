@@ -28,7 +28,9 @@ namespace bubble
 // outside the tree are not saved.
 constexpr int cSceneFileVersion = 1;
 
-// Fails on a field reflection cannot keep as a value.
+// Fails on a field reflection cannot keep as a value, on a number a file
+// cannot hold (NaN, infinity), and on a tree nested deeper than
+// TryLoadScene reads: what saves, loads.
 expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes& componentTypes );
 
 // Strict, as a file is merged and edited by hand: an unknown component or

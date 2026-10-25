@@ -9,6 +9,12 @@ using namespace bubble;
 
 namespace
 {
+template <typename T>
+void Require( const expected<T, string>& doneMaybe )
+{
+    REQUIRE_MESSAGE( doneMaybe, doneMaybe.error() );
+}
+
 struct Fixture
 {
     Reflection mReflection;
@@ -96,6 +102,48 @@ TEST_CASE( "The top of a selection leaves out what is under another selected, in
 
     f.mSelection.Add( f.mProps );
     CHECK( f.mSelection.TopLevel() == vector<Entity>{ f.mLamp, f.mProps } );
+}
+
+TEST_CASE( "Toggling and taking out what is not in the selection changes nothing" )
+{
+    Fixture f;
+    f.mSelection.Select( f.mChair );
+    f.mSelection.Remove( f.mTable );
+    f.mSelection.Clear();
+    f.mSelection.Clear();
+    CHECK( f.mSelection.Empty() );
+    CHECK( f.mSelection.Active() == Entity::Null );
+    CHECK_FALSE( f.mSelection.Has( f.mChair ) );
+    CHECK( f.mSelection.TopLevel().empty() );
+    CHECK_THROWS_AS( f.mSelection.Toggle( Entity::Null ), logic_error );
+    CHECK_THROWS_AS( f.mSelection.Remove( Entity::Null ), logic_error );
+
+    // What a move or a rename does to the tree, it does not do to the selection:
+    // it is kept by the entity's number, not by its place or its name.
+    f.mSelection.Select( f.mChair );
+    Require( TryMoveEntity( f.mDocument, f.mChair, f.Root(), 0 ) );
+    Require( TryRenameEntity( f.mDocument, f.mChair, *Text::TryFrom( "seat" ) ) );
+    CHECK( f.mSelection.Has( f.mChair ) );
+    CHECK( f.mSelection.All() == vector<Entity>{ f.mChair } );
+}
+
+TEST_CASE( "An entity that went away cannot be picked again, though an undo brings it back picked" )
+{
+    Fixture f;
+    f.mSelection.Select( f.mTable );
+    Require( TryDestroyEntity( f.mDocument, f.mTable ) );
+    CHECK( f.mSelection.Empty() );
+    CHECK( f.mSelection.Active() == Entity::Null );
+    CHECK_FALSE( f.mSelection.Has( f.mTable ) );
+    CHECK_THROWS_AS( f.mSelection.Add( f.mTable ), logic_error );
+    CHECK_THROWS_AS( f.mSelection.Toggle( f.mTable ), logic_error );
+
+    f.mDocument.GetHistory().Undo();
+    CHECK( f.mSelection.All() == vector<Entity>{ f.mTable } );
+    CHECK( f.mSelection.Active() == f.mTable );
+    // The number came back, so the same click means the same entity again.
+    f.mSelection.Add( f.mTable );
+    CHECK( f.mSelection.All() == vector<Entity>{ f.mTable } );
 }
 
 TEST_CASE( "Only an entity of the tree is selected" )

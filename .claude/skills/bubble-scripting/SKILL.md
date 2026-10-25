@@ -81,7 +81,8 @@ function on_update( self, dt ) end
 - **Errors** log label + message + traceback and switch that instance off
   (its coroutines dropped) until the file is reloaded. Other instances go on.
 - **Coroutines**: `start( fn, ... )` runs to the first `wait` at once;
-  `Tick( dt )` resumes them. `wait` outside `start` is an error.
+  `Tick( dt )` resumes them. `wait` outside `start` is an error, and so is
+  `wait` of NaN or infinity (waiting for ever is `wait_until`'s job).
 - **Events**: `on( name, fn )` subscribes the running instance,
   `emit( name, ... )` / `ScriptRuntime::Emit` call subscribers in
   subscription order with `( self, ... )`. Gone with the instance.

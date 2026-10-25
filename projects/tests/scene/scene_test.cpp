@@ -1,4 +1,5 @@
 // The scene: entities in an EnTT registry and their components by type.
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/scene.hpp"
 #include "bubble/types/containers.hpp"
 #include "bubble/types/format.hpp"
@@ -126,4 +127,80 @@ TEST_CASE( "ForEach visits the entities that have every component asked for" )
     // A type no entity ever had.
     constScene.ForEach<double>( [&]( Entity, const double& ) { ++count; } );
     CHECK( count == 2 );
+}
+
+TEST_CASE( "A component put on during a walk does not join that walk" )
+{
+    Scene scene;
+    const Entity first = scene.Create();
+    const Entity second = scene.Create();
+    scene.Add<Health>( first, 1 );
+
+    vector<Entity> seen;
+    scene.ForEach<Health>( [&]( Entity entity, Health& health ) {
+        seen.push_back( entity );
+        if ( health.mValue == 1 )
+            scene.Add<Health>( second, 2 );
+    } );
+    // The walk was over what had the component when it started.
+    CHECK( seen == vector<Entity>{ first } );
+    CHECK( scene.Get<Health>( second ).mValue == 2 );
+}
+
+TEST_CASE( "Taking a component off one entity may move another's, but not change its value" )
+{
+    Scene scene;
+    const Entity first = scene.Create();
+    const Entity second = scene.Create();
+    const Entity third = scene.Create();
+    // Components of one type sit together; a removal fills the hole with the
+    // last of them, so the address a Get gave is only good until the next
+    // removal of that type - the Entity is what stays.
+    scene.Add<Health>( first, 10 );
+    scene.Add<Health>( second, 20 );
+    scene.Add<Health>( third, 30 );
+
+    scene.Remove<Health>( first );
+    CHECK( scene.Get<Health>( second ).mValue == 20 );
+    CHECK( scene.Get<Health>( third ).mValue == 30 );
+
+    // Destroying an entity takes its components with it: revived, it has none,
+    // and what is left of the type is where it was left.
+    scene.Destroy( second );
+    CHECK_FALSE( scene.Has<Health>( second ) );
+    scene.Revive( second );
+    CHECK( scene.Has<Health>( third ) );
+    CHECK_FALSE( scene.Has<Health>( second ) );
+    CHECK_FALSE( scene.Has<Health>( first ) );
+}
+
+TEST_CASE( "An entity is a number, so another scene can take the same one" )
+{
+    Scene first;
+    const Entity hero = first.Create();
+    Scene other;
+    // Nothing links an Entity to the scene it came from: the number is free
+    // over there, and Revive takes it as it is.
+    CHECK_FALSE( other.Alive( hero ) );
+    other.Revive( hero );
+    CHECK( other.Alive( hero ) );
+    CHECK( first.Alive( hero ) );
+    // The root of one scene is the number of the root of the other.
+    CHECK( other.Root() == first.Root() );
+    CHECK_THROWS_WITH_AS( first.Revive( first.Root() ), "Revive of entity 0: its number is in use", logic_error );
+}
+
+TEST_CASE( "The root is not an entity to destroy, and a scene always has it" )
+{
+    Scene scene;
+    CHECK_THROWS_WITH_AS( scene.Destroy( scene.Root() ), "Destroy on the root: it goes with the scene", logic_error );
+    CHECK( scene.Alive( scene.Root() ) );
+    CHECK( scene.Count() == 1 );
+    // A component of the root is a component like any other.
+    scene.Add<Health>( scene.Root(), 5 );
+    CHECK( scene.Get<Health>( scene.Root() ).mValue == 5 );
+    CHECK( scene.Count() == 1 );
+    // The Hierarchy every entity in the tree carries is on the root from the
+    // start.
+    CHECK( scene.Has<Hierarchy>( scene.Root() ) );
 }

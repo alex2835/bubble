@@ -195,6 +195,106 @@ TEST_CASE( "Duplicates go right after their originals, and links among them lead
     CHECK( f.PathText( copies[1] ) == "/props/table_2" );
 }
 
+// A document that knows light but not follow, for a paste that cannot be made.
+struct LightOnly
+{
+    Reflection mReflection;
+    ComponentTypes mComponentTypes{ mReflection };
+
+    LightOnly()
+    {
+        mReflection.Type<Light>( "light" ).Field<&Light::mBrightness>( "brightness" );
+        mComponentTypes.Add<Light>();
+    }
+};
+
+TEST_CASE( "A copy is what the document looked like when it was copied" )
+{
+    Fixture f;
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mChair } ) );
+    Require( TrySetField( f.mDocument, f.mChair, "light"_n, Path( "brightness" ), MetaAny( 7.0f ) ) );
+
+    const vector<Entity> pasted = Require( TryPasteEntities( f.mDocument, f.mClipboard, f.mProps ) );
+    REQUIRE( pasted.size() == 1 );
+    const auto copyMaybe = TryResolve( f.GetScene(), Link( "/props/chair_2" ) );
+    REQUIRE( copyMaybe );
+    CHECK( f.GetScene().Get<Light>( *copyMaybe ).mBrightness == 3.0f );
+    CHECK( f.GetScene().Get<Light>( f.mChair ).mBrightness == 7.0f );
+}
+
+TEST_CASE( "A copy outlives what it was copied from, and gives the name back" )
+{
+    Fixture f;
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mChair } ) );
+    Require( TryDestroyEntity( f.mDocument, f.mChair ) );
+    CHECK( f.Children( f.mProps ) == vector<string>{ "table" } );
+
+    const vector<Entity> pasted = Require( TryPasteEntities( f.mDocument, f.mClipboard, f.mProps ) );
+    REQUIRE( pasted.size() == 1 );
+    // The name the copy left is free again, so the paste takes it, and the leg
+    // comes back under it.
+    CHECK( f.Children( f.mProps ) == vector<string>{ "table", "chair" } );
+    CHECK( f.PathText( pasted.front() ) == "/props/chair" );
+    CHECK( f.Children( pasted.front() ) == vector<string>{ "leg" } );
+    f.mDocument.GetHistory().Undo();
+    CHECK( f.Children( f.mProps ) == vector<string>{ "table" } );
+}
+
+TEST_CASE( "One copied entity under another is copied twice" )
+{
+    Fixture f;
+    // The clipboard takes what it is given: Selection::TopLevel is what keeps a
+    // click list from naming an entity and what is under it.
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mProps, f.mChair } ) );
+    CHECK( f.mClipboard.All().size() == 2 );
+    const vector<Entity> pasted = Require( TryPasteEntities( f.mDocument, f.mClipboard, f.Root() ) );
+    // One entity made for each piece copied, whatever is under it.
+    REQUIRE( pasted.size() == 2 );
+    CHECK( f.Children( f.Root() ) == vector<string>{ "lamp", "props", "props_2", "chair" } );
+    CHECK( f.Children( pasted[0] ) == vector<string>{ "chair", "table" } );
+    // The chair copied on its own keeps its name: no one of the same name is
+    // beside it, only the one under the copied props.
+    CHECK( f.PathText( pasted[1] ) == "/chair" );
+    CHECK( f.Children( pasted[1] ) == vector<string>{ "leg" } );
+    CHECK( f.PathText( pasted[0] ) == "/props_2" );
+}
+
+TEST_CASE( "Copying nothing replaces what was copied, and a copy of what is gone says so" )
+{
+    Fixture f;
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mLamp } ) );
+    CHECK_FALSE( f.mClipboard.Empty() );
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{} ) );
+    CHECK( f.mClipboard.Empty() );
+    CHECK( f.mClipboard.All().empty() );
+    CHECK( TryPasteEntities( f.mDocument, f.mClipboard, f.mProps ).error() ==
+           "nothing to paste: the clipboard is empty" );
+
+    Require( TryDestroyEntity( f.mDocument, f.mLeg ) );
+    CHECK( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mLeg } )
+               .error()
+               .starts_with( "not an entity of the document: entity " ) );
+    // A copy that cannot be made leaves what was copied before it, so here: nothing.
+    CHECK( f.mClipboard.Empty() );
+}
+
+TEST_CASE( "A paste that cannot be made leaves the other document as it was" )
+{
+    Fixture f;
+    f.Follows( f.mLamp, "/props/chair", { "/props/table" } );
+    Require( f.mClipboard.TryCopy( f.mDocument, vector<Entity>{ f.mLamp } ) );
+
+    LightOnly lightOnly;
+    Document target{ lightOnly.mComponentTypes };
+    const size_t count = target.GetScene().Count();
+    const auto pastedMaybe = TryPasteEntities( target, f.mClipboard, target.GetScene().Root() );
+    REQUIRE( not pastedMaybe );
+    CHECK( pastedMaybe.error().find( "follow is not a component" ) != string::npos );
+    CHECK( target.GetScene().Count() == count );
+    CHECK_FALSE( target.GetHistory().CanUndo() );
+    CHECK( target.GetHistory().Position() == 0 );
+}
+
 TEST_CASE( "Copy and paste refuse what cannot be, and a failed copy keeps what was copied" )
 {
     Fixture f;

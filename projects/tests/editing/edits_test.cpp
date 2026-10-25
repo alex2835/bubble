@@ -429,6 +429,100 @@ TEST_CASE( "A move keeps relative links relative, from the moved entity and to i
     CHECK( f.FollowOf( f.mProps ).mTarget.mPath.View() == "../bulb" );
 }
 
+TEST_CASE( "A field set across a dragged group is one step, back to the first value and on to the last" )
+{
+    Fixture f;
+    CHECK( f.Brightness( f.mLamp ) == 1.0f );
+    f.GetHistory().BeginGroup( "drag brightness" );
+    f.Set( f.mLamp, "brightness", MetaAny( 2.0f ) );
+    f.Set( f.mLamp, "brightness", MetaAny( 3.0f ) );
+    f.Set( f.mLamp, "brightness", MetaAny( 9.0f ) );
+    f.GetHistory().EndGroup();
+    CHECK( f.Brightness( f.mLamp ) == 9.0f );
+
+    // One undo takes the whole drag back to what the field was before it, and
+    // one redo brings it to where the drag ended, not to its first frame.
+    f.GetHistory().Undo();
+    CHECK( f.Brightness( f.mLamp ) == 1.0f );
+    f.GetHistory().Redo();
+    CHECK( f.Brightness( f.mLamp ) == 9.0f );
+}
+
+TEST_CASE( "A group that set one field of two entities keeps both sets" )
+{
+    Fixture f;
+    Fixture::Require( TryAddComponent( f.mDocument, f.mProps, "light"_n ) );
+    f.GetHistory().BeginGroup( "two lamps" );
+    f.Set( f.mLamp, "brightness", MetaAny( 2.0f ) );
+    f.Set( f.mProps, "brightness", MetaAny( 7.0f ) );
+    f.GetHistory().EndGroup();
+    CHECK( f.Brightness( f.mLamp ) == 2.0f );
+    CHECK( f.Brightness( f.mProps ) == 7.0f );
+
+    // The same field of two entities is two commands: what a set folds into is
+    // the same field of the same entity, not a field of the same name.
+    f.GetHistory().Undo();
+    CHECK( f.Brightness( f.mLamp ) == 1.0f );
+    CHECK( f.Brightness( f.mProps ) == 1.0f );
+    f.GetHistory().Redo();
+    CHECK( f.Brightness( f.mLamp ) == 2.0f );
+    CHECK( f.Brightness( f.mProps ) == 7.0f );
+}
+
+TEST_CASE( "A move or a rename that changes nothing is still a step the document answers for" )
+{
+    Fixture f;
+    CHECK_FALSE( f.mDocument.IsDirty() );
+
+    Fixture::Require( TryMoveEntity( f.mDocument, f.mBulb, f.mLamp, 0 ) );
+    CHECK( f.PathText( f.mBulb ) == "/lamp/bulb" );
+    CHECK( ChildrenOf( f.GetScene(), f.mLamp ).size() == 1 );
+    CHECK( f.mDocument.IsDirty() );
+    f.GetHistory().Undo();
+    CHECK_FALSE( f.mDocument.IsDirty() );
+
+    const auto renamedMaybe = TryRenameEntity( f.mDocument, f.mLamp, Make( "lamp" ) );
+    Fixture::Require( renamedMaybe );
+    CHECK( renamedMaybe->View() == "lamp" );
+    CHECK( f.PathText( f.mLamp ) == "/lamp" );
+    CHECK( f.mDocument.IsDirty() );
+    f.GetHistory().Undo();
+    CHECK_FALSE( f.mDocument.IsDirty() );
+}
+
+TEST_CASE( "An edit asked for an entity or a component the document does not have" )
+{
+    Fixture f;
+    Fixture::Require( TryDestroyEntity( f.mDocument, f.mBulb ) );
+    const string gone = format( "not an entity of the document: entity {} (gone)", static_cast<u32>( f.mBulb ) );
+    CHECK( TrySetField( f.mDocument, f.mBulb, Declared( "health" ), Path( "value" ), MetaAny( 1 ) ).error() == gone );
+    CHECK( TryCreateEntity( f.mDocument, f.mBulb, Make( "orphan" ) ).error() == gone );
+    // A move does not ask first whether the entity belongs to the document, so a
+    // gone one is described by its number and the tree has the last word.
+    const auto moveError = TryMoveEntity( f.mDocument, f.mBulb, f.mProps, 0 ).error();
+    CHECK( moveError ==
+           format( "entity {} (gone) cannot go under /props: it is not in the tree", static_cast<u32>( f.mBulb ) ) );
+    CHECK( TryDestroyEntity( f.mDocument, f.Root() ).error() == "the root stays: it goes with the scene" );
+    CHECK( TryRenameEntity( f.mDocument, f.Root(), Make( "world" ) ).error() == "the root has no name to change" );
+    CHECK( TryDuplicateEntities( f.mDocument, vector<Entity>{} ).error() == "nothing to duplicate" );
+
+    Declared( "nope" );
+    Declared( "colour" );
+    CHECK( TryAddComponent( f.mDocument, f.mLamp, "nope"_n )
+               .error()
+               .starts_with( "/lamp: nope is not a component (components: " ) );
+    CHECK( TryAddComponent( f.mDocument, f.mLamp, "light"_n ).error() == "/lamp has a light already" );
+    CHECK( TryRemoveComponent( f.mDocument, f.mProps, Declared( "light" ) ).error() == "/props has no light" );
+    CHECK( TrySetField( f.mDocument, f.mProps, Declared( "light" ), Path( "brightness" ), MetaAny( 1.0f ) ).error() ==
+           "/props has no light" );
+    // A field path runs into the reflection's own words, with the entity in
+    // front of them: past the end of a list, and into a field there is not.
+    CHECK( TrySetField( f.mDocument, f.mLamp, "light"_n, Path( "steps[3]" ), MetaAny( 1.0f ) )
+               .error()
+               .find( "no element 3" ) != string::npos );
+    const auto missingError = TrySetField( f.mDocument, f.mLamp, "light"_n, Path( "colour" ), MetaAny( 1.0f ) ).error();
+    CHECK_MESSAGE( missingError.ends_with( "has no field colour (fields: brightness, steps, props)" ), missingError );
+}
 TEST_CASE( "A link inside what moves, to what moves with it, stays as it is when relative" )
 {
     Fixture f;

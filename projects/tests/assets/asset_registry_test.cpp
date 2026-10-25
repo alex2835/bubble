@@ -183,6 +183,155 @@ TEST_CASE( "An asset id is written as 32 hex digits and read back" )
     CHECK_FALSE( AssetId::TryParse( string( 32, 'g' ) ) );
 }
 
+TEST_CASE( "An id is the path's text hashed, so another spelling is another asset" )
+{
+    // Capitals, a different folder, even an empty name: the id is the text, not
+    // the file. A file renamed in the project loses the id everything linked it
+    // by, and a file spelled two ways has two ids.
+    CHECK( AssetId::MakeFrom( "models/hero.glb" ) != AssetId::MakeFrom( "Models/Hero.glb" ) );
+    CHECK( AssetId::MakeFrom( "models/hero.glb" ) != AssetId::MakeFrom( "models/../models/hero.glb" ) );
+    CHECK( AssetId::MakeFrom( "" ) );
+    CHECK( AssetId::MakeFrom( "a" ) != AssetId::MakeFrom( string( "a", 2 ) ) ); // a name with a NUL in it
+    // An id of all zeros is the same id as "no asset", and a file may hold it.
+    CHECK( AssetId{}.ToString() == string( 32, '0' ) );
+    const auto zeroMaybe = AssetId::TryParse( string( 32, '0' ) );
+    REQUIRE( zeroMaybe );
+    CHECK( *zeroMaybe == AssetId{} );
+    CHECK_FALSE( *zeroMaybe );
+    // Only lowercase hex, and only 32 of it: a GUID written the usual way, with
+    // capitals, hyphens or spaces, is not an id.
+    CHECK_FALSE( AssetId::TryParse( string( 31, '0' ) ) );
+    CHECK_FALSE( AssetId::TryParse( string( 33, '0' ) ) );
+    CHECK_FALSE( AssetId::TryParse( string( 32, '0' ) + " " ) );
+    CHECK( AssetId::TryParse( string( 16, '0' ) + "abcdef0123456789" ) );
+    CHECK_FALSE( AssetId::TryParse( "0123456789ABCDEF0123456789ABCDEF" ) );
+    CHECK_FALSE( AssetId::TryParse( "0123456789abcdef0123456789abcdeg" ) );
+}
+
+TEST_CASE( "A file that would not load is kept in memory and says the same reason again" )
+{
+    Project project;
+    const auto missing = project.Load( "later.txt" );
+    CHECK( missing.State() == AssetState::Failed );
+    // A failed entry is an entry: it is listed, counted, and found by both keys.
+    CHECK( project.mAssets.Count() == 1 );
+    CHECK( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "later.txt" ) ) == missing );
+    CHECK( project.mAssets.TryFind<TextAsset>( AssetId::MakeFrom( "later.txt" ) ) == missing );
+
+    // The file appears. Loading is not looked at again: the entry that failed is
+    // still the one in memory, and it keeps its old reason.
+    project.mFiles["later.txt"] = "here";
+    const auto again = project.Load( "later.txt" );
+    CHECK( again == missing );
+    CHECK_FALSE( again.Ready() );
+    CHECK( again.Entry().Error() == "no such file" );
+    // A reload is what notices: the same entry takes the file and becomes Ready.
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "later.txt" ) ) );
+    CHECK( missing.Ready() );
+    CHECK( missing.TryGet()->mText == "here" );
+    CHECK( missing.Entry().Version() == 1 );
+    CHECK( missing.Entry().Error().empty() );
+    // And when the last ref goes, the count goes with it.
+    {
+        const auto once = project.Load( "gone.txt" );
+        CHECK( project.mAssets.Count() == 2 );
+    }
+    CHECK( project.mAssets.Count() == 1 );
+    CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "gone.txt" ) ) );
+}
+
+TEST_CASE( "A file already in memory asked for as another kind says which one it is" )
+{
+    Project project;
+    project.mFiles["a.txt"] = "first";
+    const auto text = project.Load( "a.txt" );
+    const auto asNumber = project.Load<NumberAsset>( "a.txt" );
+    CHECK( asNumber.State() == AssetState::Failed );
+    CHECK( asNumber.Entry().Error() == "a.txt is loaded as another kind of asset" );
+    CHECK( asNumber.Entry().Id() == text.Entry().Id() );
+    // The ref of the kind a person mistyped is not listed: the entry that is
+    // there stays the one and only, and a reload looks at it.
+    CHECK( project.mAssets.Count() == 1 );
+    CHECK_FALSE( project.mAssets.TryFind<NumberAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) == text );
+    // A path with no dot has no extension, and the message shows nothing.
+    project.mFiles["notes"] = "x";
+    CHECK( project.Load( "notes" ).Entry().Error() == "no importer for '' files" );
+    // A file whose name *begins* with a dot has no extension either: the kind
+    // comes from a dot with a name in front of it, so a dotfile is nobody's
+    // asset - and the message is the same empty one as for "notes".
+    project.mFiles[".txt"] = "dotted";
+    CHECK( project.Load( ".txt" ).Entry().Error() == "no importer for '' files" );
+    // A file with nothing in it loads as empty text.
+    project.mFiles["empty.txt"] = "";
+    CHECK( project.Load( "empty.txt" ).TryGet()->mText == "" );
+}
+
+TEST_CASE( "Two spellings of one path are two assets the registry does not connect" )
+{
+    Project project;
+    project.mFiles["notes/hello.txt"] = "one";
+    project.mFiles["Notes/Hello.txt"] = "one";
+    const auto lower = project.Load( "notes/hello.txt" );
+    const auto mixed = project.Load( "Notes/Hello.txt" );
+    // On Windows and on a web fetch these are the same file read twice: two
+    // entries, two ids, two imports, and a reload of one leaves the other alone.
+    CHECK( lower.Ready() );
+    CHECK( mixed.Ready() );
+    CHECK( lower != mixed );
+    CHECK( lower.Entry().Id() != mixed.Entry().Id() );
+    CHECK( project.mAssets.Count() == 2 );
+    vector<string> heard;
+    project.mAssets.OnChanged( [&]( const AssetEntryBase& entry ) { heard.push_back( entry.Path().String() ); } );
+    project.mFiles["notes/hello.txt"] = "two";
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "notes/hello.txt" ) ) );
+    CHECK( heard == vector<string>{ "notes/hello.txt" } );
+    CHECK( mixed.TryGet()->mText == "one" );
+    // Found by id is the entry of that spelling, not the other one.
+    CHECK( project.mAssets.TryFind<TextAsset>( mixed.Entry().Id() ) == mixed );
+}
+
+TEST_CASE( "A listener added while the listeners run starts hearing the reload after" )
+{
+    Project project;
+    project.mFiles["a.txt"] = "a";
+    // The ref is kept: with nothing holding the entry, there is nothing to
+    // reload and no listener has anything to hear.
+    const auto kept = project.Load( "a.txt" );
+    CHECK( kept.Ready() );
+    vector<string> heard;
+    AssetListenerHandle second;
+    project.mAssets.OnChanged( [&]( const AssetEntryBase& ) {
+        heard.push_back( "first" );
+        if ( not second )
+            second = project.mAssets.OnChanged( [&]( const AssetEntryBase& ) { heard.push_back( "second" ); } );
+    } );
+
+    // The listeners were listed before any of them ran, so the one the first
+    // added speaks only to the next reload.
+    project.mFiles["a.txt"] = "b";
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( heard == vector<string>{ "first" } );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( heard == vector<string>{ "first", "first", "second" } );
+
+    // A listener may take itself off from inside itself: it was already copied.
+    AssetListenerHandle handle;
+    handle = project.mAssets.OnChanged( [&]( const AssetEntryBase& ) {
+        heard.push_back( "once" );
+        project.mAssets.RemoveListener( handle );
+    } );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( heard.back() == "once" );
+    CHECK( heard == vector<string>{ "first", "first", "second", "first", "second", "once" } );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( heard.back() == "second" );
+    CHECK( heard.size() == 8 );
+    // A reload nobody listens to is still a reload, and the version grows.
+    const auto entry = project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    CHECK( entry.Entry().Version() == 4 );
+}
+
 TEST_CASE( "The registry reads a project directory, names in any script included" )
 {
     const auto root = fs::temp_directory_path() / PathFromUtf8( "bubble_assets_проект" );

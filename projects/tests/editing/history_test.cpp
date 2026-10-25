@@ -30,6 +30,49 @@ private:
     i32 mAmount;
 };
 
+// Writes what it does into a `log`, so the order commands go back is seen, and
+// folds into the command before it the way a field set while a gizmo is dragged.
+class MarkCommand final : public Command
+{
+public:
+    MarkCommand( vector<string>& log, string target, string note )
+        : mLog( log ),
+          mTarget( std::move( target ) ),
+          mNote( std::move( note ) )
+    {
+    }
+
+    expected<void, string> TryDo( Scene& ) override
+    {
+        if ( mNote.empty() )
+            return unexpected( "nothing to mark"s );
+        mLog.push_back( "do " + mTarget + " " + mNote );
+        return {};
+    }
+
+    void Undo( Scene& ) override { mLog.push_back( "undo " + mTarget + " " + mNote ); }
+    void Redo( Scene& ) override { mLog.push_back( "redo " + mTarget + " " + mNote ); }
+
+    bool Absorb( const Command& next ) override
+    {
+        const auto* mark = dynamic_cast<const MarkCommand*>( &next );
+        if ( mark == nullptr or mark->mTarget != mTarget )
+            return false;
+        mNote = mark->mNote;
+        return true;
+    }
+
+private:
+    vector<string>& mLog;
+    string mTarget;
+    string mNote;
+};
+
+void Require( const expected<void, string>& doneMaybe )
+{
+    REQUIRE_MESSAGE( doneMaybe, doneMaybe.error() );
+}
+
 struct Fixture
 {
     Scene mScene;
@@ -192,4 +235,68 @@ TEST_CASE( "The oldest steps go past the limit" )
     f.mHistory.Undo();
     CHECK_FALSE( f.mHistory.CanUndo() );
     CHECK_THROWS_AS( f.mHistory.SetMaxSteps( 0 ), logic_error );
+}
+
+TEST_CASE( "A step of several commands goes back in the order they came last" )
+{
+    vector<string> log;
+    Fixture f;
+    f.mHistory.BeginGroup( "paint" );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "a", "1" ), "mark a" ) );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "b", "2" ), "mark b" ) );
+    f.mHistory.EndGroup();
+    CHECK( log == vector<string>{ "do a 1", "do b 2" } );
+
+    f.mHistory.Undo();
+    CHECK( log == vector<string>{ "do a 1", "do b 2", "undo b 2", "undo a 1" } );
+    f.mHistory.Redo();
+    CHECK( log == vector<string>{ "do a 1", "do b 2", "undo b 2", "undo a 1", "redo a 1", "redo b 2" } );
+}
+
+TEST_CASE( "What a dragged field set is folds into one command, from the first value to the last" )
+{
+    vector<string> log;
+    Fixture f;
+    f.mHistory.BeginGroup( "drag" );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "brightness", "2" ), "set" ) );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "brightness", "3" ), "set" ) );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "brightness", "4" ), "set" ) );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "steps", "9" ), "set" ) );
+    f.mHistory.EndGroup();
+    CHECK( log == vector<string>{ "do brightness 2", "do brightness 3", "do brightness 4", "do steps 9" } );
+
+    // One undo takes the whole drag back: three sets of one field are one
+    // command that ends where the last one did, and another field stands apart.
+    f.mHistory.Undo();
+    CHECK( log == vector<string>{ "do brightness 2", "do brightness 3", "do brightness 4", "do steps 9", "undo steps 9",
+                                  "undo brightness 4" } );
+    f.mHistory.Redo();
+    CHECK( log == vector<string>{ "do brightness 2", "do brightness 3", "do brightness 4", "do steps 9", "undo steps 9",
+                                  "undo brightness 4", "redo brightness 4", "redo steps 9" } );
+}
+
+TEST_CASE( "A command that cannot be done inside a group leaves the group open to cancel" )
+{
+    vector<string> log;
+    Fixture f;
+    f.Add( 1 );
+    f.mHistory.Undo();
+    const u64 before = f.mHistory.Position();
+
+    f.mHistory.BeginGroup( "half done" );
+    CHECK( f.mHistory.Position() == before );
+    Require( f.mHistory.TryDo( CreateScope<MarkCommand>( log, "a", "1" ), "mark a" ) );
+    CHECK( f.mHistory.Position() != before );
+    const auto doneMaybe = f.mHistory.TryDo( CreateScope<MarkCommand>( log, "b", "" ), "mark b" );
+    REQUIRE( not doneMaybe );
+    CHECK( doneMaybe.error() == "nothing to mark" );
+    CHECK( f.mHistory.InGroup() );
+    CHECK_FALSE( f.mHistory.CanUndo() );
+    CHECK( log == vector<string>{ "do a 1" } );
+
+    f.mHistory.CancelGroup();
+    CHECK( log == vector<string>{ "do a 1", "undo a 1" } );
+    CHECK( f.mTotal == 0 );
+    CHECK( f.mHistory.Position() == before );
+    CHECK( f.mHistory.CanRedo() );
 }

@@ -176,3 +176,58 @@ TEST_CASE( "Two reflections know nothing of each other, and a bad name is a bug"
     CHECK_FALSE( other.TypeOf<Light>().data( "color"_n.Hash() ) );
     CHECK_THROWS_WITH_AS( other.Type<Light>( "Light" ), doctest::Contains( "is not a name" ), logic_error );
 }
+
+TEST_CASE( "An object that came as const reads, and says no to being written or called" )
+{
+    Fixture f;
+    const Light& constantLight = f.mLight;
+    MetaAny constantObject = f.mReflection.Ref( constantLight );
+
+    // Reading, through a field and through a path, is fine.
+    CHECK( f.mReflection.TryGet( constantObject, "brightness"_n )->cast<f32>() == 1.0f );
+    const auto pathMaybe = FieldPath::TryParse( "range" );
+    REQUIRE_MESSAGE( pathMaybe, pathMaybe.error() );
+    CHECK( f.mReflection.TryGetField( constantObject, *pathMaybe )->cast<f32>() == 10.0f );
+
+    // Writing is refused once the field is known, by name and by path alike.
+    CHECK( f.mReflection.TrySet( constantObject, "brightness"_n, MetaAny( 2.0f ) ).error() ==
+           "light.brightness cannot be set here: the object is const" );
+    CHECK( f.mReflection.TrySetField( constantObject, *pathMaybe, MetaAny( 2.0f ) ).error() ==
+           "light.range cannot be set here: the object is const" );
+    // A method that changes the object cannot run either; one that only reads
+    // still does.
+    CHECK( f.mReflection.TryCall( constantObject, "toggle"_n, {} ).error() ==
+           "light.toggle cannot be called here: the object is const" );
+    vector<MetaAny> args{ MetaAny( 2.0f ) };
+    CHECK( f.mReflection.TryCall( constantObject, "brighten"_n, args ).error() ==
+           "light.brighten cannot be called here: the object is const" );
+    CHECK( f.mLight.mBrightness == 1.0f );
+    CHECK( f.mReflection.TryGet( constantObject, "range"_n )->cast<f32>() == 10.0f );
+    // A field nobody described is named before const is even asked about.
+    REQUIRE( Name::TryFrom( "lumens" ) );
+    CHECK( f.mReflection.TrySet( constantObject, "lumens"_n, MetaAny( 1.0f ) )
+               .error()
+               .starts_with( "light has no field lumens" ) );
+}
+
+TEST_CASE( "A number goes into a bool field the way C++ reads a number" )
+{
+    Fixture f;
+    // Reflection converts with the language's own rules, so any number but
+    // zero turns the switch on, and zero turns it off.
+    REQUIRE( f.mReflection.TrySet( f.mObject, "on"_n, MetaAny( 0.0f ) ) );
+    CHECK_FALSE( f.mLight.mOn );
+    REQUIRE( f.mReflection.TrySet( f.mObject, "on"_n, MetaAny( 0.25f ) ) );
+    CHECK( f.mLight.mOn );
+    // The other way: a bool is the number 1 or 0.
+    REQUIRE( f.mReflection.TrySet( f.mObject, "brightness"_n, MetaAny( false ) ) );
+    CHECK( f.mLight.mBrightness == 0.0f );
+    // Text is what does not convert, and the message says the field's type.
+    CHECK( f.mReflection.TrySet( f.mObject, "on"_n, MetaAny( string( "yes" ) ) ).error() ==
+           "light.on: bool expected, got text" );
+    // A method that wants a number takes a bool too.
+    vector<MetaAny> boolArg{ MetaAny( true ) };
+    const auto brightenedMaybe = f.mReflection.TryCall( f.mObject, "brighten"_n, boolArg );
+    REQUIRE_MESSAGE( brightenedMaybe, brightenedMaybe.error() );
+    CHECK( brightenedMaybe->cast<f32>() == 1.0f );
+}

@@ -99,6 +99,10 @@ void ScriptRuntime::RegisterGlobals()
     globals["wait"] = [this]( opt<f64> secondsMaybe ) {
         if ( not mLua.Yieldable() )
             throw LuaError( "wait works inside start( fn ), not in a callback" );
+        // NaN would never be over, and waiting for ever is wait_until's job.
+        if ( secondsMaybe and not isfinite( *secondsMaybe ) )
+            throw LuaError( format( "wait takes a number of seconds, got {}",
+                                    isnan( *secondsMaybe ) ? "nan"s : format( "{}", *secondsMaybe ) ) );
         return LuaYield{ mLua.Value( secondsMaybe.value_or( 0.0 ) ) };
     };
 

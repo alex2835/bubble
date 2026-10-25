@@ -40,6 +40,10 @@ public:
     // 1, the column in code points - and what was there instead:
     // "3:14: , or } expected, got x".
     static expected<Json, string> TryParse( string_view text );
+    // How deep TryParse reads: the document is at 0, what it holds at 1, and
+    // a value deeper than this is an error. Deeper than any file a person
+    // writes; past it, a broken or hostile file would take the stack.
+    static constexpr int cMaxDepth = 256;
     // Indented with two spaces; an array of numbers, bools and strings on
     // one line, as a vec3 reads best. A number that is not finite, which
     // JSON has no word for, is written null.

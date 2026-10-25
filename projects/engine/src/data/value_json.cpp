@@ -14,11 +14,24 @@ bool Whole( f64 number )
     return number >= -cExact and number <= cExact and number == static_cast<f64>( static_cast<i64>( number ) );
 }
 
-Json Numbers( initializer_list<f32> numbers )
+// NaN and infinity are refused, not written null: null would not read back
+// as a number, and the file would not load.
+unexpected<string> Unwritable( f64 number, const string& where )
+{
+    // A NaN's sign says nothing, so it is not printed: "nan", not "-nan".
+    return unexpected(
+        format( "{}: {} is a number a file cannot hold", where, isnan( number ) ? "nan"s : format( "{}", number ) ) );
+}
+
+expected<Json, string> TryWriteFloats( initializer_list<f32> numbers, const string& where )
 {
     Json::Array array;
     for ( const f32 number : numbers )
+    {
+        if ( not isfinite( number ) )
+            return Unwritable( number, where );
         array.push_back( Json( WidenFloat( number ) ) );
+    }
     return Json( std::move( array ) );
 }
 
@@ -85,7 +98,10 @@ public:
                 const auto numbersMaybe = TryNumbers( json, 3, 3 );
                 if ( not numbersMaybe )
                     return mismatch();
-                return Value( vec3( ( *numbersMaybe )[0], ( *numbersMaybe )[1], ( *numbersMaybe )[2] ) );
+                const auto floatsMaybe = TryFloats( json, *numbersMaybe, where );
+                if ( not floatsMaybe )
+                    return unexpected( floatsMaybe.error() );
+                return Value( vec3( ( *floatsMaybe )[0], ( *floatsMaybe )[1], ( *floatsMaybe )[2] ) );
             }
             case ValueKind::Color:
             {
@@ -93,8 +109,11 @@ public:
                 const auto numbersMaybe = TryNumbers( json, 3, 4 );
                 if ( not numbersMaybe )
                     return Fail( json, where, format( "a color [r, g, b, a] expected, got {}", json.Describe() ) );
-                const auto at = [&]( size_t i ) { return static_cast<f32>( ( *numbersMaybe )[i] ); };
-                return Value( Color{ at( 0 ), at( 1 ), at( 2 ), numbersMaybe->size() == 4 ? at( 3 ) : 1.0f } );
+                const auto floatsMaybe = TryFloats( json, *numbersMaybe, where );
+                if ( not floatsMaybe )
+                    return unexpected( floatsMaybe.error() );
+                const vector<f32>& at = *floatsMaybe;
+                return Value( Color{ at[0], at[1], at[2], at.size() == 4 ? at[3] : 1.0f } );
             }
             case ValueKind::Name:
             {
@@ -231,6 +250,25 @@ private:
         return numbers;
     }
 
+    // A float reaches less far than the double a file's number is read as;
+    // what lies past it would be infinity, which no file holds. A number too
+    // small for a float is only rounded, to zero, as 0.1 is to its float.
+    static expected<vector<f32>, string> TryFloats( const Json& json, const vector<f64>& numbers, const string& where )
+    {
+        // Halfway between the biggest float and the next power of two: from
+        // there on a double rounds to infinity.
+        constexpr f64 cFloatReach = 0x1.ffffffp127;
+        vector<f32> floats;
+        for ( size_t i = 0; i < numbers.size(); ++i )
+        {
+            if ( not( numbers[i] > -cFloatReach and numbers[i] < cFloatReach ) )
+                return Fail( ( *json.TryAs<Json::Array>() )[i], format( "{}[{}]", where, i + 1 ),
+                             format( "{} is past what a float holds", numbers[i] ) );
+            floats.push_back( static_cast<f32>( numbers[i] ) );
+        }
+        return floats;
+    }
+
     static unexpected<string> Fail( const Json& json, const string& where, string_view what )
     {
         const string at = json.Where();
@@ -239,18 +277,34 @@ private:
 };
 }
 
-Json ValueToJson( const Value& value, const ValueType& type )
+namespace
+{
+expected<Json, string> TryWrite( const Value& value, const ValueType& type, const string& where )
 {
     if ( const auto flagMaybe = value.TryAs<bool>() )
         return Json( *flagMaybe );
     if ( const auto numberMaybe = value.TryAs<f64>() )
+    {
+        if ( not isfinite( *numberMaybe ) )
+            return Unwritable( *numberMaybe, where );
         return Json( *numberMaybe );
+    }
     if ( const auto textMaybe = value.TryAs<Text>() )
         return Json( textMaybe->String() );
     if ( const auto vMaybe = value.TryAs<vec3>() )
-        return Kind( "$vec3", Numbers( { vMaybe->x, vMaybe->y, vMaybe->z } ), type );
+    {
+        auto numbersMaybe = TryWriteFloats( { vMaybe->x, vMaybe->y, vMaybe->z }, where );
+        if ( not numbersMaybe )
+            return numbersMaybe;
+        return Kind( "$vec3", std::move( *numbersMaybe ), type );
+    }
     if ( const auto colorMaybe = value.TryAs<Color>() )
-        return Kind( "$color", Numbers( { colorMaybe->mR, colorMaybe->mG, colorMaybe->mB, colorMaybe->mA } ), type );
+    {
+        auto numbersMaybe = TryWriteFloats( { colorMaybe->mR, colorMaybe->mG, colorMaybe->mB, colorMaybe->mA }, where );
+        if ( not numbersMaybe )
+            return numbersMaybe;
+        return Kind( "$color", std::move( *numbersMaybe ), type );
+    }
     if ( const auto nameMaybe = value.TryAs<Name>() )
         return Kind( "$name", Json( nameMaybe->ToString() ), type );
     if ( const auto assetIdMaybe = value.TryAs<AssetId>() )
@@ -261,15 +315,31 @@ Json ValueToJson( const Value& value, const ValueType& type )
     {
         const ValueType& element = type.mKind == ValueKind::List and type.mElement ? *type.mElement : cAny;
         Json::Array array;
-        for ( const Value& item : *listMaybe )
-            array.push_back( ValueToJson( item, element ) );
+        for ( size_t i = 0; i < listMaybe->size(); ++i )
+        {
+            auto itemMaybe = TryWrite( ( *listMaybe )[i], element, format( "{}[{}]", where, i + 1 ) );
+            if ( not itemMaybe )
+                return itemMaybe;
+            array.push_back( std::move( *itemMaybe ) );
+        }
         return Json( std::move( array ) );
     }
     Json::Object object;
     for ( const ValueField& field : *value.TryAs<Value::Record>() )
-        object.push_back(
-            Json::Member{ field.mName.ToString(), ValueToJson( field.mValue, FieldType( type, field.mName ) ) } );
+    {
+        const string name = field.mName.ToString();
+        auto fieldMaybe = TryWrite( field.mValue, FieldType( type, field.mName ), format( "{}.{}", where, name ) );
+        if ( not fieldMaybe )
+            return fieldMaybe;
+        object.push_back( Json::Member{ name, std::move( *fieldMaybe ) } );
+    }
     return Json( std::move( object ) );
+}
+}
+
+expected<Json, string> TryValueToJson( const Value& value, const ValueType& type, string_view name )
+{
+    return TryWrite( value, type, string( name ) );
 }
 
 expected<Value, string> TryValueFromJson( const Json& json, const ValueType& type, string_view name )

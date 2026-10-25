@@ -87,6 +87,36 @@ TEST_CASE( "Typed values are what they say or nil" )
     CHECK( Balanced( lua ) );
 }
 
+TEST_CASE( "A number is an integer only when it is a whole one that fits" )
+{
+    LuaState lua;
+    CHECK( lua.Value( 3.0 ).TryAs<int>() == 3 );
+    CHECK( lua.Value( -3.0 ).TryAs<int>() == -3 );
+    CHECK_FALSE( lua.Value( 2147483648.0 ).TryAs<int>() );
+    CHECK_FALSE( lua.Value( -2147483649.0 ).TryAs<int>() );
+    CHECK_FALSE( lua.Value( 1e300 ).TryAs<int>() );
+    // Text that reads as a number is still text, and a number is not text.
+    CHECK_FALSE( lua.Value( "42" ).TryAs<int>() );
+    CHECK_FALSE( lua.Value( 42 ).TryAs<string>() );
+    CHECK_FALSE( lua.Value( true ).TryAs<int>() );
+    CHECK_FALSE( lua.Value( false ).TryAs<int>() );
+    // Not a number is a number to Luau, and it never equals itself.
+    const auto nanMaybe = lua.Value( 0.0 / 0.0 ).TryAs<double>();
+    REQUIRE( nanMaybe );
+    CHECK( nanMaybe.value() != nanMaybe.value() );
+    CHECK( Balanced( lua ) );
+}
+
+TEST_CASE( "A table that is gone reads as empty" )
+{
+    LuaState lua;
+    LuaTable none;
+    CHECK( none.IsNil() );
+    CHECK( none.RawGet( "x" ).IsNil() );
+    CHECK( LuaValue().IsNil() );
+    CHECK( Balanced( lua ) );
+}
+
 TEST_CASE( "A function is called like one and gives back its first result or the error" )
 {
     LuaState lua;

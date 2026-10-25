@@ -284,6 +284,43 @@ error( "half-saved" )
     CHECK( scripts.mRecorded == vector<string>{ "main ran" } );
 }
 
+TEST_CASE( "A library that shares nothing is refused, and one that shares false is not" )
+{
+    Project scripts;
+    scripts.AddLibrary( "scripts/lib/echo.luau", "record( 'echo' )" );
+    scripts.AddLibrary( "scripts/lib/nothing.luau", "return nil" );
+    scripts.AddLibrary( "scripts/lib/untilt.luau", "record( 'once' )\nreturn false" );
+    const string_view cRefused = "a library returns what it shares - end it with return";
+    CHECK( scripts.LoadError( "scripts/a.luau", "require( '@lib/echo' )" ).find( cRefused ) != string::npos );
+    CHECK( scripts.LoadError( "scripts/b.luau", "require( '@lib/nothing' )" ).find( cRefused ) != string::npos );
+    // A library refused for sharing nothing has run all the same: its own top is
+    // what was checked, and what it did on the way stands ("echo" is recorded).
+    // false is a value a library may share, and it is kept like any other: two
+    // requires of it in one file and a third in another, the file runs once.
+    scripts.Load( "scripts/c.luau", "local first = require( '@lib/untilt' )\nlocal second = require( '@lib/untilt' )" );
+    scripts.Load( "scripts/d.luau", "require( '@lib/untilt' )" );
+    CHECK( scripts.mRecorded == vector<string>{ "echo", "once" } );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
+TEST_CASE( "A require that names no file at all, and one that names only an alias" )
+{
+    Project scripts;
+    scripts.AddLibrary( "scripts/lib/inventory.luau", cInventory );
+    CHECK( scripts.LoadError( "scripts/a.luau", "require( '' )" ).find( "a path starts with ./, ../ or @alias" ) !=
+           string::npos );
+    // An alias alone names the alias' own folder, which is not a file.
+    CHECK( scripts.LoadError( "scripts/b.luau", "require( '@lib' )" ).find( "no library scripts/lib.luau is loaded" ) !=
+           string::npos );
+    // A path that climbs out and back in is read as the path it leads to, not
+    // refused for the climb.
+    CHECK( scripts.LoadError( "scripts/c.luau", "require( './../scripts/inventory' )" )
+               .find( "no library scripts/inventory.luau is loaded" ) != string::npos );
+    // A library's name is its path's case, and the file is looked for as written.
+    CHECK( scripts.LoadError( "scripts/d.luau", "require( '@lib/Inventory' )" )
+               .find( "no library scripts/lib/Inventory.luau is loaded" ) != string::npos );
+}
+
 TEST_CASE( "require takes libraries the registry holds and never reads a file itself" )
 {
     Project scripts;

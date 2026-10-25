@@ -27,14 +27,10 @@ public:
     }
 
 private:
-    // Deeper than any file a person writes; past it, a broken or hostile
-    // file would take the stack.
-    static constexpr int cMaxDepth = 256;
-
     expected<Json, string> TryParseValue( int depth )
     {
-        if ( depth > cMaxDepth )
-            return Fail( format( "nested deeper than {}", cMaxDepth ) );
+        if ( depth > Json::cMaxDepth )
+            return Fail( format( "nested deeper than {}", Json::cMaxDepth ) );
         SkipSpace();
         Json json;
         json.mLine = mLine;

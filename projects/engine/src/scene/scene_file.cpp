@@ -1,14 +1,42 @@
 #include "bubble/scene/scene_file.hpp"
 #include "bubble/data/value_json.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
 {
 namespace
 {
-expected<Json, string> TryWriteEntity( const Scene& scene, Entity entity, const ComponentTypes& componentTypes )
+// How far under `json` its deepest value lies: 0 for a plain value.
+int DepthBelow( const Json& json )
 {
+    int deepest = 0;
+    if ( const auto arrayMaybe = json.TryAs<Json::Array>() )
+        for ( const Json& element : *arrayMaybe )
+            deepest = max( deepest, 1 + DepthBelow( element ) );
+    if ( const auto objectMaybe = json.TryAs<Json::Object>() )
+        for ( const Json::Member& member : *objectMaybe )
+            deepest = max( deepest, 1 + DepthBelow( member.mValue ) );
+    return deepest;
+}
+
+// `depth` is where the entity's object sits in the file. What the reader
+// would not take, nested past Json::cMaxDepth, is refused here rather than
+// written into a file that does not load.
+expected<Json, string> TryWriteEntity( const Scene& scene,
+                                       Entity entity,
+                                       const ComponentTypes& componentTypes,
+                                       int depth )
+{
+    const auto tooDeep = [&] {
+        return unexpected(
+            format( "{}: nested deeper than a file holds ({} levels)", Describe( scene, entity ), Json::cMaxDepth ) );
+    };
+    // What an entity holds - its name first - sits one level under it.
+    if ( depth + 1 > Json::cMaxDepth )
+        return tooDeep();
+
     Json::Object object;
     if ( entity != scene.Root() )
         object.push_back( Json::Member{ "name", Json( NameOf( scene, entity ).String() ) } );
@@ -22,7 +50,13 @@ expected<Json, string> TryWriteEntity( const Scene& scene, Entity entity, const 
         auto valueMaybe = componentTypes.GetReflection().TryToValue( component );
         if ( not valueMaybe )
             return unexpected( format( "{}: {}", Describe( scene, entity ), valueMaybe.error() ) );
-        components.push_back( Json::Member{ type.mName.ToString(), ValueToJson( *valueMaybe, type.mValueType ) } );
+        auto jsonMaybe = TryValueToJson( *valueMaybe, type.mValueType, type.mName.ToString() );
+        if ( not jsonMaybe )
+            return unexpected( format( "{}: {}", Describe( scene, entity ), jsonMaybe.error() ) );
+        // The component sits two levels under the entity, in "components".
+        if ( depth + 2 + DepthBelow( *jsonMaybe ) > Json::cMaxDepth )
+            return tooDeep();
+        components.push_back( Json::Member{ type.mName.ToString(), std::move( *jsonMaybe ) } );
     }
     if ( not components.empty() )
         object.push_back( Json::Member{ "components", Json( std::move( components ) ) } );
@@ -30,7 +64,7 @@ expected<Json, string> TryWriteEntity( const Scene& scene, Entity entity, const 
     Json::Array children;
     for ( const Entity child : ChildrenOf( scene, entity ) )
     {
-        auto childJsonMaybe = TryWriteEntity( scene, child, componentTypes );
+        auto childJsonMaybe = TryWriteEntity( scene, child, componentTypes, depth + 2 );
         if ( not childJsonMaybe )
             return childJsonMaybe;
         children.push_back( std::move( *childJsonMaybe ) );
@@ -163,7 +197,8 @@ private:
 
 expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes& componentTypes )
 {
-    auto rootMaybe = TryWriteEntity( scene, scene.Root(), componentTypes );
+    // The file is at 0, its root at 1.
+    auto rootMaybe = TryWriteEntity( scene, scene.Root(), componentTypes, 1 );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
     Json::Object file;
@@ -211,7 +246,7 @@ expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const
     if ( not InTree( scene, entity ) or entity == scene.Root() )
         throw logic_error(
             format( "TryEntityToJson of {}: an entity under the root is written", Describe( scene, entity ) ) );
-    return TryWriteEntity( scene, entity, componentTypes );
+    return TryWriteEntity( scene, entity, componentTypes, 0 );
 }
 
 expected<Entity, string> TryEntityFromJson( Scene& scene,

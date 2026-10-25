@@ -20,4 +20,5 @@ using f64 = double;
 static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::isfinite;
+using std::isnan;
 }

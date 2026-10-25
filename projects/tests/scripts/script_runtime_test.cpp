@@ -422,6 +422,140 @@ end
            string::npos );
 }
 
+TEST_CASE( "A change that does not compile keeps the code that ran, and leaves a fallen instance off" )
+{
+    Scripts scripts;
+    LogWatch log;
+    const auto walker = scripts.Load( "walker.luau", R"(
+function on_update( self, dt )
+    record( "old" )
+    if self.fall then error( "tripped" ) end
+end
+)" );
+    const auto a = scripts.Make( walker, "/walker" );
+    scripts.Set( a, "fall", true );
+    // A callback that fails is false to the caller, and the instance is off.
+    CHECK_FALSE( scripts.Call( a, OnUpdate ) );
+    CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
+    CHECK( log.Saw( LogLevel::Error, { "/walker", "tripped" } ) );
+
+    // The file changed to something that does not compile: the import fails, the
+    // run never happens, and the code the instance had stands.
+    const auto brokenMaybe = scripts.TryChange( "walker.luau", "function on_update( self, dt ) record(" );
+    REQUIRE_FALSE( brokenMaybe );
+    CHECK( brokenMaybe.error().starts_with( "walker.luau" ) );
+    // An instance switched off does nothing, and is still switched off.
+    CHECK( scripts.Call( a, OnUpdate ) );
+    CHECK( scripts.mRecorded == vector<string>{ "old" } );
+    CHECK_FALSE( scripts.mRuntime.Enabled( a ) );
+    // A new instance of the same script gets the old code, not the broken file.
+    const auto b = scripts.Make( walker, "/b" );
+    REQUIRE( scripts.Call( b, OnUpdate ) );
+    CHECK( scripts.mRecorded == vector<string>{ "old", "old" } );
+
+    // A change that does compile takes the new functions and brings the fallen
+    // instance back on.
+    REQUIRE( scripts.TryChange( "walker.luau", R"(
+function on_update( self, dt )
+    record( "new" )
+end
+)" ) );
+    CHECK( scripts.mRuntime.Enabled( a ) );
+    REQUIRE( scripts.Call( a, OnUpdate ) );
+    CHECK( scripts.mRecorded == vector<string>{ "old", "old", "new" } );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
+TEST_CASE( "What a subscriber does to the list of an event is felt from the next event" )
+{
+    Scripts scripts;
+    const auto listener = scripts.Load( "listener.luau", R"(
+props { name = "" }
+function on_start( self )
+    on( "ping", function( self, n )
+        record( self.name .. n )
+        if self.name == "first" then
+            on( "ping", function( self, n ) record( "late" .. n ) end )
+        end
+        if self.name == "eater" then
+            destroy()
+        end
+    end )
+end
+)" );
+    auto firstMaybe = scripts.TryMakeWith( listener, "{ name = 'first' }", "/first" );
+    auto eaterMaybe = scripts.TryMakeWith( listener, "{ name = 'eater' }", "/eater" );
+    auto victimMaybe = scripts.TryMakeWith( listener, "{ name = 'victim' }", "/victim" );
+    auto lastMaybe = scripts.TryMakeWith( listener, "{ name = 'last' }", "/last" );
+    REQUIRE( ( firstMaybe and eaterMaybe and victimMaybe and lastMaybe ) );
+    for ( const ScriptInstanceHandle instanceHandle : { *firstMaybe, *eaterMaybe, *victimMaybe, *lastMaybe } )
+        REQUIRE( scripts.Call( instanceHandle, OnStart ) );
+    scripts.mDoomedHandle = *victimMaybe;
+
+    // The pass goes over a copy of the list: the subscriber added in it joins
+    // from the next event, and the instance taken out mid-pass is skipped, the
+    // ones after it heard all the same.
+    scripts.mRuntime.Emit( "ping", "1" );
+    CHECK( scripts.mRecorded == vector<string>{ "first1", "eater1", "last1" } );
+    CHECK_FALSE( scripts.mRuntime.Alive( *victimMaybe ) );
+
+    scripts.mRecorded.clear();
+    scripts.mRuntime.Emit( "ping", "2" );
+    CHECK( scripts.mRecorded == vector<string>{ "first2", "eater2", "last2", "late2" } );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
+TEST_CASE( "A wait of no time, or of less, is over at the next tick" )
+{
+    Scripts scripts;
+    const auto sleeper = scripts.Load( "sleeper.luau", R"(
+function on_start( self )
+    start( function()
+        self.step = 1
+        wait( 0 )
+        self.step = 2
+        wait( -5 )
+        self.step = 3
+    end )
+end
+)" );
+    const auto a = scripts.Make( sleeper );
+    REQUIRE( scripts.Call( a, OnStart ) );
+    CHECK( scripts.Number( a, "step" ) == 1 );
+    scripts.mRuntime.Tick( 0 );
+    CHECK( scripts.Number( a, "step" ) == 2 );
+    scripts.mRuntime.Tick( 0 );
+    CHECK( scripts.Number( a, "step" ) == 3 );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
+TEST_CASE( "A wait of NaN or of for ever is an error" )
+{
+    Scripts scripts;
+    LogWatch log;
+    const auto sleeper = scripts.Load( "sleeper.luau", R"(
+props { seconds = 0 }
+function on_start( self )
+    start( function()
+        wait( 0 )
+        wait( self.seconds )
+    end )
+end
+)" );
+    // Like any error in a coroutine, it switches the instance off.
+    const auto nanMaybe = scripts.TryMakeWith( sleeper, "{ seconds = 0 / 0 }", "/nan" );
+    const auto hugeMaybe = scripts.TryMakeWith( sleeper, "{ seconds = math.huge }", "/huge" );
+    REQUIRE( ( nanMaybe and hugeMaybe ) );
+    REQUIRE( scripts.Call( *nanMaybe, OnStart ) );
+    REQUIRE( scripts.Call( *hugeMaybe, OnStart ) );
+    scripts.mRuntime.Tick( 0 );
+    CHECK_FALSE( scripts.mRuntime.Enabled( *nanMaybe ) );
+    CHECK_FALSE( scripts.mRuntime.Enabled( *hugeMaybe ) );
+    CHECK( log.Saw( LogLevel::Error, { "/nan", "wait takes a number of seconds, got nan" } ) );
+    CHECK( log.Saw( LogLevel::Error, { "/huge", "wait takes a number of seconds, got inf" } ) );
+    CHECK( lua_gettop( scripts.L() ) == 0 );
+}
+
 TEST_CASE( "Events reach subscribers in order and leave with them" )
 {
     Scripts scripts;

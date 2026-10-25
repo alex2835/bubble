@@ -78,6 +78,73 @@ TEST_CASE( "Utf8Truncate never cuts a character in half" )
     CHECK( Utf8Truncate( "abc", 2 ) == "ab" );
 }
 
+TEST_CASE( "A byte that fits nowhere counts as one character of its own" )
+{
+    // One bad byte becomes one replacement character and the reader moves on,
+    // so a broken text neither stalls the count nor swallows its neighbours.
+    CHECK( Utf8CodePoints( "\xFF\xFF" ) == 2 );
+    CHECK( Utf8CodePoints( "\xED\xA0\x80" ) == 3 );     // one surrogate is three bad bytes
+    CHECK( Utf8CodePoints( "\xE0\x80\xAF" ) == 3 );     // an overlong three-byte form
+    CHECK( Utf8CodePoints( "\xF4\x90\x80\x80" ) == 4 ); // past U+10FFFF: the lead plus three
+    // A sequence cut short at the end of the text is bad from its lead byte on.
+    CHECK( Utf8CodePoints( "\xE6\x97" ) == 2 );
+    CHECK( Utf8CodePoints( "a\xE6\x97" ) == 3 );
+    // NUL is a code point of its own, and a byte-order mark is a character too.
+    CHECK( Utf8CodePoints( string_view( "a\0b", 3 ) ) == 3 );
+    CHECK( Utf8Valid( string_view( "a\0b", 3 ) ) );
+    size_t pos = 0;
+    CHECK( Utf8Next( string_view( "a\0b", 3 ), pos ) == U'a' );
+    CHECK( Utf8Next( string_view( "a\0b", 3 ), pos ) == char32_t( 0 ) );
+    size_t bomPos = 0;
+    CHECK( Utf8Next( "\xEF\xBB\xBF", bomPos ) == char32_t( 0xFEFF ) );
+    CHECK( bomPos == 3 );
+}
+
+TEST_CASE( "Utf8Append turns what Unicode cannot use into the replacement character" )
+{
+    for ( const char32_t bad :
+          { char32_t( 0xD800 ), char32_t( 0xDFFF ), char32_t( 0x110000 ), char32_t( 0x7FFFFFFF ) } )
+    {
+        string out;
+        Utf8Append( out, bad );
+        CHECK( out == "\xEF\xBF\xBD" );
+        CHECK( Utf8Valid( out ) );
+    }
+    // The ends of each encoded length, kept whole.
+    for ( const char32_t edge : { U'\x00', U'\x7F', U'\x80', U'\x7FF', U'\x800', U'\xFFFF', U'\x10FFFF' } )
+    {
+        string out;
+        Utf8Append( out, edge );
+        size_t pos = 0;
+        CHECK( Utf8Next( out, pos ) == edge );
+        CHECK( pos == out.size() );
+    }
+}
+
+TEST_CASE( "Utf8Truncate cuts at a code point, never inside one" )
+{
+    // The byte at the cut is the first one dropped: when it continues the code
+    // point before, that whole code point goes, even though room is left over.
+    CHECK( Utf8Truncate( "\U0001F44D", 3 ).empty() );
+    CHECK( Utf8Truncate( "a\U0001F44D", 2 ) == "a" );
+    CHECK( Utf8Truncate( "日本", 5 ) == "日" );
+    // A combining accent is a code point of its own, so the budget may end
+    // right after the letter it sits on: a whole character as a person counts
+    // it is Text's business, not this function's.
+    const string_view accented = "e\u0301xy";
+    CHECK( Utf8Truncate( accented, 3 ) == "e\u0301" );
+    CHECK( Utf8Truncate( accented, 2 ) == "e" );
+    CHECK( Utf8Valid( Utf8Truncate( accented, 2 ) ) );
+    CHECK( Utf8Truncate( "abc", 0 ).empty() );
+    CHECK( Utf8Truncate( "", 5 ).empty() );
+    // What is already short comes back whole, and so does an invalid byte the
+    // cut does not touch.
+    const string broken = "a\xFF"
+                          "bc";
+    CHECK( Utf8Truncate( broken, 3 ) == broken.substr( 0, 3 ) );
+    CHECK( Utf8Truncate( "日本", 6 ).size() == 6 );
+}
+
 TEST_CASE( "AssetPath tidies separators and steps" )
 {
     CHECK( AssetPath::TryFrom( "models\\cube.obj" )->View() == "models/cube.obj" );
@@ -109,6 +176,74 @@ TEST_CASE( "AssetPath splits into its parts" )
 
     hset<AssetPath> set{ path };
     CHECK( set.contains( *AssetPath::TryFrom( "models\\props\\chair.glb" ) ) );
+}
+
+TEST_CASE( "AssetPath drops the empty steps whatever left them behind" )
+{
+    CHECK( AssetPath::TryFrom( "models/" )->View() == "models" );
+    CHECK( AssetPath::TryFrom( "a//b" )->View() == "a/b" );
+    CHECK( AssetPath::TryFrom( "a\\b/c\\d" )->View() == "a/b/c/d" );
+    CHECK( AssetPath::TryFrom( "a/./b/./" )->View() == "a/b" );
+    CHECK( AssetPath::TryFrom( "././" )->Empty() );
+    CHECK( AssetPath::TryFrom( "//" ).error().find( "is absolute" ) != string::npos );
+    // A step written with a backslash is the same step, and ".." is refused
+    // however it is spelled.
+    CHECK( AssetPath::TryFrom( "a\\..\\" ).error() == "'a\\..\\' leaves the project with '..'" );
+    CHECK( AssetPath::TryFrom( ".." ).error() == "'..' leaves the project with '..'" );
+}
+
+TEST_CASE( "AssetPath says what is wrong in words a person can act on" )
+{
+    CHECK( AssetPath::TryFrom( "/etc/passwd" ).error() ==
+           "'/etc/passwd' is absolute; asset paths start at the project's root" );
+    CHECK( AssetPath::TryFrom( "C:/models/cube.obj" ).error().find( "is absolute" ) != string::npos );
+    // A drive left without a path is still a drive: "C:" alone, and "C:x" next to it.
+    CHECK_FALSE( AssetPath::TryFrom( "C:" ) );
+    CHECK_FALSE( AssetPath::TryFrom( "C:x" ) );
+    CHECK( AssetPath::TryFrom( "bad\xFF.png" ).error() == "the path is not valid UTF-8" );
+    // The text of the error carries the path as it was written, so the person
+    // sees which of their lines is meant.
+    CHECK( AssetPath::TryFrom( "models\\..\\secret" ).error() == "'models\\..\\secret' leaves the project with '..'" );
+}
+
+TEST_CASE( "AssetPath reads a filename's parts by its last dot" )
+{
+    const AssetPath archive = *AssetPath::TryFrom( "sounds/archive.tar.gz" );
+    CHECK( archive.Extension() == ".gz" );
+    CHECK( archive.Stem() == "archive.tar" );
+    // A leading dot belongs to the name, and dots in a directory say nothing
+    // about the file under it.
+    CHECK( AssetPath::TryFrom( "sounds/.gitignore" )->Stem() == ".gitignore" );
+    CHECK( AssetPath::TryFrom( "a.dir/file" )->Extension().empty() );
+    CHECK( AssetPath::TryFrom( "a.dir/file" )->Stem() == "file" );
+    // A name that ends in a dot keeps that dot as its extension.
+    CHECK( AssetPath::TryFrom( "notes." )->Extension() == "." );
+    CHECK( AssetPath::TryFrom( "notes." )->Stem() == "notes" );
+    // A directory has no extension of its own; neither has the root.
+    CHECK( AssetPath::TryFrom( "models/" )->Filename() == "models" );
+    CHECK( AssetPath::TryFrom( "models/" )->Extension().empty() );
+    CHECK( AssetPath::TryFrom( "cube.obj" )->Parent().Empty() );
+    CHECK( AssetPath().Parent().Empty() );
+    CHECK( AssetPath::TryFrom( "models/sub/" )->Parent().View() == "models" );
+}
+
+TEST_CASE( "TryJoin puts a path inside another and keeps the rules" )
+{
+    const AssetPath props = *AssetPath::TryFrom( "models/props" );
+    CHECK( props.TryJoin( "table.glb" )->View() == "models/props/table.glb" );
+    CHECK( props.TryJoin( "shelf\\x.glb" )->View() == "models/props/shelf/x.glb" );
+    CHECK( props.TryJoin( "./x.glb" )->View() == "models/props/x.glb" );
+    CHECK( props.TryJoin( "" )->View() == "models/props" );
+    // The joined text is what gets the rules, so a separator the relative
+    // path starts with lands in the middle and only reads as one more step:
+    // it nests, it does not escape, and ".." is still refused.
+    CHECK( props.TryJoin( "/etc/passwd" )->View() == "models/props/etc/passwd" );
+    CHECK_FALSE( props.TryJoin( "/../../secret" ) );
+    CHECK_FALSE( props.TryJoin( "../secret" ) );
+    CHECK( props.TryJoin( "a//b/" )->View() == "models/props/a/b" );
+    CHECK( AssetPath().TryJoin( "models/cube.obj" )->View() == "models/cube.obj" );
+    CHECK_FALSE( AssetPath().TryJoin( ".." ) );
+    CHECK( AssetPath().TryJoin( "" )->Empty() );
 }
 
 TEST_CASE( "Files with names in any script are written, listed and read back" )

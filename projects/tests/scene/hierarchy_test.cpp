@@ -226,3 +226,92 @@ TEST_CASE( "An entity outside the tree is hung in it as a child is made" )
     CHECK_THROWS_WITH_AS( AddToTree( f.mScene, loose, f.mScene.Root(), Make( "again" ) ),
                           "AddToTree on /props/chair_2, which is in it", logic_error );
 }
+
+TEST_CASE( "A name another child already reads is a taken name, however it was written" )
+{
+    Scene scene;
+    const Entity root = scene.Root();
+    // "cafe" with an accent written as a separate mark and "cafe" with the
+    // letter are the same name once the name is made, so the second is numbered.
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "caf\xC3\xA9" ) ) ) == Make( "caf\xC3\xA9" ) );
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "cafe\xCC\x81" ) ) ) == Make( "caf\xC3\xA9_2" ) );
+    // A slash in a name becomes an underscore, and then it is the same name as
+    // the one a person typed with an underscore.
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "a/b" ) ) ) == Make( "a_b" ) );
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "a_b" ) ) ) == Make( "a_b_2" ) );
+    // Capitals are not folded: Chair and chair are two names.
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "Chair" ) ) ) == Make( "Chair" ) );
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "chair" ) ) ) == Make( "chair" ) );
+    CHECK( ChildrenOf( scene, root ).size() == 6 );
+
+    // A path is Text too, so either spelling of it finds the first child.
+    const auto composedMaybe = TryResolve( scene, Path( "/caf\xC3\xA9" ) );
+    REQUIRE( composedMaybe );
+    CHECK( NameOf( scene, *composedMaybe ) == Make( "caf\xC3\xA9" ) );
+    const auto decomposedMaybe = TryResolve( scene, Path( "/cafe\xCC\x81" ) );
+    REQUIRE( decomposedMaybe );
+    CHECK( *decomposedMaybe == *composedMaybe );
+}
+
+TEST_CASE( "A number too long to count on is part of the name" )
+{
+    Scene scene;
+    const Entity root = scene.Root();
+    // Too many digits to be a number to count on at all: the whole name is the
+    // base, and _2 goes at the end.
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "box_99999999999" ) ) ) == Make( "box_99999999999" ) );
+    CHECK( NameOf( scene, CreateChild( scene, root, Make( "box_99999999999" ) ) ) == Make( "box_99999999999_2" ) );
+}
+
+TEST_CASE( "A place past the end of the children is their end, not a mistake" )
+{
+    Fixture f;
+    const Entity late = CreateChild( f.mScene, f.mProps, Make( "late" ), 999 );
+    CHECK( ChildrenOf( f.mScene, f.mProps ).back() == late );
+    REQUIRE( TrySetParent( f.mScene, late, f.mProps, 500 ) );
+    CHECK( ChildrenOf( f.mScene, f.mProps ).back() == late );
+    CHECK( ChildrenOf( f.mScene, f.mProps ).size() == 3 );
+}
+
+TEST_CASE( "A gone entity has no name, and a path from it says the path is relative" )
+{
+    Fixture f;
+    f.mScene.Destroy( f.mChair );
+    CHECK( NameOf( f.mScene, f.mChair ).Empty() );
+    CHECK( ParentOf( f.mScene, f.mChair ) == Entity::Null );
+    CHECK( ChildrenOf( f.mScene, f.mChair ).empty() );
+    CHECK_FALSE( InTree( f.mScene, f.mChair ) );
+    CHECK_THROWS_WITH_AS( Rename( f.mScene, f.mChair, Make( "bench" ) ), doctest::Contains( "Rename on entity " ),
+                          logic_error );
+    CHECK_THROWS_WITH_AS( AddToTree( f.mScene, f.mChair, f.mProps, Make( "bench" ) ),
+                          doctest::Contains( ", which is gone" ), logic_error );
+    CHECK( TrySetParent( f.mScene, f.mTable, f.mChair ).error().ends_with( ": that is not in the tree" ) );
+
+    // A relative path from it has nowhere to start; an absolute one never
+    // looked at where it started.
+    CHECK( f.Why( "table", f.mChair ) ==
+           format( "table: a relative path, from entity {} (gone)", static_cast<u32>( f.mChair ) ) );
+    CHECK( f.Find( "/props/table", f.mChair ) == f.mTable );
+}
+
+TEST_CASE( "Three dots is a child's name, and one dot too many says where the path ran out" )
+{
+    Fixture f;
+    CHECK( f.Find( "..", f.mChair ) == f.mProps );
+    CHECK( f.Find( ".", f.mScene.Root() ) == f.mScene.Root() );
+    // A lone dot steps nowhere, and the path goes on.
+    CHECK( f.Find( "/././props/./chair" ) == f.mChair );
+    CHECK( f.Why( "/props/..." ) == "/props/...: /props has no child '...' (children: 'chair', 'table')" );
+    CHECK( f.Why( "../../..", f.mChair ) == "../../..: / has no parent" );
+    // A relative path from an entity that is not in the tree, and one from no
+    // entity at all, say the same thing differently.
+    const Entity loose = f.mScene.Create();
+    CHECK( f.Why( "chair", loose ) ==
+           format( "chair: a relative path, from entity {} (not in the tree)", static_cast<u32>( loose ) ) );
+    CHECK( PathOf( f.mScene, loose ).mPath.Empty() );
+    CHECK( RelativePath( f.mScene, loose, f.mChair ).mPath.Empty() );
+    CHECK( RelativePath( f.mScene, f.mChair, loose ).mPath.Empty() );
+    CHECK_FALSE( IsAncestor( f.mScene, f.mProps, f.mProps ) );
+    CHECK( IsAncestor( f.mScene, f.mScene.Root(), f.mChair ) );
+    CHECK_FALSE( IsAncestor( f.mScene, f.mChair, f.mScene.Root() ) );
+}
