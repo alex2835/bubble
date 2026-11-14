@@ -79,6 +79,7 @@ public:
 
     // Whether `id` can run now with `args`, and if not, why.
     expected<void, string> TryPoll( const Workspace& workspace, string_view id, const Json& args = Json() ) const;
+    expected<void, string> TryPoll( const Workspace& workspace, string_view id, const Value::Record& args ) const;
 
     // Checks `args` - a JSON object, or null for none - against the
     // operator's arguments, polls it, and runs it. An operator that edits is
@@ -90,6 +91,9 @@ public:
     expected<void, string> TryRun( Workspace& workspace, string_view id, const Value::Record& args ) const;
 
 private:
+    expected<void, string> TryPollChecked( const Workspace& workspace,
+                                           const Operator& op,
+                                           const OperatorArgs& args ) const;
     expected<void, string> TryRunChecked( Workspace& workspace, const Operator& op, const OperatorArgs& args ) const;
 
     vector<Operator> mOperators;

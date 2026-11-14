@@ -313,16 +313,64 @@ expected<MetaAny, string> Reflection::TryFromValueAt( const Value& value,
     }
     if ( Is<Text>( type ) )
         return exact( value.TryAs<Text>() );
+
+    // What JSON and Luau say plainly where nothing declares the kind - a
+    // text, a list of numbers - is taken for what the field is, as a file
+    // read by its type takes it: a name, an entity, an asset, a vec3, a color.
+    const auto numbers = [&]( size_t least, size_t most ) -> opt<vector<f32>> {
+        const auto listMaybe = value.TryAs<Value::List>();
+        if ( not listMaybe or listMaybe->size() < least or listMaybe->size() > most )
+            return nullopt;
+        vector<f32> numbers;
+        for ( const Value& element : *listMaybe )
+        {
+            const auto numberMaybe = element.TryAs<f64>();
+            if ( not numberMaybe )
+                return nullopt;
+            numbers.push_back( static_cast<f32>( *numberMaybe ) );
+        }
+        return numbers;
+    };
+    const auto text = value.TryAs<Text>();
     if ( Is<vec3>( type ) )
+    {
+        if ( const auto listMaybe = numbers( 3, 3 ) )
+            return MetaAny( mContext, in_place_type<vec3>,
+                            vec3( ( *listMaybe )[0], ( *listMaybe )[1], ( *listMaybe )[2] ) );
         return exact( value.TryAs<vec3>() );
+    }
     if ( Is<Color>( type ) )
+    {
+        if ( const auto listMaybe = numbers( 3, 4 ) )
+            return MetaAny( mContext, in_place_type<Color>,
+                            Color{ ( *listMaybe )[0], ( *listMaybe )[1], ( *listMaybe )[2],
+                                   listMaybe->size() == 4 ? ( *listMaybe )[3] : 1.0f } );
         return exact( value.TryAs<Color>() );
+    }
     if ( Is<Name>( type ) )
-        return exact( value.TryAs<Name>() );
+    {
+        if ( not text )
+            return exact( value.TryAs<Name>() );
+        auto nameMaybe = Name::TryFrom( text->View() );
+        if ( not nameMaybe )
+            return unexpected( format( "{}: {}", where, nameMaybe.error() ) );
+        return MetaAny( mContext, in_place_type<Name>, *nameMaybe );
+    }
     if ( Is<AssetId>( type ) )
-        return exact( value.TryAs<AssetId>() );
+    {
+        if ( not text )
+            return exact( value.TryAs<AssetId>() );
+        const auto idMaybe = AssetId::TryParse( text->View() );
+        if ( not idMaybe )
+            return mismatch();
+        return MetaAny( mContext, in_place_type<AssetId>, *idMaybe );
+    }
     if ( Is<EntityPath>( type ) )
+    {
+        if ( text )
+            return MetaAny( mContext, in_place_type<EntityPath>, EntityPath{ *text } );
         return exact( value.TryAs<EntityPath>() );
+    }
 
     MetaAny made = type.construct();
     if ( not made )

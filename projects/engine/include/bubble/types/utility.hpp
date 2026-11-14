@@ -4,6 +4,7 @@
 #include <initializer_list>
 #include <optional>
 #include <stdexcept>
+#include <tuple>
 #include <typeindex>
 #include <utility>
 
@@ -26,6 +27,7 @@ using std::initializer_list;
 using std::logic_error;
 using std::nullopt;
 using std::nullopt_t;
+using std::tuple;
 using std::type_index;
 using std::unexpected;
 }

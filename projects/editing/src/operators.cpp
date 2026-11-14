@@ -127,11 +127,29 @@ expected<void, string> Operators::TryPoll( const Workspace& workspace, string_vi
     const auto argsMaybe = TryReadArgs( *opMaybe, args );
     if ( not argsMaybe )
         return unexpected( argsMaybe.error() );
-    if ( opMaybe->mEdits and not workspace.TryActive() )
-        return unexpected( format( "{}: no document is open", id ) );
-    if ( opMaybe->mTryPoll )
-        if ( auto polledMaybe = opMaybe->mTryPoll( workspace, *argsMaybe ); not polledMaybe )
-            return unexpected( format( "{}: {}", id, polledMaybe.error() ) );
+    return TryPollChecked( workspace, *opMaybe, *argsMaybe );
+}
+
+expected<void, string> Operators::TryPoll( const Workspace& workspace, string_view id, const Value::Record& args ) const
+{
+    const auto opMaybe = TryFind( id );
+    if ( not opMaybe )
+        return NoOperator( id, *this );
+    const auto argsMaybe = TryReadArgs( *opMaybe, args );
+    if ( not argsMaybe )
+        return unexpected( argsMaybe.error() );
+    return TryPollChecked( workspace, *opMaybe, *argsMaybe );
+}
+
+expected<void, string> Operators::TryPollChecked( const Workspace& workspace,
+                                                  const Operator& op,
+                                                  const OperatorArgs& args ) const
+{
+    if ( op.mEdits and not workspace.TryActive() )
+        return unexpected( format( "{}: no document is open", op.mId ) );
+    if ( op.mTryPoll )
+        if ( auto polledMaybe = op.mTryPoll( workspace, args ); not polledMaybe )
+            return unexpected( format( "{}: {}", op.mId, polledMaybe.error() ) );
     return {};
 }
 
@@ -162,12 +180,9 @@ expected<void, string> Operators::TryRunChecked( Workspace& workspace,
                                                  const OperatorArgs& args ) const
 {
     const auto fail = [&]( string_view why ) { return unexpected( format( "{}: {}", op.mId, why ) ); };
+    if ( auto polledMaybe = TryPollChecked( workspace, op, args ); not polledMaybe )
+        return polledMaybe;
     const auto activeMaybe = workspace.TryActive();
-    if ( op.mEdits and not activeMaybe )
-        return fail( "no document is open" );
-    if ( op.mTryPoll )
-        if ( auto polledMaybe = op.mTryPoll( workspace, args ); not polledMaybe )
-            return fail( polledMaybe.error() );
     if ( not op.mEdits )
     {
         if ( auto ranMaybe = op.mTryRun( workspace, args ); not ranMaybe )

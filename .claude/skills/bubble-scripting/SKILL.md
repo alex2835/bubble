@@ -28,6 +28,7 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 | `luaubind/data` | raw `TryLuaEncode`/`TryLuaDecode`/`TryLuaDeepCopy` under `LuaState::TryEncode`/`TryDecode`/`TryDeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
 | `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptImporter`: `.luau` → bytecode in the asset registry; compiles on the spot for now |
+| `editing/editor_lua` (bubble_editing) | `EditorLua`: the editor's own VM, never a world's. `editor.ops.<group>.<verb>( args )` and `editor.run` run operators (args read by what the operator declares, through `src/lua_values` - the editor's own Luau ↔ Value), `editor.group( label, fn )` makes one history step, `editor.get/children/components/exists/selection/poll` read the active document |
 | `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `TryRunFile`/`TryRunScript`/`TryRunLibrary`, passport), `require`, `scripts` (`TryLoad`/`Unload`), `reload` (`Changed`, `TryRerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
 
 Not there yet (stage 7): the World module that owns a runtime and a

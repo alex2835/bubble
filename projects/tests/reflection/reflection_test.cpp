@@ -231,3 +231,49 @@ TEST_CASE( "A number goes into a bool field the way C++ reads a number" )
     REQUIRE_MESSAGE( brightenedMaybe, brightenedMaybe.error() );
     CHECK( brightenedMaybe->cast<f32>() == 1.0f );
 }
+
+namespace
+{
+struct Marker
+{
+    Name mKind;
+    EntityPath mTarget;
+    vec3 mOffset{ 0, 0, 0 };
+    Color mTint;
+};
+}
+
+TEST_CASE( "A text or a list of numbers in a Value is taken for the name, entity, vec3 or color a field is" )
+{
+    Reflection reflection;
+    reflection.Type<Marker>( "marker" )
+        .Field<&Marker::mKind>( "kind" )
+        .Field<&Marker::mTarget>( "target" )
+        .Field<&Marker::mOffset>( "offset" )
+        .Field<&Marker::mTint>( "tint" );
+    Marker marker;
+    MetaAny object = reflection.Ref( marker );
+    const auto set = [&]( string_view path, Value value ) {
+        return reflection.TrySetField( object, *FieldPath::TryParse( path ), MetaAny( std::move( value ) ) );
+    };
+
+    REQUIRE( set( "kind", Value( *Text::TryFrom( "door" ) ) ) );
+    CHECK( marker.mKind.ToString() == "door" );
+    REQUIRE( set( "target", Value( *Text::TryFrom( "/props/door" ) ) ) );
+    CHECK( marker.mTarget.mPath.View() == "/props/door" );
+    REQUIRE( set( "offset", Value( Value::List{ 1, 2, 3 } ) ) );
+    CHECK( marker.mOffset == vec3( 1, 2, 3 ) );
+    REQUIRE( set( "tint", Value( Value::List{ 1, 0, 0 } ) ) );
+    CHECK( marker.mTint == Color{ 1, 0, 0, 1 } );
+    REQUIRE( set( "tint", Value( Value::List{ 0, 1, 0, 0.5 } ) ) );
+    CHECK( marker.mTint == Color{ 0, 1, 0, 0.5f } );
+
+    // What it cannot be is still refused, saying why.
+    const auto badName = set( "kind", Value( *Text::TryFrom( "Door" ) ) );
+    REQUIRE_FALSE( badName );
+    CHECK( badName.error().find( "Door" ) != string::npos );
+    CHECK_FALSE( set( "offset", Value( Value::List{ 1, 2 } ) ) );
+    CHECK_FALSE( set( "tint", Value( Value::List{ 1, 2, 3, 4, 5 } ) ) );
+    CHECK_FALSE( set( "target", Value( 3 ) ) );
+    CHECK( marker.mKind.ToString() == "door" );
+}
