@@ -95,6 +95,6 @@ private:
     vector<Operator> mOperators;
 };
 
-// entity.*, component.*, property.set, edit.*, selection.*.
+// entity.*, component.*, property.set, edit.*, document.*, selection.*.
 void AddBuiltinOperators( Operators& operators );
 }

@@ -33,13 +33,35 @@ Json Args( string_view text )
     return *jsonMaybe;
 }
 
+// A project's files in memory.
+struct Files
+{
+    hmap<string, string> mFiles;
+
+    ProjectFiles Project()
+    {
+        return ProjectFiles(
+            [this]( const AssetPath& path ) -> expected<string, string> {
+                const auto found = mFiles.find( path.String() );
+                if ( found == mFiles.end() )
+                    return unexpected( "no such file"s );
+                return found->second;
+            },
+            [this]( const AssetPath& path, string_view bytes ) -> expected<void, string> {
+                mFiles[path.String()] = string( bytes );
+                return {};
+            } );
+    }
+};
+
 // /lamp with a light; /props/chair, /props/table.
 struct Fixture
 {
     Reflection mReflection;
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
-    Workspace mWorkspace{ mComponentTypes };
+    Files mFiles;
+    Workspace mWorkspace{ mComponentTypes, mFiles.Project() };
     Document& mDocument = mWorkspace.Open();
     Entity mLamp;
     Entity mProps;
@@ -275,7 +297,7 @@ TEST_CASE( "Selecting, undoing and copying change no document and are no step" )
     CHECK_FALSE( f.mDocument.IsDirty() );
 
     CHECK( f.Why( "edit.redo" ) == "edit.redo: nothing to redo" );
-    Workspace empty( f.mComponentTypes );
+    Workspace empty( f.mComponentTypes, f.mFiles.Project() );
     CHECK( f.mOperators.TryRun( empty, "entity.create" ).error() == "entity.create: no document is open" );
     CHECK( f.mOperators.TryRun( empty, "edit.undo" ).error() == "edit.undo: no document is open" );
 }
@@ -322,4 +344,58 @@ TEST_CASE( "Arguments can come as a record too" )
     CHECK( f.PathText( f.mLamp ) == "/light" );
     const Value::Record wrong{ { "name"_n, 3 } };
     CHECK( f.mOperators.TryRun( f.mWorkspace, "entity.rename", wrong ).error().starts_with( "entity.rename.name: " ) );
+}
+
+TEST_CASE( "A document is saved to a file, opened from it, and closed only when nothing would be lost" )
+{
+    Fixture f;
+    CHECK( f.Why( "document.save" ) == "document.save: the document has no file yet: give it a path" );
+    f.Run( "document.save", R"({ "path": "levels/first.scene" })" );
+    CHECK_FALSE( f.mDocument.IsDirty() );
+    REQUIRE( f.mDocument.TryPath() );
+    CHECK( f.mDocument.TryPath()->View() == "levels/first.scene" );
+    REQUIRE( f.mFiles.mFiles.contains( "levels/first.scene" ) );
+
+    // A change, saved to its own file.
+    f.Run( "entity.rename", R"({ "entity": "/lamp", "name": "light" })" );
+    CHECK( f.Why( "document.close" ) == "document.close: it has changes not saved: save it, or close it with discard" );
+    f.Run( "document.save" );
+    CHECK( f.mFiles.mFiles["levels/first.scene"].find( "\"light\"" ) != string::npos );
+    f.Run( "document.close" );
+    CHECK( f.mWorkspace.Count() == 0 );
+
+    f.Run( "document.open", R"({ "path": "levels/first.scene" })" );
+    REQUIRE( f.mWorkspace.TryActive() );
+    Document& opened = *f.mWorkspace.TryActive();
+    CHECK_FALSE( opened.IsDirty() );
+    CHECK( TryResolve( opened.GetScene(), EntityPath{ Make( "/props/table" ) } ) );
+    CHECK( TryResolve( opened.GetScene(), EntityPath{ Make( "/light" ) } ) );
+    CHECK_FALSE( opened.GetHistory().CanUndo() );
+
+    // Opened again, it is the same document, made active.
+    f.Run( "document.new" );
+    CHECK( f.mWorkspace.Count() == 2 );
+    f.Run( "document.open", R"({ "path": "levels/first.scene" })" );
+    CHECK( f.mWorkspace.Count() == 2 );
+    CHECK( &*f.mWorkspace.TryActive() == &opened );
+}
+
+TEST_CASE( "Opening a file that is not there or is wrong says which file and where" )
+{
+    Fixture f;
+    CHECK( f.Why( "document.open", R"({ "path": "levels/none.scene" })" ) ==
+           "document.open: levels/none.scene: no such file" );
+    f.mFiles.mFiles["levels/bad.scene"] = R"({ "version": 1, "root": { "components": { "lamp": {} } } })";
+    CHECK( f.Why( "document.open", R"({ "path": "levels/bad.scene" })" )
+               .starts_with( "document.open: levels/bad.scene: 1:51: /: lamp is not a component" ) );
+    CHECK( f.Why( "document.open", R"({ "path": "../outside.scene" })" ).starts_with( "document.open: path: " ) );
+    CHECK( f.mWorkspace.Count() == 1 );
+
+    // A document saved over another's file would leave two that disagree.
+    f.Run( "document.save", R"({ "path": "levels/first.scene" })" );
+    f.Run( "document.new" );
+    CHECK( f.Why( "document.save", R"({ "path": "levels/first.scene" })" ) ==
+           "document.save: levels/first.scene is open as another document" );
+    f.Run( "document.close" );
+    CHECK( f.mWorkspace.Count() == 1 );
 }

@@ -9,4 +9,9 @@ Document::Document( const ComponentTypes& componentTypes, Scene scene )
       mSelection( mScene )
 {
 }
+
+OptRef<const AssetPath> Document::TryPath() const
+{
+    return mPathMaybe ? OptRef<const AssetPath>( *mPathMaybe ) : nullopt;
+}
 }

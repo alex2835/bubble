@@ -12,4 +12,5 @@ using std::ifstream;
 using std::ios;
 using std::ofstream;
 using std::ostringstream;
+using std::streamsize;
 }

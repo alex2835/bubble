@@ -1,4 +1,5 @@
 #pragma once
+#include "bubble/core/asset_path.hpp"
 #include "bubble/editing/history.hpp"
 #include "bubble/editing/selection.hpp"
 #include "bubble/scene/component_types.hpp"
@@ -31,11 +32,17 @@ public:
     bool IsDirty() const { return mHistory.Position() != mSavedAt; }
     void MarkSaved() { mSavedAt = mHistory.Position(); }
 
+    // The file it is saved to, from the project's root; nothing for one
+    // never saved.
+    OptRef<const AssetPath> TryPath() const;
+    void SetPath( AssetPath path ) { mPathMaybe = std::move( path ); }
+
 private:
     const ComponentTypes& mComponentTypes;
     Scene mScene;
     History mHistory;
     Selection mSelection;
     u64 mSavedAt = 0;
+    opt<AssetPath> mPathMaybe;
 };
 }

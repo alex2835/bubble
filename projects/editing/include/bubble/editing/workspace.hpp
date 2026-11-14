@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/editing/clipboard.hpp"
 #include "bubble/editing/document.hpp"
+#include "bubble/editing/project_files.hpp"
 
 namespace bubble
 {
@@ -10,7 +11,11 @@ namespace bubble
 class Workspace
 {
 public:
-    explicit Workspace( const ComponentTypes& componentTypes ) : mComponentTypes( componentTypes ) {}
+    Workspace( const ComponentTypes& componentTypes, ProjectFiles files )
+        : mComponentTypes( componentTypes ),
+          mFiles( std::move( files ) )
+    {
+    }
     Workspace( const Workspace& ) = delete;
     Workspace& operator=( const Workspace& ) = delete;
 
@@ -23,8 +28,11 @@ public:
 
     OptRef<Document> TryActive();
     OptRef<const Document> TryActive() const;
+    // The open document saved to `path`.
+    OptRef<Document> TryFind( const AssetPath& path );
     size_t Count() const { return mDocuments.size(); }
 
+    const ProjectFiles& GetFiles() const { return mFiles; }
     Clipboard& GetClipboard() { return mClipboard; }
     const Clipboard& GetClipboard() const { return mClipboard; }
     const ComponentTypes& GetComponentTypes() const { return mComponentTypes; }
@@ -33,6 +41,7 @@ private:
     vector<Scope<Document>>::iterator Find( const Document& document );
 
     const ComponentTypes& mComponentTypes;
+    ProjectFiles mFiles;
     // The active one last: closing it goes back to the one before.
     vector<Scope<Document>> mDocuments;
     Clipboard mClipboard;

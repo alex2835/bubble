@@ -34,6 +34,14 @@ OptRef<const Document> Workspace::TryActive() const
     return mDocuments.empty() ? OptRef<const Document>() : OptRef<const Document>( *mDocuments.back() );
 }
 
+OptRef<Document> Workspace::TryFind( const AssetPath& path )
+{
+    for ( const Scope<Document>& document : mDocuments )
+        if ( const auto pathMaybe = document->TryPath(); pathMaybe and *pathMaybe == path )
+            return *document;
+    return nullopt;
+}
+
 vector<Scope<Document>>::iterator Workspace::Find( const Document& document )
 {
     const auto found =

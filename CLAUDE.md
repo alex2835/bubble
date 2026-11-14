@@ -50,7 +50,8 @@ projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and never included by it: Document (a scene, its
                               History with nested groups, dirty by position, its Selection), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
-                              paste/duplicate; Workspace (open documents, the active one) and Operators - the
+                              paste/duplicate; ProjectFiles (the editor reads and writes the project, a save
+                              replaces the file whole); Workspace (open documents, the active one) and Operators - the
                               only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
                               builtin_operators.cpp); undo brings an entity back under its own number (Revive)
 projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)

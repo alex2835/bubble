@@ -1,5 +1,6 @@
 #include "bubble/editing/edits.hpp"
 #include "bubble/editing/operators.hpp"
+#include "bubble/scene/scene_file.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
@@ -381,6 +382,82 @@ Result PollHistory( const Workspace& workspace, bool undo )
     return {};
 }
 
+expected<AssetPath, string> TryPathArg( const OperatorArgs& args )
+{
+    auto pathMaybe = AssetPath::TryFrom( args.TryGet<Text>( "path"_n )->View() );
+    if ( not pathMaybe )
+        return unexpected( format( "path: {}", pathMaybe.error() ) );
+    return *pathMaybe;
+}
+
+// The file's document, made active: opened again if it is open already.
+Result RunOpen( Workspace& workspace, const OperatorArgs& args )
+{
+    auto pathMaybe = TryPathArg( args );
+    if ( not pathMaybe )
+        return unexpected( std::move( pathMaybe.error() ) );
+    if ( const auto openMaybe = workspace.TryFind( *pathMaybe ) )
+    {
+        workspace.Activate( *openMaybe );
+        return {};
+    }
+    auto textMaybe = workspace.GetFiles().TryRead( *pathMaybe );
+    if ( not textMaybe )
+        return unexpected( format( "{}: {}", pathMaybe->View(), textMaybe.error() ) );
+    auto sceneMaybe = TryLoadScene( *textMaybe, workspace.GetComponentTypes() );
+    if ( not sceneMaybe )
+        return unexpected( format( "{}: {}", pathMaybe->View(), sceneMaybe.error() ) );
+    Document& document = workspace.Open( std::move( *sceneMaybe ) );
+    document.SetPath( std::move( *pathMaybe ) );
+    return {};
+}
+
+// To `path` when it is given - from then on the document's file - and to
+// its own file when not.
+Result RunSave( Workspace& workspace, const OperatorArgs& args )
+{
+    const auto documentMaybe = workspace.TryActive();
+    if ( not documentMaybe )
+        return NoDocument();
+    Document& document = *documentMaybe;
+    AssetPath path;
+    if ( args.Has( "path"_n ) )
+    {
+        auto pathMaybe = TryPathArg( args );
+        if ( not pathMaybe )
+            return unexpected( std::move( pathMaybe.error() ) );
+        if ( const auto otherMaybe = workspace.TryFind( *pathMaybe ); otherMaybe and &*otherMaybe != &document )
+            return unexpected( format( "{} is open as another document", pathMaybe->View() ) );
+        path = std::move( *pathMaybe );
+    }
+    else if ( const auto ownMaybe = document.TryPath() )
+        path = *ownMaybe;
+    else
+        return unexpected( "the document has no file yet: give it a path"s );
+
+    auto textMaybe = TrySaveScene( document.GetScene(), workspace.GetComponentTypes() );
+    if ( not textMaybe )
+        return unexpected( std::move( textMaybe.error() ) );
+    if ( auto writtenMaybe = workspace.GetFiles().TryWrite( path, *textMaybe ); not writtenMaybe )
+        return unexpected( format( "{}: {}", path.View(), writtenMaybe.error() ) );
+    document.SetPath( std::move( path ) );
+    document.MarkSaved();
+    return {};
+}
+
+// Refuses to lose what is not saved, unless `discard` says so.
+Result RunClose( Workspace& workspace, const OperatorArgs& args )
+{
+    const auto documentMaybe = workspace.TryActive();
+    if ( not documentMaybe )
+        return NoDocument();
+    const auto discardMaybe = args.TryGet<bool>( "discard"_n );
+    if ( documentMaybe->IsDirty() and not( discardMaybe and *discardMaybe ) )
+        return unexpected( "it has changes not saved: save it, or close it with discard"s );
+    workspace.Close( *documentMaybe );
+    return {};
+}
+
 Result RunSelect( Workspace& workspace, const OperatorArgs& args, bool add )
 {
     const auto documentMaybe = workspace.TryActive();
@@ -515,6 +592,33 @@ void AddBuiltinOperators( Operators& operators )
                 workspace.TryActive()->GetHistory().Redo();
                 return Result();
             } } );
+    operators.Add( Operator{ .mId = "document.new",
+                             .mLabel = "New",
+                             .mArgs = {},
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = []( Workspace& workspace, const OperatorArgs& ) {
+                                 workspace.Open();
+                                 return Result();
+                             } } );
+    operators.Add( Operator{ .mId = "document.open",
+                             .mLabel = "Open",
+                             .mArgs = { Arg( "path", ValueKind::Text, cRequired ) },
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = RunOpen } );
+    operators.Add( Operator{ .mId = "document.save",
+                             .mLabel = "Save",
+                             .mArgs = { Arg( "path", ValueKind::Text ) },
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = RunSave } );
+    operators.Add( Operator{ .mId = "document.close",
+                             .mLabel = "Close",
+                             .mArgs = { Arg( "discard", ValueKind::Bool ) },
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = RunClose } );
     operators.Add( Operator{ .mId = "selection.set",
                              .mLabel = "Select",
                              .mArgs = { Entities( cRequired ) },
