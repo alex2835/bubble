@@ -23,11 +23,13 @@ int DepthBelow( const Json& json )
 
 // `depth` is where the entity's object sits in the file. What the reader
 // would not take, nested past Json::cMaxDepth, is refused here rather than
-// written into a file that does not load.
+// written into a file that does not load. `prefabs` null writes instances as
+// the plain entities they are in memory.
 expected<Json, string> TryWriteEntity( const Scene& scene,
                                        Entity entity,
                                        const ComponentTypes& componentTypes,
-                                       int depth )
+                                       int depth,
+                                       const PrefabSource* prefabs )
 {
     const auto tooDeep = [&] {
         return unexpected(
@@ -40,6 +42,27 @@ expected<Json, string> TryWriteEntity( const Scene& scene,
     Json::Object object;
     if ( entity != scene.Root() )
         object.push_back( Json::Member{ "name", Json( NameOf( scene, entity ).String() ) } );
+
+    if ( const auto instanceMaybe = scene.TryGet<PrefabInstance>( entity ); instanceMaybe and prefabs )
+    {
+        const AssetPath& path = instanceMaybe->mPrefab;
+        if ( not *prefabs )
+            return unexpected( format( "{}: an instance of {}, and no prefabs to compare it with",
+                                       Describe( scene, entity ), path.View() ) );
+        auto prefabMaybe = ( *prefabs )( path );
+        if ( not prefabMaybe )
+            return unexpected( format( "{}: {}: {}", Describe( scene, entity ), path.View(), prefabMaybe.error() ) );
+        auto overridesMaybe = TryInstanceOverrides( scene, entity, **prefabMaybe, componentTypes );
+        if ( not overridesMaybe )
+            return unexpected( std::move( overridesMaybe.error() ) );
+        object.push_back( Json::Member{ "prefab", Json( path.String() ) } );
+        for ( Json::Member& member : *overridesMaybe )
+            object.push_back( std::move( member ) );
+        Json instance( std::move( object ) );
+        if ( depth + DepthBelow( instance ) > Json::cMaxDepth )
+            return tooDeep();
+        return instance;
+    }
 
     Json::Object components;
     for ( const ComponentTypes::Type& type : componentTypes.All() )
@@ -64,7 +87,7 @@ expected<Json, string> TryWriteEntity( const Scene& scene,
     Json::Array children;
     for ( const Entity child : ChildrenOf( scene, entity ) )
     {
-        auto childJsonMaybe = TryWriteEntity( scene, child, componentTypes, depth + 2 );
+        auto childJsonMaybe = TryWriteEntity( scene, child, componentTypes, depth + 2, prefabs );
         if ( not childJsonMaybe )
             return childJsonMaybe;
         children.push_back( std::move( *childJsonMaybe ) );
@@ -101,9 +124,10 @@ expected<Text, string> TryReadName( const Json& json, string_view where )
 class SceneReader
 {
 public:
-    SceneReader( Scene& scene, const ComponentTypes& componentTypes )
+    SceneReader( Scene& scene, const ComponentTypes& componentTypes, PrefabSource prefabs = {} )
         : mScene( scene ),
-          mComponentTypes( componentTypes )
+          mComponentTypes( componentTypes ),
+          mPrefabs( std::move( prefabs ) )
     {
     }
 
@@ -183,6 +207,13 @@ private:
                 return Fail( *childJson.TryFind( "name" ), where,
                              format( "a second child named \"{}\"", childNameMaybe->View() ) );
 
+            if ( const auto prefabMaybe = childJson.TryFind( "prefab" ) )
+            {
+                if ( auto readMaybe = TryReadInstance( childJson, *prefabMaybe, entity, *childNameMaybe, where );
+                     not readMaybe )
+                    return readMaybe;
+                continue;
+            }
             const Entity child = CreateChild( mScene, entity, *childNameMaybe );
             if ( auto readMaybe = TryReadEntity( childJson, child ); not readMaybe )
                 return readMaybe;
@@ -190,15 +221,47 @@ private:
         return {};
     }
 
+    // The prefab made under `parent`, and what the file says differs.
+    expected<void, string> TryReadInstance( const Json& json,
+                                            const Json& prefabJson,
+                                            Entity parent,
+                                            const Text& name,
+                                            const string& where )
+    {
+        const auto textMaybe = prefabJson.TryAs<string>();
+        if ( not textMaybe )
+            return Fail( prefabJson, where, format( "a prefab's path expected, got {}", prefabJson.Describe() ) );
+        const auto pathMaybe = AssetPath::TryFrom( *textMaybe );
+        if ( not pathMaybe )
+            return Fail( prefabJson, where, pathMaybe.error() );
+        if ( not mPrefabs )
+            return Fail( prefabJson, where, format( "an instance of {}, and no prefabs to make it from", *textMaybe ) );
+        const auto prefabMaybe = mPrefabs( *pathMaybe );
+        if ( not prefabMaybe )
+            return Fail( prefabJson, where, format( "{}: {}", *textMaybe, prefabMaybe.error() ) );
+        for ( const Json::Member& member : *json.TryAs<Json::Object>() )
+            if ( member.mKey != "name" and member.mKey != "prefab" and member.mKey != "set" and
+                 member.mKey != "add_components" and member.mKey != "add_children" and member.mKey != "remove" )
+                return Fail( member.mValue, where,
+                             format( "{} is not a key of an instance (keys: name, prefab, set, add_components, "
+                                     "add_children, remove)",
+                                     member.mKey ) );
+        const Entity root = Instantiate( mScene, **prefabMaybe, *pathMaybe, parent, name, mComponentTypes );
+        return TryApplyOverrides( mScene, root, *json.TryAs<Json::Object>(), mComponentTypes );
+    }
+
     Scene& mScene;
     const ComponentTypes& mComponentTypes;
+    PrefabSource mPrefabs;
 };
 }
 
-expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes& componentTypes )
+expected<string, string> TrySaveScene( const Scene& scene,
+                                       const ComponentTypes& componentTypes,
+                                       const PrefabSource& prefabs )
 {
     // The file is at 0, its root at 1.
-    auto rootMaybe = TryWriteEntity( scene, scene.Root(), componentTypes, 1 );
+    auto rootMaybe = TryWriteEntity( scene, scene.Root(), componentTypes, 1, &prefabs );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
     Json::Object file;
@@ -207,7 +270,9 @@ expected<string, string> TrySaveScene( const Scene& scene, const ComponentTypes&
     return Json( std::move( file ) ).Write();
 }
 
-expected<Scene, string> TryLoadScene( string_view text, const ComponentTypes& componentTypes )
+expected<Scene, string> TryLoadScene( string_view text,
+                                      const ComponentTypes& componentTypes,
+                                      const PrefabSource& prefabs )
 {
     const auto jsonMaybe = Json::TryParse( text );
     if ( not jsonMaybe )
@@ -235,7 +300,7 @@ expected<Scene, string> TryLoadScene( string_view text, const ComponentTypes& co
         return unexpected( "no root: a scene file has \"root\": { ... }"s );
 
     Scene scene;
-    if ( auto readMaybe = SceneReader( scene, componentTypes ).TryReadEntity( *rootMaybe, scene.Root() );
+    if ( auto readMaybe = SceneReader( scene, componentTypes, prefabs ).TryReadEntity( *rootMaybe, scene.Root() );
          not readMaybe )
         return unexpected( std::move( readMaybe.error() ) );
     return scene;
@@ -246,7 +311,7 @@ expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const
     if ( not InTree( scene, entity ) or entity == scene.Root() )
         throw logic_error(
             format( "TryEntityToJson of {}: an entity under the root is written", Describe( scene, entity ) ) );
-    return TryWriteEntity( scene, entity, componentTypes, 0 );
+    return TryWriteEntity( scene, entity, componentTypes, 0, nullptr );
 }
 
 expected<Entity, string> TryEntityFromJson( Scene& scene,

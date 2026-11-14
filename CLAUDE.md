@@ -39,7 +39,10 @@ projects/engine/include/bubble/
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type), Hierarchy (the
                               tree from the root, names unique among siblings, PathOf/Resolve), ComponentTypes,
-                              SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back
+                              SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back;
+                              Prefab (nodes with ids that last, next_id), Instantiate, an instance in a level as
+                              its prefab + overrides (set, add_components, add_children, remove); PrefabInstance and
+                              PrefabLink are ComponentTypes' internal types: kept by undo, never in files
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
                               parser and writer), Value <-> Json (plain by type, tagged for Any)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,

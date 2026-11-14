@@ -315,3 +315,19 @@ TEST_CASE( "Three dots is a child's name, and one dot too many says where the pa
     CHECK( IsAncestor( f.mScene, f.mScene.Root(), f.mChair ) );
     CHECK_FALSE( IsAncestor( f.mScene, f.mChair, f.mScene.Root() ) );
 }
+
+TEST_CASE( "A link moves from under one entity to under another, the root as either" )
+{
+    const auto rebased = []( string_view link, string_view from, string_view to ) {
+        const auto movedMaybe = TryRebase( Path( link ), Path( from ), Path( to ) );
+        return movedMaybe ? movedMaybe->mPath.String() : "nothing"s;
+    };
+    CHECK( rebased( "/props/chair/leg", "/props/chair", "/props/chair_2" ) == "/props/chair_2/leg" );
+    CHECK( rebased( "/props/chair", "/props/chair", "/props/chair_2" ) == "/props/chair_2" );
+    CHECK( rebased( "/props/chairs", "/props/chair", "/x" ) == "nothing" );
+    CHECK( rebased( "/door", "/", "/house" ) == "/house/door" );
+    CHECK( rebased( "/", "/", "/house" ) == "/house" );
+    CHECK( rebased( "/house/door", "/house", "/" ) == "/door" );
+    CHECK( rebased( "/house", "/house", "/" ) == "/" );
+    CHECK( rebased( "../door", "/", "/house" ) == "nothing" );
+}

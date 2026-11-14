@@ -21,9 +21,4 @@ struct EntityLink
 // ComponentTypes knows, and where each leads now. A relative link leads
 // from its holder.
 vector<EntityLink> FindLinks( const Scene& scene, const ComponentTypes& componentTypes, Entity root );
-
-// `link` moved from under `from` to under `to`: "/props/chair/leg" from
-// "/props/chair" to "/props/chair_2" is "/props/chair_2/leg". Nothing when
-// it is not under `from` - "/props/chairs" is not under "/props/chair".
-opt<EntityPath> TryRebase( const EntityPath& link, const EntityPath& from, const EntityPath& to );
 }

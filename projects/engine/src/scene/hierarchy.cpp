@@ -274,6 +274,29 @@ expected<Entity, string> TryResolve( const Scene& scene, const EntityPath& path,
     }
 }
 
+opt<EntityPath> TryRebase( const EntityPath& link, const EntityPath& from, const EntityPath& to )
+{
+    const string_view path = link.mPath.View();
+    const string_view under = from.mPath.View();
+    if ( not link.IsAbsolute() )
+        return nullopt;
+    string_view rest;
+    if ( under == "/" )
+        rest = path == "/" ? string_view() : path;
+    else
+    {
+        if ( not path.starts_with( under ) )
+            return nullopt;
+        rest = path.substr( under.size() );
+        if ( not rest.empty() and not rest.starts_with( '/' ) )
+            return nullopt;
+    }
+    const string_view target = to.mPath.View();
+    // What follows a slash stays as it is put after another text.
+    string rebased = target == "/" ? ( rest.empty() ? "/" : string( rest ) ) : string( target ) + string( rest );
+    return EntityPath{ *Text::TryFrom( rebased ) };
+}
+
 string Describe( const Scene& scene, Entity entity )
 {
     if ( entity == Entity::Null )

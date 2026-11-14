@@ -76,6 +76,13 @@ EntityPath RelativePath( const Scene& scene, Entity from, Entity to );
 // "/props/chiar: /props has no child 'chiar' (children: 'chair', 'table')".
 expected<Entity, string> TryResolve( const Scene& scene, const EntityPath& path, Entity from = Entity::Null );
 
+// An absolute link moved from under `from` to under `to`, the root as
+// either: "/props/chair/leg" from "/props/chair" to "/props/chair_2" is
+// "/props/chair_2/leg", "/door" from "/" to "/house" is "/house/door".
+// Nothing for a link not under `from` - "/props/chairs" is not under
+// "/props/chair" - and for a relative one.
+opt<EntityPath> TryRebase( const EntityPath& link, const EntityPath& from, const EntityPath& to );
+
 // An entity as a message names it: its path; "entity 7 (not in the tree)",
 // "entity 7 (gone)", "no entity".
 string Describe( const Scene& scene, Entity entity );

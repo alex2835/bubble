@@ -14,7 +14,7 @@ namespace
 // list of types may grow and move.
 const ComponentTypes::Type& TypeNamed( const ComponentTypes& componentTypes, Name component )
 {
-    const auto typeMaybe = componentTypes.TryFind( component );
+    const auto typeMaybe = componentTypes.TryFindAny( component );
     if ( not typeMaybe )
         throw logic_error( format( "{} is no component type any more", component.ToString() ) );
     return *typeMaybe;
@@ -183,9 +183,11 @@ private:
                    .mIndex = IndexInParent( scene, entity ),
                    .mName = NameOf( scene, entity ),
                    .mComponents = {} };
-        for ( const ComponentTypes::Type& type : mComponentTypes.All() )
-            if ( const MetaAny component = type.mGet( scene, entity ) )
-                kept.mComponents.emplace_back( type.mName, Copy( component ) );
+        // The engine's own as well: undo brings back an instance's node as one.
+        for ( const span<const ComponentTypes::Type> types : { mComponentTypes.All(), mComponentTypes.Internal() } )
+            for ( const ComponentTypes::Type& type : types )
+                if ( const MetaAny component = type.mGet( scene, entity ) )
+                    kept.mComponents.emplace_back( type.mName, Copy( component ) );
         mKept.push_back( std::move( kept ) );
         for ( const Entity child : ChildrenOf( scene, entity ) )
             Keep( scene, child );

@@ -72,16 +72,4 @@ vector<EntityLink> FindLinks( const Scene& scene, const ComponentTypes& componen
     LinkFinder( scene, componentTypes, links ).FindIn( root );
     return links;
 }
-
-opt<EntityPath> TryRebase( const EntityPath& link, const EntityPath& from, const EntityPath& to )
-{
-    const string_view path = link.mPath.View();
-    if ( not path.starts_with( from.mPath.View() ) )
-        return nullopt;
-    const string_view rest = path.substr( from.mPath.View().size() );
-    if ( not rest.empty() and not rest.starts_with( '/' ) )
-        return nullopt;
-    // What follows a slash stays as it is put after another text.
-    return EntityPath{ *Text::TryFrom( to.mPath.String() + string( rest ) ) };
-}
 }

@@ -1,8 +1,46 @@
 #include "bubble/scene/component_types.hpp"
+#include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
 {
+template <typename T>
+void ComponentTypes::AddInternal( string_view name )
+{
+    Reflection& reflection = mReflection;
+    Type type;
+    type.mName = *Name::TryFrom( name );
+    type.mGet = [&reflection]( const Scene& scene, Entity entity ) {
+        const auto componentMaybe = scene.TryGet<T>( entity );
+        return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
+    };
+    type.mGetWritable = [&reflection]( Scene& scene, Entity entity ) {
+        const auto componentMaybe = scene.TryGet<T>( entity );
+        return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
+    };
+    type.mAdd = []( Scene& scene, Entity entity, MetaAny& made ) {
+        scene.Add<T>( entity, std::move( made.cast<T&>() ) );
+    };
+    type.mRemove = []( Scene& scene, Entity entity ) { scene.Remove<T>( entity ); };
+    mInternal.push_back( std::move( type ) );
+}
+
+ComponentTypes::ComponentTypes( Reflection& reflection ) : mReflection( reflection )
+{
+    AddInternal<PrefabInstance>( "prefab_instance" );
+    AddInternal<PrefabLink>( "prefab_link" );
+}
+
+OptRef<const ComponentTypes::Type> ComponentTypes::TryFindAny( Name name ) const
+{
+    if ( const auto typeMaybe = TryFind( name ) )
+        return typeMaybe;
+    for ( const Type& type : mInternal )
+        if ( type.mName == name )
+            return type;
+    return nullopt;
+}
+
 OptRef<const ComponentTypes::Type> ComponentTypes::TryFind( Name name ) const
 {
     for ( const Type& type : mTypes )

@@ -12,6 +12,10 @@ namespace bubble
 //     componentTypes.Add<Light>();
 //
 // A component of a type not added here stays out of files.
+//
+// Beside them are the engine's own components for its bookkeeping - which
+// prefab an instance is of - kept by undo and by copies of a subtree in
+// memory, never written as components: a file says them its own way.
 class ComponentTypes
 {
 public:
@@ -31,7 +35,8 @@ public:
         function<void( Scene&, Entity )> mRemove;
     };
 
-    explicit ComponentTypes( Reflection& reflection ) : mReflection( reflection ) {}
+    // With the engine's own internal types: PrefabInstance, PrefabLink.
+    explicit ComponentTypes( Reflection& reflection );
 
     // A type not described yet, or added twice, is a logic_error.
     template <typename T>
@@ -61,6 +66,10 @@ public:
     // In the order they were added: the order a file lists them in.
     span<const Type> All() const { return mTypes; }
     OptRef<const Type> TryFind( Name name ) const;
+    // The engine's own; no reflection, no value type, never in a file.
+    span<const Type> Internal() const { return mInternal; }
+    // Among both: what a copy of a subtree in memory looks up.
+    OptRef<const Type> TryFindAny( Name name ) const;
     // For messages: "light, health".
     string Names() const;
 
@@ -70,7 +79,11 @@ private:
     // Fills in the name, the type and the value type of `made`.
     void AddType( const MetaType& type, Type made );
 
+    template <typename T>
+    void AddInternal( string_view name );
+
     Reflection& mReflection;
     vector<Type> mTypes;
+    vector<Type> mInternal;
 };
 }
