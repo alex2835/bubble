@@ -6,6 +6,15 @@
 
 namespace bubble
 {
+// The nodes of a prefab's document by their ids, which outlast renames and
+// saves: kept by Entity, whose numbers outlast undo too, and the id the next
+// new node gets. A node made since the last save gets its id at the next.
+struct PrefabNodes
+{
+    hmap<Entity, u32> mIds;
+    u32 mNextId = 1;
+};
+
 // What is open in the editor and saved to a file: a level's or a prefab's
 // scene, with a history of its own - undo in a prefab does not take back the
 // level. The scene is read here and changed only through the edits in
@@ -37,6 +46,18 @@ public:
     OptRef<const AssetPath> TryPath() const;
     void SetPath( AssetPath path ) { mPathMaybe = std::move( path ); }
 
+    // A prefab's document has its nodes' ids; a level's has none.
+    OptRef<PrefabNodes> TryPrefabNodes();
+    OptRef<const PrefabNodes> TryPrefabNodes() const;
+    void SetPrefabNodes( PrefabNodes nodes ) { mPrefabNodesMaybe = std::move( nodes ); }
+
+    // For what changes the scene and is no step of its history - instances
+    // made again from a prefab saved: afterwards ForgetHistory, as the steps
+    // name entities that went.
+    Scene& SceneOutsideHistory() { return mScene; }
+    // The scene as it is now stays, the steps go; dirty or not as before.
+    void ForgetHistory();
+
 private:
     const ComponentTypes& mComponentTypes;
     Scene mScene;
@@ -44,5 +65,6 @@ private:
     Selection mSelection;
     u64 mSavedAt = 0;
     opt<AssetPath> mPathMaybe;
+    opt<PrefabNodes> mPrefabNodesMaybe;
 };
 }

@@ -42,6 +42,26 @@ OptRef<Document> Workspace::TryFind( const AssetPath& path )
     return nullopt;
 }
 
+expected<Ref<const Prefab>, string> Workspace::TryPrefab( const AssetPath& path )
+{
+    if ( const auto known = mPrefabs.find( path ); known != mPrefabs.end() )
+        return known->second;
+    auto textMaybe = mFiles.TryRead( path );
+    if ( not textMaybe )
+        return unexpected( std::move( textMaybe.error() ) );
+    auto prefabMaybe = Prefab::TryParse( *textMaybe, mComponentTypes );
+    if ( not prefabMaybe )
+        return unexpected( std::move( prefabMaybe.error() ) );
+    Ref<const Prefab> prefab = CreateRef<const Prefab>( std::move( *prefabMaybe ) );
+    mPrefabs[path] = prefab;
+    return prefab;
+}
+
+PrefabSource Workspace::Prefabs()
+{
+    return [this]( const AssetPath& path ) { return TryPrefab( path ); };
+}
+
 vector<Scope<Document>>::iterator Workspace::Find( const Document& document )
 {
     const auto found =

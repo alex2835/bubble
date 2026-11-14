@@ -427,6 +427,45 @@ OptRef<const Prefab::Node> Prefab::TryFind( u32 id ) const
     return mNodes[found->second];
 }
 
+namespace
+{
+// The entities of `node` and what is under it, from `entity` down; links
+// from the prefab's root lead from `rootPath`. `made` hears of each.
+void MakeNodes( Scene& scene,
+                const Prefab& prefab,
+                const Prefab::Node& node,
+                Entity entity,
+                const EntityPath& rootPath,
+                const ComponentTypes& componentTypes,
+                const function<void( Entity, u32 )>& made )
+{
+    made( entity, node.mId );
+    for ( const auto& [componentName, value] : node.mComponents )
+    {
+        const auto typeMaybe = componentTypes.TryFind( componentName );
+        if ( not typeMaybe )
+            throw logic_error( format( "a prefab read with another set of components: {}", componentName.ToString() ) );
+        auto madeMaybe = componentTypes.GetReflection().TryFromValue( ToInstance( value, rootPath ), typeMaybe->mType );
+        if ( not madeMaybe )
+            throw logic_error( format( "a prefab's value it read itself: {}", madeMaybe.error() ) );
+        typeMaybe->mAdd( scene, entity, *madeMaybe );
+    }
+    for ( const u32 childId : node.mChildren )
+    {
+        const Prefab::Node& child = *prefab.TryFind( childId );
+        MakeNodes( scene, prefab, child, CreateChild( scene, entity, child.mName ), rootPath, componentTypes, made );
+    }
+}
+}
+
+void Prefab::SetComponents( u32 id, vector<pair<Name, Value>> components )
+{
+    const auto found = mIndex.find( id );
+    if ( found == mIndex.end() )
+        throw logic_error( format( "Prefab::SetComponents of node {}, which it does not have", id ) );
+    mNodes[found->second].mComponents = std::move( components );
+}
+
 Entity Instantiate( Scene& scene,
                     const Prefab& prefab,
                     const AssetPath& path,
@@ -436,32 +475,31 @@ Entity Instantiate( Scene& scene,
                     size_t index )
 {
     const Entity root = CreateChild( scene, parent, name, index );
-    const EntityPath rootPath = PathOf( scene, root );
-    Reflection& reflection = componentTypes.GetReflection();
-    const function<void( const Prefab::Node&, Entity )> make = [&]( const Prefab::Node& node, Entity entity ) {
-        scene.Add<PrefabLink>( entity, PrefabLink{ .mInstance = root, .mNode = node.mId } );
-        for ( const auto& [componentName, value] : node.mComponents )
-        {
-            const auto typeMaybe = componentTypes.TryFind( componentName );
-            if ( not typeMaybe )
-                throw logic_error(
-                    format( "a prefab read with another set of components: {}", componentName.ToString() ) );
-            Value placed = value;
-            RebaseLinks( placed, RootPath(), rootPath );
-            auto madeMaybe = reflection.TryFromValue( placed, typeMaybe->mType );
-            if ( not madeMaybe )
-                throw logic_error( format( "a prefab's value it read itself: {}", madeMaybe.error() ) );
-            typeMaybe->mAdd( scene, entity, *madeMaybe );
-        }
-        for ( const u32 childId : node.mChildren )
-        {
-            const Prefab::Node& child = *prefab.TryFind( childId );
-            make( child, CreateChild( scene, entity, child.mName ) );
-        }
-    };
-    make( prefab.Root(), root );
+    MakeNodes( scene, prefab, prefab.Root(), root, PathOf( scene, root ), componentTypes, [&]( Entity entity, u32 id ) {
+        scene.Add<PrefabLink>( entity, PrefabLink{ .mInstance = root, .mNode = id } );
+    } );
     scene.Add<PrefabInstance>( root, PrefabInstance{ path } );
     return root;
+}
+
+Scene SceneOf( const Prefab& prefab, const ComponentTypes& componentTypes, hmap<Entity, u32>& ids )
+{
+    Scene scene;
+    MakeNodes( scene, prefab, prefab.Root(), scene.Root(), RootPath(), componentTypes,
+               [&]( Entity entity, u32 id ) { ids[entity] = id; } );
+    return scene;
+}
+
+Value ToInstance( Value value, const EntityPath& root )
+{
+    RebaseLinks( value, RootPath(), root );
+    return value;
+}
+
+Value FromInstance( Value value, const EntityPath& root )
+{
+    RebaseLinks( value, root, RootPath() );
+    return value;
 }
 
 expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,

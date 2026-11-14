@@ -2,6 +2,7 @@
 #include "bubble/editing/clipboard.hpp"
 #include "bubble/editing/document.hpp"
 #include "bubble/editing/project_files.hpp"
+#include "bubble/scene/prefab.hpp"
 
 namespace bubble
 {
@@ -31,6 +32,15 @@ public:
     // The open document saved to `path`.
     OptRef<Document> TryFind( const AssetPath& path );
     size_t Count() const { return mDocuments.size(); }
+    // The active one last.
+    span<const Scope<Document>> All() const { return mDocuments; }
+
+    // The prefab at `path`, read once and kept until a save here changes it.
+    expected<Ref<const Prefab>, string> TryPrefab( const AssetPath& path );
+    // What levels are read and written with: TryPrefab.
+    PrefabSource Prefabs();
+    // The prefab at `path` is `prefab` from now on: what a save here wrote.
+    void SetPrefab( const AssetPath& path, Ref<const Prefab> prefab ) { mPrefabs[path] = std::move( prefab ); }
 
     const ProjectFiles& GetFiles() const { return mFiles; }
     Clipboard& GetClipboard() { return mClipboard; }
@@ -45,5 +55,6 @@ private:
     // The active one last: closing it goes back to the one before.
     vector<Scope<Document>> mDocuments;
     Clipboard mClipboard;
+    hmap<AssetPath, Ref<const Prefab>> mPrefabs;
 };
 }

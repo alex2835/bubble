@@ -434,6 +434,92 @@ private:
     vector<Scope<Command>> mFixes;
 };
 
+// An instance of a prefab, made; undo takes it out and redo puts the same
+// back, as a paste does.
+class InstantiateCommand final : public Command
+{
+public:
+    InstantiateCommand( const ComponentTypes& componentTypes,
+                        Ref<const Prefab> prefab,
+                        AssetPath path,
+                        Entity parent,
+                        Text name,
+                        size_t index )
+        : mComponentTypes( componentTypes ),
+          mPrefab( std::move( prefab ) ),
+          mPath( std::move( path ) ),
+          mParent( parent ),
+          mName( std::move( name ) ),
+          mIndex( index ),
+          mTaken( componentTypes )
+    {
+    }
+
+    Entity Made() const { return mRoot; }
+
+    expected<void, string> TryDo( Scene& scene ) override
+    {
+        mRoot = Instantiate( scene, *mPrefab, mPath, mParent, mName, mComponentTypes, mIndex );
+        // Redo puts back what undo took; the prefab is not needed again.
+        mPrefab.reset();
+        return {};
+    }
+
+    void Undo( Scene& scene ) override { mTaken.TakeOut( scene, mRoot ); }
+    void Redo( Scene& scene ) override { mTaken.PutBack( scene ); }
+
+private:
+    const ComponentTypes& mComponentTypes;
+    Ref<const Prefab> mPrefab;
+    AssetPath mPath;
+    Entity mParent;
+    Text mName;
+    size_t mIndex;
+    Entity mRoot;
+    TakenSubtree mTaken;
+};
+
+// The instance at a root made plain: its links to the prefab taken off, and
+// put back on undo.
+class UnpackCommand final : public Command
+{
+public:
+    explicit UnpackCommand( Entity root ) : mRoot( root ) {}
+
+    expected<void, string> TryDo( Scene& scene ) override
+    {
+        mLinks.clear();
+        vector<Entity> pending{ mRoot };
+        while ( not pending.empty() )
+        {
+            const Entity entity = pending.back();
+            pending.pop_back();
+            if ( const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
+                 linkMaybe and linkMaybe->mInstance == mRoot )
+                mLinks.emplace_back( entity, *linkMaybe );
+            for ( const Entity child : ChildrenOf( scene, entity ) )
+                pending.push_back( child );
+        }
+        mInstance = scene.Get<PrefabInstance>( mRoot );
+        for ( const auto& [entity, link] : mLinks )
+            scene.Remove<PrefabLink>( entity );
+        scene.Remove<PrefabInstance>( mRoot );
+        return {};
+    }
+
+    void Undo( Scene& scene ) override
+    {
+        for ( const auto& [entity, link] : mLinks )
+            scene.Add<PrefabLink>( entity, link );
+        scene.Add<PrefabInstance>( mRoot, mInstance );
+    }
+
+private:
+    Entity mRoot;
+    vector<pair<Entity, PrefabLink>> mLinks;
+    PrefabInstance mInstance;
+};
+
 class AddComponentCommand final : public Command
 {
 public:
@@ -490,6 +576,18 @@ private:
     Name mComponent;
     MetaAny mKept;
 };
+
+// A node of an instance other than its root keeps the prefab's place and
+// name.
+expected<void, string> TryCheckNotPrefabNode( const Scene& scene, Entity entity )
+{
+    const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
+    if ( not linkMaybe or linkMaybe->mInstance == entity or not scene.Has<PrefabInstance>( linkMaybe->mInstance ) )
+        return {};
+    return unexpected( format( "{} is a node of {}: its name and its place are the prefab's - change them there",
+                               Describe( scene, entity ),
+                               scene.Get<PrefabInstance>( linkMaybe->mInstance ).mPrefab.View() ) );
+}
 
 expected<void, string> TryCheckInTree( const Scene& scene, Entity entity )
 {
@@ -594,6 +692,8 @@ expected<void, string> TryDestroyEntity( Document& document, Entity entity )
 
 expected<void, string> TryMoveEntity( Document& document, Entity entity, Entity parent, size_t index )
 {
+    if ( auto checkedMaybe = TryCheckNotPrefabNode( document.GetScene(), entity ); not checkedMaybe )
+        return checkedMaybe;
     // TrySetParent checks the rest, changing nothing when it refuses.
     return TryDo( document,
                   CreateScope<KeepLinksCommand>( document.GetComponentTypes(),
@@ -608,6 +708,8 @@ expected<Text, string> TryRenameEntity( Document& document, Entity entity, const
         return unexpected( std::move( inTreeMaybe.error() ) );
     if ( entity == scene.Root() )
         return unexpected( "the root has no name to change"s );
+    if ( auto checkedMaybe = TryCheckNotPrefabNode( scene, entity ); not checkedMaybe )
+        return unexpected( std::move( checkedMaybe.error() ) );
     const string label = format( "rename {}", NameOf( scene, entity ).View() );
     auto rename =
         CreateScope<KeepLinksCommand>( document.GetComponentTypes(), CreateScope<RenameEntityCommand>( entity, name ) );
@@ -673,5 +775,36 @@ expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<
     if ( pieces.empty() )
         return unexpected( "nothing to duplicate"s );
     return TryPaste( document, std::move( pieces ), "duplicate" );
+}
+
+expected<Entity, string> TryInstantiatePrefab( Document& document,
+                                               Ref<const Prefab> prefab,
+                                               const AssetPath& path,
+                                               Entity parent,
+                                               const Text& name,
+                                               size_t index )
+{
+    if ( auto inTreeMaybe = TryCheckInTree( document.GetScene(), parent ); not inTreeMaybe )
+        return unexpected( std::move( inTreeMaybe.error() ) );
+    if ( document.TryPrefabNodes() )
+        return unexpected( "a prefab inside a prefab is not there yet"s );
+    auto command =
+        CreateScope<InstantiateCommand>( document.GetComponentTypes(), std::move( prefab ), path, parent, name, index );
+    const InstantiateCommand& made = *command;
+    if ( auto doneMaybe = TryDo( document, std::move( command ), format( "instantiate {}", path.View() ) );
+         not doneMaybe )
+        return unexpected( std::move( doneMaybe.error() ) );
+    // Kept by the history, which does not drop a step it has just taken.
+    return made.Made();
+}
+
+expected<void, string> TryUnpackPrefab( Document& document, Entity root )
+{
+    const Scene& scene = document.GetScene();
+    if ( auto inTreeMaybe = TryCheckInTree( scene, root ); not inTreeMaybe )
+        return inTreeMaybe;
+    if ( not scene.Has<PrefabInstance>( root ) )
+        return unexpected( format( "{} is no instance of a prefab", Describe( scene, root ) ) );
+    return TryDo( document, CreateScope<UnpackCommand>( root ), format( "unpack {}", NameOf( scene, root ).View() ) );
 }
 }

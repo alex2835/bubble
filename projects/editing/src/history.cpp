@@ -113,6 +113,13 @@ void History::SetMaxSteps( size_t maxSteps )
         mUndo.erase( mUndo.begin() );
 }
 
+void History::Clear()
+{
+    RequireNoGroup( "Clear" );
+    mUndo.clear();
+    mRedo.clear();
+}
+
 void History::Push( Step step )
 {
     mRedo.clear();

@@ -3,6 +3,7 @@
 #include "bubble/editing/document.hpp"
 #include "bubble/reflection/field_path.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/scene/prefab.hpp"
 
 // Every way a document's scene changes: a field, the tree, the components.
 // Each is a step of the document's history, or part of its open group. Each
@@ -35,6 +36,9 @@ expected<void, string> TryDestroyEntity( Document& document, Entity entity );
 // to a relative path; a link that led nowhere is left as it is.
 //
 // As TrySetParent moves it: the name made unique under the new parent.
+//
+// A node of a prefab's instance, other than its root, keeps its place and
+// its name - they are the prefab's - and refuses both.
 expected<void, string> TryMoveEntity( Document& document, Entity entity, Entity parent, size_t index = cAtEnd );
 // Returns the name it got: `name` made fit and unique, as Rename makes it.
 expected<Text, string> TryRenameEntity( Document& document, Entity entity, const Text& name );
@@ -52,6 +56,17 @@ expected<vector<Entity>, string> TryPasteEntities( Document& document,
 // among them lead among the copies. The clipboard is left alone. Give the top
 // of a selection. Returns the copies, in the order of `entities`.
 expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<const Entity> entities );
+
+// An instance of `prefab`, read from `path`, under `parent`, named as
+// CreateChild names it. Undo takes it out, redo brings the same back.
+expected<Entity, string> TryInstantiatePrefab( Document& document,
+                                               Ref<const Prefab> prefab,
+                                               const AssetPath& path,
+                                               Entity parent,
+                                               const Text& name,
+                                               size_t index = cAtEnd );
+// The instance at `root` made plain entities, which follow no prefab.
+expected<void, string> TryUnpackPrefab( Document& document, Entity root );
 
 // With the component's defaults.
 expected<void, string> TryAddComponent( Document& document, Entity entity, Name component );

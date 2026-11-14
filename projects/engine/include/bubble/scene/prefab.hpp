@@ -51,6 +51,11 @@ public:
     OptRef<const Node> TryFind( u32 id ) const;
     u32 NextId() const { return mNextId; }
 
+    // A node's components from now on, in the order of ComponentTypes: what
+    // a change of the prefab from an instance writes. A node it does not
+    // have is a logic_error.
+    void SetComponents( u32 id, vector<pair<Name, Value>> components );
+
 private:
     vector<Node> mNodes;
     hmap<u32, size_t> mIndex;
@@ -73,6 +78,15 @@ Entity Instantiate( Scene& scene,
                     const Text& name,
                     const ComponentTypes& componentTypes,
                     size_t index = cAtEnd );
+
+// The prefab as a scene of its own, its root the scene's: what a prefab's
+// document edits. `ids` gets each node's entity.
+Scene SceneOf( const Prefab& prefab, const ComponentTypes& componentTypes, hmap<Entity, u32>& ids );
+
+// A prefab's value as an instance rooted at `root` has it - links from the
+// prefab's root led from the instance's - and back.
+Value ToInstance( Value value, const EntityPath& root );
+Value FromInstance( Value value, const EntityPath& root );
 
 // What the instance rooted at `root` has that its prefab does not, as a level
 // file keeps it, an empty member left out:

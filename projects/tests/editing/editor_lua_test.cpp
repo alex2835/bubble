@@ -145,8 +145,8 @@ TEST_CASE( "An operator's error is a script error at the line that ran it, and s
     CHECK( f.Why( "editor.ops.entity.vanish()" )
                .starts_with( "macro.luau:1: entity.vanish is not an operator (entity has: " ) );
     CHECK( f.Why( "editor.ops.lights.on()" ) ==
-           "macro.luau:1: no operators are called lights.* (there are: component, document, edit, entity, property, "
-           "selection)" );
+           "macro.luau:1: no operators are called lights.* (there are: component, document, edit, entity, prefab, "
+           "property, selection)" );
     CHECK( f.Why( R"(editor.get( "/props/lamp", "light.glow" ))" ).starts_with( "macro.luau:1: /props/lamp: " ) );
     CHECK( f.Why( R"(editor.get( "/props/lamp", "shadow" ))" ) ==
            "macro.luau:1: /props/lamp: shadow is not a component (components: light)" );
@@ -201,4 +201,29 @@ counter = 1
     EditorLua editor( empty, f.mOperators );
     CHECK( editor.TryRun( R"(editor.get( "/", "light" ))", "macro.luau" ).error() ==
            "macro.luau:1: no document is open" );
+}
+
+TEST_CASE( "A script edits a level and a prefab, and the prefab's change reaches its instances, theirs kept" )
+{
+    Fixture f;
+    f.Run( R"(--!strict
+editor.ops.document.new()
+editor.ops.entity.create( { name = "house" } )
+editor.ops.entity.create( { name = "door", parent = "/house" } )
+editor.ops.component.add( { entities = { "/house/door" }, component = "light" } )
+editor.ops.prefab.create( { entity = "/house", path = "props/house.prefab" } )
+editor.ops.prefab.instantiate( { prefab = "props/house.prefab", parent = "/", name = "barn" } )
+editor.ops.property.set( { entities = { "/barn/door" }, component = "light", path = "brightness", value = 5 } )
+editor.ops.document.save( { path = "levels/street.scene" } )
+
+editor.ops.document.open( { path = "props/house.prefab" } )
+editor.ops.property.set( { entities = { "/door" }, component = "light", path = "tint", value = vector.create( 0, 1, 0 ) } )
+editor.ops.entity.create( { name = "chimney", parent = "/" } )
+editor.ops.document.save()
+editor.ops.document.close()
+
+print( editor.get( "/barn/door", "light.brightness" ), editor.get( "/house/door", "light.brightness" ) )
+print( editor.get( "/barn/door", "light.tint" ).y, editor.exists( "/barn/chimney" ), editor.exists( "/house/chimney" ) )
+)" );
+    CHECK( f.mPrinted == vector<string>{ "5\t1", "1\ttrue\ttrue" } );
 }

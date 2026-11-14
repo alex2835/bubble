@@ -58,6 +58,9 @@ public:
 
     // The oldest steps are forgotten past this many; 100 to begin with.
     void SetMaxSteps( size_t maxSteps );
+    // Forgets every step, done and undone: for a scene changed outside the
+    // history, which its steps no longer fit. Inside a group a logic_error.
+    void Clear();
 
 private:
     struct Step

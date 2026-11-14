@@ -10,6 +10,24 @@ Document::Document( const ComponentTypes& componentTypes, Scene scene )
 {
 }
 
+OptRef<PrefabNodes> Document::TryPrefabNodes()
+{
+    return mPrefabNodesMaybe ? OptRef<PrefabNodes>( *mPrefabNodesMaybe ) : nullopt;
+}
+
+OptRef<const PrefabNodes> Document::TryPrefabNodes() const
+{
+    return mPrefabNodesMaybe ? OptRef<const PrefabNodes>( *mPrefabNodesMaybe ) : nullopt;
+}
+
+void Document::ForgetHistory()
+{
+    const bool dirty = IsDirty();
+    mHistory.Clear();
+    // No position of an empty history is the saved one when it was dirty.
+    mSavedAt = dirty ? ~u64( 0 ) : mHistory.Position();
+}
+
 OptRef<const AssetPath> Document::TryPath() const
 {
     return mPathMaybe ? OptRef<const AssetPath>( *mPathMaybe ) : nullopt;

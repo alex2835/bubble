@@ -56,8 +56,10 @@ projects/editing/include/bubble/editing/
                               paste/duplicate; ProjectFiles (the editor reads and writes the project, a save
                               replaces the file whole); Workspace (open documents, the active one) and Operators - the
                               only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
-                              builtin_operators.cpp); EditorLua (the editor's own VM: editor.ops.*, editor.get,
-                              editor.group); undo brings an entity back under its own number (Revive)
+                              builtin_operators.cpp, prefab_operators.cpp); prefab documents (.prefab, node ids
+                              kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
+                              EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
+                              an entity back under its own number (Revive)
 projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)
 ```
 
