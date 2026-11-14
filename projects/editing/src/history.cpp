@@ -7,12 +7,16 @@ expected<void, string> History::TryDo( Scope<Command> command, string label )
 {
     if ( auto doneMaybe = command->TryDo( mScene ); not doneMaybe )
         return doneMaybe;
+    if ( not command->Changed() )
+        return {};
     if ( mGroupMaybe )
     {
         // What was undone stays redoable until the group is a step: a
-        // cancelled one puts the scene back as it was.
+        // cancelled one puts the scene back as it was. A command folds only
+        // into one of its own group, which a cancel takes back with it.
         vector<Scope<Command>>& commands = mGroupMaybe->mCommands;
-        if ( commands.empty() or not commands.back()->Absorb( *command ) )
+        const bool folds = commands.size() > mGroupStarts.back() and commands.back()->Absorb( *command );
+        if ( not folds )
             commands.push_back( std::move( command ) );
         return {};
     }
@@ -58,28 +62,37 @@ string_view History::RedoLabel() const
 
 void History::BeginGroup( string label )
 {
-    RequireNoGroup( "BeginGroup" );
-    mGroupMaybe = Step{ .mId = mNextId++, .mLabel = std::move( label ), .mCommands = {} };
+    if ( not mGroupMaybe )
+        mGroupMaybe = Step{ .mId = mNextId++, .mLabel = std::move( label ), .mCommands = {} };
+    mGroupStarts.push_back( mGroupMaybe->mCommands.size() );
 }
 
 void History::EndGroup()
 {
-    if ( not mGroupMaybe )
-        throw logic_error( "EndGroup with no group open" );
+    RequireGroup( "EndGroup" );
+    mGroupStarts.pop_back();
+    if ( not mGroupStarts.empty() )
+        return;
     Step step = std::move( *mGroupMaybe );
     mGroupMaybe.reset();
+    // A drag that came back to where it began changed nothing.
+    erase_if( step.mCommands, []( const Scope<Command>& command ) { return not command->Changed(); } );
     if ( not step.mCommands.empty() )
         Push( std::move( step ) );
 }
 
 void History::CancelGroup()
 {
-    if ( not mGroupMaybe )
-        throw logic_error( "CancelGroup with no group open" );
+    RequireGroup( "CancelGroup" );
     vector<Scope<Command>>& commands = mGroupMaybe->mCommands;
-    for ( auto command = commands.rbegin(); command != commands.rend(); ++command )
-        ( *command )->Undo( mScene );
-    mGroupMaybe.reset();
+    while ( commands.size() > mGroupStarts.back() )
+    {
+        commands.back()->Undo( mScene );
+        commands.pop_back();
+    }
+    mGroupStarts.pop_back();
+    if ( mGroupStarts.empty() )
+        mGroupMaybe.reset();
 }
 
 u64 History::Position() const
@@ -106,6 +119,12 @@ void History::Push( Step step )
     mUndo.push_back( std::move( step ) );
     if ( mUndo.size() > mMaxSteps )
         mUndo.erase( mUndo.begin() );
+}
+
+void History::RequireGroup( string_view what ) const
+{
+    if ( not mGroupMaybe )
+        throw logic_error( format( "{} with no group open", what ) );
 }
 
 void History::RequireNoGroup( string_view what ) const

@@ -4,6 +4,11 @@
 
 namespace bubble
 {
+// Those of `entities` not under another of them, in the order of the tree:
+// what a delete or a copy of them takes - /props with /props/chair is /props
+// alone.
+vector<Entity> TopOf( const Scene& scene, span<const Entity> entities );
+
 // What is selected in a document: entities in the order they were picked,
 // the last one active - the one the inspector shows and the gizmo sits on.
 // Not an edit: undo takes back the scene, not the clicks.

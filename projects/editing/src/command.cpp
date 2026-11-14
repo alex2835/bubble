@@ -13,4 +13,9 @@ bool Command::Absorb( const Command& )
 {
     return false;
 }
+
+bool Command::Changed() const
+{
+    return true;
+}
 }

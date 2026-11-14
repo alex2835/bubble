@@ -44,6 +44,9 @@ Text AddToTree( Scene& scene, Entity entity, Entity parent, const Text& name, si
 Entity ParentOf( const Scene& scene, Entity entity );
 // In order. Good until the tree changes.
 span<const Entity> ChildrenOf( const Scene& scene, Entity entity );
+// Its place among its parent's children, from 0. The root has no parent,
+// and an entity outside the tree no place: both are a logic_error.
+size_t IndexInParent( const Scene& scene, Entity entity );
 // Empty for the root and for an entity outside the tree.
 Text NameOf( const Scene& scene, Entity entity );
 bool InTree( const Scene& scene, Entity entity );

@@ -128,6 +128,15 @@ span<const Entity> ChildrenOf( const Scene& scene, Entity entity )
     return nodeMaybe ? span<const Entity>( nodeMaybe->mChildren ) : span<const Entity>();
 }
 
+size_t IndexInParent( const Scene& scene, Entity entity )
+{
+    const Entity parent = ParentOf( scene, entity );
+    if ( parent == Entity::Null )
+        throw logic_error( format( "IndexInParent of {}, which has no parent", Describe( scene, entity ) ) );
+    const span<const Entity> siblings = ChildrenOf( scene, parent );
+    return static_cast<size_t>( ranges::find( siblings, entity ) - siblings.begin() );
+}
+
 Text NameOf( const Scene& scene, Entity entity )
 {
     const auto nodeMaybe = scene.TryGet<Hierarchy>( entity );

@@ -31,5 +31,8 @@ public:
     // the same field set again while a gizmo is dragged - and this one took
     // it in: it now ends where `next` does, and `next` is dropped.
     virtual bool Absorb( const Command& next );
+    // Whether TryDo changed anything: a field set to what it was, a rename
+    // to the same name, is no step of the history.
+    virtual bool Changed() const;
 };
 }

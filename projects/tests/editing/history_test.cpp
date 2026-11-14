@@ -179,17 +179,41 @@ TEST_CASE( "A cancelled group puts everything back and keeps what can be redone"
     CHECK( f.mTotal == 3 );
 }
 
-TEST_CASE( "Undo, redo and a second group inside a group are logic_errors" )
+TEST_CASE( "Undo and redo inside a group, and closing a group not open, are logic_errors" )
 {
     Fixture f;
     f.mHistory.BeginGroup( "drag" );
     f.Add( 1 );
     CHECK_THROWS_WITH_AS( f.mHistory.Undo(), "Undo inside the group drag, which is not a step yet", logic_error );
     CHECK_THROWS_AS( f.mHistory.Redo(), logic_error );
-    CHECK_THROWS_AS( f.mHistory.BeginGroup( "again" ), logic_error );
     f.mHistory.EndGroup();
     CHECK_THROWS_WITH_AS( f.mHistory.EndGroup(), "EndGroup with no group open", logic_error );
     CHECK_THROWS_AS( f.mHistory.CancelGroup(), logic_error );
+}
+
+TEST_CASE( "A group inside a group is part of its step, and its cancel takes back only what it did" )
+{
+    Fixture f;
+    f.mHistory.BeginGroup( "outer" );
+    f.Add( 1 );
+    f.mHistory.BeginGroup( "inner" );
+    f.Add( 10 );
+    f.mHistory.EndGroup();
+    CHECK( f.mHistory.InGroup() );
+    CHECK_FALSE( f.mHistory.CanUndo() );
+
+    f.mHistory.BeginGroup( "failed" );
+    f.Add( 100 );
+    f.mHistory.CancelGroup();
+    CHECK( f.mTotal == 11 );
+    CHECK( f.mHistory.InGroup() );
+    f.mHistory.EndGroup();
+
+    CHECK( f.mHistory.UndoLabel() == "outer" );
+    f.mHistory.Undo();
+    CHECK( f.mTotal == 0 );
+    f.mHistory.Redo();
+    CHECK( f.mTotal == 11 );
 }
 
 TEST_CASE( "The position comes back with the state, and a new step is a new position" )

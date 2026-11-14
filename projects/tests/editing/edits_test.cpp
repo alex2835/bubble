@@ -469,25 +469,33 @@ TEST_CASE( "A group that set one field of two entities keeps both sets" )
     CHECK( f.Brightness( f.mProps ) == 7.0f );
 }
 
-TEST_CASE( "A move or a rename that changes nothing is still a step the document answers for" )
+TEST_CASE( "A move, a rename or a field set that changes nothing is no step and leaves the document clean" )
 {
     Fixture f;
+    const string_view lastStep = f.GetHistory().UndoLabel();
     CHECK_FALSE( f.mDocument.IsDirty() );
 
     Fixture::Require( TryMoveEntity( f.mDocument, f.mBulb, f.mLamp, 0 ) );
     CHECK( f.PathText( f.mBulb ) == "/lamp/bulb" );
     CHECK( ChildrenOf( f.GetScene(), f.mLamp ).size() == 1 );
-    CHECK( f.mDocument.IsDirty() );
-    f.GetHistory().Undo();
-    CHECK_FALSE( f.mDocument.IsDirty() );
 
     const auto renamedMaybe = TryRenameEntity( f.mDocument, f.mLamp, Make( "lamp" ) );
     Fixture::Require( renamedMaybe );
     CHECK( renamedMaybe->View() == "lamp" );
     CHECK( f.PathText( f.mLamp ) == "/lamp" );
-    CHECK( f.mDocument.IsDirty() );
-    f.GetHistory().Undo();
+
+    // An integer that converts to what the field holds is the same value.
+    f.Set( f.mLamp, "brightness", MetaAny( 1 ) );
     CHECK_FALSE( f.mDocument.IsDirty() );
+    CHECK( f.GetHistory().UndoLabel() == lastStep );
+
+    // A drag that comes back to where it began leaves no step either.
+    f.GetHistory().BeginGroup( "drag" );
+    f.Set( f.mLamp, "brightness", MetaAny( 5.0f ) );
+    f.Set( f.mLamp, "brightness", MetaAny( 1.0f ) );
+    f.GetHistory().EndGroup();
+    CHECK_FALSE( f.mDocument.IsDirty() );
+    CHECK( f.GetHistory().UndoLabel() == lastStep );
 }
 
 TEST_CASE( "An edit asked for an entity or a component the document does not have" )

@@ -20,8 +20,9 @@ public:
     History& operator=( const History& ) = delete;
 
     // Does `command` and keeps it: as a step called `label`, or in the open
-    // group. A command that cannot be done changed nothing and is not kept.
-    // A new step forgets what was undone: it cannot be redone any more.
+    // group. A command that cannot be done changed nothing and is not kept,
+    // nor is one that found nothing to change. A new step forgets what was
+    // undone: it cannot be redone any more.
     expected<void, string> TryDo( Scope<Command> command, string label );
 
     // With nothing to undo or redo they do nothing. Inside a group they are
@@ -38,11 +39,15 @@ public:
     // The commands done until EndGroup are one step, `label`. A field set
     // again inside it folds into the set before, so a drag is one command
     // and not one a frame. A group nothing was done in leaves no step.
-    // Groups do not nest: BeginGroup inside one is a logic_error.
+    //
+    // Groups nest: one begun inside another is part of its step, and its
+    // label is the outer one's - an operator run by an operator. EndGroup and
+    // CancelGroup close the group begun last.
     void BeginGroup( string label );
     void EndGroup();
-    // Undoes what the open group did and drops it: an operator that failed
-    // halfway leaves the document as it found it, redo and all.
+    // Undoes what the group begun last did and closes it: an operator that
+    // failed halfway leaves the document as it found it - the outer group as
+    // it was, and with no group outside, redo and all.
     void CancelGroup();
     bool InGroup() const { return mGroupMaybe.has_value(); }
 
@@ -64,11 +69,15 @@ private:
 
     void Push( Step step );
     void RequireNoGroup( string_view what ) const;
+    void RequireGroup( string_view what ) const;
 
     Scene& mScene;
     vector<Step> mUndo;
     vector<Step> mRedo;
     opt<Step> mGroupMaybe;
+    // For every group open, the outermost first: how many commands the step
+    // had when it began - what its cancel takes back.
+    vector<size_t> mGroupStarts;
     u64 mNextId = 1;
     size_t mMaxSteps = 100;
 };

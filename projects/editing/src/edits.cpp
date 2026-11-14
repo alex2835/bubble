@@ -27,12 +27,6 @@ MetaAny Copy( const MetaAny& any )
     return MetaAny( any );
 }
 
-size_t IndexAmongSiblings( const Scene& scene, Entity entity )
-{
-    const span<const Entity> siblings = ChildrenOf( scene, ParentOf( scene, entity ) );
-    return static_cast<size_t>( ranges::find( siblings, entity ) - siblings.begin() );
-}
-
 class SetFieldCommand final : public Command
 {
 public:
@@ -80,6 +74,9 @@ public:
         mAfter = Copy( set.mAfter );
         return true;
     }
+
+    // A type with no == compares by address: then a set counts as a change.
+    bool Changed() const override { return not( mBefore == mAfter ); }
 
 private:
     // A value of the field's own type, which it has taken before.
@@ -183,7 +180,7 @@ private:
     {
         Kept kept{ .mEntity = entity,
                    .mParent = ParentOf( scene, entity ),
-                   .mIndex = IndexAmongSiblings( scene, entity ),
+                   .mIndex = IndexInParent( scene, entity ),
                    .mName = NameOf( scene, entity ),
                    .mComponents = {} };
         for ( const ComponentTypes::Type& type : mComponentTypes.All() )
@@ -249,8 +246,7 @@ public:
     {
         for ( const Piece& piece : mPieces )
         {
-            const size_t index =
-                piece.mAfter != Entity::Null ? IndexAmongSiblings( scene, piece.mAfter ) + 1 : piece.mIndex;
+            const size_t index = piece.mAfter != Entity::Null ? IndexInParent( scene, piece.mAfter ) + 1 : piece.mIndex;
             auto madeMaybe = TryEntityFromJson( scene, piece.mEntity, piece.mParent, mComponentTypes, index );
             if ( not madeMaybe )
             {
@@ -325,10 +321,17 @@ public:
     expected<void, string> TryDo( Scene& scene ) override
     {
         mOldParent = ParentOf( scene, mEntity );
-        mOldIndex = IndexAmongSiblings( scene, mEntity );
+        // The root has no place to keep; TrySetParent refuses to move it.
+        mOldIndex = mOldParent != Entity::Null ? IndexInParent( scene, mEntity ) : 0;
         mOldName = NameOf( scene, mEntity );
-        return TrySetParent( scene, mEntity, mParent, mIndex );
+        if ( auto movedMaybe = TrySetParent( scene, mEntity, mParent, mIndex ); not movedMaybe )
+            return movedMaybe;
+        mMoved = mParent != mOldParent or IndexInParent( scene, mEntity ) != mOldIndex or
+                 NameOf( scene, mEntity ) != mOldName;
+        return {};
     }
+
+    bool Changed() const override { return mMoved; }
 
     void Undo( Scene& scene ) override
     {
@@ -345,6 +348,7 @@ private:
     Entity mOldParent;
     size_t mOldIndex = 0;
     Text mOldName;
+    bool mMoved = false;
 };
 
 class RenameEntityCommand final : public Command
@@ -355,16 +359,18 @@ public:
     expected<void, string> TryDo( Scene& scene ) override
     {
         mOldName = NameOf( scene, mEntity );
-        Rename( scene, mEntity, mWanted );
+        mRenamed = Rename( scene, mEntity, mWanted ) != mOldName;
         return {};
     }
 
     void Undo( Scene& scene ) override { Rename( scene, mEntity, mOldName ); }
+    bool Changed() const override { return mRenamed; }
 
 private:
     Entity mEntity;
     Text mWanted;
     Text mOldName;
+    bool mRenamed = false;
 };
 
 // A change to the tree - a rename, a move - with the links it broke set to
@@ -417,6 +423,8 @@ public:
         for ( const Scope<Command>& fix : mFixes )
             fix->Redo( scene );
     }
+
+    bool Changed() const override { return mChange->Changed(); }
 
 private:
     const ComponentTypes& mComponentTypes;

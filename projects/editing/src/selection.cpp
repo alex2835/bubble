@@ -22,6 +22,20 @@ vector<size_t> PlaceInTree( const Scene& scene, Entity entity )
 }
 }
 
+vector<Entity> TopOf( const Scene& scene, span<const Entity> entities )
+{
+    vector<pair<vector<size_t>, Entity>> placed;
+    for ( const Entity entity : entities )
+        if ( ranges::none_of( entities, [&]( Entity other ) { return IsAncestor( scene, other, entity ); } ) and
+             ranges::find( placed, entity, &pair<vector<size_t>, Entity>::second ) == placed.end() )
+            placed.emplace_back( PlaceInTree( scene, entity ), entity );
+    ranges::sort( placed, []( const auto& a, const auto& b ) { return a.first < b.first; } );
+    vector<Entity> top;
+    for ( const auto& [place, entity] : placed )
+        top.push_back( entity );
+    return top;
+}
+
 void Selection::Select( Entity entity )
 {
     Require( entity, "Select" );
@@ -78,18 +92,7 @@ Entity Selection::Active() const
 
 vector<Entity> Selection::TopLevel() const
 {
-    vector<Entity> top;
-    for ( const Entity entity : All() )
-        if ( ranges::none_of( mPicked,
-                              [&]( Entity other ) { return Shown( other ) and IsAncestor( mScene, other, entity ); } ) )
-            top.push_back( entity );
-    vector<pair<vector<size_t>, Entity>> placed;
-    for ( const Entity entity : top )
-        placed.emplace_back( PlaceInTree( mScene, entity ), entity );
-    ranges::sort( placed, []( const auto& a, const auto& b ) { return a.first < b.first; } );
-    for ( size_t i = 0; i < placed.size(); ++i )
-        top[i] = placed[i].second;
-    return top;
+    return TopOf( mScene, All() );
 }
 
 bool Selection::Shown( Entity entity ) const

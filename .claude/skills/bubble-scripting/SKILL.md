@@ -36,6 +36,16 @@ runtime component per entity, `self.entity`, `Value` ↔ Luau and the
 the AST on import, reading `.luaurc` (luau_config) into `TrySetAlias`,
 `bubble.d.luau`, the `interrupt` guard against endless loops.
 
+**Every script is typed** (decided 2026-11-14, doc «Скрипты» → «Только
+типизированный код»): the Luau analyzer checks each file in strict mode
+whatever its header says, `--!nonstrict`/`--!nocheck` are errors, and `any`
+is banned - written, or inferred on what the file shows outside (props,
+locals, a library's return, callback parameters). A type error fails the
+import like a compile error. The analyzer learns the engine from the
+generated `bubble.d.luau`, each script's `self` type included; a prop's
+`ValueType` comes from its inferred type. The analyzer stays out of the
+runner. Write examples and test scripts as typed Luau already.
+
 ## The script model
 
 ```lua
