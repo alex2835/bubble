@@ -23,7 +23,8 @@ struct ModelSettings
 expected<ModelSettings, string> TryReadSettings( const Json& json )
 {
     const ValueType number = ValueType::Of( ValueKind::Number );
-    const ValueType type = ValueType::RecordOf( { { "lods"_n, ValueType::ListOf( number ) }, { "scale"_n, number } } );
+    const ValueType type = ValueType::RecordOf(
+        { { Name::Declare( "lods" ), ValueType::ListOf( number ) }, { Name::Declare( "scale" ), number } } );
     const AssetCatalog none;
     auto valueMaybe = TryValueFromJson( json, type, "settings", none );
     if ( not valueMaybe )

@@ -5,17 +5,6 @@
 
 namespace bubble
 {
-namespace detail
-{
-Name DeclareName( string_view name )
-{
-    auto declaredMaybe = Name::TryFrom( name );
-    if ( not declaredMaybe )
-        throw logic_error( declaredMaybe.error() );
-    return *declaredMaybe;
-}
-}
-
 namespace
 {
 const FieldInfo cNoFieldInfo{};

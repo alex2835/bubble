@@ -27,6 +27,13 @@ TEST_CASE( "A name knows its text once it was declared" )
     CHECK( Name().ToString().empty() );
 }
 
+TEST_CASE( "A name the code declares knows its text, and a bad one is a bug" )
+{
+    CHECK( Name::Declare( "declared_by_code" ) == "declared_by_code"_n );
+    CHECK( "declared_by_code"_n.ToString() == "declared_by_code" );
+    CHECK_THROWS_AS( Name::Declare( "Not A Name" ), logic_error );
+}
+
 TEST_CASE( "A name is ASCII snake_case" )
 {
     CHECK( Name::TryFrom( "light2_color" ) );

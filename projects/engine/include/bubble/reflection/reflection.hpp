@@ -83,12 +83,6 @@ struct TypeInfo
 
 using FieldListenerHandle = Handle<struct FieldListenerTag>;
 
-namespace detail
-{
-// A name a description gives, declared: a bad one is a logic_error.
-Name DeclareName( string_view name );
-}
-
 // Describes T, a step at a time. A bad name is a bug in the description: a
 // logic_error, at startup.
 template <typename T>
@@ -130,7 +124,7 @@ public:
     }
 
 private:
-    static u32 Declare( string_view name ) { return detail::DeclareName( name ).Hash(); }
+    static u32 Declare( string_view name ) { return Name::Declare( name ).Hash(); }
 
     entt::meta_factory<T> mFactory;
 };
@@ -148,7 +142,7 @@ public:
     template <typename T>
     TypeBuilder<T> Type( string_view name )
     {
-        const Name typeName = detail::DeclareName( name );
+        const Name typeName = Name::Declare( name );
         mDescribed.insert( typeName );
         return TypeBuilder<T>( mContext, typeName );
     }

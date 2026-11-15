@@ -19,8 +19,8 @@ struct TextureSettings
 
 expected<TextureSettings, string> TryReadSettings( const Json& json )
 {
-    const ValueType type = ValueType::RecordOf(
-        { { "srgb"_n, ValueType::Of( ValueKind::Bool ) }, { "mips"_n, ValueType::Of( ValueKind::Bool ) } } );
+    const ValueType type = ValueType::RecordOf( { { Name::Declare( "srgb" ), ValueType::Of( ValueKind::Bool ) },
+                                                  { Name::Declare( "mips" ), ValueType::Of( ValueKind::Bool ) } } );
     const AssetCatalog none;
     auto valueMaybe = TryValueFromJson( json, type, "settings", none );
     if ( not valueMaybe )

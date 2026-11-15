@@ -55,6 +55,14 @@ expected<Name, string> Name::TryFrom( string_view text )
     return Name( hash );
 }
 
+Name Name::Declare( string_view text )
+{
+    auto nameMaybe = TryFrom( text );
+    if ( not nameMaybe )
+        throw logic_error( nameMaybe.error() );
+    return *nameMaybe;
+}
+
 string Name::ToString() const
 {
     if ( Empty() )
