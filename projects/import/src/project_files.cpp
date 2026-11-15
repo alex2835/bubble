@@ -9,6 +9,18 @@ namespace bubble
 namespace
 {
 constexpr string_view cSaving = ".saving";
+
+// FNV-1a, 64 bits: whether something changed.
+u64 Hash( string_view bytes )
+{
+    u64 hash = 0xcbf29ce484222325ull;
+    for ( const char c : bytes )
+    {
+        hash ^= static_cast<u8>( c );
+        hash *= 0x100000001b3ull;
+    }
+    return hash;
+}
 }
 
 ProjectFiles ProjectFiles::FromDirectory( OsPath root )
@@ -47,8 +59,8 @@ ProjectFiles ProjectFiles::FromDirectory( OsPath root )
         }
         return {};
     };
-    List list = [root]() -> expected<vector<AssetPath>, string> {
-        vector<AssetPath> paths;
+    List list = [root]() -> expected<vector<ListedFile>, string> {
+        vector<ListedFile> listed;
         error_code error;
         fs::recursive_directory_iterator walk( root, error );
         for ( ; not error and walk != fs::recursive_directory_iterator(); walk.increment( error ) )
@@ -65,12 +77,18 @@ ProjectFiles ProjectFiles::FromDirectory( OsPath root )
             auto pathMaybe = AssetPath::TryFrom( PathToUtf8( walk->path().lexically_relative( root ) ) );
             if ( not pathMaybe )
                 return unexpected( std::move( pathMaybe.error() ) );
-            paths.push_back( std::move( *pathMaybe ) );
+            // What the walk read with the name, on Windows: no file opened.
+            const auto written = walk->last_write_time( error ).time_since_epoch().count();
+            const u64 size = walk->file_size( error );
+            if ( error )
+                break;
+            const u64 stamp = Hash( format( "{} {}", written, size ) );
+            listed.push_back( ListedFile{ .mPath = std::move( *pathMaybe ), .mStamp = stamp } );
         }
         if ( error )
             return unexpected( format( "cannot list the project: {}", error.message() ) );
-        ranges::sort( paths );
-        return paths;
+        ranges::sort( listed, {}, &ListedFile::mPath );
+        return listed;
     };
     return ProjectFiles( std::move( read ), std::move( write ), std::move( list ) );
 }
@@ -87,15 +105,15 @@ ProjectFiles ProjectFiles::InMemory( hmap<string, string>& files )
         files.insert_or_assign( path.String(), string( bytes ) );
         return {};
     };
-    List list = [&files]() -> expected<vector<AssetPath>, string> {
-        vector<AssetPath> paths;
+    List list = [&files]() -> expected<vector<ListedFile>, string> {
+        vector<ListedFile> listed;
         for ( const auto& [path, bytes] : files )
             // As on disk, what is under a folder whose name starts with a dot
             // is not the project's.
             if ( not path.starts_with( '.' ) and path.find( "/." ) == string::npos )
-                paths.push_back( *AssetPath::TryFrom( path ) );
-        ranges::sort( paths );
-        return paths;
+                listed.push_back( ListedFile{ .mPath = *AssetPath::TryFrom( path ), .mStamp = Hash( bytes ) } );
+        ranges::sort( listed, {}, &ListedFile::mPath );
+        return listed;
     };
     return ProjectFiles( std::move( read ), std::move( write ), std::move( list ) );
 }

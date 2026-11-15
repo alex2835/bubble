@@ -45,14 +45,14 @@ TEST_CASE( "A project folder lists its files in order, without dot folders or wh
     const auto listMaybe = files.TryList();
     REQUIRE( listMaybe );
     vector<string> listed;
-    for ( const AssetPath& path : *listMaybe )
-        listed.push_back( path.String() );
+    for ( const ListedFile& file : *listMaybe )
+        listed.push_back( file.mPath.String() );
     CHECK( listed == vector<string>{ "models/hero.glb", "models/hero.glb.import", "scripts/игрок.luau" } );
     fs::remove_all( root );
 
     hmap<string, string> memory{ { "b.txt", "" }, { "a/c.txt", "" } };
     const auto memoryListMaybe = ProjectFiles::InMemory( memory ).TryList();
     REQUIRE( memoryListMaybe );
-    CHECK( memoryListMaybe->front().View() == "a/c.txt" );
-    CHECK( memoryListMaybe->back().View() == "b.txt" );
+    CHECK( memoryListMaybe->front().mPath.View() == "a/c.txt" );
+    CHECK( memoryListMaybe->back().mPath.View() == "b.txt" );
 }

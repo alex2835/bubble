@@ -28,10 +28,12 @@ expected<ProjectScan, string> TryScanProject( const ProjectFiles& files,
                                               span<const string_view> sourceExtensions,
                                               span<const string_view> engineExtensions )
 {
-    auto pathsMaybe = files.TryList();
-    if ( not pathsMaybe )
-        return unexpected( std::move( pathsMaybe.error() ) );
-    const vector<AssetPath>& paths = *pathsMaybe;
+    auto listedMaybe = files.TryList();
+    if ( not listedMaybe )
+        return unexpected( std::move( listedMaybe.error() ) );
+    vector<AssetPath> paths;
+    for ( ListedFile& file : *listedMaybe )
+        paths.push_back( std::move( file.mPath ) );
     const auto listed = [&]( const AssetPath& path ) { return ranges::binary_search( paths, path ); };
     const auto isSource = [&]( const AssetPath& path ) {
         return ranges::find( sourceExtensions, path.Extension() ) != sourceExtensions.end();

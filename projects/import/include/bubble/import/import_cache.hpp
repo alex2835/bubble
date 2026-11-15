@@ -28,6 +28,13 @@ expected<ImportOutcome, string> TryImportAsset( const ProjectFiles& files,
                                                 const AssetId& assetId,
                                                 const Json& settings );
 
+// The same with the settings in the source's .import, which failing to read
+// is the error.
+expected<ImportOutcome, string> TryImportSource( const ProjectFiles& files,
+                                                 const Importer& importer,
+                                                 const AssetPath& path,
+                                                 const AssetId& assetId );
+
 // What a pass over the project imported, and what would not import.
 struct ProjectImport
 {

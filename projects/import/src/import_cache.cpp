@@ -56,6 +56,21 @@ expected<ImportOutcome, string> TryImportAsset( const ProjectFiles& files,
     return ImportOutcome::Imported;
 }
 
+expected<ImportOutcome, string> TryImportSource( const ProjectFiles& files,
+                                                 const Importer& importer,
+                                                 const AssetPath& path,
+                                                 const AssetId& assetId )
+{
+    const AssetPath importPath = ImportFileOf( path );
+    auto textMaybe = files.TryRead( importPath );
+    if ( not textMaybe )
+        return unexpected( format( "{}: {}", importPath.View(), textMaybe.error() ) );
+    const auto importFileMaybe = TryParseImportFile( *textMaybe );
+    if ( not importFileMaybe )
+        return unexpected( format( "{}: {}", importPath.View(), importFileMaybe.error() ) );
+    return TryImportAsset( files, importer, path, assetId, importFileMaybe->mSettings );
+}
+
 ProjectImport ImportProject( const ProjectFiles& files, const AssetCatalog& catalog, const Importers& importers )
 {
     BUBBLE_PROFILE_ZONE();
@@ -65,21 +80,7 @@ ProjectImport ImportProject( const ProjectFiles& files, const AssetCatalog& cata
         const auto importerMaybe = importers.TryFind( path.Extension() );
         if ( not importerMaybe )
             continue;
-        const AssetPath importPath = ImportFileOf( path );
-        auto textMaybe = files.TryRead( importPath );
-        if ( not textMaybe )
-        {
-            result.mErrors.push_back( format( "{}: {}", importPath.View(), textMaybe.error() ) );
-            continue;
-        }
-        const auto importFileMaybe = TryParseImportFile( *textMaybe );
-        if ( not importFileMaybe )
-        {
-            result.mErrors.push_back( format( "{}: {}", importPath.View(), importFileMaybe.error() ) );
-            continue;
-        }
-        const auto outcomeMaybe =
-            TryImportAsset( files, *importerMaybe, path, *catalog.TryIdOf( path ), importFileMaybe->mSettings );
+        const auto outcomeMaybe = TryImportSource( files, *importerMaybe, path, *catalog.TryIdOf( path ) );
         if ( not outcomeMaybe )
             result.mErrors.push_back( outcomeMaybe.error() );
         else if ( *outcomeMaybe == ImportOutcome::Imported )

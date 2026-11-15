@@ -3,11 +3,23 @@
 #include "bubble/types/containers.hpp"
 #include "bubble/types/filesystem.hpp"
 #include "bubble/types/function.hpp"
+#include "bubble/types/number.hpp"
 #include "bubble/types/string.hpp"
 #include "bubble/types/utility.hpp"
 
 namespace bubble
 {
+// A file of the project as a list of them has it, with a number that changes
+// whenever the file is written - its time of writing and size, on disk -
+// so a look over the project tells what changed without reading it.
+struct ListedFile
+{
+    AssetPath mPath;
+    u64 mStamp = 0;
+
+    friend bool operator==( const ListedFile&, const ListedFile& ) = default;
+};
+
 // The project's files as the editor and the importer read and write them: a
 // folder on disk, or files in memory for a test. The runner never writes the
 // project, so this is not the engine's.
@@ -17,7 +29,7 @@ public:
     using Read = function<expected<string, string>( const AssetPath& path )>;
     using Write = function<expected<void, string>( const AssetPath& path, string_view bytes )>;
     // Every file of the project, in the order of their paths.
-    using List = function<expected<vector<AssetPath>, string>()>;
+    using List = function<expected<vector<ListedFile>, string>()>;
 
     ProjectFiles( Read read, Write write, List list )
         : mRead( std::move( read ) ),
@@ -38,7 +50,7 @@ public:
 
     expected<string, string> TryRead( const AssetPath& path ) const { return mRead( path ); }
     expected<void, string> TryWrite( const AssetPath& path, string_view bytes ) const { return mWrite( path, bytes ); }
-    expected<vector<AssetPath>, string> TryList() const { return mList(); }
+    expected<vector<ListedFile>, string> TryList() const { return mList(); }
 
 private:
     Read mRead;
