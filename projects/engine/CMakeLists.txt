@@ -12,9 +12,11 @@ target_link_libraries( bubble_engine PUBLIC entt )
 # Vectors in Value and, later, everywhere; utf8proc only behind Text.
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
-# Jobs' pool; the web has none and runs jobs on the main thread.
+# Jobs' pool; the web has none and runs jobs on the main thread. Assets
+# come by fetch there.
 if( EMSCRIPTEN )
     target_compile_definitions( bubble_engine PRIVATE BUBBLE_JOBS_INLINE )
+    target_link_options( bubble_engine PUBLIC -sFETCH=1 )
 else()
     target_link_libraries( bubble_engine PRIVATE enkiTS )
 endif()

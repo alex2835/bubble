@@ -47,9 +47,9 @@ struct Project
     ProjectAssets mProject;
     Jobs mJobs{ 1 };
     AssetRegistry mAssets{ mProject.GetCatalog(),
-                           [this]( const AssetId& assetId, string_view kind ) {
+                           AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
                                return mProject.GetFiles().TryRead( ImportedPath( assetId, kind ) );
-                           },
+                           } ),
                            mJobs };
 
     explicit Project( hmap<string, string> files ) : mFiles( std::move( files ) ), mProject( Make( mFiles ) )

@@ -129,12 +129,10 @@ TEST_CASE( "A project's image is imported and loaded with no window" )
     CHECK( refreshMaybe->mImported == vector<AssetPath>{ Path( "textures/brick.png" ) } );
 
     Jobs jobs( 1 );
-    AssetRegistry assets(
-        project.GetCatalog(),
-        [&]( const AssetId& assetId, string_view kind ) {
-            return project.GetFiles().TryRead( ImportedPath( assetId, kind ) );
-        },
-        jobs );
+    AssetRegistry assets( project.GetCatalog(), AssetRegistry::AtOnce( [&]( const AssetId& assetId, string_view kind ) {
+                              return project.GetFiles().TryRead( ImportedPath( assetId, kind ) );
+                          } ),
+                          jobs );
     RegisterTextureLoader( assets );
     const auto brick = assets.LoadNow<TextureAsset>( Path( "textures/brick.png" ) );
     REQUIRE_MESSAGE( brick.Ready(), brick.Entry().Error() );

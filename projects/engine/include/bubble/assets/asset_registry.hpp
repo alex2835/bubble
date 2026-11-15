@@ -136,10 +136,15 @@ AssetPath ImportedPath( const AssetId& assetId, string_view kind );
 class AssetRegistry
 {
 public:
-    // The bytes the importer made of an asset, of a kind: from the project's
-    // import cache, from memory in tests, from fetch on the web. Called on
-    // the pool, so it is one any thread may call.
-    using ReadImported = function<expected<string, string>( const AssetId& assetId, string_view kind )>;
+    // What a read hands its bytes to - at once or later, on any thread.
+    using Read = function<void( expected<string, string> bytes )>;
+    // Reads the bytes the importer made of an asset, of a kind: from the
+    // project's import cache, from memory in tests - at once - or from fetch
+    // on the web, later. Called on the pool, so it is one any thread may
+    // call.
+    using ReadImported = function<void( const AssetId& assetId, string_view kind, Read read )>;
+    // One that has the bytes at once.
+    using ReadAtOnce = function<expected<string, string>( const AssetId& assetId, string_view kind )>;
     // Those bytes into the asset - on the pool too.
     template <typename T>
     using Loader = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
@@ -150,8 +155,14 @@ public:
     AssetRegistry( const AssetCatalog& catalog, ReadImported read, Jobs& jobs );
     AssetRegistry( const AssetRegistry& ) = delete;
     AssetRegistry& operator=( const AssetRegistry& ) = delete;
+    static ReadImported AtOnce( ReadAtOnce read );
     // Reads the import cache of the project at `root` (ImportedPath).
     static ReadImported FromDirectory( OsPath root );
+#ifdef __EMSCRIPTEN__
+    // Fetches <base>/<ImportedPath> from where the page came from: the
+    // browser's way, which never blocks. LoadNow and reloads cannot use it.
+    static ReadImported FromFetch( string base );
+#endif
 
     // `kind` is what the importer makes - "script", "texture" - and names
     // the imported file: <id>.script. One loader a type; a second is a
@@ -193,7 +204,8 @@ public:
 
     // The same, here and now: the ref is Ready or Failed when it returns. An
     // entry that was Loading is loaded now, and what the pool makes of it
-    // later goes unused.
+    // later goes unused. A read that does not have the bytes at once - fetch -
+    // fails it, saying so.
     template <typename T>
     AssetRef<T> LoadNow( const AssetPath& path )
     {

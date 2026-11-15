@@ -41,7 +41,8 @@ projects/engine/include/bubble/
     assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id,
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
                               .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
-                              runs, then OnLoaded) or here and now (LoadNow), AssetRef<T>, reload events);
+                              runs, then OnLoaded) or here and now (LoadNow); reads hand their bytes over at once
+                              (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's

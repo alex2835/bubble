@@ -31,13 +31,12 @@ struct Project
     hmap<string, string> mImported;
     AssetCatalog mCatalog;
     Jobs mJobs;
-    AssetRegistry mAssets{ mCatalog,
-                           [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+    AssetRegistry mAssets{ mCatalog, AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
                                const auto found = mImported.find( ImportedPath( assetId, kind ).View() );
                                if ( found == mImported.end() )
-                                   return unexpected( "no such file"s );
-                               return found->second;
-                           },
+                                   return expected<string, string>( unexpected( "no such file"s ) );
+                               return expected<string, string>( found->second );
+                           } ),
                            mJobs };
 
     // Everything on the main thread unless a test asks for threads.
@@ -471,8 +470,10 @@ TEST_CASE( "A load nobody waits for any more, or whose registry went, comes to n
     Jobs jobs( 1 );
     AssetRef<TextAsset> kept;
     {
-        AssetRegistry assets(
-            project.mCatalog, [&]( const AssetId&, string_view ) { return expected<string, string>( "x" ); }, jobs );
+        AssetRegistry assets( project.mCatalog, AssetRegistry::AtOnce( []( const AssetId&, string_view ) {
+                                  return expected<string, string>( "x" );
+                              } ),
+                              jobs );
         assets.RegisterLoader<TextAsset>( "text", []( string_view bytes, const AssetPath& ) {
             return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
         } );
@@ -480,4 +481,46 @@ TEST_CASE( "A load nobody waits for any more, or whose registry went, comes to n
     }
     jobs.RunMainQueue();
     CHECK( kept.State() == AssetState::Loading );
+}
+
+TEST_CASE( "A read that hands its bytes over later, as a fetch does, finishes the load when they come" )
+{
+    Jobs jobs( 1 );
+    AssetCatalog catalog;
+    for ( const string_view path : { "a.txt", "b.txt", "c.txt" } )
+        catalog.Add( AssetId::Generate(), *AssetPath::TryFrom( path ) );
+    vector<AssetRegistry::Read> waiting;
+    AssetRegistry assets(
+        catalog,
+        [&]( const AssetId&, string_view, AssetRegistry::Read read ) { waiting.push_back( std::move( read ) ); },
+        jobs );
+    assets.RegisterLoader<TextAsset>( "text", []( string_view bytes, const AssetPath& ) {
+        return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
+    } );
+
+    const auto a = assets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    jobs.RunMainQueue();
+    REQUIRE( waiting.size() == 1 );
+    CHECK( a.State() == AssetState::Loading );
+    waiting[0]( "late" );
+    // Loaded where it was handed over, finished at the main thread's turn.
+    CHECK( a.State() == AssetState::Loading );
+    jobs.RunMainQueue();
+    REQUIRE( a.Ready() );
+    CHECK( a.TryGet()->mText == "late" );
+
+    // One that fails says how.
+    const auto c = assets.Load<TextAsset>( *AssetPath::TryFrom( "c.txt" ) );
+    jobs.RunMainQueue();
+    waiting.back()( unexpected( "fetch answered 404 Not Found"s ) );
+    jobs.RunMainQueue();
+    CHECK( c.Entry().Error() == "no imported text: fetch answered 404 Not Found" );
+
+    // LoadNow cannot wait for such a read, and what it hands over later goes
+    // nowhere.
+    const auto b = assets.LoadNow<TextAsset>( *AssetPath::TryFrom( "b.txt" ) );
+    CHECK( b.Entry().Error() == "no imported text: it is read later than now - LoadNow and reloads read at once" );
+    waiting.back()( "too late" );
+    jobs.RunMainQueue();
+    CHECK( b.State() == AssetState::Failed );
 }

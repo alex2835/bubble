@@ -138,12 +138,10 @@ TEST_CASE( "A model and a texture are imported and loaded with no window" )
     CHECK( refreshMaybe->mImported.size() == 2 );
 
     Jobs jobs( 2 );
-    AssetRegistry assets(
-        project.GetCatalog(),
-        [&]( const AssetId& assetId, string_view kind ) {
-            return project.GetFiles().TryRead( ImportedPath( assetId, kind ) );
-        },
-        jobs );
+    AssetRegistry assets( project.GetCatalog(), AssetRegistry::AtOnce( [&]( const AssetId& assetId, string_view kind ) {
+                              return project.GetFiles().TryRead( ImportedPath( assetId, kind ) );
+                          } ),
+                          jobs );
     RegisterModelLoader( assets );
     RegisterTextureLoader( assets );
     // Loaded as the game loads: on the pool, ready at the main thread's turn.

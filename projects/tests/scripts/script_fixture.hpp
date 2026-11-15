@@ -29,13 +29,12 @@ struct Scripts
     Importer mImporter = ScriptImporter();
     // The main thread alone: the world's scripts wait for nothing here.
     Jobs mJobs{ 1 };
-    AssetRegistry mAssets{ mCatalog,
-                           [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+    AssetRegistry mAssets{ mCatalog, AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
                                const auto found = mFiles.find( ImportedPath( assetId, kind ).View() );
                                if ( found == mFiles.end() )
-                                   return unexpected( "no such file"s );
-                               return found->second;
-                           },
+                                   return expected<string, string>( unexpected( "no such file"s ) );
+                               return expected<string, string>( found->second );
+                           } ),
                            mJobs };
     // What the world holds loaded - as the world's scripts module would.
     vector<AssetRef<ScriptAsset>> mHeld;

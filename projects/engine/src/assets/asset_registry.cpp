@@ -36,18 +36,32 @@ namespace
 using Install = function<void( AssetEntryBase& )>;
 using LoadBytes = function<expected<Install, string>( string_view bytes, const AssetPath& path )>;
 
-// Reads what the importer made and loads it: on the pool, so nothing here
+// What was read, loaded: wherever the read handed it over - so nothing here
 // touches the entry or the registry.
-expected<Install, string> TryRead( const AssetRegistry::ReadImported& read,
+expected<Install, string> TryLoad( expected<string, string> bytesMaybe,
                                    const string& kind,
                                    const LoadBytes& load,
-                                   const AssetId& assetId,
                                    const AssetPath& path )
 {
-    auto bytesMaybe = read( assetId, kind );
     if ( not bytesMaybe )
         return unexpected( format( "no imported {}: {}", kind, bytesMaybe.error() ) );
     return load( *bytesMaybe, path );
+}
+
+// Reads and loads, here and now: a read that hands its bytes over later is
+// an error. What it hands over then goes nowhere.
+expected<Install, string> TryReadHere( const AssetRegistry::ReadImported& read,
+                                       const string& kind,
+                                       const LoadBytes& load,
+                                       const AssetId& assetId,
+                                       const AssetPath& path )
+{
+    const auto handed = CreateRef<opt<expected<string, string>>>();
+    read( assetId, kind, [handed]( expected<string, string> bytes ) { *handed = std::move( bytes ); } );
+    if ( not *handed )
+        return unexpected(
+            format( "no imported {}: it is read later than now - LoadNow and reloads read at once", kind ) );
+    return TryLoad( std::move( **handed ), kind, load, path );
 }
 }
 
@@ -58,16 +72,23 @@ AssetRegistry::AssetRegistry( const AssetCatalog& catalog, ReadImported read, Jo
 {
 }
 
+AssetRegistry::ReadImported AssetRegistry::AtOnce( ReadAtOnce read )
+{
+    return [read = std::move( read )]( const AssetId& assetId, string_view kind, const Read& handOver ) {
+        handOver( read( assetId, kind ) );
+    };
+}
+
 AssetRegistry::ReadImported AssetRegistry::FromDirectory( OsPath root )
 {
-    return [root = std::move( root )]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+    return AtOnce( [root = std::move( root )]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
         ifstream file( ImportedPath( assetId, kind ).ToOsPath( root ), ios::binary );
         if ( not file )
             return unexpected( "no such file"s );
         ostringstream bytes;
         bytes << file.rdbuf();
         return std::move( bytes ).str();
-    };
+    } );
 }
 
 Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetId& assetId ) const
@@ -126,27 +147,31 @@ void AssetRegistry::StartLoading( const Ref<AssetEntryBase>& entry )
     const RegisteredLoader& loader = LoaderOf( *entry );
     // The pool gets copies and the entry by a weak ref only: the entry is
     // the main thread's, and so is its last ref going.
-    mJobs.Background( [read = mRead, kind = loader.mKind, load = loader.mLoad, assetId = entry->mId,
-                       path = entry->mPath, weakEntry = WeakRef<AssetEntryBase>( entry ),
-                       weakListeners = WeakRef<Listeners>( mListeners ), &jobs = mJobs] {
-        auto loadedMaybe = TryRead( read, kind, load, assetId, path );
-        jobs.RunOnMain( [weakEntry, weakListeners, loadedMaybe = std::move( loadedMaybe )] {
-            const Ref<AssetEntryBase> entry = weakEntry.lock();
-            const Ref<Listeners> listeners = weakListeners.lock();
-            // Nobody wants it any more, the registry went, or it was loaded
-            // here and now meanwhile.
-            if ( entry == nullptr or listeners == nullptr or entry->mState != AssetState::Loading )
-                return;
-            Finish( *entry, loadedMaybe );
-            Tell( *listeners, Heard::Loaded, *entry );
-        } );
-    } );
+    // The read hands its bytes over where it likes - the pool, at once; the
+    // main thread, when a fetch comes back - and they are loaded there.
+    Read loadAndFinish =
+        [kind = loader.mKind, load = loader.mLoad, path = entry->mPath, weakEntry = WeakRef<AssetEntryBase>( entry ),
+         weakListeners = WeakRef<Listeners>( mListeners ), &jobs = mJobs]( expected<string, string> bytes ) {
+            auto loadedMaybe = TryLoad( std::move( bytes ), kind, load, path );
+            jobs.RunOnMain( [weakEntry, weakListeners, loadedMaybe = std::move( loadedMaybe )] {
+                const Ref<AssetEntryBase> entry = weakEntry.lock();
+                const Ref<Listeners> listeners = weakListeners.lock();
+                // Nobody wants it any more, the registry went, or it was loaded
+                // here and now meanwhile.
+                if ( entry == nullptr or listeners == nullptr or entry->mState != AssetState::Loading )
+                    return;
+                Finish( *entry, loadedMaybe );
+                Tell( *listeners, Heard::Loaded, *entry );
+            } );
+        };
+    mJobs.Background( [read = mRead, kind = loader.mKind, assetId = entry->mId,
+                       loadAndFinish = std::move( loadAndFinish )] { read( assetId, kind, loadAndFinish ); } );
 }
 
 expected<void, string> AssetRegistry::TryLoadHere( AssetEntryBase& entry )
 {
     const RegisteredLoader& loader = LoaderOf( entry );
-    const auto loadedMaybe = TryRead( mRead, loader.mKind, loader.mLoad, entry.mId, entry.mPath );
+    const auto loadedMaybe = TryReadHere( mRead, loader.mKind, loader.mLoad, entry.mId, entry.mPath );
     Finish( entry, loadedMaybe );
     if ( not loadedMaybe )
         return unexpected( loadedMaybe.error() );
@@ -185,7 +210,7 @@ expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
     if ( entry == nullptr )
         return {};
     const RegisteredLoader& loader = LoaderOf( *entry );
-    const auto loadedMaybe = TryRead( mRead, loader.mKind, loader.mLoad, entry->mId, entry->mPath );
+    const auto loadedMaybe = TryReadHere( mRead, loader.mKind, loader.mLoad, entry->mId, entry->mPath );
     // A load fills the entry only when it succeeds: a failed one leaves the
     // old version in place, and an entry that never loaded keeps saying
     // why.

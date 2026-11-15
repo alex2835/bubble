@@ -131,10 +131,10 @@ TEST_CASE( "A project's import takes every source with an importer, in order, an
 
     // What the script importer made, the engine's loader reads.
     Jobs jobs( 1 );
-    AssetRegistry assets(
-        scanMaybe->mCatalog,
-        [&]( const AssetId& assetId, string_view kind ) { return project.TryRead( ImportedPath( assetId, kind ) ); },
-        jobs );
+    AssetRegistry assets( scanMaybe->mCatalog, AssetRegistry::AtOnce( [&]( const AssetId& assetId, string_view kind ) {
+                              return project.TryRead( ImportedPath( assetId, kind ) );
+                          } ),
+                          jobs );
     RegisterScriptLoader( assets );
     CHECK( assets.LoadNow<ScriptAsset>( Path( "scripts/door.luau" ) ).Ready() );
 
