@@ -9,3 +9,8 @@ add_library( bubble_import STATIC ${BUBBLE_IMPORT_SOURCES} ${BUBBLE_IMPORT_HEADE
 target_include_directories( bubble_import PUBLIC include )
 bubble_target_warnings( bubble_import )
 target_link_libraries( bubble_import PUBLIC bubble_engine PRIVATE stb_image )
+# Models where assimp is built: not on the web.
+if( TARGET assimp )
+    target_link_libraries( bubble_import PRIVATE assimp meshoptimizer )
+    target_compile_definitions( bubble_import PUBLIC BUBBLE_IMPORT_MODELS )
+endif()

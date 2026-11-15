@@ -96,6 +96,47 @@ else()
     target_compile_options( stb_image PRIVATE -w )
 endif()
 
+# meshoptimizer 1.3 - meshes ordered for the GPU's caches and simplified
+# into LOD levels by the model importer.
+file( GLOB MESHOPTIMIZER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src/*.cpp )
+add_library( meshoptimizer STATIC ${MESHOPTIMIZER_SOURCES} )
+target_include_directories( meshoptimizer SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/meshoptimizer/src )
+if( MSVC )
+    target_compile_options( meshoptimizer PRIVATE /w )
+else()
+    target_compile_options( meshoptimizer PRIVATE -w )
+endif()
+
+# assimp 6.0.6 - models read by the model importer, in the editor and the
+# cook: glTF, FBX and OBJ, nothing written. Not on the web, where neither
+# runs. Its own CMake, its tests, tools and other formats left out, its zlib
+# its own.
+if( NOT EMSCRIPTEN )
+    set( BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE )
+    foreach( option ASSIMP_BUILD_TESTS ASSIMP_BUILD_ASSIMP_TOOLS ASSIMP_BUILD_SAMPLES ASSIMP_BUILD_DOCS
+                    ASSIMP_INSTALL ASSIMP_WARNINGS_AS_ERRORS ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT
+                    ASSIMP_INJECT_DEBUG_POSTFIX ASSIMP_BUILD_USE_CCACHE ASSIMP_BUILD_DRACO ASSIMP_BUILD_USD_IMPORTER )
+        set( ${option} OFF CACHE BOOL "" FORCE )
+    endforeach()
+    foreach( option ASSIMP_NO_EXPORT ASSIMP_IGNORE_GIT_HASH ASSIMP_BUILD_ZLIB ASSIMP_BUILD_GLTF_IMPORTER
+                    ASSIMP_BUILD_FBX_IMPORTER ASSIMP_BUILD_OBJ_IMPORTER )
+        set( ${option} ON CACHE BOOL "" FORCE )
+    endforeach()
+    add_subdirectory( assimp EXCLUDE_FROM_ALL )
+    # Its headers under its own warnings, not ours.
+    set_property( TARGET assimp PROPERTY SYSTEM TRUE )
+    # Its warnings are its own business, and so are its zlib's.
+    foreach( target assimp zlibstatic )
+        if( TARGET ${target} )
+            if( MSVC )
+                target_compile_options( ${target} PRIVATE /w )
+            else()
+                target_compile_options( ${target} PRIVATE -w )
+            endif()
+        endif()
+    endforeach()
+endif()
+
 # EnTT 3.16.0 - header only: the scene's registry, later the reflection's
 # meta. SYSTEM, so its headers are under its own warnings, not ours.
 add_library( entt INTERFACE )

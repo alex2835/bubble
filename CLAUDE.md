@@ -42,7 +42,8 @@ projects/engine/include/bubble/
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
                               .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
                               runs, then OnLoaded) or here and now (LoadNow), AssetRef<T>, reload events);
-                              TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader)
+                              TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
+                              (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -54,8 +55,9 @@ projects/engine/include/bubble/
                               in files;
                               SceneSnapshot (the data in memory: entity numbers exact, every type's order kept)
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
-                              parser and writer), Value <-> Json (plain by type, tagged for Any; an asset is
-                              { "asset": id, "path": path }, found by the path when the id is not)
+                              parser and writer), BinaryWriter/Reader (little-endian, for imported assets), Value
+                              <-> Json (plain by type, tagged for Any; an asset is { "asset": id, "path": path },
+                              found by the path when the id is not)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
@@ -73,7 +75,9 @@ projects/import/include/bubble/import/
                               (source + settings -> the engine's format), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
                               changes), ScriptImporter (.luau -> bytecode), TextureImporters (stb_image: png, jpg,
-                              tga, bmp -> RGBA8, mips averaged as light); ProjectAssets (the editor's project kept
+                              tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
+                              obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
+                              ProjectAssets (the editor's project kept
                               in step: TryRefresh polls the stamps, scans and imports what changed, says what the
                               registry reloads)
 projects/editing/include/bubble/editing/

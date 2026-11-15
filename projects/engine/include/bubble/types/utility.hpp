@@ -1,4 +1,5 @@
 #pragma once
+#include <bit>
 #include <concepts>
 #include <exception>
 #include <expected>
@@ -20,6 +21,7 @@ using opt = std::optional<T>;
 template <typename T, typename E>
 using expected = std::expected<T, E>;
 
+using std::bit_cast;
 using std::copy_constructible;
 using std::current_exception;
 using std::default_initializable;

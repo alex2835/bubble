@@ -1,5 +1,6 @@
 #include "bubble/assets/texture_asset.hpp"
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/data/binary.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
@@ -9,65 +10,27 @@ namespace
 constexpr string_view cMagic = "BTEX";
 constexpr u32 cVersion = 1;
 constexpr u32 cSrgbFlag = 1;
-
-void Append( string& out, u32 value )
-{
-    for ( u32 shift = 0; shift < 32; shift += 8 )
-        out.push_back( static_cast<char>( ( value >> shift ) & 0xff ) );
-}
-
-// Reads from the front of the bytes, refusing to go past their end.
-class Reader
-{
-public:
-    explicit Reader( string_view bytes ) : mBytes( bytes ) {}
-
-    opt<u32> TryU32()
-    {
-        if ( mBytes.size() - mAt < 4 )
-            return nullopt;
-        u32 value = 0;
-        for ( u32 i = 0; i < 4; ++i )
-            value |= u32{ static_cast<u8>( mBytes[mAt + i] ) } << ( 8 * i );
-        mAt += 4;
-        return value;
-    }
-
-    opt<string_view> TryBytes( size_t count )
-    {
-        if ( mBytes.size() - mAt < count )
-            return nullopt;
-        const string_view taken = mBytes.substr( mAt, count );
-        mAt += count;
-        return taken;
-    }
-
-    bool AtEnd() const { return mAt == mBytes.size(); }
-
-private:
-    string_view mBytes;
-    size_t mAt = 0;
-};
 }
 
 string WriteTextureAsset( const TextureAsset& texture )
 {
-    string out( cMagic );
-    Append( out, cVersion );
-    Append( out, texture.mSrgb ? cSrgbFlag : 0 );
-    Append( out, static_cast<u32>( texture.mMips.size() ) );
+    BinaryWriter out;
+    out.Bytes( cMagic );
+    out.U32( cVersion );
+    out.U32( texture.mSrgb ? cSrgbFlag : 0 );
+    out.U32( static_cast<u32>( texture.mMips.size() ) );
     for ( const TextureMip& mip : texture.mMips )
     {
-        Append( out, mip.mWidth );
-        Append( out, mip.mHeight );
-        out.append( mip.mPixels.begin(), mip.mPixels.end() );
+        out.U32( mip.mWidth );
+        out.U32( mip.mHeight );
+        out.Bytes( mip.mPixels );
     }
-    return out;
+    return out.Take();
 }
 
 expected<TextureAsset, string> TryReadTextureAsset( string_view bytes )
 {
-    Reader reader( bytes );
+    BinaryReader reader( bytes );
     const auto cutShort = [] { return unexpected( "a texture cut short"s ); };
     const auto magicMaybe = reader.TryBytes( cMagic.size() );
     if ( not magicMaybe or *magicMaybe != cMagic )
@@ -90,11 +53,7 @@ expected<TextureAsset, string> TryReadTextureAsset( string_view bytes )
             return cutShort();
         if ( *widthMaybe == 0 or *heightMaybe == 0 )
             return unexpected( format( "level {} of a texture is {}x{}", level, *widthMaybe, *heightMaybe ) );
-        // In 64 bits: a 32-bit size_t would wrap before it fails.
-        const u64 size = u64{ *widthMaybe } * *heightMaybe * 4;
-        if ( size > bytes.size() )
-            return cutShort();
-        const auto pixelsMaybe = reader.TryBytes( static_cast<size_t>( size ) );
+        const auto pixelsMaybe = reader.TryBytes( u64{ *widthMaybe } * *heightMaybe * 4 );
         if ( not pixelsMaybe )
             return cutShort();
         texture.mMips.push_back( TextureMip{ .mWidth = *widthMaybe,
