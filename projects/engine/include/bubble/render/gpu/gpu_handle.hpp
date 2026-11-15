@@ -51,9 +51,35 @@ inline void GpuRelease( WGPURenderPassEncoder handle )
 {
     wgpuRenderPassEncoderRelease( handle );
 }
+inline void GpuRelease( WGPUSampler handle )
+{
+    wgpuSamplerRelease( handle );
+}
+inline void GpuRelease( WGPUShaderModule handle )
+{
+    wgpuShaderModuleRelease( handle );
+}
+inline void GpuRelease( WGPUBindGroupLayout handle )
+{
+    wgpuBindGroupLayoutRelease( handle );
+}
+inline void GpuRelease( WGPUBindGroup handle )
+{
+    wgpuBindGroupRelease( handle );
+}
+inline void GpuRelease( WGPUPipelineLayout handle )
+{
+    wgpuPipelineLayoutRelease( handle );
+}
+inline void GpuRelease( WGPURenderPipeline handle )
+{
+    wgpuRenderPipelineRelease( handle );
+}
 
 // One WebGPU object of the C API, owned: released when it goes, moved but
-// never copied. Get() lends the handle to a call and keeps it.
+// never copied. Get() lends the handle to a call and keeps it. The aliases
+// below end in Handle; the names without it are ours - GpuBuffer,
+// GpuTexture - built on them.
 template <typename T>
 class GpuHandle
 {
@@ -87,17 +113,23 @@ private:
     T mHandle = nullptr;
 };
 
-using GpuInstance = GpuHandle<WGPUInstance>;
-using GpuAdapter = GpuHandle<WGPUAdapter>;
-using GpuDevice = GpuHandle<WGPUDevice>;
-using GpuQueue = GpuHandle<WGPUQueue>;
+using GpuInstanceHandle = GpuHandle<WGPUInstance>;
+using GpuAdapterHandle = GpuHandle<WGPUAdapter>;
+using GpuDeviceHandle = GpuHandle<WGPUDevice>;
+using GpuQueueHandle = GpuHandle<WGPUQueue>;
 using GpuSurfaceHandle = GpuHandle<WGPUSurface>;
-using GpuTexture = GpuHandle<WGPUTexture>;
-using GpuTextureView = GpuHandle<WGPUTextureView>;
-using GpuBuffer = GpuHandle<WGPUBuffer>;
-using GpuCommandEncoder = GpuHandle<WGPUCommandEncoder>;
-using GpuCommandBuffer = GpuHandle<WGPUCommandBuffer>;
-using GpuRenderPass = GpuHandle<WGPURenderPassEncoder>;
+using GpuTextureHandle = GpuHandle<WGPUTexture>;
+using GpuTextureViewHandle = GpuHandle<WGPUTextureView>;
+using GpuBufferHandle = GpuHandle<WGPUBuffer>;
+using GpuCommandEncoderHandle = GpuHandle<WGPUCommandEncoder>;
+using GpuCommandBufferHandle = GpuHandle<WGPUCommandBuffer>;
+using GpuRenderPassHandle = GpuHandle<WGPURenderPassEncoder>;
+using GpuSamplerHandle = GpuHandle<WGPUSampler>;
+using GpuShaderHandle = GpuHandle<WGPUShaderModule>;
+using GpuBindGroupLayoutHandle = GpuHandle<WGPUBindGroupLayout>;
+using GpuBindGroupHandle = GpuHandle<WGPUBindGroup>;
+using GpuPipelineLayoutHandle = GpuHandle<WGPUPipelineLayout>;
+using GpuRenderPipelineHandle = GpuHandle<WGPURenderPipeline>;
 
 // WebGPU's strings are views with a length or WGPU_STRLEN, which says "up to
 // the terminating zero".

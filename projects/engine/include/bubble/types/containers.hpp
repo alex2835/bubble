@@ -1,10 +1,12 @@
 #pragma once
 #include "bubble/types/string.hpp"
 #include <array>
+#include <cstddef>
 #include <deque>
 #include <map>
 #include <set>
 #include <span>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -22,6 +24,22 @@ using array = std::array<T, Size>;
 
 template <typename T>
 using span = std::span<T>;
+
+using std::byte;
+
+// The bytes of values as they lie in memory: what goes to the GPU.
+template <typename T>
+span<const byte> AsBytes( const std::vector<T>& values )
+{
+    return std::as_bytes( std::span<const T>( values ) );
+}
+
+template <typename T>
+    requires std::is_trivially_copyable_v<T>
+span<const byte> AsBytes( const T& value )
+{
+    return std::as_bytes( std::span<const T, 1>( &value, 1 ) );
+}
 
 template <typename K, typename V>
 using map = std::map<K, V>;

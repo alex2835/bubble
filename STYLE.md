@@ -48,7 +48,10 @@ Three tools, chosen by what the caller is to do about it.
   run-time link with a generation, never saved. `Entity` is a handle by
   nature (index and version), keeps EnTT's name and is never saved: a file
   names an entity by its path in the tree (`/props/chair`). A variable of it is
-  `entity`.
+  `entity`. A WebGPU object owned through `GpuHandle` is a handle in the same
+  sense - counted by the GPU rather than versioned - and its alias ends in
+  `Handle` (`GpuTextureHandle`), leaving the short name to our class built on
+  it (`GpuTexture`).
 - A variable that links to something says what, and what kind of link:
   `scriptHandle`, `mInstanceHandle`, `assetRef`, `assetId` - so the link and
   the thing it finds read apart: `const auto instanceMaybe = mInstances.Get(

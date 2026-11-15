@@ -57,8 +57,14 @@ projects/engine/include/bubble/
                               they come, QuitRequested, Run - a loop, or the browser's frames), Window
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
-                              for tests; Clear, TryReadRgba8), GpuSurface (the window's swap chain, sRGB views,
-                              Resize/TryAcquire/Present), GpuHandle (WGPU handles owned); WGPU types stop here
+                              for tests; Check/TryCheckNow - validation errors caught, WGSL's with their lines;
+                              Submit, Clear, TryReadRgba8), GpuSurface (the window's swap chain, sRGB views,
+                              Resize/TryAcquire/Present), GpuHandle (WGPU objects owned; aliases ...Handle),
+                              GpuBuffer, GpuTexture (a texture and its view; from a TextureAsset with its mips),
+                              CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
+                              one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
+                              registry's models and textures by id, made again after a reload, Collect); WGPU
+                              types stop here
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),

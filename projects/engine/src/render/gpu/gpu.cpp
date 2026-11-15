@@ -1,5 +1,6 @@
 #include "bubble/render/gpu/gpu.hpp"
 #include "bubble/core/log.hpp"
+#include "bubble/render/gpu/gpu_texture.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/thread.hpp"
@@ -13,13 +14,18 @@ namespace bubble
 // may come after the GpuStartup that asked has gone.
 struct GpuStartup::State
 {
-    GpuInstance mInstance;
+    GpuInstanceHandle mInstance;
     GpuSurfaceHandle mSurface;
-    GpuAdapter mAdapter;
-    GpuDevice mDevice;
+    GpuAdapterHandle mAdapter;
+    GpuDeviceHandle mDevice;
     bool mAskedForDevice = false;
     opt<string> mError;
     bool mSpent = false;
+};
+
+struct GpuCheck::State
+{
+    opt<expected<void, string>> mResult;
 };
 
 namespace
@@ -64,35 +70,74 @@ string DescribeAdapter( WGPUAdapter adapter )
     return description;
 }
 
-// The callbacks get the state through userdata1: a Ref of their own, taken
-// back - and dropped - when they are called.
-void* Hold( const Ref<StartState>& state )
+// The callbacks get their state through userdata1: a Ref of their own,
+// taken back - and dropped - when they are called.
+template <typename T>
+void* Hold( const Ref<T>& state )
 {
-    return CreateScope<Ref<StartState>>( state ).release();
+    return CreateScope<Ref<T>>( state ).release();
 }
 
-Scope<Ref<StartState>> TakeBack( void* held )
+template <typename T>
+Scope<Ref<T>> TakeBack( void* held )
 {
-    return Scope<Ref<StartState>>( static_cast<Ref<StartState>*>( held ) );
+    return Scope<Ref<T>>( static_cast<Ref<T>*>( held ) );
 }
 
 void OnAdapter( WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* held, void* )
 {
-    StartState& state = **TakeBack( held );
+    StartState& state = **TakeBack<StartState>( held );
     if ( status == WGPURequestAdapterStatus_Success )
-        state.mAdapter = GpuAdapter( adapter );
+        state.mAdapter = GpuAdapterHandle( adapter );
     else
         state.mError = format( "no GPU adapter: {}", ToStringView( message ) );
 }
 
 void OnDevice( WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message, void* held, void* )
 {
-    StartState& state = **TakeBack( held );
+    StartState& state = **TakeBack<StartState>( held );
     if ( status == WGPURequestDeviceStatus_Success )
-        state.mDevice = GpuDevice( device );
+        state.mDevice = GpuDeviceHandle( device );
     else
         state.mError = format( "no GPU device: {}", ToStringView( message ) );
 }
+
+void OnErrorScope( WGPUPopErrorScopeStatus status, WGPUErrorType type, WGPUStringView message, void* held, void* )
+{
+    GpuCheck::State& state = **TakeBack<GpuCheck::State>( held );
+    if ( status != WGPUPopErrorScopeStatus_Success )
+        state.mResult = unexpected( format( "the GPU did not check: {}", ToStringView( message ) ) );
+    else if ( type == WGPUErrorType_NoError )
+        state.mResult = expected<void, string>();
+    else
+        state.mResult = unexpected( string( ToStringView( message ) ) );
+}
+
+// The GPU's validation errors go to the check while it lives. It pops
+// however the calls inside end: a scope left open would keep every later
+// error out of the log.
+class ErrorScope
+{
+public:
+    ErrorScope( WGPUDevice device, Ref<GpuCheck::State> state ) : mDevice( device ), mState( std::move( state ) )
+    {
+        wgpuDevicePushErrorScope( mDevice, WGPUErrorFilter_Validation );
+    }
+    ~ErrorScope()
+    {
+        WGPUPopErrorScopeCallbackInfo callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback.mode = WGPUCallbackMode_AllowProcessEvents;
+        callback.callback = &OnErrorScope;
+        callback.userdata1 = Hold( mState );
+        wgpuDevicePopErrorScope( mDevice, callback );
+    }
+    ErrorScope( const ErrorScope& ) = delete;
+    ErrorScope& operator=( const ErrorScope& ) = delete;
+
+private:
+    WGPUDevice mDevice;
+    Ref<GpuCheck::State> mState;
+};
 
 void OnUncapturedError( WGPUDevice const*, WGPUErrorType type, WGPUStringView message, void*, void* )
 {
@@ -216,13 +261,13 @@ void GpuSurface::Configure()
     mConfigured = true;
 }
 
-opt<GpuTextureView> GpuSurface::TryAcquire()
+opt<GpuTextureViewHandle> GpuSurface::TryAcquire()
 {
     if ( not mConfigured )
         return nullopt;
     WGPUSurfaceTexture surfaceTexture = WGPU_SURFACE_TEXTURE_INIT;
     wgpuSurfaceGetCurrentTexture( mSurface.Get(), &surfaceTexture );
-    GpuTexture texture( surfaceTexture.texture );
+    GpuTextureHandle texture( surfaceTexture.texture );
     switch ( surfaceTexture.status )
     {
         // Suboptimal still shows; the next resize configures it better.
@@ -235,7 +280,7 @@ opt<GpuTextureView> GpuSurface::TryAcquire()
     mCurrent = std::move( texture );
     WGPUTextureViewDescriptor view = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
     view.format = SrgbOf( mFormat );
-    return GpuTextureView( wgpuTextureCreateView( mCurrent.Get(), &view ) );
+    return GpuTextureViewHandle( wgpuTextureCreateView( mCurrent.Get(), &view ) );
 }
 
 void GpuSurface::Present()
@@ -247,6 +292,11 @@ void GpuSurface::Present()
     wgpuSurfacePresent( mSurface.Get() );
 #endif
     mCurrent.Reset();
+}
+
+opt<expected<void, string>> GpuCheck::TryResult() const
+{
+    return mState->mResult;
 }
 
 GpuStartup::~GpuStartup() = default;
@@ -283,7 +333,7 @@ opt<expected<Scope<Gpu>, string>> GpuStartup::TryFinish()
 
     Scope<Gpu> gpu( new Gpu() );
     gpu->mDescription = DescribeAdapter( state.mAdapter.Get() );
-    gpu->mQueue = GpuQueue( wgpuDeviceGetQueue( state.mDevice.Get() ) );
+    gpu->mQueue = GpuQueueHandle( wgpuDeviceGetQueue( state.mDevice.Get() ) );
     if ( state.mSurface )
     {
         WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
@@ -310,7 +360,7 @@ Scope<GpuStartup> Gpu::Start( OptRef<const Window> window, GpuOptions options )
 {
     const auto state = CreateRef<StartState>();
     Scope<GpuStartup> startup( new GpuStartup( state ) );
-    state->mInstance = GpuInstance( wgpuCreateInstance( nullptr ) );
+    state->mInstance = GpuInstanceHandle( wgpuCreateInstance( nullptr ) );
     if ( not state->mInstance )
     {
         state->mError = "no WebGPU here";
@@ -363,9 +413,41 @@ OptRef<GpuSurface> Gpu::TrySurface()
     return *mSurface;
 }
 
+GpuCheck Gpu::Check( const function<void()>& make )
+{
+    const auto state = CreateRef<GpuCheck::State>();
+    {
+        const ErrorScope scope( mDevice.Get(), state );
+        make();
+    }
+    return GpuCheck( state );
+}
+
+#ifndef __EMSCRIPTEN__
+expected<void, string> Gpu::TryCheckNow( const function<void()>& make )
+{
+    const GpuCheck check = Check( make );
+    for ( u32 polls = 0; polls < 1000; ++polls )
+    {
+        if ( auto resultMaybe = check.TryResult() )
+            return std::move( *resultMaybe );
+        Poll();
+        this_thread::sleep_for( chrono::milliseconds( 1 ) );
+    }
+    return unexpected( "the GPU did not answer the check"s );
+}
+#endif
+
+void Gpu::Submit( const GpuCommandEncoderHandle& encoder )
+{
+    const GpuCommandBufferHandle commands( wgpuCommandEncoderFinish( encoder.Get(), nullptr ) );
+    const WGPUCommandBuffer submitted = commands.Get();
+    wgpuQueueSubmit( mQueue.Get(), 1, &submitted );
+}
+
 void Gpu::Clear( WGPUTextureView target, Color color )
 {
-    const GpuCommandEncoder encoder( wgpuDeviceCreateCommandEncoder( mDevice.Get(), nullptr ) );
+    const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mDevice.Get(), nullptr ) );
     WGPURenderPassColorAttachment attachment = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
     attachment.view = target;
     attachment.loadOp = WGPULoadOp_Clear;
@@ -374,11 +456,9 @@ void Gpu::Clear( WGPUTextureView target, Color color )
     WGPURenderPassDescriptor pass = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
     pass.colorAttachmentCount = 1;
     pass.colorAttachments = &attachment;
-    const GpuRenderPass passEncoder( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &pass ) );
+    const GpuRenderPassHandle passEncoder( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &pass ) );
     wgpuRenderPassEncoderEnd( passEncoder.Get() );
-    const GpuCommandBuffer commands( wgpuCommandEncoderFinish( encoder.Get(), nullptr ) );
-    const WGPUCommandBuffer submitted = commands.Get();
-    wgpuQueueSubmit( mQueue.Get(), 1, &submitted );
+    Submit( encoder );
 }
 
 void Gpu::Poll()
@@ -390,8 +470,11 @@ void Gpu::Poll()
 }
 
 #ifndef __EMSCRIPTEN__
-expected<vector<u8>, string> Gpu::TryReadRgba8( WGPUTexture texture, ivec2 size )
+expected<vector<u8>, string> Gpu::TryReadRgba8( const GpuTexture& texture, u32 mip )
 {
+    if ( texture.Format() != WGPUTextureFormat_RGBA8Unorm and texture.Format() != WGPUTextureFormat_RGBA8UnormSrgb )
+        throw logic_error( "Gpu::TryReadRgba8 of a texture that is not RGBA8" );
+    const ivec2 size = texture.MipSize( mip );
     // A copy's rows are 256 bytes apart at least.
     const u32 rowBytes = static_cast<u32>( size.x ) * 4;
     const u32 paddedRowBytes = ( rowBytes + 255 ) / 256 * 256;
@@ -399,20 +482,19 @@ expected<vector<u8>, string> Gpu::TryReadRgba8( WGPUTexture texture, ivec2 size 
     WGPUBufferDescriptor bufferDescriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
     bufferDescriptor.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
     bufferDescriptor.size = bufferBytes;
-    const GpuBuffer buffer( wgpuDeviceCreateBuffer( mDevice.Get(), &bufferDescriptor ) );
+    const GpuBufferHandle buffer( wgpuDeviceCreateBuffer( mDevice.Get(), &bufferDescriptor ) );
 
-    const GpuCommandEncoder encoder( wgpuDeviceCreateCommandEncoder( mDevice.Get(), nullptr ) );
+    const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mDevice.Get(), nullptr ) );
     WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-    source.texture = texture;
+    source.texture = texture.Get();
+    source.mipLevel = mip;
     WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
     destination.buffer = buffer.Get();
     destination.layout.bytesPerRow = paddedRowBytes;
     destination.layout.rowsPerImage = static_cast<u32>( size.y );
     const WGPUExtent3D extent{ static_cast<u32>( size.x ), static_cast<u32>( size.y ), 1 };
     wgpuCommandEncoderCopyTextureToBuffer( encoder.Get(), &source, &destination, &extent );
-    const GpuCommandBuffer commands( wgpuCommandEncoderFinish( encoder.Get(), nullptr ) );
-    const WGPUCommandBuffer submitted = commands.Get();
-    wgpuQueueSubmit( mQueue.Get(), 1, &submitted );
+    Submit( encoder );
 
     struct Mapping
     {

@@ -3,6 +3,7 @@
 #include "bubble/platform/window.hpp"
 #include "bubble/render/gpu/gpu_handle.hpp"
 #include "bubble/types/containers.hpp"
+#include "bubble/types/function.hpp"
 #include "bubble/types/opt_ref.hpp"
 #include "bubble/types/pointer.hpp"
 
@@ -33,7 +34,7 @@ public:
     void Resize( ivec2 pixels );
     // What this frame draws into, or nothing - minimized, or out of date and
     // configured again - and the frame draws nothing.
-    opt<GpuTextureView> TryAcquire();
+    opt<GpuTextureViewHandle> TryAcquire();
     // Shows what the frame drew; after TryAcquire gave a view.
     void Present();
 
@@ -50,10 +51,30 @@ private:
     bool mConfigured = false;
     // The frame's texture, from TryAcquire to Present: released before, it
     // would go from under commands not yet submitted.
-    GpuTexture mCurrent;
+    GpuTextureHandle mCurrent;
 };
 
 class Gpu;
+class GpuTexture;
+
+// What the GPU said of the calls made inside a Gpu::Check: nothing wrong, or
+// the first validation error - a WGSL mistake with its line, a pipeline that
+// does not fit its shader. It answers at a Poll: the next one on the
+// desktop, a later frame's in a browser. Copies share the answer.
+class GpuCheck
+{
+public:
+    // The answer once it came, and from then on.
+    opt<expected<void, string>> TryResult() const;
+
+    struct State;
+
+private:
+    friend class Gpu;
+    explicit GpuCheck( Ref<State> state ) : mState( std::move( state ) ) {}
+
+    Ref<State> mState;
+};
 
 // A Gpu on its way: the system is asked for an adapter and a device, and
 // answers at once on the desktop, at a later frame in a browser.
@@ -102,6 +123,16 @@ public:
     const string& Describe() const { return mDescription; }
     OptRef<GpuSurface> TrySurface();
 
+    // Runs `make` with the GPU's validation errors kept for the check
+    // rather than logged.
+    GpuCheck Check( const function<void()>& make );
+#ifndef __EMSCRIPTEN__
+    // The same, waited for: tests and tools.
+    expected<void, string> TryCheckNow( const function<void()>& make );
+#endif
+
+    // Finishes the encoder's commands and hands them to the queue.
+    void Submit( const GpuCommandEncoderHandle& encoder );
     // Fills `target` with one color, as picked: in sRGB, which an sRGB target
     // stores as it is.
     void Clear( WGPUTextureView target, Color color );
@@ -109,19 +140,20 @@ public:
     // to their callbacks. Once a frame, or they come late, or never.
     void Poll();
 #ifndef __EMSCRIPTEN__
-    // An RGBA8 texture's pixels, row by row from the top, once the GPU has
-    // drawn them: screenshots and the tests against a reference picture.
-    expected<vector<u8>, string> TryReadRgba8( WGPUTexture texture, ivec2 size );
+    // One level of an RGBA8 texture made with CopySrc: its pixels, row by
+    // row from the top, once the GPU has drawn them - screenshots and the
+    // tests against a reference picture. Another format is a logic_error.
+    expected<vector<u8>, string> TryReadRgba8( const GpuTexture& texture, u32 mip = 0 );
 #endif
 
 private:
     friend class GpuStartup;
     Gpu() = default;
 
-    GpuInstance mInstance;
-    GpuAdapter mAdapter;
-    GpuDevice mDevice;
-    GpuQueue mQueue;
+    GpuInstanceHandle mInstance;
+    GpuAdapterHandle mAdapter;
+    GpuDeviceHandle mDevice;
+    GpuQueueHandle mQueue;
     string mDescription;
     // Last, so it goes first: before the device and the instance it is of.
     opt<GpuSurface> mSurface;
