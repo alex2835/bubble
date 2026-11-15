@@ -1,6 +1,7 @@
 #pragma once
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 namespace bubble
 {
@@ -21,4 +22,7 @@ static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::isfinite;
 using std::isnan;
+using std::numeric_limits;
+using std::pow;
+using std::round;
 }

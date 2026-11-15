@@ -85,6 +85,17 @@ if( NOT EMSCRIPTEN )
     endif()
 endif()
 
+# stb_image 2.32 - images decoded by the texture importer, in the editor and
+# the cook; a runner reads textures already imported. Its implementation is
+# compiled once in stb_image.cpp.
+add_library( stb_image STATIC ${CMAKE_CURRENT_SOURCE_DIR}/stb/stb_image.cpp )
+target_include_directories( stb_image SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/stb )
+if( MSVC )
+    target_compile_options( stb_image PRIVATE /w )
+else()
+    target_compile_options( stb_image PRIVATE -w )
+endif()
+
 # EnTT 3.16.0 - header only: the scene's registry, later the reflection's
 # meta. SYSTEM, so its headers are under its own warnings, not ours.
 add_library( entt INTERFACE )

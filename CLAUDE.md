@@ -41,7 +41,8 @@ projects/engine/include/bubble/
     assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id,
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
                               .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
-                              runs, then OnLoaded) or here and now (LoadNow), AssetRef<T>, reload events)
+                              runs, then OnLoaded) or here and now (LoadNow), AssetRef<T>, reload events);
+                              TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -65,12 +66,16 @@ projects/engine/include/bubble/
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
-                              files: read, list, a save replaces the file whole), ImportFile (<source>.import: the
-                              asset's id and settings), TryScanProject (ids from .import files and from inside
-                              levels and prefabs, new ones written, a copy re-ided, orphans listed); Importer
+                              files: read, list with stamps, a save replaces the file whole), ImportFile
+                              (<source>.import: the asset's id and settings), TryScanProject (ids from .import files
+                              and from inside levels and prefabs, new ones written, a copy re-ided, orphans listed);
+                              Importer
                               (source + settings -> the engine's format), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
-                              changes), ScriptImporter (.luau -> bytecode)
+                              changes), ScriptImporter (.luau -> bytecode), TextureImporters (stb_image: png, jpg,
+                              tga, bmp -> RGBA8, mips averaged as light); ProjectAssets (the editor's project kept
+                              in step: TryRefresh polls the stamps, scans and imports what changed, says what the
+                              registry reloads)
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and import, never included by them: Document (a scene, its
                               History with nested groups, dirty by position, its Selection), Command, the edits
