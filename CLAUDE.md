@@ -22,7 +22,9 @@ out\build\windows-debug\bin\bubble_tests.exe
   by CI only.
 - Clang everywhere, C++23, warnings are errors. CI's clang is 20, older than
   the local 22: a warning flag newer than 20 goes behind
-  `check_cxx_compiler_flag`.
+  `check_cxx_compiler_flag`. Clang 20 cannot deduce the arguments of an
+  alias template either: `vector<T>{ ... }`, `pair<A, B>{ ... }`, never
+  `vector{ ... }` or `pair{ ... }` - our containers are aliases.
 - Run release too when touching anything with lifetimes or the Luau stack.
 - Format what you change with VS's clang-format before finishing:
   `"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\Llvm\x64\bin\clang-format.exe" -i <files>`

@@ -350,7 +350,8 @@ TEST_CASE( "A number a file cannot hold is refused as it is saved" )
     // A file has no word for NaN or infinity; written as null, it would not
     // load again.
     for ( const auto& [broken, text] :
-          { pair{ f32( NAN ), "nan" }, pair{ f32( INFINITY ), "inf" }, pair{ -f32( INFINITY ), "-inf" } } )
+          { pair<f32, const char*>{ f32( NAN ), "nan" }, pair<f32, const char*>{ f32( INFINITY ), "inf" },
+            pair<f32, const char*>{ -f32( INFINITY ), "-inf" } } )
     {
         Scene scene = f.Made();
         scene.Get<Light>( *TryResolve( scene, EntityPath{ Make( "/lamp" ) } ) ).mBrightness = broken;

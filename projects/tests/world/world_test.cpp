@@ -120,7 +120,9 @@ struct Fixture
     Scene Rooms()
     {
         Scene scene;
-        for ( const auto& [name, power] : { pair{ "one", 1.0f }, pair{ "two", 2.0f }, pair{ "three", 3.0f } } )
+        for ( const auto& [name, power] :
+              { pair<const char*, f32>{ "one", 1.0f }, pair<const char*, f32>{ "two", 2.0f },
+                pair<const char*, f32>{ "three", 3.0f } } )
         {
             const Entity stove = CreateChild( scene, scene.Root(), Make( name ) );
             scene.Add<Heater>( stove, power );

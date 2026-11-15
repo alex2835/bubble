@@ -106,7 +106,7 @@ TEST_CASE( "A scan that cannot list, read or write the project fails, saying wha
         []( const AssetPath&, string_view ) { return expected<void, string>( unexpected( "read-only"s ) ); },
         [] {
             return expected<vector<ListedFile>, string>(
-                vector{ ListedFile{ .mPath = Path( "a.luau" ), .mStamp = 0 } } );
+                vector<ListedFile>{ ListedFile{ .mPath = Path( "a.luau" ), .mStamp = 0 } } );
         } );
     CHECK( TryScanProject( readOnly, cSources, cEngineFileExtensions ).error() ==
            "cannot write a.luau.import: read-only" );
