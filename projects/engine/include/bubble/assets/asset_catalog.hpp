@@ -22,6 +22,9 @@ public:
     OptRef<const AssetPath> TryPathOf( const AssetId& assetId ) const;
     opt<AssetId> TryIdOf( const AssetPath& path ) const;
     size_t Count() const { return mPaths.size(); }
+    // For messages: its path, or "asset 9c1e..." for one the catalog does
+    // not have.
+    string Describe( const AssetId& assetId ) const;
 
 private:
     hmap<AssetId, AssetPath> mPaths;

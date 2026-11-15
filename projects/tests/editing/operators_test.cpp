@@ -48,7 +48,8 @@ struct Fixture
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
     Files mFiles;
-    Workspace mWorkspace{ mComponentTypes, mFiles.Project() };
+    AssetCatalog mAssets;
+    Workspace mWorkspace{ mComponentTypes, mFiles.Project(), mAssets };
     Document& mDocument = mWorkspace.Open();
     Entity mLamp;
     Entity mProps;
@@ -284,7 +285,7 @@ TEST_CASE( "Selecting, undoing and copying change no document and are no step" )
     CHECK_FALSE( f.mDocument.IsDirty() );
 
     CHECK( f.Why( "edit.redo" ) == "edit.redo: nothing to redo" );
-    Workspace empty( f.mComponentTypes, f.mFiles.Project() );
+    Workspace empty( f.mComponentTypes, f.mFiles.Project(), f.mAssets );
     CHECK( f.mOperators.TryRun( empty, "entity.create" ).error() == "entity.create: no document is open" );
     CHECK( f.mOperators.TryRun( empty, "edit.undo" ).error() == "edit.undo: no document is open" );
 }

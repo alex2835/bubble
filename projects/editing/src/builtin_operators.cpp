@@ -279,7 +279,7 @@ Result RunOpen( Workspace& workspace, const OperatorArgs& args )
     auto textMaybe = workspace.GetFiles().TryRead( *pathMaybe );
     if ( not textMaybe )
         return unexpected( format( "{}: {}", pathMaybe->View(), textMaybe.error() ) );
-    auto sceneMaybe = TryLoadScene( *textMaybe, workspace.GetComponentTypes(), workspace.Prefabs() );
+    auto sceneMaybe = TryLoadScene( *textMaybe, workspace.GetFileContext() );
     if ( not sceneMaybe )
         return unexpected( format( "{}: {}", pathMaybe->View(), sceneMaybe.error() ) );
     Document& document = workspace.Open( std::move( *sceneMaybe ) );
@@ -314,7 +314,7 @@ Result RunSave( Workspace& workspace, const OperatorArgs& args )
         return TrySavePrefabDocument( workspace, document, path );
     if ( IsPrefabPath( path ) )
         return unexpected( format( "{}: a level is not saved as a prefab - prefab.create makes one", path.View() ) );
-    auto textMaybe = TrySaveScene( document.GetScene(), workspace.GetComponentTypes(), workspace.Prefabs() );
+    auto textMaybe = TrySaveScene( document.GetScene(), workspace.GetFileContext(), workspace.IdOf( path ) );
     if ( not textMaybe )
         return unexpected( std::move( textMaybe.error() ) );
     if ( auto writtenMaybe = workspace.GetFiles().TryWrite( path, *textMaybe ); not writtenMaybe )

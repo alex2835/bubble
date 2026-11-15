@@ -31,6 +31,13 @@ OptRef<const AssetPath> AssetCatalog::TryPathOf( const AssetId& assetId ) const
     return found->second;
 }
 
+string AssetCatalog::Describe( const AssetId& assetId ) const
+{
+    if ( const auto pathMaybe = TryPathOf( assetId ) )
+        return pathMaybe->String();
+    return format( "asset {}", assetId.ToString() );
+}
+
 opt<AssetId> AssetCatalog::TryIdOf( const AssetPath& path ) const
 {
     const auto found = mIds.find( path );

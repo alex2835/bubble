@@ -1,5 +1,6 @@
 #include "bubble/import/project_scan.hpp"
 #include "bubble/import/import_file.hpp"
+#include "bubble/scene/engine_file.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
@@ -23,7 +24,9 @@ expected<void, string> TryWriteImportFile( const ProjectFiles& files, const Asse
 }
 }
 
-expected<ProjectScan, string> TryScanProject( const ProjectFiles& files, span<const string_view> sourceExtensions )
+expected<ProjectScan, string> TryScanProject( const ProjectFiles& files,
+                                              span<const string_view> sourceExtensions,
+                                              span<const string_view> engineExtensions )
 {
     auto pathsMaybe = files.TryList();
     if ( not pathsMaybe )
@@ -33,11 +36,42 @@ expected<ProjectScan, string> TryScanProject( const ProjectFiles& files, span<co
     const auto isSource = [&]( const AssetPath& path ) {
         return ranges::find( sourceExtensions, path.Extension() ) != sourceExtensions.end();
     };
+    const auto isEngineFile = [&]( const AssetPath& path ) {
+        return ranges::find( engineExtensions, path.Extension() ) != engineExtensions.end();
+    };
 
     ProjectScan scan;
     for ( const AssetPath& path : paths )
     {
-        if ( isSource( path ) )
+        if ( isEngineFile( path ) )
+        {
+            auto textMaybe = TryReadListed( files, path );
+            if ( not textMaybe )
+                return unexpected( std::move( textMaybe.error() ) );
+            const auto ownMaybe = TryReadFileId( *textMaybe );
+            if ( not ownMaybe )
+            {
+                scan.mWarnings.push_back(
+                    format( "{}: {} - it is left out until it is mended", path.View(), ownMaybe.error() ) );
+                continue;
+            }
+            AssetId assetId = ownMaybe->value_or( AssetId() );
+            const auto otherMaybe = assetId ? scan.mCatalog.TryPathOf( assetId ) : nullopt;
+            if ( otherMaybe )
+                scan.mWarnings.push_back(
+                    format( "{} had the id of {} - a copy? - and has a new one", path.View(), otherMaybe->View() ) );
+            if ( not assetId or otherMaybe )
+            {
+                assetId = AssetId::Generate();
+                auto withIdMaybe = TryWithFileId( *textMaybe, assetId );
+                if ( not withIdMaybe )
+                    return unexpected( format( "{}: {}", path.View(), withIdMaybe.error() ) );
+                if ( auto writtenMaybe = files.TryWrite( path, *withIdMaybe ); not writtenMaybe )
+                    return unexpected( format( "cannot write {}: {}", path.View(), writtenMaybe.error() ) );
+            }
+            scan.mCatalog.Add( assetId, path );
+        }
+        else if ( isSource( path ) )
         {
             const AssetPath importPath = ImportFileOf( path );
             if ( not listed( importPath ) )

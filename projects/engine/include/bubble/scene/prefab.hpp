@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/data/json.hpp"
 #include "bubble/scene/component_types.hpp"
+#include "bubble/scene/engine_file.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 
@@ -12,12 +13,13 @@ namespace bubble
 // instance as the prefab and what differs from it. Absolute links in a prefab
 // lead from its root, "/" - the prefab is all the scene it has.
 //
-//     { "version": 1, "next_id": 3,
+//     { "version": 1, "asset": "9c1e...", "next_id": 3,
 //       "root": { "id": 0, "components": { ... },
 //                 "children": [ { "id": 1, "name": "door", "components": { ... } } ] } }
 //
-// next_id is the id the next new node gets: an id once given is never given
-// again, so what a level says of a node that went is not taken for another.
+// "asset" is the prefab's own id (bubble/scene/engine_file.hpp). next_id is
+// the id the next new node gets: an id once given is never given again, so
+// what a level says of a node that went is not taken for another.
 class Prefab
 {
 public:
@@ -32,7 +34,7 @@ public:
     };
 
     // The file, as strict as a scene file.
-    static expected<Prefab, string> TryParse( string_view text, const ComponentTypes& componentTypes );
+    static expected<Prefab, string> TryParse( string_view text, const FileContext& files );
     // `root` and what is under it. An entity `ids` has keeps its id; the
     // others get new ones from `nextId` on, added to `ids`. Links into the
     // subtree come to lead from the prefab's root.
@@ -41,8 +43,9 @@ public:
                                                   const ComponentTypes& componentTypes,
                                                   hmap<Entity, u32>& ids,
                                                   u32 nextId );
-    // Fails on a number a file cannot hold: what saves, loads.
-    expected<string, string> TryWrite( const ComponentTypes& componentTypes ) const;
+    // Fails on a number a file cannot hold: what saves, loads. `assetId` is
+    // the prefab's own; a zero one is not written.
+    expected<string, string> TryWrite( const FileContext& files, const AssetId& assetId = {} ) const;
 
     // Root first, then the rest as the tree goes: a parent before its
     // children.
@@ -64,16 +67,13 @@ private:
 
 constexpr int cPrefabFileVersion = 1;
 
-// Where prefabs come from when a level is read or written: by path, read and
-// parsed - and cached, if whoever gives them likes.
-using PrefabSource = function<expected<Ref<const Prefab>, string>( const AssetPath& path )>;
-
-// An instance of the prefab at `path` under `parent`, at `index`, named as
-// CreateChild names it: an entity a node, each with a PrefabLink, the root
-// with PrefabInstance too. Links inside the prefab lead inside the instance.
+// An instance of the prefab with the id under `parent`, at `index`, named
+// as CreateChild names it: an entity a node, each with a PrefabLink, the
+// root with PrefabInstance too. Links inside the prefab lead inside the
+// instance.
 Entity Instantiate( Scene& scene,
                     const Prefab& prefab,
-                    const AssetPath& path,
+                    const AssetId& prefabId,
                     Entity parent,
                     const Text& name,
                     const ComponentTypes& componentTypes,
@@ -98,7 +98,7 @@ Value FromInstance( Value value, const EntityPath& root );
 expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
                                                      Entity root,
                                                      const Prefab& prefab,
-                                                     const ComponentTypes& componentTypes );
+                                                     const FileContext& files );
 
 // Lays what TryInstanceOverrides wrote on the instance at `root`: removes,
 // then sets, then added components and children. What the prefab no longer
@@ -107,5 +107,5 @@ expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
 expected<void, string> TryApplyOverrides( Scene& scene,
                                           Entity root,
                                           const Json::Object& overrides,
-                                          const ComponentTypes& componentTypes );
+                                          const FileContext& files );
 }

@@ -1,5 +1,6 @@
 #include "bubble/editing/workspace.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/types/format.hpp"
 
 namespace bubble
 {
@@ -42,24 +43,54 @@ OptRef<Document> Workspace::TryFind( const AssetPath& path )
     return nullopt;
 }
 
-expected<Ref<const Prefab>, string> Workspace::TryPrefab( const AssetPath& path )
+expected<AssetId, string> Workspace::TryIdOf( const AssetPath& path )
 {
-    if ( const auto known = mPrefabs.find( path ); known != mPrefabs.end() )
-        return known->second;
+    if ( const auto assetIdMaybe = mAssets.TryIdOf( path ) )
+        return *assetIdMaybe;
     auto textMaybe = mFiles.TryRead( path );
     if ( not textMaybe )
         return unexpected( std::move( textMaybe.error() ) );
-    auto prefabMaybe = Prefab::TryParse( *textMaybe, mComponentTypes );
+    return Take( path, *textMaybe );
+}
+
+AssetId Workspace::IdOf( const AssetPath& path )
+{
+    if ( const auto assetIdMaybe = mAssets.TryIdOf( path ) )
+        return *assetIdMaybe;
+    const auto textMaybe = mFiles.TryRead( path );
+    return Take( path, textMaybe ? string_view( *textMaybe ) : string_view() );
+}
+
+AssetId Workspace::Take( const AssetPath& path, string_view text )
+{
+    const auto ownMaybe = TryReadFileId( text );
+    const bool ownFree = ownMaybe and *ownMaybe and not mAssets.TryPathOf( **ownMaybe );
+    const AssetId assetId = ownFree ? **ownMaybe : AssetId::Generate();
+    mAssets.Add( assetId, path );
+    return assetId;
+}
+
+expected<Ref<const Prefab>, string> Workspace::TryPrefab( const AssetId& prefabId )
+{
+    if ( const auto known = mPrefabs.find( prefabId ); known != mPrefabs.end() )
+        return known->second;
+    const auto pathMaybe = mAssets.TryPathOf( prefabId );
+    if ( not pathMaybe )
+        return unexpected( format( "no asset {} in the project", prefabId.ToString() ) );
+    auto textMaybe = mFiles.TryRead( *pathMaybe );
+    if ( not textMaybe )
+        return unexpected( std::move( textMaybe.error() ) );
+    auto prefabMaybe = Prefab::TryParse( *textMaybe, FileContext( mComponentTypes, mAssets ) );
     if ( not prefabMaybe )
         return unexpected( std::move( prefabMaybe.error() ) );
     Ref<const Prefab> prefab = CreateRef<const Prefab>( std::move( *prefabMaybe ) );
-    mPrefabs[path] = prefab;
+    mPrefabs[prefabId] = prefab;
     return prefab;
 }
 
-PrefabSource Workspace::Prefabs()
+FileContext Workspace::GetFileContext()
 {
-    return [this]( const AssetPath& path ) { return TryPrefab( path ); };
+    return FileContext( mComponentTypes, mAssets, [this]( const AssetId& prefabId ) { return TryPrefab( prefabId ); } );
 }
 
 vector<Scope<Document>>::iterator Workspace::Find( const Document& document )

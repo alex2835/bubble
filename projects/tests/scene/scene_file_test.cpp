@@ -43,6 +43,7 @@ struct Fixture
 {
     Reflection mReflection;
     ComponentTypes mComponentTypes{ mReflection };
+    AssetCatalog mAssets;
 
     Fixture()
     {
@@ -79,23 +80,25 @@ struct Fixture
         return scene;
     }
 
+    FileContext Files() const { return FileContext( mComponentTypes, mAssets ); }
+
     string Save( const Scene& scene ) const
     {
-        const auto textMaybe = TrySaveScene( scene, mComponentTypes );
+        const auto textMaybe = TrySaveScene( scene, Files() );
         REQUIRE_MESSAGE( textMaybe, textMaybe.error() );
         return *textMaybe;
     }
 
     Scene Load( string_view text ) const
     {
-        auto sceneMaybe = TryLoadScene( text, mComponentTypes );
+        auto sceneMaybe = TryLoadScene( text, Files() );
         REQUIRE_MESSAGE( sceneMaybe, sceneMaybe.error() );
         return std::move( *sceneMaybe );
     }
 
     string Why( string_view text ) const
     {
-        const auto sceneMaybe = TryLoadScene( text, mComponentTypes );
+        const auto sceneMaybe = TryLoadScene( text, Files() );
         REQUIRE_FALSE( sceneMaybe );
         return sceneMaybe.error();
     }
@@ -197,7 +200,7 @@ TEST_CASE( "A wrong scene file says where and what is wrong" )
     CHECK( f.Why( R"({ "root": {} })" ) == "no version: a scene file says \"version\": 1" );
     CHECK( f.Why( R"({ "version": 1 })" ) == "no root: a scene file has \"root\": { ... }" );
     CHECK( f.Why( R"({ "version": 1, "root": {}, "extra": 1 })" ) ==
-           "1:38: the file: extra is not a key of a scene (keys: version, root)" );
+           "1:38: the file: extra is not a key of a scene (keys: version, asset, root)" );
     CHECK( f.Why( "[" ) == "1:2: a value expected, got the end" );
 }
 
@@ -207,9 +210,9 @@ TEST_CASE( "One entity goes to JSON and back under a parent, its name made uniqu
     Scene scene = f.Made();
     const Entity props = *TryResolve( scene, EntityPath{ Make( "/props" ) } );
     const Entity chair = *TryResolve( scene, EntityPath{ Make( "/props/chair" ) } );
-    const auto jsonMaybe = TryEntityToJson( scene, chair, f.mComponentTypes );
+    const auto jsonMaybe = TryEntityToJson( scene, chair, f.Files() );
     REQUIRE_MESSAGE( jsonMaybe, jsonMaybe.error() );
-    const auto madeMaybe = TryEntityFromJson( scene, *jsonMaybe, props, f.mComponentTypes, 0 );
+    const auto madeMaybe = TryEntityFromJson( scene, *jsonMaybe, props, f.Files(), 0 );
     REQUIRE_MESSAGE( madeMaybe, madeMaybe.error() );
     CHECK( PathOf( scene, *madeMaybe ).mPath.View() == "/props/chair_2" );
     CHECK( scene.Get<Health>( *madeMaybe ).mValue == 50 );
@@ -219,7 +222,7 @@ TEST_CASE( "One entity goes to JSON and back under a parent, its name made uniqu
     const size_t count = scene.Count();
     const auto wrongMaybe = Json::TryParse( R"({ "name": "box", "components": { "health": { "value": "lots" } } })" );
     REQUIRE( wrongMaybe );
-    CHECK_FALSE( TryEntityFromJson( scene, *wrongMaybe, props, f.mComponentTypes ) );
+    CHECK_FALSE( TryEntityFromJson( scene, *wrongMaybe, props, f.Files() ) );
     CHECK( scene.Count() == count );
     CHECK( ChildrenOf( scene, props ).size() == 2 );
 }
@@ -324,20 +327,20 @@ TEST_CASE( "A tree deeper than a file holds is refused as it is saved" )
     Entity at = scene.Root();
     for ( int i = 0; i < 127; ++i )
         at = CreateChild( scene, at, Make( "step" ) );
-    const auto savedMaybe = TrySaveScene( scene, f.mComponentTypes );
+    const auto savedMaybe = TrySaveScene( scene, f.Files() );
     REQUIRE_MESSAGE( savedMaybe, savedMaybe.error() );
-    const auto loadedMaybe = TryLoadScene( *savedMaybe, f.mComponentTypes );
+    const auto loadedMaybe = TryLoadScene( *savedMaybe, f.Files() );
     REQUIRE_MESSAGE( loadedMaybe, loadedMaybe.error() );
     CHECK( loadedMaybe->Count() == scene.Count() );
 
     // One level more has its name past what the reader takes.
     const Entity deepest = CreateChild( scene, at, Make( "step" ) );
-    CHECK( TrySaveScene( scene, f.mComponentTypes ).error() ==
+    CHECK( TrySaveScene( scene, f.Files() ).error() ==
            format( "{}: nested deeper than a file holds (256 levels)", Describe( scene, deepest ) ) );
     // A component counts too: on the last level that fits, its fields go past.
     scene.Destroy( deepest );
     scene.Add<Health>( at );
-    CHECK( TrySaveScene( scene, f.mComponentTypes ).error() ==
+    CHECK( TrySaveScene( scene, f.Files() ).error() ==
            format( "{}: nested deeper than a file holds (256 levels)", Describe( scene, at ) ) );
 }
 
@@ -351,7 +354,7 @@ TEST_CASE( "A number a file cannot hold is refused as it is saved" )
     {
         Scene scene = f.Made();
         scene.Get<Light>( *TryResolve( scene, EntityPath{ Make( "/lamp" ) } ) ).mBrightness = broken;
-        CHECK( TrySaveScene( scene, f.mComponentTypes ).error() ==
+        CHECK( TrySaveScene( scene, f.Files() ).error() ==
                format( "/lamp: light.brightness: {} is a number a file cannot hold", text ) );
     }
 }
@@ -361,26 +364,26 @@ TEST_CASE( "One entity written and read back, asked about where it cannot be" )
     const Fixture f;
     Scene scene = f.Made();
     const Entity loose = scene.Create();
-    CHECK_THROWS_WITH_AS( (void)TryEntityToJson( scene, scene.Root(), f.mComponentTypes ),
+    CHECK_THROWS_WITH_AS( (void)TryEntityToJson( scene, scene.Root(), f.Files() ),
                           doctest::Contains( "TryEntityToJson of /: an entity under the root is written" ),
                           logic_error );
-    CHECK_THROWS_WITH_AS( (void)TryEntityToJson( scene, loose, f.mComponentTypes ),
+    CHECK_THROWS_WITH_AS( (void)TryEntityToJson( scene, loose, f.Files() ),
                           doctest::Contains( "not in the tree): an entity under the root is written" ), logic_error );
 
     // A parent outside the tree is a mistake in the code, not in the file: it
     // throws rather than tell a person.
     const auto jsonMaybe = Json::TryParse( R"({ "name": "box" })" );
     REQUIRE( jsonMaybe );
-    CHECK_THROWS_WITH_AS( (void)TryEntityFromJson( scene, *jsonMaybe, loose, f.mComponentTypes ),
+    CHECK_THROWS_WITH_AS( (void)TryEntityFromJson( scene, *jsonMaybe, loose, f.Files() ),
                           doctest::Contains( "AddToTree on entity" ), logic_error );
     // A child of the root written alone keeps its name and nothing of where it
     // hangs: reading it back under another parent is what gives it a place.
     const size_t count = scene.Count();
     const Entity lamp = *TryResolve( scene, EntityPath{ Make( "/lamp" ) } );
-    const auto lampJsonMaybe = TryEntityToJson( scene, lamp, f.mComponentTypes );
+    const auto lampJsonMaybe = TryEntityToJson( scene, lamp, f.Files() );
     REQUIRE_MESSAGE( lampJsonMaybe, lampJsonMaybe.error() );
-    const auto underPropsMaybe = TryEntityFromJson(
-        scene, *lampJsonMaybe, *TryResolve( scene, EntityPath{ Make( "/props" ) } ), f.mComponentTypes );
+    const auto underPropsMaybe =
+        TryEntityFromJson( scene, *lampJsonMaybe, *TryResolve( scene, EntityPath{ Make( "/props" ) } ), f.Files() );
     REQUIRE_MESSAGE( underPropsMaybe, underPropsMaybe.error() );
     CHECK( PathOf( scene, *underPropsMaybe ).mPath.View() == "/props/lamp" );
     // The copy points at the same target the original did, which is now

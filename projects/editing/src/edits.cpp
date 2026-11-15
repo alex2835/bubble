@@ -247,10 +247,13 @@ public:
 
     expected<void, string> TryDo( Scene& scene ) override
     {
+        // A copy in memory keeps its assets' ids; their paths are for files.
+        const AssetCatalog none;
+        const FileContext files( mComponentTypes, none );
         for ( const Piece& piece : mPieces )
         {
             const size_t index = piece.mAfter != Entity::Null ? IndexInParent( scene, piece.mAfter ) + 1 : piece.mIndex;
-            auto madeMaybe = TryEntityFromJson( scene, piece.mEntity, piece.mParent, mComponentTypes, index );
+            auto madeMaybe = TryEntityFromJson( scene, piece.mEntity, piece.mParent, files, index );
             if ( not madeMaybe )
             {
                 for ( auto made = mMade.rbegin(); made != mMade.rend(); ++made )
@@ -442,13 +445,13 @@ class InstantiateCommand final : public Command
 public:
     InstantiateCommand( const ComponentTypes& componentTypes,
                         Ref<const Prefab> prefab,
-                        AssetPath path,
+                        const AssetId& prefabId,
                         Entity parent,
                         Text name,
                         size_t index )
         : mComponentTypes( componentTypes ),
           mPrefab( std::move( prefab ) ),
-          mPath( std::move( path ) ),
+          mPrefabId( prefabId ),
           mParent( parent ),
           mName( std::move( name ) ),
           mIndex( index ),
@@ -460,7 +463,7 @@ public:
 
     expected<void, string> TryDo( Scene& scene ) override
     {
-        mRoot = Instantiate( scene, *mPrefab, mPath, mParent, mName, mComponentTypes, mIndex );
+        mRoot = Instantiate( scene, *mPrefab, mPrefabId, mParent, mName, mComponentTypes, mIndex );
         // Redo puts back what undo took; the prefab is not needed again.
         mPrefab.reset();
         return {};
@@ -472,7 +475,7 @@ public:
 private:
     const ComponentTypes& mComponentTypes;
     Ref<const Prefab> mPrefab;
-    AssetPath mPath;
+    AssetId mPrefabId;
     Entity mParent;
     Text mName;
     size_t mIndex;
@@ -585,9 +588,9 @@ expected<void, string> TryCheckNotPrefabNode( const Scene& scene, Entity entity 
     const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
     if ( not linkMaybe or linkMaybe->mInstance == entity or not scene.Has<PrefabInstance>( linkMaybe->mInstance ) )
         return {};
-    return unexpected( format( "{} is a node of {}: its name and its place are the prefab's - change them there",
-                               Describe( scene, entity ),
-                               scene.Get<PrefabInstance>( linkMaybe->mInstance ).mPrefab.View() ) );
+    return unexpected(
+        format( "{} is a node of the instance {}: its name and its place are the prefab's - change them there",
+                Describe( scene, entity ), Describe( scene, linkMaybe->mInstance ) ) );
 }
 
 expected<void, string> TryCheckInTree( const Scene& scene, Entity entity )
@@ -757,6 +760,8 @@ expected<vector<Entity>, string> TryPasteEntities( Document& document,
 expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<const Entity> entities )
 {
     const Scene& scene = document.GetScene();
+    const AssetCatalog none;
+    const FileContext files( document.GetComponentTypes(), none );
     vector<PasteCommand::Piece> pieces;
     for ( const Entity entity : entities )
     {
@@ -764,7 +769,7 @@ expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<
             return unexpected( std::move( inTreeMaybe.error() ) );
         if ( entity == scene.Root() )
             return unexpected( "the root is not duplicated: it is the scene"s );
-        auto jsonMaybe = TryEntityToJson( scene, entity, document.GetComponentTypes() );
+        auto jsonMaybe = TryEntityToJson( scene, entity, files );
         if ( not jsonMaybe )
             return unexpected( std::move( jsonMaybe.error() ) );
         pieces.push_back( PasteCommand::Piece{ .mEntity = std::move( *jsonMaybe ),
@@ -780,7 +785,7 @@ expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<
 
 expected<Entity, string> TryInstantiatePrefab( Document& document,
                                                Ref<const Prefab> prefab,
-                                               const AssetPath& path,
+                                               const AssetId& prefabId,
                                                Entity parent,
                                                const Text& name,
                                                size_t index )
@@ -789,10 +794,10 @@ expected<Entity, string> TryInstantiatePrefab( Document& document,
         return unexpected( std::move( inTreeMaybe.error() ) );
     if ( document.TryPrefabNodes() )
         return unexpected( "a prefab inside a prefab is not there yet"s );
-    auto command =
-        CreateScope<InstantiateCommand>( document.GetComponentTypes(), std::move( prefab ), path, parent, name, index );
+    auto command = CreateScope<InstantiateCommand>( document.GetComponentTypes(), std::move( prefab ), prefabId, parent,
+                                                    name, index );
     const InstantiateCommand& made = *command;
-    if ( auto doneMaybe = TryDo( document, std::move( command ), format( "instantiate {}", path.View() ) );
+    if ( auto doneMaybe = TryDo( document, std::move( command ), format( "instantiate {}", name.View() ) );
          not doneMaybe )
         return unexpected( std::move( doneMaybe.error() ) );
     // Kept by the history, which does not drop a step it has just taken.

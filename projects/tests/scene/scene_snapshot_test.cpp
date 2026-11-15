@@ -41,6 +41,7 @@ struct Fixture
 {
     Reflection mReflection;
     ComponentTypes mComponentTypes{ mReflection };
+    AssetCatalog mAssets;
     Scene mScene;
     Entity mHall;
     Entity mAttic;
@@ -67,7 +68,7 @@ TEST_CASE( "A snapshot puts a scene back as it was: its entities under their num
 {
     Fixture f;
     Scene& scene = f.mScene;
-    const string saved = *TrySaveScene( scene, f.mComponentTypes );
+    const string saved = *TrySaveScene( scene, FileContext( f.mComponentTypes, f.mAssets ) );
     const vector<Entity> order = scene.EntitiesWith<Lantern>();
     const SceneSnapshot snapshot( scene, f.mComponentTypes );
 
@@ -84,7 +85,7 @@ TEST_CASE( "A snapshot puts a scene back as it was: its entities under their num
     Heard heard;
     scene.Listen<Lantern>( heard );
     snapshot.Restore( scene, f.mComponentTypes );
-    CHECK( *TrySaveScene( scene, f.mComponentTypes ) == saved );
+    CHECK( *TrySaveScene( scene, FileContext( f.mComponentTypes, f.mAssets ) ) == saved );
     CHECK( scene.EntitiesWith<Lantern>() == order );
     CHECK( *TryResolve( scene, EntityPath{ Make( "/hall" ) } ) == f.mHall );
     CHECK( scene.Create() == next );
@@ -123,8 +124,8 @@ TEST_CASE( "A snapshot of a type the scene's ComponentTypes do not know does not
     const SceneSnapshot snapshot( f.mScene, f.mComponentTypes );
     Reflection reflection;
     const ComponentTypes others( reflection );
-    const string saved = *TrySaveScene( f.mScene, f.mComponentTypes );
+    const string saved = *TrySaveScene( f.mScene, FileContext( f.mComponentTypes, f.mAssets ) );
     CHECK_THROWS_WITH_AS( snapshot.Restore( f.mScene, others ),
                           "SceneSnapshot::Restore: lantern is no component type here", logic_error );
-    CHECK( *TrySaveScene( f.mScene, f.mComponentTypes ) == saved );
+    CHECK( *TrySaveScene( f.mScene, FileContext( f.mComponentTypes, f.mAssets ) ) == saved );
 }

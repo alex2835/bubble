@@ -43,11 +43,11 @@ expected<OperatorArgs, string> TryCheckArgs( const Operator& op, Value::Record r
 }
 
 // The arguments in a JSON object; null is none.
-expected<OperatorArgs, string> TryReadArgs( const Operator& op, const Json& json )
+expected<OperatorArgs, string> TryReadArgs( const Operator& op, const Json& json, const AssetCatalog& assets )
 {
     if ( json.IsNull() )
         return TryCheckArgs( op, {} );
-    auto valueMaybe = TryValueFromJson( json, ArgsType( op ), op.mId );
+    auto valueMaybe = TryValueFromJson( json, ArgsType( op ), op.mId, assets );
     if ( not valueMaybe )
         return unexpected( std::move( valueMaybe.error() ) );
     return TryCheckArgs( op, *valueMaybe->TryAs<Value::Record>() );
@@ -124,7 +124,7 @@ expected<void, string> Operators::TryPoll( const Workspace& workspace, string_vi
     const auto opMaybe = TryFind( id );
     if ( not opMaybe )
         return NoOperator( id, *this );
-    const auto argsMaybe = TryReadArgs( *opMaybe, args );
+    const auto argsMaybe = TryReadArgs( *opMaybe, args, workspace.GetAssets() );
     if ( not argsMaybe )
         return unexpected( argsMaybe.error() );
     return TryPollChecked( workspace, *opMaybe, *argsMaybe );
@@ -158,7 +158,7 @@ expected<void, string> Operators::TryRun( Workspace& workspace, string_view id, 
     const auto opMaybe = TryFind( id );
     if ( not opMaybe )
         return NoOperator( id, *this );
-    const auto argsMaybe = TryReadArgs( *opMaybe, args );
+    const auto argsMaybe = TryReadArgs( *opMaybe, args, workspace.GetAssets() );
     if ( not argsMaybe )
         return unexpected( argsMaybe.error() );
     return TryRunChecked( workspace, *opMaybe, *argsMaybe );

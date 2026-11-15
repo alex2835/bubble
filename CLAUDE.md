@@ -42,13 +42,16 @@ projects/engine/include/bubble/
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
-                              SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back;
+                              SaveScene/LoadScene (nested JSON with "version" and the level's own "asset" id),
+                              FileContext (component types, catalog, prefabs by id), one entity to JSON and back;
                               Prefab (nodes with ids that last, next_id), Instantiate, an instance in a level as
-                              its prefab + overrides (set, add_components, add_children, remove); PrefabInstance and
-                              PrefabLink are ComponentTypes' internal types: kept by undo, never in files;
+                              its prefab (by id) + overrides (set, add_components, add_children, remove);
+                              PrefabInstance and PrefabLink are ComponentTypes' internal types: kept by undo, never
+                              in files;
                               SceneSnapshot (the data in memory: entity numbers exact, every type's order kept)
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
-                              parser and writer), Value <-> Json (plain by type, tagged for Any)
+                              parser and writer), Value <-> Json (plain by type, tagged for Any; an asset is
+                              { "asset": id, "path": path }, found by the path when the id is not)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
@@ -60,13 +63,14 @@ projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
                               files: read, list, a save replaces the file whole), ImportFile (<source>.import: the
-                              asset's id and settings), TryScanProject (ids from .import files, new ones written, a
-                              copy re-ided, orphans listed)
+                              asset's id and settings), TryScanProject (ids from .import files and from inside
+                              levels and prefabs, new ones written, a copy re-ided, orphans listed)
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and import, never included by them: Document (a scene, its
                               History with nested groups, dirty by position, its Selection), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
-                              paste/duplicate; Workspace (open documents, the active one) and Operators - the
+                              paste/duplicate; Workspace (open documents, the active one, the catalog it adds the
+                              files it writes to, prefabs by id) and Operators - the
                               only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
                               builtin_operators.cpp, prefab_operators.cpp); prefab documents (.prefab, node ids
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);

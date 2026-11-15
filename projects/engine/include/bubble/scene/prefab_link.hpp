@@ -1,5 +1,5 @@
 #pragma once
-#include "bubble/core/asset_path.hpp"
+#include "bubble/assets/asset_id.hpp"
 #include "bubble/scene/entity.hpp"
 #include "bubble/types/number.hpp"
 
@@ -9,11 +9,9 @@ namespace bubble
 // this nor PrefabLink is written as a component - a level file keeps an
 // instance as its prefab and what differs from it - and the runtime never
 // looks at them: an instance in memory is plain entities.
-//
-// The prefab is named by its path until assets have GUIDs (stage 4).
 struct PrefabInstance
 {
-    AssetPath mPrefab;
+    AssetId mPrefab;
 };
 
 // On every entity made from a node of a prefab, its instance's root too:

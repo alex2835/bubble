@@ -65,8 +65,9 @@ expected<Value, string> TryWhole( const Value& value,
 class PrefabReader
 {
 public:
-    PrefabReader( const ComponentTypes& componentTypes, vector<Prefab::Node>& nodes, hmap<u32, size_t>& index )
-        : mComponentTypes( componentTypes ),
+    PrefabReader( const FileContext& files, vector<Prefab::Node>& nodes, hmap<u32, size_t>& index )
+        : mComponentTypes( files.mComponentTypes ),
+          mAssets( files.mAssets ),
           mNodes( nodes ),
           mIndex( index )
     {
@@ -136,8 +137,8 @@ private:
                 {
                     if ( ranges::find( components, type.mName, &pair<Name, Value>::first ) != components.end() )
                         return Fail( member.mValue, where, format( "{} given twice", member.mKey ) );
-                    auto valueMaybe =
-                        TryValueFromJson( member.mValue, type.mValueType, format( "{}: {}", where, member.mKey ) );
+                    auto valueMaybe = TryValueFromJson( member.mValue, type.mValueType,
+                                                        format( "{}: {}", where, member.mKey ), mAssets );
                     if ( not valueMaybe )
                         return unexpected( std::move( valueMaybe.error() ) );
                     auto wholeMaybe = TryWhole( *valueMaybe, type, mComponentTypes );
@@ -188,6 +189,7 @@ private:
     }
 
     const ComponentTypes& mComponentTypes;
+    const AssetCatalog& mAssets;
     vector<Prefab::Node>& mNodes;
     hmap<u32, size_t>& mIndex;
 };
@@ -216,6 +218,7 @@ expected<void, string> TryDiff( const Value& base,
                                 const Value& instance,
                                 const ValueType& type,
                                 const string& path,
+                                const AssetCatalog& assets,
                                 Json::Object& out )
 {
     const auto baseRecordMaybe = base.TryAs<Value::Record>();
@@ -231,12 +234,13 @@ expected<void, string> TryDiff( const Value& base,
             const string fieldPath = path + "." + field.mName.ToString();
             if ( inBase != baseRecordMaybe->end() )
             {
-                if ( auto diffedMaybe = TryDiff( inBase->mValue, inInstance->mValue, field.mType, fieldPath, out );
+                if ( auto diffedMaybe =
+                         TryDiff( inBase->mValue, inInstance->mValue, field.mType, fieldPath, assets, out );
                      not diffedMaybe )
                     return diffedMaybe;
                 continue;
             }
-            auto jsonMaybe = TryValueToJson( inInstance->mValue, field.mType, fieldPath );
+            auto jsonMaybe = TryValueToJson( inInstance->mValue, field.mType, fieldPath, assets );
             if ( not jsonMaybe )
                 return unexpected( std::move( jsonMaybe.error() ) );
             out.push_back( Json::Member{ fieldPath, std::move( *jsonMaybe ) } );
@@ -245,7 +249,7 @@ expected<void, string> TryDiff( const Value& base,
     }
     if ( base == instance )
         return {};
-    auto jsonMaybe = TryValueToJson( instance, type, path );
+    auto jsonMaybe = TryValueToJson( instance, type, path, assets );
     if ( not jsonMaybe )
         return unexpected( std::move( jsonMaybe.error() ) );
     out.push_back( Json::Member{ path, std::move( *jsonMaybe ) } );
@@ -278,9 +282,7 @@ expected<ValueType, string> TryTypeAt( const ValueType& type, const FieldPath& p
     return *at;
 }
 
-expected<Json, string> TryNodeToJson( const Prefab& prefab,
-                                      const Prefab::Node& node,
-                                      const ComponentTypes& componentTypes )
+expected<Json, string> TryNodeToJson( const Prefab& prefab, const Prefab::Node& node, const FileContext& files )
 {
     Json::Object object;
     object.push_back( Json::Member{ "id", Json( static_cast<f64>( node.mId ) ) } );
@@ -289,7 +291,8 @@ expected<Json, string> TryNodeToJson( const Prefab& prefab,
     Json::Object components;
     for ( const auto& [name, value] : node.mComponents )
     {
-        auto jsonMaybe = TryValueToJson( value, componentTypes.TryFind( name )->mValueType, name.ToString() );
+        auto jsonMaybe =
+            TryValueToJson( value, files.mComponentTypes.TryFind( name )->mValueType, name.ToString(), files.mAssets );
         if ( not jsonMaybe )
             return unexpected( format( "node {}: {}", node.mId, jsonMaybe.error() ) );
         components.push_back( Json::Member{ name.ToString(), std::move( *jsonMaybe ) } );
@@ -299,7 +302,7 @@ expected<Json, string> TryNodeToJson( const Prefab& prefab,
     Json::Array children;
     for ( const u32 child : node.mChildren )
     {
-        auto childMaybe = TryNodeToJson( prefab, *prefab.TryFind( child ), componentTypes );
+        auto childMaybe = TryNodeToJson( prefab, *prefab.TryFind( child ), files );
         if ( not childMaybe )
             return childMaybe;
         children.push_back( std::move( *childMaybe ) );
@@ -310,7 +313,7 @@ expected<Json, string> TryNodeToJson( const Prefab& prefab,
 }
 }
 
-expected<Prefab, string> Prefab::TryParse( string_view text, const ComponentTypes& componentTypes )
+expected<Prefab, string> Prefab::TryParse( string_view text, const FileContext& files )
 {
     const auto jsonMaybe = Json::TryParse( text );
     if ( not jsonMaybe )
@@ -320,9 +323,12 @@ expected<Prefab, string> Prefab::TryParse( string_view text, const ComponentType
         return Fail( *jsonMaybe, "the file",
                      format( "a prefab - an object - expected, got {}", jsonMaybe->Describe() ) );
     for ( const Json::Member& member : *fileMaybe )
-        if ( member.mKey != "version" and member.mKey != "next_id" and member.mKey != "root" )
+        if ( member.mKey != "version" and member.mKey != "asset" and member.mKey != "next_id" and
+             member.mKey != "root" )
             return Fail( member.mValue, "the file",
-                         format( "{} is not a key of a prefab (keys: version, next_id, root)", member.mKey ) );
+                         format( "{} is not a key of a prefab (keys: version, asset, next_id, root)", member.mKey ) );
+    if ( auto ownIdMaybe = TryReadFileId( text ); not ownIdMaybe )
+        return unexpected( std::move( ownIdMaybe.error() ) );
 
     const auto versionMaybe = jsonMaybe->TryFind( "version" );
     if ( not versionMaybe )
@@ -343,8 +349,7 @@ expected<Prefab, string> Prefab::TryParse( string_view text, const ComponentType
         return unexpected( "no root: a prefab file has \"root\": { \"id\": 0, ... }"s );
 
     Prefab prefab;
-    if ( auto readMaybe =
-             PrefabReader( componentTypes, prefab.mNodes, prefab.mIndex ).TryReadNode( *rootMaybe, true, "/" );
+    if ( auto readMaybe = PrefabReader( files, prefab.mNodes, prefab.mIndex ).TryReadNode( *rootMaybe, true, "/" );
          not readMaybe )
         return unexpected( std::move( readMaybe.error() ) );
     u32 highest = 0;
@@ -377,9 +382,8 @@ expected<Prefab, string> Prefab::TryFromScene( const Scene& scene,
         const auto [entity, parentAt] = pending.back();
         pending.pop_back();
         if ( entity != root and scene.Has<PrefabInstance>( entity ) )
-            return unexpected( format( "{} is an instance of {}: a prefab inside a prefab is not there yet",
-                                       Describe( scene, entity ),
-                                       scene.Get<PrefabInstance>( entity ).mPrefab.View() ) );
+            return unexpected( format( "{} is an instance of a prefab: a prefab inside a prefab is not there yet",
+                                       Describe( scene, entity ) ) );
         const auto known = ids.find( entity );
         const u32 id = known != ids.end() ? known->second : prefab.mNextId++;
         ids[entity] = id;
@@ -407,13 +411,13 @@ expected<Prefab, string> Prefab::TryFromScene( const Scene& scene,
     return prefab;
 }
 
-expected<string, string> Prefab::TryWrite( const ComponentTypes& componentTypes ) const
+expected<string, string> Prefab::TryWrite( const FileContext& files, const AssetId& assetId ) const
 {
-    auto rootMaybe = TryNodeToJson( *this, Root(), componentTypes );
+    auto rootMaybe = TryNodeToJson( *this, Root(), files );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
     Json::Object file;
-    file.push_back( Json::Member{ "version", Json( static_cast<f64>( cPrefabFileVersion ) ) } );
+    WriteFileHead( file, cPrefabFileVersion, assetId );
     file.push_back( Json::Member{ "next_id", Json( static_cast<f64>( mNextId ) ) } );
     file.push_back( Json::Member{ "root", std::move( *rootMaybe ) } );
     return Json( std::move( file ) ).Write();
@@ -468,7 +472,7 @@ void Prefab::SetComponents( u32 id, vector<pair<Name, Value>> components )
 
 Entity Instantiate( Scene& scene,
                     const Prefab& prefab,
-                    const AssetPath& path,
+                    const AssetId& prefabId,
                     Entity parent,
                     const Text& name,
                     const ComponentTypes& componentTypes,
@@ -478,7 +482,7 @@ Entity Instantiate( Scene& scene,
     MakeNodes( scene, prefab, prefab.Root(), root, PathOf( scene, root ), componentTypes, [&]( Entity entity, u32 id ) {
         scene.Add<PrefabLink>( entity, PrefabLink{ .mInstance = root, .mNode = id } );
     } );
-    scene.Add<PrefabInstance>( root, PrefabInstance{ path } );
+    scene.Add<PrefabInstance>( root, PrefabInstance{ prefabId } );
     return root;
 }
 
@@ -505,8 +509,9 @@ Value FromInstance( Value value, const EntityPath& root )
 expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
                                                      Entity root,
                                                      const Prefab& prefab,
-                                                     const ComponentTypes& componentTypes )
+                                                     const FileContext& files )
 {
+    const ComponentTypes& componentTypes = files.mComponentTypes;
     if ( not scene.Has<PrefabInstance>( root ) )
         throw logic_error( format( "TryInstanceOverrides of {}, which is no instance", Describe( scene, root ) ) );
     const EntityPath rootPath = PathOf( scene, root );
@@ -558,7 +563,7 @@ expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
                 return unexpected( format( "{}: {}", Describe( scene, entity ), valueMaybe.error() ) );
             if ( inBase == node.mComponents.end() )
             {
-                auto jsonMaybe = TryValueToJson( *valueMaybe, type.mValueType, type.mName.ToString() );
+                auto jsonMaybe = TryValueToJson( *valueMaybe, type.mValueType, type.mName.ToString(), files.mAssets );
                 if ( not jsonMaybe )
                     return unexpected( format( "{}: {}", Describe( scene, entity ), jsonMaybe.error() ) );
                 nodeAdded.push_back( Json::Member{ type.mName.ToString(), std::move( *jsonMaybe ) } );
@@ -566,7 +571,8 @@ expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
             }
             Value base = inBase->second;
             RebaseLinks( base, RootPath(), rootPath );
-            if ( auto diffedMaybe = TryDiff( base, *valueMaybe, type.mValueType, type.mName.ToString(), nodeSet );
+            if ( auto diffedMaybe =
+                     TryDiff( base, *valueMaybe, type.mValueType, type.mName.ToString(), files.mAssets, nodeSet );
                  not diffedMaybe )
                 return unexpected( format( "{}: {}", Describe( scene, entity ), diffedMaybe.error() ) );
         }
@@ -581,7 +587,7 @@ expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
             const auto linkMaybe = scene.TryGet<PrefabLink>( child );
             if ( linkMaybe and linkMaybe->mInstance == root )
                 continue;
-            auto childMaybe = TryEntityToJson( scene, child, componentTypes );
+            auto childMaybe = TryEntityToJson( scene, child, files );
             if ( not childMaybe )
                 return unexpected( std::move( childMaybe.error() ) );
             children.push_back( std::move( *childMaybe ) );
@@ -605,12 +611,13 @@ expected<Json::Object, string> TryInstanceOverrides( const Scene& scene,
 expected<void, string> TryApplyOverrides( Scene& scene,
                                           Entity root,
                                           const Json::Object& overrides,
-                                          const ComponentTypes& componentTypes )
+                                          const FileContext& files )
 {
+    const ComponentTypes& componentTypes = files.mComponentTypes;
     if ( not scene.Has<PrefabInstance>( root ) )
         throw logic_error( format( "TryApplyOverrides on {}, which is no instance", Describe( scene, root ) ) );
     const string where( PathOf( scene, root ).mPath.View() );
-    const AssetPath& prefabPath = scene.Get<PrefabInstance>( root ).mPrefab;
+    const string prefabName = files.mAssets.Describe( scene.Get<PrefabInstance>( root ).mPrefab );
     const hmap<u32, Entity> made = MadeFrom( scene, root );
     Reflection& reflection = componentTypes.GetReflection();
     const auto find = [&]( string_view key ) -> OptRef<const Json> {
@@ -627,15 +634,14 @@ expected<void, string> TryApplyOverrides( Scene& scene,
         const auto found = made.find( *numberMaybe );
         if ( found == made.end() or not scene.Alive( found->second ) )
         {
-            LogWarning( "{}: {} has no node {} any more; what the level says of it is dropped", where,
-                        prefabPath.View(), id );
+            LogWarning( "{}: {} has no node {} any more; what the level says of it is dropped", where, prefabName, id );
             return opt<Entity>();
         }
         return opt<Entity>( found->second );
     };
     const auto missing = [&]( string_view id, string_view component ) {
-        LogWarning( "{}: node {} of {} has no {} any more; what the level says of it is dropped", where, id,
-                    prefabPath.View(), component );
+        LogWarning( "{}: node {} of {} has no {} any more; what the level says of it is dropped", where, id, prefabName,
+                    component );
     };
 
     if ( const auto removeMaybe = find( "remove" ) )
@@ -709,7 +715,7 @@ expected<void, string> TryApplyOverrides( Scene& scene,
                 const auto typeAtMaybe = TryTypeAt( typeMaybe->mValueType, *pathMaybe );
                 if ( not typeAtMaybe )
                     return Fail( field.mValue, fieldWhere, typeAtMaybe.error() );
-                auto valueMaybe = TryValueFromJson( field.mValue, *typeAtMaybe, fieldWhere );
+                auto valueMaybe = TryValueFromJson( field.mValue, *typeAtMaybe, fieldWhere, files.mAssets );
                 if ( not valueMaybe )
                     return unexpected( std::move( valueMaybe.error() ) );
                 MetaAny component = typeMaybe->mGetWritable( scene, **entityMaybe );
@@ -751,8 +757,9 @@ expected<void, string> TryApplyOverrides( Scene& scene,
                     return Fail(
                         member.mValue, where,
                         format( "{} is not a component (components: {})", member.mKey, componentTypes.Names() ) );
-                auto valueMaybe = TryValueFromJson( member.mValue, typeMaybe->mValueType,
-                                                    format( "{}: node {}: {}", where, nodeMember.mKey, member.mKey ) );
+                auto valueMaybe =
+                    TryValueFromJson( member.mValue, typeMaybe->mValueType,
+                                      format( "{}: node {}: {}", where, nodeMember.mKey, member.mKey ), files.mAssets );
                 if ( not valueMaybe )
                     return unexpected( std::move( valueMaybe.error() ) );
                 auto madeMaybe = reflection.TryFromValue( *valueMaybe, typeMaybe->mType );
@@ -782,8 +789,7 @@ expected<void, string> TryApplyOverrides( Scene& scene,
                     nodeMember.mValue, where,
                     format( "a node's children - an array - expected, got {}", nodeMember.mValue.Describe() ) );
             for ( const Json& childJson : *arrayMaybe )
-                if ( auto childMaybe = TryEntityFromJson( scene, childJson, **entityMaybe, componentTypes );
-                     not childMaybe )
+                if ( auto childMaybe = TryEntityFromJson( scene, childJson, **entityMaybe, files ); not childMaybe )
                     return unexpected( std::move( childMaybe.error() ) );
         }
     }

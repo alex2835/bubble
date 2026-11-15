@@ -101,6 +101,7 @@ ModuleType HeatingType()
 struct Fixture
 {
     App mApp;
+    AssetCatalog mAssets;
 
     Fixture() { mApp.AddModule( HeatingType() ); }
 
@@ -220,7 +221,8 @@ TEST_CASE( "A module builds its runtime from data, hears a field change, and wri
     const f32 last = scene.Get<Warmth>( stove ).mDegrees;
     world.Step();
     CHECK( scene.Get<Warmth>( stove ).mDegrees == last );
-    CHECK( TrySaveScene( scene, f.mApp.GetComponentTypes() )->find( "runtime" ) == string::npos );
+    CHECK( TrySaveScene( scene, FileContext( f.mApp.GetComponentTypes(), f.mAssets ) )->find( "runtime" ) ==
+           string::npos );
 }
 
 TEST_CASE( "Data events skip what is gone by their turn, and a component replaced whole is built again" )
@@ -323,13 +325,14 @@ TEST_CASE( "The same level plays the same at every step, whatever the frame rate
 {
     Fixture f;
     // The level as a file would hold it, loaded into each world afresh.
-    const string level = *TrySaveScene( f.Level( 3 ), f.mApp.GetComponentTypes() );
+    const string level = *TrySaveScene( f.Level( 3 ), FileContext( f.mApp.GetComponentTypes(), f.mAssets ) );
 
     // Every step's warmth, and the power turned up at step 20 - an input,
     // given at a step rather than at a time.
     const auto play = [&]( u64 seed, const function<f64()>& frameTime ) {
         App& app = f.mApp;
-        World world( app, *TryLoadScene( level, app.GetComponentTypes() ), WorldOptions{ .mSeed = seed } );
+        World world( app, *TryLoadScene( level, FileContext( app.GetComponentTypes(), f.mAssets ) ),
+                     WorldOptions{ .mSeed = seed } );
         const Entity stove = f.Stove( world );
         vector<f32> warmth;
         world.AddStep( Phase::FixedUpdate, [&]( f32 ) {

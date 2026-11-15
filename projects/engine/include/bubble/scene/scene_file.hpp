@@ -11,6 +11,7 @@ namespace bubble
 //
 //     {
 //       "version": 1,
+//       "asset": "9c1e0f3a5b7d4e2c8a6f1b3d5e7c9a0b",
 //       "root": {
 //         "children": [
 //           {
@@ -26,43 +27,41 @@ namespace bubble
 // Children in their order, components in the order ComponentTypes has
 // them, fields in the order they are described, an empty "components" or
 // "children" left out: a scene saved twice is the same file. Entities
-// outside the tree are not saved.
+// outside the tree are not saved. "asset" is the level's own id
+// (bubble/scene/engine_file.hpp).
 //
-// An instance of a prefab is its prefab and what differs from it, as
-// TryInstanceOverrides writes it - what is under it comes from the prefab:
+// An instance of a prefab is its prefab - linked as any asset is - and what
+// differs from it, as TryInstanceOverrides writes it; what is under it comes
+// from the prefab:
 //
-//     { "name": "house_1", "prefab": "props/house.prefab", "set": { "1": { "light.brightness": 3 } } }
-//
-// Reading and writing one takes `prefabs`; without them an instance is an
-// error.
+//     { "name": "house_1",
+//       "prefab": { "asset": "5d2a...", "path": "props/house.prefab" },
+//       "set": { "1": { "light.brightness": 3 } } }
 constexpr int cSceneFileVersion = 1;
 
 // Fails on a field reflection cannot keep as a value, on a number a file
 // cannot hold (NaN, infinity), and on a tree nested deeper than
-// TryLoadScene reads: what saves, loads.
-expected<string, string> TrySaveScene( const Scene& scene,
-                                       const ComponentTypes& componentTypes,
-                                       const PrefabSource& prefabs = {} );
+// TryLoadScene reads: what saves, loads. `assetId` is the level's own; a
+// zero one is not written.
+expected<string, string> TrySaveScene( const Scene& scene, const FileContext& files, const AssetId& assetId = {} );
 
 // Strict, as a file is merged and edited by hand: an unknown component or
 // field, a name twice among siblings, a version this engine does not read
 // is an error that says where it is - "12:9: /lamp: light.brightness: a
 // number expected, got "bright"" - not a guess.
-expected<Scene, string> TryLoadScene( string_view text,
-                                      const ComponentTypes& componentTypes,
-                                      const PrefabSource& prefabs = {} );
+expected<Scene, string> TryLoadScene( string_view text, const FileContext& files );
 
 // One entity as a file holds it - its name, its components, what is under
 // it - for a copy kept apart from any file: what the editor copies and
 // pastes. An instance in it is written as the plain entities it is in
 // memory: a copy of one is no instance.
-expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const ComponentTypes& componentTypes );
+expected<Json, string> TryEntityToJson( const Scene& scene, Entity entity, const FileContext& files );
 // Makes the entity `json` holds under `parent`, at `index`, its name made
 // unique there as CreateChild makes it; what is under it is read as
 // strictly as a file. On an error nothing is left of it.
 expected<Entity, string> TryEntityFromJson( Scene& scene,
                                             const Json& json,
                                             Entity parent,
-                                            const ComponentTypes& componentTypes,
+                                            const FileContext& files,
                                             size_t index = cAtEnd );
 }

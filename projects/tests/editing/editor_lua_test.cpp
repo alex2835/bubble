@@ -29,7 +29,8 @@ struct Fixture
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
     hmap<string, string> mFiles;
-    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ) };
+    AssetCatalog mAssets;
+    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ), mAssets };
     vector<string> mPrinted;
     Scope<EditorLua> mEditor;
 
@@ -188,7 +189,7 @@ counter = 1
     CHECK( f.mPrinted == vector<string>{ "false\tentity.destroy: nothing selected", "true\tnil", "nil" } );
 
     hmap<string, string> none;
-    Workspace empty( f.mComponentTypes, ProjectFiles::InMemory( none ) );
+    Workspace empty( f.mComponentTypes, ProjectFiles::InMemory( none ), f.mAssets );
     EditorLua editor( empty, f.mOperators );
     CHECK( editor.TryRun( R"(editor.get( "/", "light" ))", "macro.luau" ).error() ==
            "macro.luau:1: no document is open" );

@@ -26,6 +26,7 @@ struct InstanceNode
     Entity mRoot;
     u32 mNode = 0;
     AssetPath mPath;
+    AssetId mPrefabId;
     Ref<const Prefab> mPrefab;
 };
 
@@ -35,15 +36,22 @@ expected<InstanceNode, string> TryInstanceNode( Workspace& workspace, const Docu
     const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
     if ( not linkMaybe or not scene.Has<PrefabInstance>( linkMaybe->mInstance ) )
         return unexpected( format( "{} is no node of a prefab's instance", Describe( scene, entity ) ) );
-    const AssetPath& path = scene.Get<PrefabInstance>( linkMaybe->mInstance ).mPrefab;
-    auto prefabMaybe = workspace.TryPrefab( path );
+    const AssetId& prefabId = scene.Get<PrefabInstance>( linkMaybe->mInstance ).mPrefab;
+    const auto pathMaybe = workspace.GetAssets().TryPathOf( prefabId );
+    if ( not pathMaybe )
+        return unexpected( format( "{} is an instance of {}, which the project does not have",
+                                   Describe( scene, linkMaybe->mInstance ),
+                                   workspace.GetAssets().Describe( prefabId ) ) );
+    auto prefabMaybe = workspace.TryPrefab( prefabId );
     if ( not prefabMaybe )
-        return unexpected( format( "{}: {}", path.View(), prefabMaybe.error() ) );
+        return unexpected( format( "{}: {}", pathMaybe->View(), prefabMaybe.error() ) );
     if ( not( *prefabMaybe )->TryFind( linkMaybe->mNode ) )
-        return unexpected( format( "{} has no node {} any more", path.View(), linkMaybe->mNode ) );
-    return InstanceNode{
-        .mRoot = linkMaybe->mInstance, .mNode = linkMaybe->mNode, .mPath = path, .mPrefab = std::move( *prefabMaybe )
-    };
+        return unexpected( format( "{} has no node {} any more", pathMaybe->View(), linkMaybe->mNode ) );
+    return InstanceNode{ .mRoot = linkMaybe->mInstance,
+                         .mNode = linkMaybe->mNode,
+                         .mPath = *pathMaybe,
+                         .mPrefabId = prefabId,
+                         .mPrefab = std::move( *prefabMaybe ) };
 }
 
 // "light.brightness" as the component and the path in it; "light" alone is
@@ -102,7 +110,10 @@ Result RunInstantiate( Workspace& workspace, const OperatorArgs& args )
     auto pathMaybe = TryPrefabPathArg( args, "prefab"_n, "prefab" );
     if ( not pathMaybe )
         return unexpected( std::move( pathMaybe.error() ) );
-    auto prefabMaybe = workspace.TryPrefab( *pathMaybe );
+    const auto prefabIdMaybe = workspace.TryIdOf( *pathMaybe );
+    if ( not prefabIdMaybe )
+        return unexpected( format( "prefab: {}: {}", pathMaybe->View(), prefabIdMaybe.error() ) );
+    auto prefabMaybe = workspace.TryPrefab( *prefabIdMaybe );
     if ( not prefabMaybe )
         return unexpected( format( "prefab: {}: {}", pathMaybe->View(), prefabMaybe.error() ) );
     Entity parent = scene.Root();
@@ -118,7 +129,7 @@ Result RunInstantiate( Workspace& workspace, const OperatorArgs& args )
     const auto indexMaybe = TryIndex( args );
     if ( not indexMaybe )
         return unexpected( indexMaybe.error() );
-    auto rootMaybe = TryInstantiatePrefab( document, std::move( *prefabMaybe ), *pathMaybe, parent,
+    auto rootMaybe = TryInstantiatePrefab( document, std::move( *prefabMaybe ), *prefabIdMaybe, parent,
                                            TextOr( args, "name"_n, pathMaybe->Stem() ), *indexMaybe );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
@@ -163,7 +174,7 @@ Result RunCreate( Workspace& workspace, const OperatorArgs& args )
     const size_t index = IndexInParent( scene, target );
     if ( auto destroyedMaybe = TryDestroyEntity( document, target ); not destroyedMaybe )
         return destroyedMaybe;
-    auto rootMaybe = TryInstantiatePrefab( document, prefab, *pathMaybe, parent, name, index );
+    auto rootMaybe = TryInstantiatePrefab( document, prefab, workspace.IdOf( *pathMaybe ), parent, name, index );
     if ( not rootMaybe )
         return unexpected( std::move( rootMaybe.error() ) );
     document.GetSelection().Select( *rootMaybe );

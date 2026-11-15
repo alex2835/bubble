@@ -5,12 +5,12 @@ namespace bubble
 {
 namespace
 {
-// The roots of the instances of `path` in `scene`.
-vector<Entity> InstancesOf( Scene& scene, const AssetPath& path )
+// The roots of the instances of the prefab in `scene`.
+vector<Entity> InstancesOf( Scene& scene, const AssetId& prefabId )
 {
     vector<Entity> roots;
     scene.ForEach<PrefabInstance>( [&]( Entity entity, const PrefabInstance& instance ) {
-        if ( instance.mPrefab == path )
+        if ( instance.mPrefab == prefabId )
             roots.push_back( entity );
     } );
     return roots;
@@ -18,11 +18,13 @@ vector<Entity> InstancesOf( Scene& scene, const AssetPath& path )
 
 expected<void, string> TryRebuild( Workspace& workspace,
                                    const AssetPath& path,
+                                   const AssetId& prefabId,
                                    const Prefab& old,
                                    const Prefab& updated,
                                    OptRef<const Document> skip )
 {
     const ComponentTypes& componentTypes = workspace.GetComponentTypes();
+    const FileContext files = workspace.GetFileContext();
     for ( const Scope<Document>& open : workspace.All() )
     {
         Document& document = *open;
@@ -41,7 +43,7 @@ expected<void, string> TryRebuild( Workspace& workspace,
             document.ForgetHistory();
             continue;
         }
-        const vector<Entity> roots = InstancesOf( scene, path );
+        const vector<Entity> roots = InstancesOf( scene, prefabId );
         if ( roots.empty() )
             continue;
         for ( const Entity root : roots )
@@ -49,16 +51,15 @@ expected<void, string> TryRebuild( Workspace& workspace,
             // One inside another made again went with it, and comes back made anew.
             if ( not scene.Alive( root ) )
                 continue;
-            auto overridesMaybe = TryInstanceOverrides( scene, root, old, componentTypes );
+            auto overridesMaybe = TryInstanceOverrides( scene, root, old, files );
             if ( not overridesMaybe )
                 return unexpected( std::move( overridesMaybe.error() ) );
             const Text name = NameOf( scene, root );
             const Entity parent = ParentOf( scene, root );
             const size_t index = IndexInParent( scene, root );
             scene.Destroy( root );
-            const Entity remade = Instantiate( scene, updated, path, parent, name, componentTypes, index );
-            if ( auto appliedMaybe = TryApplyOverrides( scene, remade, *overridesMaybe, componentTypes );
-                 not appliedMaybe )
+            const Entity remade = Instantiate( scene, updated, prefabId, parent, name, componentTypes, index );
+            if ( auto appliedMaybe = TryApplyOverrides( scene, remade, *overridesMaybe, files ); not appliedMaybe )
                 return appliedMaybe;
         }
         document.ForgetHistory();
@@ -77,17 +78,18 @@ expected<void, string> TryWritePrefab( Workspace& workspace,
                                        Ref<const Prefab> prefab,
                                        OptRef<const Document> skip )
 {
+    const AssetId prefabId = workspace.IdOf( path );
     // What there was: what instances open now were made from.
-    const auto oldMaybe = workspace.TryPrefab( path );
-    auto textMaybe = prefab->TryWrite( workspace.GetComponentTypes() );
+    const auto oldMaybe = workspace.TryPrefab( prefabId );
+    auto textMaybe = prefab->TryWrite( workspace.GetFileContext(), prefabId );
     if ( not textMaybe )
         return unexpected( format( "{}: {}", path.View(), textMaybe.error() ) );
     if ( auto writtenMaybe = workspace.GetFiles().TryWrite( path, *textMaybe ); not writtenMaybe )
         return unexpected( format( "{}: {}", path.View(), writtenMaybe.error() ) );
-    workspace.SetPrefab( path, prefab );
+    workspace.SetPrefab( prefabId, prefab );
     if ( not oldMaybe )
         return {};
-    return TryRebuild( workspace, path, **oldMaybe, *prefab, skip );
+    return TryRebuild( workspace, path, prefabId, **oldMaybe, *prefab, skip );
 }
 
 expected<void, string> TrySavePrefabDocument( Workspace& workspace, Document& document, const AssetPath& path )
@@ -114,7 +116,10 @@ expected<void, string> TrySavePrefabDocument( Workspace& workspace, Document& do
 
 expected<void, string> TryOpenPrefabDocument( Workspace& workspace, const AssetPath& path )
 {
-    auto prefabMaybe = workspace.TryPrefab( path );
+    const auto prefabIdMaybe = workspace.TryIdOf( path );
+    if ( not prefabIdMaybe )
+        return unexpected( format( "{}: {}", path.View(), prefabIdMaybe.error() ) );
+    auto prefabMaybe = workspace.TryPrefab( *prefabIdMaybe );
     if ( not prefabMaybe )
         return unexpected( format( "{}: {}", path.View(), prefabMaybe.error() ) );
     PrefabNodes nodes;

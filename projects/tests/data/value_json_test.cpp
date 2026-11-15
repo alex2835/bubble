@@ -29,12 +29,14 @@ expected<Value, string> TryRead( string_view text, const ValueType& type )
 {
     const auto jsonMaybe = Json::TryParse( text );
     REQUIRE_MESSAGE( jsonMaybe, jsonMaybe.error() );
-    return TryValueFromJson( *jsonMaybe, type, "light" );
+    const AssetCatalog none;
+    return TryValueFromJson( *jsonMaybe, type, "light", none );
 }
 
 string Written( const Value& value, const ValueType& type )
 {
-    const auto jsonMaybe = TryValueToJson( value, type, "light" );
+    const AssetCatalog none;
+    const auto jsonMaybe = TryValueToJson( value, type, "light", none );
     REQUIRE_MESSAGE( jsonMaybe, jsonMaybe.error() );
     return jsonMaybe->Write();
 }
@@ -103,7 +105,7 @@ TEST_CASE( "A tag written where a tag cannot be, and a tag with the wrong thing 
                .ends_with( "light.props: a color [r, g, b, a] expected, got an array of 5" ) );
     CHECK( TryRead( R"({ "props": { "$name": "Loud" } })", light ).error().find( "'Loud' is not a name" ) !=
            string::npos );
-    CHECK( TryRead( R"({ "props": { "$asset": "abc" } })", light )
+    CHECK( TryRead( R"({ "props": { "$asset": { "asset": "abc" } } })", light )
                .error()
                .ends_with( "light.props: an asset id - 32 hex digits - expected, got \"abc\"" ) );
     CHECK( TryRead( R"({ "props": { "$entity": 5 } })", light )
@@ -153,12 +155,12 @@ TEST_CASE( "What a file cannot keep exactly, and what it quietly makes whole" )
     const ValueType light = LightType();
     // An asset id is 32 hex digits: capitals are not hex here, and a person
     // writing a GUID in the usual form gets it refused.
-    CHECK( TryRead( R"({ "mesh": "0123456789ABCDEF0123456789ABCDEF" })", light )
+    CHECK( TryRead( R"({ "mesh": { "asset": "0123456789ABCDEF0123456789ABCDEF" } })", light )
                .error()
                .ends_with( "an asset id - 32 hex digits - expected, got \"0123456789ABCDEF0123456789ABCDEF\"" ) );
     // All zeros parses, and is the same id as "no asset": a file can hold an
     // id that reads as nothing at all.
-    const auto zeroMaybe = TryRead( R"({ "mesh": "00000000000000000000000000000000" })", light );
+    const auto zeroMaybe = TryRead( R"({ "mesh": { "asset": "00000000000000000000000000000000" } })", light );
     REQUIRE_MESSAGE( zeroMaybe, zeroMaybe.error() );
     const auto zeroRecordMaybe = zeroMaybe->TryAs<Value::Record>();
     REQUIRE( zeroRecordMaybe );
@@ -199,13 +201,17 @@ TEST_CASE( "A number a file cannot hold is refused as it is written, saying wher
 {
     const ValueType light = LightType();
     const Value nan = Value::Record{ { Declared( "brightness" ), f64( NAN ) } };
-    CHECK( TryValueToJson( nan, light, "light" ).error() == "light.brightness: nan is a number a file cannot hold" );
+    CHECK( TryValueToJson( nan, light, "light", AssetCatalog() ).error() ==
+           "light.brightness: nan is a number a file cannot hold" );
     const Value steps = Value::Record{ { Declared( "steps" ), Value::List{ 1, f64( -INFINITY ) } } };
-    CHECK( TryValueToJson( steps, light, "light" ).error() == "light.steps[2]: -inf is a number a file cannot hold" );
+    CHECK( TryValueToJson( steps, light, "light", AssetCatalog() ).error() ==
+           "light.steps[2]: -inf is a number a file cannot hold" );
     const Value tint = Value::Record{ { Declared( "tint" ), Color{ 1, static_cast<f32>( INFINITY ), 0, 1 } } };
-    CHECK( TryValueToJson( tint, light, "light" ).error() == "light.tint: inf is a number a file cannot hold" );
+    CHECK( TryValueToJson( tint, light, "light", AssetCatalog() ).error() ==
+           "light.tint: inf is a number a file cannot hold" );
     const Value props = Value::Record{ { Declared( "props" ), Value::Record{ { Declared( "speed" ), f64( NAN ) } } } };
-    CHECK( TryValueToJson( props, light, "light" ).error() == "light.props.speed: nan is a number a file cannot hold" );
+    CHECK( TryValueToJson( props, light, "light", AssetCatalog() ).error() ==
+           "light.props.speed: nan is a number a file cannot hold" );
 }
 
 TEST_CASE( "An empty record and an empty list keep what they are through a file" )
@@ -253,7 +259,7 @@ TEST_CASE( "A Value is written plain where its type is known, tagged where it is
   "target": "/props/door",
   "tint": [1, 0, 0, 0.5],
   "mood": "calm",
-  "mesh": "0123456789abcdef0123456789abcdef",
+  "mesh": { "asset": "0123456789abcdef0123456789abcdef" },
   "props": {
     "speed": 5,
     "spawn": { "$vec3": [1, 2, 3] },
@@ -293,7 +299,9 @@ TEST_CASE( "A Value that does not fit its type says where in the text and in the
     CHECK( TryRead( R"({ "steps": [1, true] })", light ).error() ==
            "1:16: light.steps[2]: a number expected, got true" );
     CHECK( TryRead( R"({ "mesh": "abc" })", light ).error() ==
-           "1:11: light.mesh: an asset id - 32 hex digits - expected, got \"abc\"" );
+           R"(1:11: light.mesh: an asset - { "asset": "<id>", "path": "<path>" } - expected, got "abc")" );
+    CHECK( TryRead( R"({ "mesh": { "asset": "abc" } })", light ).error() ==
+           "1:22: light.mesh: an asset id - 32 hex digits - expected, got \"abc\"" );
     CHECK( TryRead( R"({ "mood": "Calm" })", light ).error().starts_with( "1:11: light.mood: 'Calm' is not a name" ) );
     CHECK(
         TryRead( R"({ "colour": [1, 1, 1] })", light ).error() ==
@@ -306,4 +314,34 @@ TEST_CASE( "A Value that does not fit its type says where in the text and in the
            "1:20: light.props.at: $vec4 is not a tag (tags: $vec3, $color, $name, $asset, $entity)" );
     CHECK( TryRead( R"({ "props": { "at": null } })", light ).error() ==
            "1:20: light.props.at: a value expected, got null" );
+}
+
+TEST_CASE( "An asset in a file is its id and its path, found by the path when the id is not" )
+{
+    AssetCatalog assets;
+    const AssetId hero = AssetId::Generate();
+    assets.Add( hero, *AssetPath::TryFrom( "models/hero.glb" ) );
+    const auto read = [&]( const string& text ) { return TryAssetFromJson( *Json::TryParse( text ), "mesh", assets ); };
+
+    const string written = AssetToJson( hero, assets ).Write();
+    CHECK( written.find( R"("path": "models/hero.glb")" ) != string::npos );
+    CHECK( read( written ) == hero );
+    // The id not found - its .import lost and made again: the asset at the
+    // path now.
+    const AssetId lost = AssetId::Generate();
+    CHECK( read( R"({ "asset": ")" + lost.ToString() + R"(", "path": "models/hero.glb" })" ) == hero );
+    // Neither found: kept as written, a link broken until the asset is back.
+    CHECK( read( R"({ "asset": ")" + lost.ToString() + R"(", "path": "models/gone.glb" })" ) == lost );
+    CHECK( read( R"({ "asset": ")" + lost.ToString() + R"(" })" ) == lost );
+    // One the catalog does not have is written without a path.
+    CHECK( AssetToJson( lost, assets ).Write().find( "path" ) == string::npos );
+
+    CHECK( read( R"({ "path": "models/hero.glb" })" ).error() ==
+           R"(1:1: mesh: an asset without its id: "asset": "<32 hex digits>")" );
+    CHECK( read( R"({ "asset": ")" + hero.ToString() + R"(", "guid": 1 })" )
+               .error()
+               .ends_with( "mesh: guid is not a key of an asset (keys: asset, path)" ) );
+    CHECK( read( R"({ "asset": ")" + lost.ToString() + R"(", "path": 3 })" )
+               .error()
+               .ends_with( "mesh: an asset's path - text - expected, got 3" ) );
 }

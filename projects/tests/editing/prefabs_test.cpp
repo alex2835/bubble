@@ -2,6 +2,7 @@
 // reverted and applied; a prefab's own document keeping its nodes' ids; and
 // a prefab saved reaching the instances open, what they changed kept.
 #include "bubble/editing/operators.hpp"
+#include "bubble/import/project_scan.hpp"
 #include "bubble/types/stream.hpp"
 #include <doctest.h>
 
@@ -39,7 +40,8 @@ struct Fixture
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
     hmap<string, string> mFiles;
-    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ) };
+    AssetCatalog mAssets;
+    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ), mAssets };
     Document& mLevel = mWorkspace.Open();
 
     Fixture()
@@ -99,7 +101,7 @@ TEST_CASE( "A subtree made a prefab is an instance of it in its place, and undo 
     f.MakePrefab();
     REQUIRE( f.mFiles.contains( "props/house.prefab" ) );
     const Entity house = f.Find( f.mLevel, "/house" );
-    CHECK( f.mLevel.GetScene().Get<PrefabInstance>( house ).mPrefab.View() == "props/house.prefab" );
+    CHECK( f.mAssets.Describe( f.mLevel.GetScene().Get<PrefabInstance>( house ).mPrefab ) == "props/house.prefab" );
     CHECK( f.mLevel.GetScene().Has<PrefabLink>( f.Find( f.mLevel, "/house/door" ) ) );
     CHECK( f.HealthOf( f.mLevel, "/house/door" ) == 50 );
     CHECK( f.mLevel.GetSelection().Active() == house );
@@ -108,7 +110,7 @@ TEST_CASE( "A subtree made a prefab is an instance of it in its place, and undo 
     // The level keeps the instance as the prefab and nothing else.
     f.Run( "document.save" );
     const string level = f.mFiles["levels/street.scene"];
-    CHECK( level.find( R"("prefab": "props/house.prefab")" ) != string::npos );
+    CHECK( level.find( R"("path": "props/house.prefab")" ) != string::npos );
     CHECK( level.find( "door" ) == string::npos );
 
     f.Run( "edit.undo" );
@@ -125,10 +127,10 @@ TEST_CASE( "An instance keeps its prefab's names and places, and is saved and op
     f.Run( "prefab.instantiate", R"({ "prefab": "props/house.prefab", "parent": "/" })" );
     CHECK( f.Find( f.mLevel, "/house_2/window" ) != Entity::Null );
     CHECK( f.Why( "entity.rename", R"({ "entity": "/house_2/door", "name": "gate" })" ) ==
-           "entity.rename: /house_2/door is a node of props/house.prefab: its name and its place are the prefab's - "
+           "entity.rename: /house_2/door is a node of the instance /house_2: its name and its place are the prefab's - "
            "change them there" );
     CHECK( f.Why( "entity.move", R"({ "entities": [ "/house_2/door" ], "parent": "/" })" )
-               .starts_with( "entity.move: /house_2/door is a node of props/house.prefab" ) );
+               .starts_with( "entity.move: /house_2/door is a node of the instance /house_2" ) );
     // The root is the level's to name and place.
     f.Run( "entity.rename", R"({ "entity": "/house_2", "name": "barn" })" );
     f.Run( "property.set", R"({ "entities": [ "/barn/door" ], "component": "health", "path": "value", "value": 75 })" );
@@ -182,7 +184,8 @@ TEST_CASE( "A prefab's document keeps its nodes' ids, and its save reaches the i
     CHECK( f.mLevel.IsDirty() );
 
     // Saved again, the door and the window keep the ids the level knows them by.
-    const auto savedMaybe = Prefab::TryParse( f.mFiles["props/house.prefab"], f.mComponentTypes );
+    const auto savedMaybe =
+        Prefab::TryParse( f.mFiles["props/house.prefab"], FileContext( f.mComponentTypes, f.mAssets ) );
     REQUIRE_MESSAGE( savedMaybe, savedMaybe.error() );
     CHECK( savedMaybe->TryFind( 1 )->mName.View() == "door" );
     CHECK( savedMaybe->TryFind( 2 )->mName.View() == "window" );
@@ -239,7 +242,7 @@ TEST_CASE( "Apply writes what an instance changed into its prefab, and every ins
     CHECK( f.BrightnessOf( f.mLevel, "/barn/door" ) == 3.0f );
     f.Run( "document.save" );
     // Nothing differs from the prefab any more.
-    CHECK( f.mFiles["levels/street.scene"].find( "set" ) == string::npos );
+    CHECK( f.mFiles["levels/street.scene"].find( R"("set")" ) == string::npos );
 }
 
 TEST_CASE( "Unpack makes an instance plain entities, and undo makes it an instance again" )
@@ -282,4 +285,43 @@ TEST_CASE( "Prefab operators refuse what cannot be, saying why" )
     f.mWorkspace.Activate( f.mLevel );
     CHECK( f.Why( "prefab.apply", R"({ "entity": "/house/door" })" ) ==
            "prefab.apply: props/house.prefab is open with changes not saved: save it or close it first" );
+}
+
+TEST_CASE( "Levels and prefabs keep their ids inside, and a level finds its prefab by id once it moved" )
+{
+    Fixture f;
+    f.MakePrefab();
+    f.Run( "document.save" );
+    const auto ownId = [&]( const string& path ) {
+        const auto idMaybe = TryReadFileId( f.mFiles[path] );
+        REQUIRE_MESSAGE( idMaybe, idMaybe.error() );
+        REQUIRE( *idMaybe );
+        return **idMaybe;
+    };
+    const AssetId street = ownId( "levels/street.scene" );
+    const AssetId house = ownId( "props/house.prefab" );
+    CHECK( street != house );
+    CHECK( f.mAssets.TryIdOf( *AssetPath::TryFrom( "levels/street.scene" ) ) == street );
+    CHECK( f.mAssets.TryIdOf( *AssetPath::TryFrom( "props/house.prefab" ) ) == house );
+    // Saved again, the same id; saved as another file, the copy has its own.
+    f.Run( "document.save" );
+    CHECK( ownId( "levels/street.scene" ) == street );
+    f.Run( "document.save", R"({ "path": "levels/copy.scene" })" );
+    CHECK( ownId( "levels/copy.scene" ) != street );
+
+    // The prefab moved by a file manager, and the project scanned again.
+    f.mFiles["props/buildings/house.prefab"] = f.mFiles.extract( "props/house.prefab" ).mapped();
+    constexpr array<string_view, 2> cEngineFiles = { ".scene", ".prefab" };
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( f.mFiles ), {}, cEngineFiles );
+    REQUIRE( scanMaybe );
+    CHECK( scanMaybe->mWarnings.empty() );
+    AssetCatalog assets = scanMaybe->mCatalog;
+    Workspace fresh( f.mComponentTypes, ProjectFiles::InMemory( f.mFiles ), assets );
+    REQUIRE( f.mOperators.TryRun( fresh, "document.open", Args( R"({ "path": "levels/street.scene" })" ) ) );
+    const Document& opened = *fresh.TryActive();
+    CHECK( opened.GetScene().Get<PrefabInstance>( f.Find( opened, "/house" ) ).mPrefab == house );
+    CHECK( f.HealthOf( opened, "/house/door" ) == 50 );
+    // Saved, the level links the prefab where it is now.
+    REQUIRE( f.mOperators.TryRun( fresh, "document.save" ) );
+    CHECK( f.mFiles["levels/street.scene"].find( R"("path": "props/buildings/house.prefab")" ) != string::npos );
 }

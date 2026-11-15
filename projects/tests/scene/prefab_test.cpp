@@ -36,10 +36,13 @@ struct Fixture
 {
     Reflection mReflection;
     ComponentTypes mComponentTypes{ mReflection };
+    AssetCatalog mAssets;
+    AssetId mHouseId = AssetId::Generate();
     Ref<const Prefab> mHouse;
 
     Fixture()
     {
+        mAssets.Add( mHouseId, HousePath() );
         mReflection.Type<Light>( "light" )
             .Field<&Light::mBrightness>( "brightness" )
             .Field<&Light::mTarget>( "target" );
@@ -59,24 +62,29 @@ struct Fixture
 })" ) );
     }
 
+    FileContext Files( PrefabSource prefabs = {} ) const
+    {
+        return FileContext( mComponentTypes, mAssets, std::move( prefabs ) );
+    }
+
     Prefab Parse( string_view text ) const
     {
-        auto prefabMaybe = Prefab::TryParse( text, mComponentTypes );
+        auto prefabMaybe = Prefab::TryParse( text, Files() );
         REQUIRE_MESSAGE( prefabMaybe, prefabMaybe.error() );
         return std::move( *prefabMaybe );
     }
 
     string Why( string_view text ) const
     {
-        const auto prefabMaybe = Prefab::TryParse( text, mComponentTypes );
+        const auto prefabMaybe = Prefab::TryParse( text, Files() );
         REQUIRE_FALSE( prefabMaybe );
         return prefabMaybe.error();
     }
 
     PrefabSource Source( Ref<const Prefab> prefab ) const
     {
-        return [prefab]( const AssetPath& path ) -> expected<Ref<const Prefab>, string> {
-            if ( path == HousePath() )
+        return [prefab, house = mHouseId]( const AssetId& prefabId ) -> expected<Ref<const Prefab>, string> {
+            if ( prefabId == house )
                 return prefab;
             return unexpected( "no such file"s );
         };
@@ -91,14 +99,14 @@ struct Fixture
 
     string Save( const Scene& scene, Ref<const Prefab> prefab ) const
     {
-        auto savedMaybe = TrySaveScene( scene, mComponentTypes, Source( prefab ) );
+        auto savedMaybe = TrySaveScene( scene, Files( Source( prefab ) ) );
         REQUIRE_MESSAGE( savedMaybe, savedMaybe.error() );
         return *savedMaybe;
     }
 
     Scene Load( string_view text, Ref<const Prefab> prefab ) const
     {
-        auto sceneMaybe = TryLoadScene( text, mComponentTypes, Source( prefab ) );
+        auto sceneMaybe = TryLoadScene( text, Files( Source( prefab ) ) );
         REQUIRE_MESSAGE( sceneMaybe, sceneMaybe.error() );
         return std::move( *sceneMaybe );
     }
@@ -130,10 +138,10 @@ TEST_CASE( "A prefab made from a subtree keeps ids, leads its links from its roo
     const Value& light = prefab.TryFind( 6 )->mComponents.front().second;
     CHECK( light.TryAs<Value::Record>()->at( 1 ).mValue == Value( EntityPath{ Make( "/window" ) } ) );
 
-    const auto textMaybe = prefab.TryWrite( f.mComponentTypes );
+    const auto textMaybe = prefab.TryWrite( f.Files() );
     REQUIRE_MESSAGE( textMaybe, textMaybe.error() );
     const Prefab again = f.Parse( *textMaybe );
-    CHECK( again.TryWrite( f.mComponentTypes ) == *textMaybe );
+    CHECK( again.TryWrite( f.Files() ) == *textMaybe );
     CHECK( again.NextId() == 7 );
 }
 
@@ -153,16 +161,16 @@ TEST_CASE( "A prefab file that is wrong says where" )
     CHECK( f.Why( R"({ "version": 1, "next_id": 5, "root": { "id": 0, "name": "house" } })" )
                .ends_with( "/: the root has no name: an instance is named by its level" ) );
     CHECK( f.Why( R"({ "version": 1, "next_id": 5, "nodes": [], "root": { "id": 0 } })" )
-               .ends_with( "nodes is not a key of a prefab (keys: version, next_id, root)" ) );
+               .ends_with( "nodes is not a key of a prefab (keys: version, asset, next_id, root)" ) );
 }
 
 TEST_CASE( "An instance is the prefab's nodes as entities, its links leading inside it" )
 {
     Fixture f;
     Scene scene;
-    const Entity house = Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    const Entity house = Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     const Entity door = f.Find( scene, "/house/door" );
-    CHECK( scene.Get<PrefabInstance>( house ).mPrefab == HousePath() );
+    CHECK( scene.Get<PrefabInstance>( house ).mPrefab == f.mHouseId );
     CHECK( scene.Get<PrefabLink>( house ).mNode == 0 );
     CHECK( scene.Get<PrefabLink>( door ).mInstance == house );
     CHECK( scene.Get<PrefabLink>( door ).mNode == 1 );
@@ -172,7 +180,7 @@ TEST_CASE( "An instance is the prefab's nodes as entities, its links leading ins
     CHECK( scene.Get<Light>( door ).mBrightness == 1.0f );
 
     // A second one is named apart, and leads within itself.
-    Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     CHECK( scene.Get<Light>( f.Find( scene, "/house_2/door" ) ).mTarget.mPath.View() == "/house_2/window" );
 }
 
@@ -180,7 +188,7 @@ TEST_CASE( "A level keeps an instance as its prefab and what differs, and loads 
 {
     Fixture f;
     Scene scene;
-    const Entity house = Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    const Entity house = Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     const Entity door = f.Find( scene, "/house/door" );
     scene.Get<Health>( door ).mValue = 75;
     scene.Remove<Light>( door );
@@ -188,7 +196,7 @@ TEST_CASE( "A level keeps an instance as its prefab and what differs, and loads 
     scene.Add<Health>( CreateChild( scene, house, Make( "sign" ) ) );
 
     const string text = f.Save( scene, f.mHouse );
-    CHECK( text.find( R"("prefab": "props/house.prefab")" ) != string::npos );
+    CHECK( text.find( R"("path": "props/house.prefab")" ) != string::npos );
     CHECK( text.find( R"("health.value": 75)" ) != string::npos );
     CHECK( text.find( R"("remove": ["1:light"])" ) != string::npos );
     CHECK( text.find( R"("sign")" ) != string::npos );
@@ -209,7 +217,7 @@ TEST_CASE( "An instance follows what its prefab becomes, and keeps what the leve
 {
     Fixture f;
     Scene scene;
-    Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     scene.Get<Health>( f.Find( scene, "/house/door" ) ).mValue = 75;
     scene.Destroy( f.Find( scene, "/house/window" ) );
     const string text = f.Save( scene, f.mHouse );
@@ -239,7 +247,7 @@ TEST_CASE( "What a level says of a node its prefab no longer has is dropped, and
 {
     Fixture f;
     Scene scene;
-    Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     scene.Get<Health>( f.Find( scene, "/house/door" ) ).mValue = 75;
     const string text = f.Save( scene, f.mHouse );
 
@@ -256,20 +264,20 @@ TEST_CASE( "An instance needs its prefab to be read or written, and a copy of on
 {
     Fixture f;
     Scene scene;
-    const Entity house = Instantiate( scene, *f.mHouse, HousePath(), scene.Root(), Make( "house" ), f.mComponentTypes );
+    const Entity house = Instantiate( scene, *f.mHouse, f.mHouseId, scene.Root(), Make( "house" ), f.mComponentTypes );
     const string text = f.Save( scene, f.mHouse );
 
-    CHECK( TrySaveScene( scene, f.mComponentTypes ).error() ==
+    CHECK( TrySaveScene( scene, f.Files() ).error() ==
            "/house: an instance of props/house.prefab, and no prefabs to compare it with" );
-    CHECK( TryLoadScene( text, f.mComponentTypes )
+    CHECK( TryLoadScene( text, f.Files() )
                .error()
                .ends_with( "/: an instance of props/house.prefab, and no prefabs to make it from" ) );
-    const PrefabSource none = []( const AssetPath& ) -> expected<Ref<const Prefab>, string> {
+    const PrefabSource none = []( const AssetId& ) -> expected<Ref<const Prefab>, string> {
         return unexpected( "no such file"s );
     };
-    CHECK( TryLoadScene( text, f.mComponentTypes, none ).error().ends_with( "props/house.prefab: no such file" ) );
+    CHECK( TryLoadScene( text, f.Files( none ) ).error().ends_with( "props/house.prefab: no such file" ) );
 
-    const auto copyMaybe = TryEntityToJson( scene, house, f.mComponentTypes );
+    const auto copyMaybe = TryEntityToJson( scene, house, f.Files() );
     REQUIRE( copyMaybe );
     const string copy = copyMaybe->Write();
     CHECK( copy.find( "prefab" ) == string::npos );

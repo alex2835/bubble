@@ -61,9 +61,17 @@ string FieldNames( const ValueType& type )
     return names;
 }
 
+unexpected<string> Fail( const Json& json, const string& where, string_view what )
+{
+    const string at = json.Where();
+    return unexpected( at.empty() ? format( "{}: {}", where, what ) : format( "{}: {}: {}", at, where, what ) );
+}
+
 class Reader
 {
 public:
+    explicit Reader( const AssetCatalog& assets ) : mAssets( assets ) {}
+
     expected<Value, string> TryRead( const Json& json, const ValueType& type, const string& where )
     {
         const auto mismatch = [&] {
@@ -127,13 +135,9 @@ public:
             }
             case ValueKind::Asset:
             {
-                const auto textMaybe = json.TryAs<string>();
-                if ( not textMaybe )
-                    return mismatch();
-                const auto assetIdMaybe = AssetId::TryParse( *textMaybe );
+                const auto assetIdMaybe = TryAssetFromJson( json, where, mAssets );
                 if ( not assetIdMaybe )
-                    return Fail( json, where,
-                                 format( "an asset id - 32 hex digits - expected, got {}", json.Describe() ) );
+                    return unexpected( assetIdMaybe.error() );
                 return Value( *assetIdMaybe );
             }
             case ValueKind::Entity:
@@ -269,17 +273,16 @@ private:
         return floats;
     }
 
-    static unexpected<string> Fail( const Json& json, const string& where, string_view what )
-    {
-        const string at = json.Where();
-        return unexpected( at.empty() ? format( "{}: {}", where, what ) : format( "{}: {}: {}", at, where, what ) );
-    }
+    const AssetCatalog& mAssets;
 };
 }
 
 namespace
 {
-expected<Json, string> TryWrite( const Value& value, const ValueType& type, const string& where )
+expected<Json, string> TryWrite( const Value& value,
+                                 const ValueType& type,
+                                 const string& where,
+                                 const AssetCatalog& assets )
 {
     if ( const auto flagMaybe = value.TryAs<bool>() )
         return Json( *flagMaybe );
@@ -308,7 +311,7 @@ expected<Json, string> TryWrite( const Value& value, const ValueType& type, cons
     if ( const auto nameMaybe = value.TryAs<Name>() )
         return Kind( "$name", Json( nameMaybe->ToString() ), type );
     if ( const auto assetIdMaybe = value.TryAs<AssetId>() )
-        return Kind( "$asset", Json( assetIdMaybe->ToString() ), type );
+        return Kind( "$asset", AssetToJson( *assetIdMaybe, assets ), type );
     if ( const auto pathMaybe = value.TryAs<EntityPath>() )
         return Kind( "$entity", Json( pathMaybe->mPath.String() ), type );
     if ( const auto listMaybe = value.TryAs<Value::List>() )
@@ -317,7 +320,7 @@ expected<Json, string> TryWrite( const Value& value, const ValueType& type, cons
         Json::Array array;
         for ( size_t i = 0; i < listMaybe->size(); ++i )
         {
-            auto itemMaybe = TryWrite( ( *listMaybe )[i], element, format( "{}[{}]", where, i + 1 ) );
+            auto itemMaybe = TryWrite( ( *listMaybe )[i], element, format( "{}[{}]", where, i + 1 ), assets );
             if ( not itemMaybe )
                 return itemMaybe;
             array.push_back( std::move( *itemMaybe ) );
@@ -328,7 +331,8 @@ expected<Json, string> TryWrite( const Value& value, const ValueType& type, cons
     for ( const ValueField& field : *value.TryAs<Value::Record>() )
     {
         const string name = field.mName.ToString();
-        auto fieldMaybe = TryWrite( field.mValue, FieldType( type, field.mName ), format( "{}.{}", where, name ) );
+        auto fieldMaybe =
+            TryWrite( field.mValue, FieldType( type, field.mName ), format( "{}.{}", where, name ), assets );
         if ( not fieldMaybe )
             return fieldMaybe;
         object.push_back( Json::Member{ name, std::move( *fieldMaybe ) } );
@@ -337,13 +341,65 @@ expected<Json, string> TryWrite( const Value& value, const ValueType& type, cons
 }
 }
 
-expected<Json, string> TryValueToJson( const Value& value, const ValueType& type, string_view name )
+expected<Json, string> TryValueToJson( const Value& value,
+                                       const ValueType& type,
+                                       string_view name,
+                                       const AssetCatalog& assets )
 {
-    return TryWrite( value, type, string( name ) );
+    return TryWrite( value, type, string( name ), assets );
 }
 
-expected<Value, string> TryValueFromJson( const Json& json, const ValueType& type, string_view name )
+expected<Value, string> TryValueFromJson( const Json& json,
+                                          const ValueType& type,
+                                          string_view name,
+                                          const AssetCatalog& assets )
 {
-    return Reader().TryRead( json, type, string( name ) );
+    return Reader( assets ).TryRead( json, type, string( name ) );
+}
+
+Json AssetToJson( const AssetId& assetId, const AssetCatalog& assets )
+{
+    Json::Object link;
+    link.push_back( Json::Member{ "asset", Json( assetId.ToString() ) } );
+    if ( const auto pathMaybe = assets.TryPathOf( assetId ) )
+        link.push_back( Json::Member{ "path", Json( pathMaybe->String() ) } );
+    return Json( std::move( link ) );
+}
+
+expected<AssetId, string> TryAssetFromJson( const Json& json, string_view where, const AssetCatalog& assets )
+{
+    const string at( where );
+    const auto membersMaybe = json.TryAs<Json::Object>();
+    if ( not membersMaybe )
+        return Fail(
+            json, at,
+            format( R"(an asset - {{ "asset": "<id>", "path": "<path>" }} - expected, got {})", json.Describe() ) );
+    for ( const Json::Member& member : *membersMaybe )
+        if ( member.mKey != "asset" and member.mKey != "path" )
+            return Fail( member.mValue, at, format( "{} is not a key of an asset (keys: asset, path)", member.mKey ) );
+    const auto idJsonMaybe = json.TryFind( "asset" );
+    if ( not idJsonMaybe )
+        return Fail( json, at, R"(an asset without its id: "asset": "<32 hex digits>")" );
+    const auto idTextMaybe = idJsonMaybe->TryAs<string>();
+    const auto assetIdMaybe = idTextMaybe ? AssetId::TryParse( *idTextMaybe ) : nullopt;
+    if ( not assetIdMaybe )
+        return Fail( *idJsonMaybe, at,
+                     format( "an asset id - 32 hex digits - expected, got {}", idJsonMaybe->Describe() ) );
+    if ( assets.TryPathOf( *assetIdMaybe ) )
+        return *assetIdMaybe;
+
+    if ( const auto pathJsonMaybe = json.TryFind( "path" ) )
+    {
+        const auto pathTextMaybe = pathJsonMaybe->TryAs<string>();
+        if ( not pathTextMaybe )
+            return Fail( *pathJsonMaybe, at,
+                         format( "an asset's path - text - expected, got {}", pathJsonMaybe->Describe() ) );
+        const auto pathMaybe = AssetPath::TryFrom( *pathTextMaybe );
+        if ( not pathMaybe )
+            return Fail( *pathJsonMaybe, at, pathMaybe.error() );
+        if ( const auto foundMaybe = assets.TryIdOf( *pathMaybe ) )
+            return *foundMaybe;
+    }
+    return *assetIdMaybe;
 }
 }

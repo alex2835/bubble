@@ -61,7 +61,7 @@ expected<vector<Entity>, string> TryDuplicateEntities( Document& document, span<
 // CreateChild names it. Undo takes it out, redo brings the same back.
 expected<Entity, string> TryInstantiatePrefab( Document& document,
                                                Ref<const Prefab> prefab,
-                                               const AssetPath& path,
+                                               const AssetId& prefabId,
                                                Entity parent,
                                                const Text& name,
                                                size_t index = cAtEnd );
