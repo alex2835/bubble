@@ -46,12 +46,13 @@ public:
     expected<void, string> TryDo( Scene& scene ) override
     {
         Reflection& reflection = mComponentTypes.GetReflection();
-        MetaAny component = TypeNamed( mComponentTypes, mComponent ).mGetWritable( scene, mEntity );
+        const ComponentTypes::Type& type = TypeNamed( mComponentTypes, mComponent );
+        MetaAny component = type.mGetWritable( scene, mEntity );
         auto beforeMaybe = reflection.TryGetField( component, mPath );
         if ( not beforeMaybe )
             return unexpected( std::move( beforeMaybe.error() ) );
         mBefore = Copy( *beforeMaybe );
-        if ( auto setMaybe = reflection.TrySetField( component, mPath, Copy( mAfter ) ); not setMaybe )
+        if ( auto setMaybe = mComponentTypes.TrySetField( scene, mEntity, type, mPath, Copy( mAfter ) ); not setMaybe )
             return setMaybe;
         // What the field holds now, converted to its type: redo sets that.
         auto afterMaybe = reflection.TryGetField( component, mPath );
@@ -82,8 +83,8 @@ private:
     // A value of the field's own type, which it has taken before.
     void Set( Scene& scene, const MetaAny& value, string_view what )
     {
-        MetaAny component = TypeNamed( mComponentTypes, mComponent ).mGetWritable( scene, mEntity );
-        if ( auto setMaybe = mComponentTypes.GetReflection().TrySetField( component, mPath, Copy( value ) );
+        if ( auto setMaybe = mComponentTypes.TrySetField( scene, mEntity, TypeNamed( mComponentTypes, mComponent ),
+                                                          mPath, Copy( value ) );
              not setMaybe )
             throw logic_error( format( "{} of a field set: {}", what, setMaybe.error() ) );
     }

@@ -204,3 +204,38 @@ TEST_CASE( "The root is not an entity to destroy, and a scene always has it" )
     // start.
     CHECK( scene.Has<Hierarchy>( scene.Root() ) );
 }
+
+namespace
+{
+// What a listener heard, in order: "added 5", "removed 5".
+struct Heard final : ComponentListener
+{
+    vector<string> mHeard;
+
+    void Added( Entity entity ) override { mHeard.push_back( format( "added {}", static_cast<u32>( entity ) ) ); }
+    void Replaced( Entity entity ) override { mHeard.push_back( format( "replaced {}", static_cast<u32>( entity ) ) ); }
+    void Removed( Entity entity ) override { mHeard.push_back( format( "removed {}", static_cast<u32>( entity ) ) ); }
+};
+}
+
+TEST_CASE( "A listener hears its type's components come, get replaced and go, the entity's end too" )
+{
+    Scene scene;
+    Heard heard;
+    scene.Listen<Health>( heard );
+    const Entity knight = scene.Create();
+    const Entity horse = scene.Create();
+    const u32 k = static_cast<u32>( knight );
+    const u32 h = static_cast<u32>( horse );
+
+    scene.Add<Health>( knight );
+    scene.Add<Speed>( knight );
+    scene.Add<Health>( knight, 50 );
+    scene.Add<Health>( horse );
+    scene.Remove<Health>( knight );
+    scene.Destroy( horse );
+    CHECK( heard.mHeard == vector<string>{ format( "added {}", k ), format( "replaced {}", k ), format( "added {}", h ),
+                                           format( "removed {}", k ), format( "removed {}", h ) } );
+    CHECK( scene.EntitiesWith<Health>().empty() );
+    CHECK( scene.EntitiesWith<Speed>() == vector<Entity>{ knight } );
+}

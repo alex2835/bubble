@@ -73,6 +73,16 @@ public:
     // For messages: "light, health".
     string Names() const;
 
+    // Sets the field at `path` of the entity's component of `type`, as
+    // Reflection::TrySetField does, and tells the scene's field listeners -
+    // a world's modules hear which field of which entity changed. An entity
+    // without the component is an error saying so.
+    expected<void, string> TrySetField( Scene& scene,
+                                        Entity entity,
+                                        const Type& type,
+                                        const FieldPath& path,
+                                        MetaAny value ) const;
+
     Reflection& GetReflection() const { return mReflection; }
 
 private:

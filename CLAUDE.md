@@ -35,10 +35,11 @@ deps/                         vendored, each with its license; listed in THIRD_P
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
-    core/                     log, profile, utf8, AssetPath, process, Name, Text, Color
+    core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32)
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
-    scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type), Hierarchy (the
-                              tree from the root, names unique among siblings, PathOf/Resolve), ComponentTypes,
+    scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
+                              components and of fields set), Hierarchy (the tree from the root, names unique among
+                              siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
                               SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back;
                               Prefab (nodes with ids that last, next_id), Instantiate, an instance in a level as
                               its prefab + overrides (set, add_components, add_children, remove); PrefabInstance and
@@ -48,6 +49,9 @@ projects/engine/include/bubble/
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
+    world/                    App (one a process: reflection, component types, modules), World (a scene and its
+                              modules: data events - added, changed, removed - delivered at the world's turns, the
+                              frame's phases in one list, FixedClock, Services by type, Events queued), Module
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and never included by it: Document (a scene, its

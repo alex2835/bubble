@@ -1,4 +1,5 @@
 #include "bubble/scene/component_types.hpp"
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/format.hpp"
 
@@ -57,9 +58,25 @@ string ComponentTypes::Names() const
     return names;
 }
 
+expected<void, string> ComponentTypes::TrySetField( Scene& scene,
+                                                    Entity entity,
+                                                    const Type& type,
+                                                    const FieldPath& path,
+                                                    MetaAny value ) const
+{
+    MetaAny component = type.mGetWritable( scene, entity );
+    if ( not component )
+        return unexpected( format( "{} has no {}", Describe( scene, entity ), type.mName.ToString() ) );
+    if ( auto setMaybe = mReflection.TrySetField( component, path, std::move( value ) ); not setMaybe )
+        return setMaybe;
+    if ( const Name* field = path.Steps().empty() ? nullptr : get_if<Name>( &path.Steps().front() ) )
+        scene.NotifyFieldChanged( entity, type.mName, *field );
+    return {};
+}
+
 void ComponentTypes::AddType( const MetaType& type, Type made )
 {
-    if ( not type )
+    if ( not type or not mReflection.TryFind( Name::FromHash( type.id() ) ) )
         throw logic_error( "ComponentTypes::Add of a type reflection has not described" );
     const Name name = Name::FromHash( type.id() );
     if ( TryFind( name ) )

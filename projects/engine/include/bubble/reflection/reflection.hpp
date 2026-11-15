@@ -167,7 +167,15 @@ public:
         return entt::forward_as_meta( mContext, object );
     }
 
+    // A type described here. TypeOf gives a type for any T, described or
+    // not; this is how to tell.
     opt<MetaType> TryFind( Name type ) const;
+    template <typename T>
+    opt<MetaType> TryFind() const
+    {
+        const MetaType type = TypeOf<T>();
+        return type ? TryFind( Name::FromHash( type.id() ) ) : nullopt;
+    }
     // For messages: a described type's name, what a person calls a number,
     // a bool or a text, the C++ name for anything else.
     string NameOf( const MetaType& type ) const;

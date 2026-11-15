@@ -54,6 +54,11 @@ void Scene::DestroyWithSubtree( Entity entity )
     mRegistry.destroy( entity );
 }
 
+void Scene::NotifyFieldChanged( Entity entity, Name component, Name field )
+{
+    mFieldChanged.publish( entity, component, field );
+}
+
 bool Scene::Alive( Entity entity ) const
 {
     return mRegistry.valid( entity );
