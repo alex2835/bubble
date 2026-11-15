@@ -38,20 +38,7 @@ struct Files
 {
     hmap<string, string> mFiles;
 
-    ProjectFiles Project()
-    {
-        return ProjectFiles(
-            [this]( const AssetPath& path ) -> expected<string, string> {
-                const auto found = mFiles.find( path.String() );
-                if ( found == mFiles.end() )
-                    return unexpected( "no such file"s );
-                return found->second;
-            },
-            [this]( const AssetPath& path, string_view bytes ) -> expected<void, string> {
-                mFiles[path.String()] = string( bytes );
-                return {};
-            } );
-    }
+    ProjectFiles Project() { return ProjectFiles::InMemory( mFiles ); }
 };
 
 // /lamp with a light; /props/chair, /props/table.

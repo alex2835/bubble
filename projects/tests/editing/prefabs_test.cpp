@@ -39,17 +39,7 @@ struct Fixture
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
     hmap<string, string> mFiles;
-    Workspace mWorkspace{ mComponentTypes, ProjectFiles(
-                                               [this]( const AssetPath& path ) -> expected<string, string> {
-                                                   const auto found = mFiles.find( path.String() );
-                                                   if ( found == mFiles.end() )
-                                                       return unexpected( "no such file"s );
-                                                   return found->second;
-                                               },
-                                               [this]( const AssetPath& path, string_view bytes ) {
-                                                   mFiles[path.String()] = string( bytes );
-                                                   return expected<void, string>();
-                                               } ) };
+    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ) };
     Document& mLevel = mWorkspace.Open();
 
     Fixture()

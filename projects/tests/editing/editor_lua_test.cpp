@@ -29,17 +29,7 @@ struct Fixture
     ComponentTypes mComponentTypes{ mReflection };
     Operators mOperators;
     hmap<string, string> mFiles;
-    Workspace mWorkspace{ mComponentTypes, ProjectFiles(
-                                               [this]( const AssetPath& path ) -> expected<string, string> {
-                                                   const auto found = mFiles.find( path.String() );
-                                                   if ( found == mFiles.end() )
-                                                       return unexpected( "no such file"s );
-                                                   return found->second;
-                                               },
-                                               [this]( const AssetPath& path, string_view bytes ) {
-                                                   mFiles[path.String()] = string( bytes );
-                                                   return expected<void, string>();
-                                               } ) };
+    Workspace mWorkspace{ mComponentTypes, ProjectFiles::InMemory( mFiles ) };
     vector<string> mPrinted;
     Scope<EditorLua> mEditor;
 
@@ -197,7 +187,8 @@ counter = 1
     f.Run( "print( counter )" );
     CHECK( f.mPrinted == vector<string>{ "false\tentity.destroy: nothing selected", "true\tnil", "nil" } );
 
-    Workspace empty( f.mComponentTypes, ProjectFiles( {}, {} ) );
+    hmap<string, string> none;
+    Workspace empty( f.mComponentTypes, ProjectFiles::InMemory( none ) );
     EditorLua editor( empty, f.mOperators );
     CHECK( editor.TryRun( R"(editor.get( "/", "light" ))", "macro.luau" ).error() ==
            "macro.luau:1: no document is open" );

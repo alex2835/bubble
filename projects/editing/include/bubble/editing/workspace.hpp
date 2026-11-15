@@ -1,7 +1,7 @@
 #pragma once
 #include "bubble/editing/clipboard.hpp"
 #include "bubble/editing/document.hpp"
-#include "bubble/editing/project_files.hpp"
+#include "bubble/import/project_files.hpp"
 #include "bubble/scene/prefab.hpp"
 
 namespace bubble

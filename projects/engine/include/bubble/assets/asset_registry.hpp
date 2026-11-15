@@ -1,7 +1,8 @@
 #pragma once
-#include "bubble/assets/asset_id.hpp"
+#include "bubble/assets/asset_catalog.hpp"
 #include "bubble/core/asset_path.hpp"
 #include "bubble/types/containers.hpp"
+#include "bubble/types/format.hpp"
 #include "bubble/types/function.hpp"
 #include "bubble/types/handle.hpp"
 #include "bubble/types/opt_ref.hpp"
@@ -15,11 +16,10 @@ class AssetEntryBase;
 
 namespace detail
 {
-// Where the registry finds entries, by path and by id. Weak: an entry lives
-// as long as its refs do, and takes itself out of the index when it goes.
+// Where the registry finds entries, by id. Weak: an entry lives as long as
+// its refs do, and takes itself out of the index when it goes.
 struct AssetIndex
 {
-    hmap<string, WeakRef<AssetEntryBase>> mByPath;
     hmap<AssetId, WeakRef<AssetEntryBase>> mById;
 };
 }
@@ -61,7 +61,8 @@ protected:
     string mError;
     u32 mVersion = 0;
     // Empty for an entry the registry does not list (a file asked for as the
-    // wrong kind), and once the registry is gone.
+    // wrong kind, an asset the catalog does not have), and once the registry
+    // is gone.
     WeakRef<detail::AssetIndex> mIndex;
 };
 
@@ -115,9 +116,9 @@ private:
 
 using AssetListenerHandle = Handle<struct AssetListenerTag>;
 
-// Every asset of the project in memory, one entry each, by path and by id.
-// One per process, shared by its worlds. Importers turn a file's bytes into
-// the asset by its extension.
+// Every asset of the project in memory, one entry each, by id; a path is
+// turned into an id by the catalog. One per process, shared by its worlds.
+// Importers turn a file's bytes into the asset by its extension.
 //
 // For now loading is synchronous and imports from the source file on the
 // spot; later it reads the import cache in the background and Load returns
@@ -134,7 +135,9 @@ public:
     using Importer = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
     using ChangedListener = function<void( const AssetEntryBase& entry )>;
 
-    explicit AssetRegistry( ReadFile read );
+    // The catalog outlives the registry, and may change while it lives: a
+    // file that appears is found by the next Load.
+    AssetRegistry( const AssetCatalog& catalog, ReadFile read );
     // Reads files under `root`.
     static ReadFile FromDirectory( OsPath root );
 
@@ -155,32 +158,44 @@ public:
                 } } );
     }
 
-    // The asset at `path`; the same entry when it is in memory already. A
-    // file that is missing, of an unknown kind or fails to import gives a
-    // Failed ref with the reason in Error(); whoever asked reports it.
+    // The asset at `path`, or with the id; the same entry when it is in
+    // memory already. One the catalog does not have, a file that is
+    // missing, of an unknown kind or fails to import gives a Failed ref with
+    // the reason in Error(); whoever asked reports it.
     template <typename T>
     AssetRef<T> Load( const AssetPath& path )
     {
-        return AssetRef<T>( static_pointer_cast<AssetEntry<T>>( LoadEntry(
-            path, typeid( T ), [&] { return CreateRef<AssetEntry<T>>( AssetId::MakeFrom( path.View() ), path ); } ) ) );
+        const auto assetIdMaybe = mCatalog.TryIdOf( path );
+        if ( not assetIdMaybe )
+            return Unknown<T>( {}, path, format( "{} is not an asset of the project", path.View() ) );
+        return Typed<T>( LoadEntry( *assetIdMaybe, path, typeid( T ), &Make<T> ) );
+    }
+
+    template <typename T>
+    AssetRef<T> Load( const AssetId& assetId )
+    {
+        const auto pathMaybe = mCatalog.TryPathOf( assetId );
+        if ( not pathMaybe )
+            return Unknown<T>( assetId, {}, format( "no asset {} in the project", assetId.ToString() ) );
+        return Typed<T>( LoadEntry( assetId, *pathMaybe, typeid( T ), &Make<T> ) );
     }
 
     // The asset if it is in memory - never loads.
     template <typename T>
     AssetRef<T> TryFind( const AssetPath& path ) const
     {
-        return Typed<T>( TryFindEntry( path ) );
+        const auto assetIdMaybe = mCatalog.TryIdOf( path );
+        return assetIdMaybe ? TryFind<T>( *assetIdMaybe ) : AssetRef<T>();
     }
 
     template <typename T>
     AssetRef<T> TryFind( const AssetId& assetId ) const
     {
-        const auto found = mIndex->mById.find( assetId );
-        return Typed<T>( found == mIndex->mById.end() ? nullptr : found->second.lock() );
+        return Typed<T>( TryFindEntry( assetId ) );
     }
 
     // How many assets are in memory.
-    size_t Count() const { return mIndex->mByPath.size(); }
+    size_t Count() const { return mIndex->mById.size(); }
 
     // The file changed: imports it again into its entry and tells the
     // listeners. If the new version fails, the old one stays and the error
@@ -199,6 +214,14 @@ private:
         function<expected<void, string>( string_view bytes, AssetEntryBase& entry )> mImport;
     };
 
+    using MakeEntry = Ref<AssetEntryBase> ( * )( const AssetId&, const AssetPath& );
+
+    template <typename T>
+    static Ref<AssetEntryBase> Make( const AssetId& assetId, const AssetPath& path )
+    {
+        return CreateRef<AssetEntry<T>>( assetId, path );
+    }
+
     template <typename T>
     static AssetRef<T> Typed( Ref<AssetEntryBase> entry )
     {
@@ -207,12 +230,21 @@ private:
         return AssetRef<T>( static_pointer_cast<AssetEntry<T>>( std::move( entry ) ) );
     }
 
-    Ref<AssetEntryBase> LoadEntry( const AssetPath& path,
-                                   type_index type,
-                                   const function<Ref<AssetEntryBase>()>& make );
-    Ref<AssetEntryBase> TryFindEntry( const AssetPath& path ) const;
+    // A Failed ref nobody lists: there is nothing to load it from.
+    template <typename T>
+    static AssetRef<T> Unknown( const AssetId& assetId, const AssetPath& path, string error )
+    {
+        const auto entry = CreateRef<AssetEntry<T>>( assetId, path );
+        entry->mState = AssetState::Failed;
+        entry->mError = std::move( error );
+        return AssetRef<T>( entry );
+    }
+
+    Ref<AssetEntryBase> LoadEntry( const AssetId& assetId, const AssetPath& path, type_index type, MakeEntry make );
+    Ref<AssetEntryBase> TryFindEntry( const AssetId& assetId ) const;
     expected<void, string> TryImport( AssetEntryBase& entry );
 
+    const AssetCatalog& mCatalog;
     ReadFile mRead;
     hmap<string, RegisteredImporter> mImporters;
     // Shared with the entries, which may outlive the registry.

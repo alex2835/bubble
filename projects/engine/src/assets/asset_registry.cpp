@@ -23,11 +23,12 @@ AssetEntryBase::~AssetEntryBase()
     const Ref<detail::AssetIndex> index = mIndex.lock();
     if ( index == nullptr )
         return;
-    EraseExpired( index->mByPath, mPath.View() );
     EraseExpired( index->mById, mId );
 }
 
-AssetRegistry::AssetRegistry( ReadFile read ) : mRead( std::move( read ) )
+AssetRegistry::AssetRegistry( const AssetCatalog& catalog, ReadFile read )
+    : mCatalog( catalog ),
+      mRead( std::move( read ) )
 {
 }
 
@@ -43,31 +44,31 @@ AssetRegistry::ReadFile AssetRegistry::FromDirectory( OsPath root )
     };
 }
 
-Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetPath& path ) const
+Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetId& assetId ) const
 {
-    const auto found = mIndex->mByPath.find( path.View() );
-    return found == mIndex->mByPath.end() ? nullptr : found->second.lock();
+    const auto found = mIndex->mById.find( assetId );
+    return found == mIndex->mById.end() ? nullptr : found->second.lock();
 }
 
-Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetPath& path,
+Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetId& assetId,
+                                              const AssetPath& path,
                                               type_index type,
-                                              const function<Ref<AssetEntryBase>()>& make )
+                                              MakeEntry make )
 {
-    if ( Ref<AssetEntryBase> entry = TryFindEntry( path ) )
+    if ( Ref<AssetEntryBase> entry = TryFindEntry( assetId ) )
     {
         if ( entry->mType == type )
             return entry;
         // The same file asked for as another kind: a failed ref of the kind
         // asked, beside the one in memory.
-        Ref<AssetEntryBase> wrong = make();
+        Ref<AssetEntryBase> wrong = make( assetId, path );
         wrong->mState = AssetState::Failed;
         wrong->mError = format( "{} is loaded as another kind of asset", path.View() );
         return wrong;
     }
 
-    Ref<AssetEntryBase> entry = make();
-    mIndex->mByPath[path.String()] = entry;
-    mIndex->mById[entry->mId] = entry;
+    Ref<AssetEntryBase> entry = make( assetId, path );
+    mIndex->mById[assetId] = entry;
     entry->mIndex = mIndex;
     if ( auto importedMaybe = TryImport( *entry ); not importedMaybe )
     {
@@ -95,7 +96,8 @@ expected<void, string> AssetRegistry::TryImport( AssetEntryBase& entry )
 
 expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
 {
-    const Ref<AssetEntryBase> entry = TryFindEntry( path );
+    const auto assetIdMaybe = mCatalog.TryIdOf( path );
+    const Ref<AssetEntryBase> entry = assetIdMaybe ? TryFindEntry( *assetIdMaybe ) : nullptr;
     if ( entry == nullptr )
         return {};
     // An importer fills the entry only when it succeeds: a failed import

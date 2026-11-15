@@ -6,4 +6,5 @@ file( GLOB_RECURSE BUBBLE_EDITING_HEADERS CONFIGURE_DEPENDS include/*.hpp )
 add_library( bubble_editing STATIC ${BUBBLE_EDITING_SOURCES} ${BUBBLE_EDITING_HEADERS} )
 target_include_directories( bubble_editing PUBLIC include )
 bubble_target_warnings( bubble_editing )
-target_link_libraries( bubble_editing PUBLIC bubble_engine )
+# The project's files come through the import library.
+target_link_libraries( bubble_editing PUBLIC bubble_engine bubble_import )

@@ -19,14 +19,15 @@ enum Callback : u32
 
 struct Scripts
 {
-    // The project's files, by path.
+    // The project's files, by path, and the catalog of them.
     hmap<string, string> mFiles;
-    AssetRegistry mAssets{ [this]( const AssetPath& path ) -> expected<string, string> {
-        const auto found = mFiles.find( path.View() );
-        if ( found == mFiles.end() )
-            return unexpected( "no such file"s );
-        return found->second;
-    } };
+    AssetCatalog mCatalog;
+    AssetRegistry mAssets{ mCatalog, [this]( const AssetPath& path ) -> expected<string, string> {
+                              const auto found = mFiles.find( path.View() );
+                              if ( found == mFiles.end() )
+                                  return unexpected( "no such file"s );
+                              return found->second;
+                          } };
     // What the world holds loaded - as the world's scripts module would.
     vector<AssetRef<ScriptAsset>> mHeld;
     LuaState mState{ PrintToLog };
@@ -52,7 +53,10 @@ struct Scripts
     void AddFile( string_view path, string_view source )
     {
         mFiles[string( path )] = string( source );
-        auto asset = mAssets.Load<ScriptAsset>( *AssetPath::TryFrom( path ) );
+        const AssetPath assetPath = *AssetPath::TryFrom( path );
+        if ( not mCatalog.TryIdOf( assetPath ) )
+            mCatalog.Add( AssetId::Generate(), assetPath );
+        auto asset = mAssets.Load<ScriptAsset>( assetPath );
         REQUIRE_MESSAGE( asset.Ready(), asset.Entry().Error() );
         mHeld.push_back( std::move( asset ) );
     }

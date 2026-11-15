@@ -1,22 +1,11 @@
 #include "bubble/assets/asset_id.hpp"
 #include "bubble/types/format.hpp"
+#include "bubble/types/random.hpp"
 
 namespace bubble
 {
 namespace
 {
-// FNV-1a, 64 bits, from a given basis: two bases give two halves.
-u64 Fnv( string_view text, u64 basis )
-{
-    u64 hash = basis;
-    for ( const char c : text )
-    {
-        hash ^= static_cast<u8>( c );
-        hash *= 0x100000001b3ull;
-    }
-    return hash;
-}
-
 opt<u64> TryParseHex( string_view text )
 {
     u64 value = 0;
@@ -35,9 +24,12 @@ opt<u64> TryParseHex( string_view text )
 }
 }
 
-AssetId AssetId::MakeFrom( string_view path )
+AssetId AssetId::Generate()
 {
-    return AssetId{ Fnv( path, 0xcbf29ce484222325ull ), Fnv( path, 0x84222325cbf29ce4ull ) };
+    random_device entropy;
+    const auto half = [&] { return u64{ entropy() } << 32 | u64{ entropy() }; };
+    const u64 high = half();
+    return AssetId{ high, half() };
 }
 
 opt<AssetId> AssetId::TryParse( string_view text )

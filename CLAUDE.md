@@ -37,7 +37,8 @@ projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
                               process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web: main thread)
-    assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
+    assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id,
+                              paths through the catalog, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -56,18 +57,23 @@ projects/engine/include/bubble/
                               frame's phases in one list, FixedClock, Services by type, Events queued;
                               Snapshot/Restore - runtime built again from the data), Module
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
+projects/import/include/bubble/import/
+                              bubble_import, on the engine and never included by it: ProjectFiles (the project's
+                              files: read, list, a save replaces the file whole), ImportFile (<source>.import: the
+                              asset's id and settings), TryScanProject (ids from .import files, new ones written, a
+                              copy re-ided, orphans listed)
 projects/editing/include/bubble/editing/
-                              bubble_editing, on the engine and never included by it: Document (a scene, its
+                              bubble_editing, on the engine and import, never included by them: Document (a scene, its
                               History with nested groups, dirty by position, its Selection), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
-                              paste/duplicate; ProjectFiles (the editor reads and writes the project, a save
-                              replaces the file whole); Workspace (open documents, the active one) and Operators - the
+                              paste/duplicate; Workspace (open documents, the active one) and Operators - the
                               only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
                               builtin_operators.cpp, prefab_operators.cpp); prefab documents (.prefab, node ids
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
-projects/tests/               doctest; folders follow the engine's and editing/, deps/ tests deps (luaubind too)
+projects/tests/               doctest; folders follow the engine's, import/ and editing/; deps/ tests deps (luaubind
+                              too)
 ```
 
 ## Style

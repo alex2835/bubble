@@ -7,15 +7,15 @@ namespace bubble
 {
 // An asset's identity: 128 bits, written to files as 32 hex digits. It is
 // what components and scenes keep - the path can change, the id does not.
-// For now an id is made from the path (MakeFrom); once .import files exist
-// they will hold a random one, and nothing that reads ids changes.
+// A source file's is in the .import beside it; an engine file - a level, a
+// prefab - keeps its own inside.
 struct AssetId
 {
     u64 mHigh = 0;
     u64 mLow = 0;
 
-    // Temporary, until .import files: the same path gives the same id.
-    static AssetId MakeFrom( string_view path );
+    // A new one, random: two files never share one by chance.
+    static AssetId Generate();
     static opt<AssetId> TryParse( string_view text );
     string ToString() const;
 
