@@ -38,9 +38,11 @@ public:
 
     // Sets its buffers on the pass, before its draws.
     void Bind( WGPURenderPassEncoder pass ) const;
-    // One level of one mesh, after Bind. A mesh or a level it does not have
-    // is a logic_error.
-    void Draw( WGPURenderPassEncoder pass, size_t mesh, size_t lod, u32 instances = 1 ) const;
+    // One level of one mesh, after Bind: `instances` of it from
+    // `firstInstance` on - the shader's instance_index, which picks what it
+    // draws from a storage buffer. A mesh or a level it does not have is a
+    // logic_error.
+    void Draw( WGPURenderPassEncoder pass, size_t mesh, size_t lod, u32 firstInstance = 0, u32 instances = 1 ) const;
 
 private:
     // Empty for a model with nothing to draw.

@@ -1,14 +1,18 @@
-// The runner: a game on its own. App, the project and its levels come with
-// their stages; for now a window the GPU clears to a color the actions
-// change, and the actions logged - stages 5 and 6 checked by hand. The
-// keyboard, a gamepad and touches drive "jump" and "move_x"; the mouse
-// touches too, for a screen without touch.
+// The runner: a game on its own. The project and its levels come with
+// their stages; for now a scene made here - boxes on the ground under the
+// sun, a warm lamp - drawn by the renderer, the camera circling it as the
+// actions say: stages 5 and 6 checked by hand. The keyboard, a gamepad and
+// touches drive "move_x"; the mouse touches too, for a screen without touch.
+#include "bubble/assets/model_primitives.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
 #include "bubble/platform/platform.hpp"
 #include "bubble/render/gpu/gpu.hpp"
-#include "bubble/types/algorithm.hpp"
+#include "bubble/render/gpu/renderer.hpp"
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/types/thread.hpp"
+#include "bubble/world/transform.hpp"
+#include "bubble/world/world.hpp"
 
 using namespace bubble;
 
@@ -16,12 +20,10 @@ namespace
 {
 ActionMap Controls()
 {
-    // The right half of the window jumps; its left quarters move.
-    const TouchArea rightHalf{ .mMin = { 0.5f, 0.0f }, .mMax = { 1.0f, 1.0f } };
+    // The left half of the window turns the camera one way or the other.
     const TouchArea leftQuarter{ .mMin = { 0.0f, 0.0f }, .mMax = { 0.25f, 1.0f } };
     const TouchArea secondQuarter{ .mMin = { 0.25f, 0.0f }, .mMax = { 0.5f, 1.0f } };
     ActionMap map;
-    map.Bind( "jump", Key::Space ).Bind( "jump", GamepadButton::South ).Bind( "jump", rightHalf );
     map.Bind( "move_x", Key::A, -1.0f )
         .Bind( "move_x", Key::D )
         .Bind( "move_x", Key::Left, -1.0f )
@@ -32,15 +34,79 @@ ActionMap Controls()
     return map;
 }
 
-// Night blue; red to the right, blue to the left, lighter while jumping.
-Color Background( const Actions& actions )
+Text Make( string_view utf8 )
 {
-    const f32 move = actions.Axis( "move_x"_n );
-    const f32 jump = actions.Down( "jump"_n ) ? 0.4f : 0.0f;
-    return Color{ .mR = 0.1f + 0.5f * max( move, 0.0f ) + jump,
-                  .mG = 0.12f + jump,
-                  .mB = 0.25f + 0.5f * max( -move, 0.0f ) + jump,
-                  .mA = 1.0f };
+    return *Text::TryFrom( utf8 );
+}
+
+// What the importer would have made of a project's models, in memory: the
+// runner has no project yet.
+struct Models
+{
+    hmap<string, string> mImported;
+    AssetCatalog mCatalog;
+
+    AssetId Add( string_view path, const ModelAsset& model )
+    {
+        const AssetId assetId = AssetId::Generate();
+        mCatalog.Add( assetId, *AssetPath::TryFrom( path ) );
+        mImported[ImportedPath( assetId, cModelKind ).String()] = WriteModelAsset( model );
+        return assetId;
+    }
+
+    AssetRegistry::ReadImported Read()
+    {
+        return AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
+            const auto found = mImported.find( ImportedPath( assetId, kind ).View() );
+            if ( found == mImported.end() )
+                return expected<string, string>( unexpected( "no such file"s ) );
+            return expected<string, string>( found->second );
+        } );
+    }
+};
+
+Scene Level( Models& models )
+{
+    Scene scene;
+    const Entity ground = CreateChild( scene, scene.Root(), Make( "ground" ) );
+    scene.Add<Transform>( ground );
+    scene.Add<Model>( ground, Model{ .mAsset = models.Add( "models/ground.glb", MakePlane( 20.0f ) ) } );
+
+    const AssetId box = models.Add( "models/box.glb", MakeBox( vec3( 1.0f ) ) );
+    const array<Transform, 5> boxes{
+        Transform{ .mPosition = { 0.0f, 0.5f, 0.0f } },
+        Transform{ .mPosition = { 2.5f, 1.0f, -1.0f }, .mRotation = { 0.0f, 0.6f, 0.0f }, .mScale = vec3( 2.0f ) },
+        Transform{ .mPosition = { -2.0f, 0.35f, 1.5f }, .mRotation = { 0.0f, 0.3f, 0.0f }, .mScale = vec3( 0.7f ) },
+        Transform{ .mPosition = { -1.5f, 1.5f, -2.5f }, .mRotation = { 0.5f, 0.8f, 0.2f }, .mScale = vec3( 1.0f ) },
+        Transform{ .mPosition = { 1.0f, 0.25f, 2.5f }, .mScale = { 3.0f, 0.5f, 0.5f } },
+    };
+    for ( const Transform& placed : boxes )
+    {
+        const Entity entity = CreateChild( scene, scene.Root(), Make( "box" ) );
+        scene.Add<Transform>( entity, placed );
+        scene.Add<Model>( entity, Model{ .mAsset = box } );
+    }
+
+    const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
+    scene.Add<Transform>( sun, Transform{ .mRotation = { glm::radians( -40.0f ), glm::radians( 35.0f ), 0.0f } } );
+    scene.Add<DirectionalLight>( sun );
+    const Entity lamp = CreateChild( scene, scene.Root(), Make( "lamp" ) );
+    scene.Add<Transform>( lamp, Transform{ .mPosition = { -2.0f, 1.5f, 3.0f } } );
+    scene.Add<PointLight>( lamp, PointLight{ .mColor = { .mR = 1.0f, .mG = 0.6f, .mB = 0.3f, .mA = 1.0f },
+                                             .mIntensity = 15.0f,
+                                             .mRange = 8.0f } );
+    scene.Add<Camera>( CreateChild( scene, scene.Root(), Make( "camera" ) ) );
+    return scene;
+}
+
+// Around the middle of the scene, `turn` radians round, looking down at it.
+Transform Orbit( f32 turn )
+{
+    constexpr f32 cDistance = 11.0f;
+    constexpr f32 cPitch = -0.55f;
+    const vec3 position( sin( turn ) * cos( cPitch ) * cDistance, -sin( cPitch ) * cDistance,
+                         cos( turn ) * cos( cPitch ) * cDistance );
+    return Transform{ .mPosition = position, .mRotation = { cPitch, turn, 0.0f } };
 }
 }
 
@@ -62,22 +128,30 @@ int main()
     }
     const Window& window = *windowMaybe;
 
+    // What Jobs may still read as it goes outlives App.
+    Models models;
+    App app;
+    AssetRegistry assets( models.mCatalog, models.Read(), app.GetJobs() );
+    RegisterModelLoader( assets );
+    app.AddModule( TransformModule() );
+    app.AddModule( RenderModule( assets ) );
+    World world( app, Level( models ) );
+    const Entity camera = *TryResolve( world.GetScene(), EntityPath{ Make( "/camera" ) } );
+
     // The GPU after the window, and gone before it.
     const Scope<GpuStartup> startup = Gpu::Start( window );
     Scope<Gpu> gpu;
+    Scope<Renderer> renderer;
     Input input( Controls() );
-    f32 lastMove = 0.0f;
-    platform.Run( [&]( f64 ) {
+    f32 turn = 2.2f;
+    platform.Run( [&]( f64 elapsed ) {
         for ( const InputEvent& event : platform.Poll() )
             input.Handle( event );
         const Actions actions = input.LatchFrame();
-        if ( actions.Pressed( "jump"_n ) )
-            LogInfo( "jump" );
-        if ( const f32 move = actions.Axis( "move_x"_n ); move != lastMove )
-        {
-            LogInfo( "move_x {:.2f}", move );
-            lastMove = move;
-        }
+        turn += actions.Axis( "move_x"_n ) * static_cast<f32>( elapsed ) * 1.5f;
+        world.GetScene().Get<Transform>( camera ) = Orbit( turn );
+        world.Frame( elapsed );
+        app.GetJobs().RunMainQueue();
 
         if ( not gpu )
         {
@@ -90,6 +164,7 @@ int main()
                 return false;
             }
             gpu = std::move( **finishedMaybe );
+            renderer = CreateScope<Renderer>( *gpu, assets );
         }
         gpu->Poll();
         GpuSurface& surface = *gpu->TrySurface();
@@ -97,7 +172,10 @@ int main()
         // Presenting waits for the display, which paces the loop.
         if ( auto viewMaybe = surface.TryAcquire() )
         {
-            gpu->Clear( viewMaybe->Get(), Background( actions ) );
+            const RenderScene& scene = world.Get<RenderScene>();
+            renderer->Draw(
+                scene, scene.mCameras.front(),
+                RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() } );
             surface.Present();
         }
 #ifndef __EMSCRIPTEN__

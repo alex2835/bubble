@@ -1,4 +1,5 @@
 #pragma once
+#include "bubble/types/math.hpp"
 #include "bubble/types/number.hpp"
 
 namespace bubble
@@ -14,4 +15,10 @@ struct Color
 
     friend bool operator==( const Color&, const Color& ) = default;
 };
+
+// One sRGB channel as the artist picks it, in linear light, which the GPU
+// and the lighting work in.
+f32 SrgbToLinear( f32 srgb );
+// The color in linear light; opacity as it is.
+vec4 ToLinear( const Color& color );
 }

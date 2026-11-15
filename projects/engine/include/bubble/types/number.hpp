@@ -21,9 +21,13 @@ using f64 = double;
 static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::abs;
+using std::cos;
 using std::isfinite;
 using std::isnan;
 using std::numeric_limits;
 using std::pow;
 using std::round;
+using std::sin;
+using std::sqrt;
+using std::tan;
 }

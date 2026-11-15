@@ -37,7 +37,7 @@ deps/                         vendored, each with its license; listed in THIRD_P
                               downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 projects/engine/include/bubble/
-    types/                    aliases (std, glm), Handle/SlotMap, OptRef
+    types/                    aliases (std, glm; matrix.hpp for mat4/quat), Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
                               process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web and Jobs( 1 ):
                               the main thread alone)
@@ -47,7 +47,8 @@ projects/engine/include/bubble/
                               runs, then OnLoaded) or here and now (LoadNow); reads hand their bytes over at once
                               (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
-                              (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader)
+                              (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader);
+                              MakeBox/MakePlane (models made in code)
     input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
                               snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
@@ -63,8 +64,12 @@ projects/engine/include/bubble/
                               GpuBuffer, GpuTexture (a texture and its view; from a TextureAsset with its mips),
                               CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
                               one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
-                              registry's models and textures by id, made again after a reload, Collect); WGPU
-                              types stop here
+                              registry's models and textures by id, made again after a reload, Collect),
+                              Renderer (a RenderScene through a camera into a RenderTarget: shadow map, lit surfaces
+                              in rgba16float with reversed depth, ACES tonemapping), EngineShader (the WGSL of
+                              projects/engine/shaders, built in by cmake/embed_shaders.cmake); WGPU types stop here
+    render/                   render_scene: camera, directional_light, point_light, spot_light, model; RenderModule
+                              gathers them each frame into RenderScene (items, lights, cameras), a world's service
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -85,8 +90,10 @@ projects/engine/include/bubble/
     world/                    App (one a process: Jobs, reflection, component types, modules), World (a scene and its
                               modules: data events - added, changed, removed - delivered at the world's turns, the
                               frame's phases in one list, FixedClock, Services by type, Events queued;
-                              Snapshot/Restore - runtime built again from the data), Module
+                              Snapshot/Restore - runtime built again from the data), Module; transform (position,
+                              rotation in radians - Y, X, Z -, scale) and TransformModule: WorldTransform each frame
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
+projects/engine/shaders/      the engine's WGSL: standard (PBR, lights, shadow), shadow, tonemap
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
                               files: read, list with stamps, a save replaces the file whole), ImportFile
@@ -112,8 +119,8 @@ projects/editing/include/bubble/editing/
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
-projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a window the GPU
-                              clears to a color the actions change
+projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
+                              code - boxes, the sun, a lamp - drawn by the Renderer, the camera turned by move_x
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; deps/ tests deps (luaubind
                               too)
 ```

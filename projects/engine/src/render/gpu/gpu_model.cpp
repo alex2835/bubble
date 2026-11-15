@@ -40,7 +40,7 @@ void GpuModel::Bind( WGPURenderPassEncoder pass ) const
     wgpuRenderPassEncoderSetIndexBuffer( pass, mIndices.Get(), WGPUIndexFormat_Uint32, 0, WGPU_WHOLE_SIZE );
 }
 
-void GpuModel::Draw( WGPURenderPassEncoder pass, size_t mesh, size_t lod, u32 instances ) const
+void GpuModel::Draw( WGPURenderPassEncoder pass, size_t mesh, size_t lod, u32 firstInstance, u32 instances ) const
 {
     if ( mesh >= mMeshes.size() or lod >= mMeshes[mesh].mLods.size() )
         throw logic_error(
@@ -50,7 +50,8 @@ void GpuModel::Draw( WGPURenderPassEncoder pass, size_t mesh, size_t lod, u32 in
     const GpuLod& gpuLod = gpuMesh.mLods[lod];
     if ( gpuLod.mIndexCount == 0 )
         return;
-    wgpuRenderPassEncoderDrawIndexed( pass, gpuLod.mIndexCount, instances, gpuLod.mFirstIndex, gpuMesh.mBaseVertex, 0 );
+    wgpuRenderPassEncoderDrawIndexed( pass, gpuLod.mIndexCount, instances, gpuLod.mFirstIndex, gpuMesh.mBaseVertex,
+                                      firstInstance );
 }
 
 GpuVertexBufferLayout ModelVertexLayout()

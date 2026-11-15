@@ -207,12 +207,6 @@ WGPUTextureFormat SrgbOf( WGPUTextureFormat format )
         default: return format;
     }
 }
-
-// sRGB as the artist picks it to linear light, which the GPU works in.
-f64 Linear( f32 srgb )
-{
-    return srgb <= 0.04045f ? srgb / 12.92 : pow( ( srgb + 0.055 ) / 1.055, 2.4 );
-}
 }
 
 GpuSurface::GpuSurface( GpuSurfaceHandle surface, WGPUDevice device, WGPUTextureFormat format )
@@ -226,6 +220,11 @@ GpuSurface::~GpuSurface()
 {
     if ( mConfigured and mSurface )
         wgpuSurfaceUnconfigure( mSurface.Get() );
+}
+
+WGPUTextureFormat GpuSurface::ViewFormat() const
+{
+    return SrgbOf( mFormat );
 }
 
 void GpuSurface::Resize( ivec2 pixels )
@@ -452,7 +451,8 @@ void Gpu::Clear( WGPUTextureView target, Color color )
     attachment.view = target;
     attachment.loadOp = WGPULoadOp_Clear;
     attachment.storeOp = WGPUStoreOp_Store;
-    attachment.clearValue = WGPUColor{ Linear( color.mR ), Linear( color.mG ), Linear( color.mB ), color.mA };
+    const vec4 linear = ToLinear( color );
+    attachment.clearValue = WGPUColor{ linear.r, linear.g, linear.b, linear.a };
     WGPURenderPassDescriptor pass = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
     pass.colorAttachmentCount = 1;
     pass.colorAttachments = &attachment;

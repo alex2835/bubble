@@ -42,8 +42,18 @@ GpuRenderPipelineHandle CreateRenderPipeline( const Gpu& gpu, const GpuPipelineO
     WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
     fragment.module = options.mShader;
     fragment.entryPoint = ToGpuString( options.mFragmentEntry );
-    fragment.targetCount = 1;
+    fragment.targetCount = options.mColorFormat == WGPUTextureFormat_Undefined ? 0 : 1;
     fragment.targets = &target;
+
+    WGPUDepthStencilState depth = WGPU_DEPTH_STENCIL_STATE_INIT;
+    if ( options.mDepth )
+    {
+        depth.format = options.mDepth->mFormat;
+        depth.depthWriteEnabled = options.mDepth->mWrite ? WGPUOptionalBool_True : WGPUOptionalBool_False;
+        depth.depthCompare = options.mDepth->mCompare;
+        depth.depthBias = options.mDepth->mBias;
+        depth.depthBiasSlopeScale = options.mDepth->mBiasSlopeScale;
+    }
 
     WGPURenderPipelineDescriptor descriptor = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
     descriptor.label = ToGpuString( options.mLabel );
@@ -55,7 +65,8 @@ GpuRenderPipelineHandle CreateRenderPipeline( const Gpu& gpu, const GpuPipelineO
     descriptor.primitive.topology = options.mTopology;
     descriptor.primitive.frontFace = WGPUFrontFace_CCW;
     descriptor.primitive.cullMode = options.mCullMode;
-    descriptor.fragment = &fragment;
+    descriptor.depthStencil = options.mDepth ? &depth : nullptr;
+    descriptor.fragment = options.mFragmentEntry.empty() ? nullptr : &fragment;
     // The pipeline keeps its layout; ours goes when this returns.
     return GpuRenderPipelineHandle( wgpuDeviceCreateRenderPipeline( gpu.Device(), &descriptor ) );
 }

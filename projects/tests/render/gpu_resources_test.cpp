@@ -134,6 +134,7 @@ struct Drawing
                                                                .mBindGroupLayouts = {},
                                                                .mVertexBuffers = { ModelVertexLayout() },
                                                                .mColorFormat = mTarget.Format(),
+                                                               .mDepth = nullopt,
                                                                .mTopology = WGPUPrimitiveTopology_TriangleList,
                                                                .mCullMode = WGPUCullMode_Back } );
 

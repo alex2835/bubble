@@ -141,7 +141,9 @@ public:
     // Reads the bytes the importer made of an asset, of a kind: from the
     // project's import cache, from memory in tests - at once - or from fetch
     // on the web, later. Called on the pool, so it is one any thread may
-    // call.
+    // call - and maybe after the registry has gone, as Jobs finishes the
+    // loads still waiting before it goes: what it holds lives as long as
+    // Jobs does.
     using ReadImported = function<void( const AssetId& assetId, string_view kind, Read read )>;
     // One that has the bytes at once.
     using ReadAtOnce = function<expected<string, string>( const AssetId& assetId, string_view kind )>;

@@ -1,7 +1,19 @@
 file( GLOB_RECURSE BUBBLE_ENGINE_SOURCES CONFIGURE_DEPENDS src/*.cpp )
 file( GLOB_RECURSE BUBBLE_ENGINE_HEADERS CONFIGURE_DEPENDS include/*.hpp )
 
-add_library( bubble_engine STATIC ${BUBBLE_ENGINE_SOURCES} ${BUBBLE_ENGINE_HEADERS} )
+# The engine's own WGSL, built into it as text: the web reads no files for
+# them. Rewritten when a shader changes.
+file( GLOB BUBBLE_ENGINE_SHADERS CONFIGURE_DEPENDS shaders/*.wgsl )
+set( BUBBLE_EMBEDDED_SHADERS ${CMAKE_CURRENT_BINARY_DIR}/generated/embedded_shaders.cpp )
+add_custom_command( OUTPUT ${BUBBLE_EMBEDDED_SHADERS}
+                    COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/shaders
+                            -DOUTPUT=${BUBBLE_EMBEDDED_SHADERS} -P ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
+                    DEPENDS ${BUBBLE_ENGINE_SHADERS} ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
+                    COMMENT "Building the engine's shaders in"
+                    VERBATIM )
+
+add_library( bubble_engine STATIC ${BUBBLE_ENGINE_SOURCES} ${BUBBLE_ENGINE_HEADERS} ${BUBBLE_ENGINE_SHADERS}
+                                  ${BUBBLE_EMBEDDED_SHADERS} )
 target_include_directories( bubble_engine PUBLIC include )
 bubble_target_warnings( bubble_engine )
 # Luau through luaubind: the VM, native code generation, and the compiler for

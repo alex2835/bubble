@@ -28,6 +28,8 @@ public:
     // What the surface's textures are; their views - what a pass draws
     // into - are its sRGB twin when there is one.
     WGPUTextureFormat Format() const { return mFormat; }
+    // What TryAcquire's views are: the sRGB twin of Format.
+    WGPUTextureFormat ViewFormat() const;
     ivec2 Size() const { return mSize; }
     // Configured for the window's pixels when they changed. 0 wide or high -
     // minimized - leaves it unconfigured until they come back.
