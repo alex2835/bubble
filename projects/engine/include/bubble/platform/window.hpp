@@ -2,6 +2,7 @@
 #include "bubble/types/math.hpp"
 #include "bubble/types/number.hpp"
 #include "bubble/types/string.hpp"
+#include "bubble/types/variant.hpp"
 
 struct SDL_Window;
 
@@ -14,6 +15,36 @@ struct WindowOptions
     ivec2 mSize{ 1280, 720 };
     bool mResizable = true;
 };
+
+// What a window is to the system, for the GPU to draw into: the system's
+// own handles, passed from bubble/platform to bubble/render/gpu as they are -
+// the one place they leave either.
+struct Win32Window
+{
+    void* mInstance = nullptr;
+    void* mWindow = nullptr;
+};
+
+struct X11Window
+{
+    void* mDisplay = nullptr;
+    u64 mWindow = 0;
+};
+
+struct WaylandWindow
+{
+    void* mDisplay = nullptr;
+    void* mSurface = nullptr;
+};
+
+// A canvas of the page, by its CSS selector: "#canvas".
+struct CanvasWindow
+{
+    string mSelector;
+};
+
+// Nothing to draw into: SDL's dummy driver, a system not supported yet.
+using NativeWindow = variant<monostate, Win32Window, X11Window, WaylandWindow, CanvasWindow>;
 
 // A window of the platform's: its size, its UI scale and, from the
 // renderer's stage on, the surface drawn into. Platform::TryOpenWindow
@@ -36,6 +67,7 @@ public:
     // Windows' settings - and its density - a Retina screen - together.
     f32 Scale() const;
     void SetTitle( const string& title );
+    NativeWindow Native() const;
 
 private:
     friend class Platform;

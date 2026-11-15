@@ -43,11 +43,16 @@ function( bubble_target_warnings target )
 endfunction()
 
 # Every executable: warnings, and on Windows the manifest that makes the
-# process's code page UTF-8 (see bubble/core/process.hpp).
+# process's code page UTF-8 (see bubble/core/process.hpp) and the DLLs it
+# links - wgpu-native's - copied next to it.
 function( bubble_executable target )
     bubble_target_warnings( ${target} )
     if( WIN32 )
         target_sources( ${target} PRIVATE ${PROJECT_SOURCE_DIR}/cmake/utf8.manifest )
+        add_custom_command( TARGET ${target} POST_BUILD
+                            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_RUNTIME_DLLS:${target}>
+                                    $<TARGET_FILE_DIR:${target}>
+                            COMMAND_EXPAND_LISTS )
     endif()
 endfunction()
 

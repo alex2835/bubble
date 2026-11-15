@@ -33,7 +33,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 ## Layout
 
 ```
-deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md
+deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md. wgpu-native alone is
+                              downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
@@ -54,6 +55,10 @@ projects/engine/include/bubble/
                               once, at any frame rate)
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents, gamepads opened as
                               they come, QuitRequested, Run - a loop, or the browser's frames), Window
+    render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
+                              GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
+                              for tests; Clear, TryReadRgba8), GpuSurface (the window's swap chain, sRGB views,
+                              Resize/TryAcquire/Present), GpuHandle (WGPU handles owned); WGPU types stop here
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -101,8 +106,8 @@ projects/editing/include/bubble/editing/
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
-projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a window and the
-                              actions it fires, logged
+projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a window the GPU
+                              clears to a color the actions change
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; deps/ tests deps (luaubind
                               too)
 ```

@@ -1,10 +1,13 @@
 // The runner: a game on its own. App, the project and its levels come with
-// their stages; for now a window and the actions that fire in it, logged -
-// stage 5's check by hand. The keyboard, a gamepad and touches drive "jump"
-// and "move_x"; the mouse touches too, for a screen without touch.
+// their stages; for now a window the GPU clears to a color the actions
+// change, and the actions logged - stages 5 and 6 checked by hand. The
+// keyboard, a gamepad and touches drive "jump" and "move_x"; the mouse
+// touches too, for a screen without touch.
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
 #include "bubble/platform/platform.hpp"
+#include "bubble/render/gpu/gpu.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/thread.hpp"
 
 using namespace bubble;
@@ -28,6 +31,17 @@ ActionMap Controls()
         .Bind( "move_x", secondQuarter );
     return map;
 }
+
+// Night blue; red to the right, blue to the left, lighter while jumping.
+Color Background( const Actions& actions )
+{
+    const f32 move = actions.Axis( "move_x"_n );
+    const f32 jump = actions.Down( "jump"_n ) ? 0.4f : 0.0f;
+    return Color{ .mR = 0.1f + 0.5f * max( move, 0.0f ) + jump,
+                  .mG = 0.12f + jump,
+                  .mB = 0.25f + 0.5f * max( -move, 0.0f ) + jump,
+                  .mA = 1.0f };
+}
 }
 
 int main()
@@ -46,7 +60,11 @@ int main()
         LogError( "{}", windowMaybe.error() );
         return 1;
     }
+    const Window& window = *windowMaybe;
 
+    // The GPU after the window, and gone before it.
+    const Scope<GpuStartup> startup = Gpu::Start( window );
+    Scope<Gpu> gpu;
     Input input( Controls() );
     f32 lastMove = 0.0f;
     platform.Run( [&]( f64 ) {
@@ -60,9 +78,32 @@ int main()
             LogInfo( "move_x {:.2f}", move );
             lastMove = move;
         }
+
+        if ( not gpu )
+        {
+            auto finishedMaybe = startup->TryFinish();
+            if ( not finishedMaybe )
+                return true;
+            if ( not *finishedMaybe )
+            {
+                LogError( "{}", finishedMaybe->error() );
+                return false;
+            }
+            gpu = std::move( **finishedMaybe );
+        }
+        gpu->Poll();
+        GpuSurface& surface = *gpu->TrySurface();
+        surface.Resize( window.PixelSize() );
+        // Presenting waits for the display, which paces the loop.
+        if ( auto viewMaybe = surface.TryAcquire() )
+        {
+            gpu->Clear( viewMaybe->Get(), Background( actions ) );
+            surface.Present();
+        }
 #ifndef __EMSCRIPTEN__
-        // Until the renderer's present waits for the display.
-        this_thread::sleep_for( chrono::milliseconds( 10 ) );
+        // Minimized: nothing to present, nothing to wait for.
+        else
+            this_thread::sleep_for( chrono::milliseconds( 10 ) );
 #endif
         return not platform.QuitRequested();
     } );

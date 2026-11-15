@@ -105,6 +105,52 @@ else()
     target_compile_options( SDL3-static PRIVATE -w )
 endif()
 
+# wgpu-native v29.0.1.1 - WebGPU on the desktop: Rust's wgpu behind the
+# standard webgpu.h, seen only inside bubble/render/gpu. The one library not
+# kept in the repository: its prebuilt release is downloaded once, at
+# configure time, into out/downloads - pinned by version and SHA-256, so a
+# changed file stops the build - and used as a shared library, which works
+# with any build type (the static one is built against the release CRT). The
+# web has emdawnwebgpu instead, which comes with Emscripten.
+if( NOT EMSCRIPTEN )
+    set( BUBBLE_WGPU_VERSION v29.0.1.1 )
+    if( WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64" )
+        set( wgpu_asset wgpu-windows-x86_64-msvc-release )
+        set( wgpu_sha256 7e67d7445c42aeb85e30f88930fd8d7d83ee769e3390aeb1ada75ebf3cf78132 )
+    elseif( CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64" )
+        set( wgpu_asset wgpu-linux-x86_64-release )
+        set( wgpu_sha256 95a4d90c071005a98d03eab348beaa6b07e16eb00d1dcdb9f8348f75eb97ec5a )
+    else()
+        message( FATAL_ERROR "no wgpu-native build for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR} yet" )
+    endif()
+    # Shared by every preset's build tree.
+    set( wgpu_dir ${PROJECT_SOURCE_DIR}/out/downloads/${wgpu_asset}-${BUBBLE_WGPU_VERSION} )
+    if( NOT EXISTS ${wgpu_dir}/.complete )
+        set( wgpu_url https://github.com/gfx-rs/wgpu-native/releases/download/${BUBBLE_WGPU_VERSION}/${wgpu_asset}.zip )
+        message( STATUS "Downloading ${wgpu_url}" )
+        file( DOWNLOAD ${wgpu_url} ${wgpu_dir}.zip EXPECTED_HASH SHA256=${wgpu_sha256} TLS_VERIFY ON STATUS wgpu_status )
+        list( GET wgpu_status 0 wgpu_code )
+        if( NOT wgpu_code EQUAL 0 )
+            file( REMOVE ${wgpu_dir}.zip )
+            message( FATAL_ERROR "wgpu-native did not download: ${wgpu_status}" )
+        endif()
+        file( REMOVE_RECURSE ${wgpu_dir} )
+        file( ARCHIVE_EXTRACT INPUT ${wgpu_dir}.zip DESTINATION ${wgpu_dir} )
+        file( REMOVE ${wgpu_dir}.zip )
+        file( TOUCH ${wgpu_dir}/.complete )
+    endif()
+    add_library( wgpu_native SHARED IMPORTED GLOBAL )
+    set_target_properties( wgpu_native PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${wgpu_dir}/include
+                                                  INTERFACE_INCLUDE_DIRECTORIES ${wgpu_dir}/include )
+    if( WIN32 )
+        set_target_properties( wgpu_native PROPERTIES IMPORTED_LOCATION ${wgpu_dir}/lib/wgpu_native.dll
+                                                      IMPORTED_IMPLIB ${wgpu_dir}/lib/wgpu_native.dll.lib )
+    else()
+        set_target_properties( wgpu_native PROPERTIES IMPORTED_LOCATION ${wgpu_dir}/lib/libwgpu_native.so
+                                                      IMPORTED_NO_SONAME TRUE )
+    endif()
+endif()
+
 # stb_image 2.32 - images decoded by the texture importer, in the editor and
 # the cook; a runner reads textures already imported. Its implementation is
 # compiled once in stb_image.cpp.

@@ -14,6 +14,14 @@ target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
 # Windows, input and the frame loop: SDL, behind bubble/platform alone.
 target_link_libraries( bubble_engine PRIVATE SDL3::SDL3-static )
+# WebGPU: wgpu-native on the desktop, the browser's own through emdawnwebgpu
+# on the web. Its types are in bubble/render/gpu's headers.
+if( EMSCRIPTEN )
+    target_compile_options( bubble_engine PUBLIC --use-port=emdawnwebgpu )
+    target_link_options( bubble_engine PUBLIC --use-port=emdawnwebgpu )
+else()
+    target_link_libraries( bubble_engine PUBLIC wgpu_native )
+endif()
 
 # Jobs' pool; the web has none and runs jobs on the main thread. Assets
 # come by fetch there.

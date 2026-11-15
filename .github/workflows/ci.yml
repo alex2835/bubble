@@ -53,12 +53,14 @@ jobs:
           sudo apt-get install -y ninja-build libc++-20-dev libc++abi-20-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
-      # SDL's windows on Linux: X11 and Wayland, gamepads through udev.
-      - name: Install SDL's dependencies
+      # SDL's windows on Linux: X11 and Wayland, gamepads through udev; and
+      # lavapipe, Mesa's software Vulkan, for the GPU tests on a runner with
+      # no GPU.
+      - name: Install SDL's and the GPU's dependencies
         run: >-
           sudo apt-get install -y libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev
           libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev libegl1-mesa-dev libdrm-dev
-          libgbm-dev libdbus-1-dev libudev-dev
+          libgbm-dev libdbus-1-dev libudev-dev mesa-vulkan-drivers
       - name: Configure
         run: cmake --preset linux
       - name: Build
