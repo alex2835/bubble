@@ -8,21 +8,8 @@ namespace bubble
 template <typename T>
 void ComponentTypes::AddInternal( string_view name )
 {
-    Reflection& reflection = mReflection;
-    Type type;
+    Type type = Make<T>();
     type.mName = *Name::TryFrom( name );
-    type.mGet = [&reflection]( const Scene& scene, Entity entity ) {
-        const auto componentMaybe = scene.TryGet<T>( entity );
-        return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
-    };
-    type.mGetWritable = [&reflection]( Scene& scene, Entity entity ) {
-        const auto componentMaybe = scene.TryGet<T>( entity );
-        return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
-    };
-    type.mAdd = []( Scene& scene, Entity entity, MetaAny& made ) {
-        scene.Add<T>( entity, std::move( made.cast<T&>() ) );
-    };
-    type.mRemove = []( Scene& scene, Entity entity ) { scene.Remove<T>( entity ); };
     mInternal.push_back( std::move( type ) );
 }
 

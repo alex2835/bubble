@@ -15,6 +15,20 @@ void Events::Unsubscribe( EventHandle handle )
         erase( mByType[type], handle );
 }
 
+vector<Events::Emitted> Events::CopyWaiting() const
+{
+    if ( mDelivering )
+        throw logic_error( "Events::CopyWaiting from inside a listener" );
+    return mPending;
+}
+
+void Events::RestoreWaiting( vector<Emitted> waiting )
+{
+    if ( mDelivering )
+        throw logic_error( "Events::RestoreWaiting from inside a listener" );
+    mPending = std::move( waiting );
+}
+
 void Events::Deliver()
 {
     if ( mDelivering )

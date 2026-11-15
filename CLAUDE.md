@@ -43,7 +43,8 @@ projects/engine/include/bubble/
                               SaveScene/LoadScene (nested JSON with "version"), one entity to JSON and back;
                               Prefab (nodes with ids that last, next_id), Instantiate, an instance in a level as
                               its prefab + overrides (set, add_components, add_children, remove); PrefabInstance and
-                              PrefabLink are ComponentTypes' internal types: kept by undo, never in files
+                              PrefabLink are ComponentTypes' internal types: kept by undo, never in files;
+                              SceneSnapshot (the data in memory: entity numbers exact, every type's order kept)
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
                               parser and writer), Value <-> Json (plain by type, tagged for Any)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
@@ -51,7 +52,8 @@ projects/engine/include/bubble/
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
     world/                    App (one a process: reflection, component types, modules), World (a scene and its
                               modules: data events - added, changed, removed - delivered at the world's turns, the
-                              frame's phases in one list, FixedClock, Services by type, Events queued), Module
+                              frame's phases in one list, FixedClock, Services by type, Events queued;
+                              Snapshot/Restore - runtime built again from the data), Module
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and never included by it: Document (a scene, its

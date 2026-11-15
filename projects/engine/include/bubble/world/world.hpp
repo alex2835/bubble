@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/core/random.hpp"
 #include "bubble/scene/scene.hpp"
+#include "bubble/scene/scene_snapshot.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/world/app.hpp"
 #include "bubble/world/events.hpp"
@@ -19,8 +20,8 @@ enum class Phase : u8
     // Each fixed step, with the same dt every time.
     FixedUpdate, // game logic: Luau's on_fixed_update
     Physics,     // one physics step
-             // Once a frame, with the frame's time.
-    Update, // Luau's on_update, the camera
+                 // Once a frame, with the frame's time.
+    Update,      // Luau's on_update, the camera
     Animation,
     Transforms, // between the last two steps, by Alpha()
     Audio,
@@ -33,6 +34,33 @@ struct WorldOptions
     // Where GetRandom() - and, later, Luau's math.random - start from: the
     // same seed and the same input play the same game.
     u64 mSeed = 0;
+};
+
+class World;
+
+// A world as it stands, copied in memory: what rewind goes back to, a
+// checkpoint. The scene's data (SceneSnapshot), the clock part-way to the
+// next step, the steps done, the Random and the events waiting - all a
+// world's future follows from besides its input. Not a save: it lasts as
+// long as App's types do.
+class WorldSnapshot
+{
+private:
+    friend class World;
+    WorldSnapshot( SceneSnapshot scene, FixedClock clock, Random random, u64 steps, vector<Events::Emitted> events )
+        : mScene( std::move( scene ) ),
+          mClock( clock ),
+          mRandom( random ),
+          mSteps( steps ),
+          mEvents( std::move( events ) )
+    {
+    }
+
+    SceneSnapshot mScene;
+    FixedClock mClock;
+    Random mRandom;
+    u64 mSteps = 0;
+    vector<Events::Emitted> mEvents;
 };
 
 // One live scene and its modules: the game, a prefab's preview, a test,
@@ -72,6 +100,19 @@ public:
     // physics stand, and a menu still works.
     void SetPaused( bool paused ) { mPaused = paused; }
     bool Paused() const { return mPaused; }
+
+    // The world between two frames, copied. The data events waiting are
+    // delivered first - the world's next turn would deliver them before
+    // anything else happens - so the modules' runtime is what the data says.
+    // From inside a phase or a data event it is a logic_error.
+    WorldSnapshot Snapshot();
+    // Puts the world back as `snapshot` has it, the modules and their hooks
+    // staying: they hear every component go, then every one there was come
+    // back, and build their runtime again from the data. It goes on from
+    // there as the world the snapshot was taken from did - this one or
+    // another of the same App: the editor's Play starts from the level's. From
+    // inside a phase or a data event it is a logic_error.
+    void Restore( const WorldSnapshot& snapshot );
 
     // Fixed steps done since the world was made.
     u64 Steps() const { return mSteps; }
@@ -194,6 +235,7 @@ private:
     void Queue( DataEventKind kind, Name component, Entity entity, Name field = {} );
     void DeliverDataEvents();
     void Run( Phase phase, f32 dt );
+    void RequireBetweenFrames( string_view what ) const;
 
     static constexpr size_t cPhases = static_cast<size_t>( Phase::Render ) + 1;
 

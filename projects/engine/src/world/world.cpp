@@ -58,6 +58,39 @@ void World::Step()
     ++mSteps;
 }
 
+WorldSnapshot World::Snapshot()
+{
+    BUBBLE_PROFILE_ZONE();
+    RequireBetweenFrames( "Snapshot" );
+    DeliverDataEvents();
+    return WorldSnapshot( SceneSnapshot( mScene, mApp.GetComponentTypes() ), mClock, mRandom, mSteps,
+                          mEvents.CopyWaiting() );
+}
+
+void World::Restore( const WorldSnapshot& snapshot )
+{
+    BUBBLE_PROFILE_ZONE();
+    RequireBetweenFrames( "Restore" );
+    // What waited was about the scene that goes: the modules hear it all
+    // anew.
+    mPending.clear();
+    snapshot.mScene.Restore( mScene, mApp.GetComponentTypes() );
+    DeliverDataEvents();
+    // The runtime built again lies in the order it was built in; the
+    // original's lay in the order of its history.
+    snapshot.mScene.Reorder( mScene );
+    mClock = snapshot.mClock;
+    mRandom = snapshot.mRandom;
+    mSteps = snapshot.mSteps;
+    mEvents.RestoreWaiting( snapshot.mEvents );
+}
+
+void World::RequireBetweenFrames( string_view what ) const
+{
+    if ( mRunning or mDelivering )
+        throw logic_error( format( "World::{} from inside a {}", what, mRunning ? "phase" : "data event" ) );
+}
+
 void World::AddStep( Phase phase, function<void( f32 dt )> step )
 {
     if ( mRunning )

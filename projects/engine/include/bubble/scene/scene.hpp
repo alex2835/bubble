@@ -176,6 +176,9 @@ public:
     }
 
 private:
+    // Copies the entities' storage as EnTT keeps it, and puts it back.
+    friend class SceneSnapshot;
+
     using Registry = entt::basic_registry<Entity>;
 
     static void Constructed( ComponentListener& listener, Registry&, Entity entity ) { listener.Added( entity ); }

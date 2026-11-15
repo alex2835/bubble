@@ -2,6 +2,7 @@
 #include "bubble/types/containers.hpp"
 #include "bubble/types/function.hpp"
 #include "bubble/types/handle.hpp"
+#include "bubble/types/utility.hpp"
 #include <entt/core/any.hpp>
 #include <entt/core/type_info.hpp>
 
@@ -38,6 +39,7 @@ public:
     template <typename E>
     void Emit( E event )
     {
+        static_assert( copy_constructible<E>, "an event is copied by a world's snapshot" );
         mPending.push_back( Emitted{ entt::type_hash<E>::value(), entt::any( std::move( event ) ) } );
     }
 
@@ -50,17 +52,24 @@ public:
 
     size_t Waiting() const { return mPending.size(); }
 
+    // One event waiting, its type erased.
+    struct Emitted
+    {
+        u32 mType = 0;
+        entt::any mEvent;
+    };
+
+    // What waits, copied, and put back in place of what waits then: a
+    // world's snapshot delivers what the world it was taken from would.
+    // Either from inside a listener is a logic_error.
+    vector<Emitted> CopyWaiting() const;
+    void RestoreWaiting( vector<Emitted> waiting );
+
 private:
     struct Subscriber
     {
         u32 mType = 0;
         function<void( const entt::any& )> mFn;
-    };
-
-    struct Emitted
-    {
-        u32 mType = 0;
-        entt::any mEvent;
     };
 
     SlotMap<Subscriber, EventTag> mSubscribers;

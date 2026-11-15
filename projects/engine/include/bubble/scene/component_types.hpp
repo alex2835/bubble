@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/reflection/reflection.hpp"
 #include "bubble/scene/scene.hpp"
+#include "bubble/scene/scene_snapshot.hpp"
 
 namespace bubble
 {
@@ -33,6 +34,10 @@ public:
         // Gives the entity the component `made` holds, moving it.
         function<void( Scene&, Entity, MetaAny& made )> mAdd;
         function<void( Scene&, Entity )> mRemove;
+        // Every component of the type at once, for a snapshot: CopyComponents
+        // and AddComponents.
+        function<entt::any( const Scene& )> mCopyAll;
+        function<void( Scene&, const entt::any& copies )> mAddAll;
     };
 
     // With the engine's own internal types: PrefabInstance, PrefabLink.
@@ -46,21 +51,7 @@ public:
         // defaults, and undo and copies keep one by copying it.
         static_assert( default_initializable<T> and copy_constructible<T>,
                        "a component is made with its defaults and copied" );
-        Reflection& reflection = mReflection;
-        Type type;
-        type.mGet = [&reflection]( const Scene& scene, Entity entity ) {
-            const auto componentMaybe = scene.TryGet<T>( entity );
-            return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
-        };
-        type.mGetWritable = [&reflection]( Scene& scene, Entity entity ) {
-            const auto componentMaybe = scene.TryGet<T>( entity );
-            return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
-        };
-        type.mAdd = []( Scene& scene, Entity entity, MetaAny& made ) {
-            scene.Add<T>( entity, std::move( made.cast<T&>() ) );
-        };
-        type.mRemove = []( Scene& scene, Entity entity ) { scene.Remove<T>( entity ); };
-        AddType( reflection.TypeOf<T>(), std::move( type ) );
+        AddType( mReflection.TypeOf<T>(), Make<T>() );
     }
 
     // In the order they were added: the order a file lists them in.
@@ -86,6 +77,29 @@ public:
     Reflection& GetReflection() const { return mReflection; }
 
 private:
+    // The functions of a Type, for T; the rest is filled in by who adds it.
+    template <typename T>
+    Type Make() const
+    {
+        Reflection& reflection = mReflection;
+        Type type;
+        type.mGet = [&reflection]( const Scene& scene, Entity entity ) {
+            const auto componentMaybe = scene.TryGet<T>( entity );
+            return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
+        };
+        type.mGetWritable = [&reflection]( Scene& scene, Entity entity ) {
+            const auto componentMaybe = scene.TryGet<T>( entity );
+            return componentMaybe ? reflection.Ref( *componentMaybe ) : MetaAny();
+        };
+        type.mAdd = []( Scene& scene, Entity entity, MetaAny& made ) {
+            scene.Add<T>( entity, std::move( made.cast<T&>() ) );
+        };
+        type.mRemove = []( Scene& scene, Entity entity ) { scene.Remove<T>( entity ); };
+        type.mCopyAll = &CopyComponents<T>;
+        type.mAddAll = &AddComponents<T>;
+        return type;
+    }
+
     // Fills in the name, the type and the value type of `made`.
     void AddType( const MetaType& type, Type made );
 
