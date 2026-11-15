@@ -36,10 +36,12 @@ deps/luaubind/                our own small sol-like C++ binding for Luau; depen
 projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
-                              process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web: main thread)
+                              process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web and Jobs( 1 ):
+                              the main thread alone)
     assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id,
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
-                              .bubble/imported/<id>.<kind> - AssetRef<T>, reload events)
+                              .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
+                              runs, then OnLoaded) or here and now (LoadNow), AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),

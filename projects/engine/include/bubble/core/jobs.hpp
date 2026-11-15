@@ -20,7 +20,9 @@ class Jobs
 {
 public:
     // Threads that do the work, the main thread among them; 0 is one a core.
-    // The thread that makes Jobs is the main thread.
+    // The thread that makes Jobs is the main thread. With one, everything
+    // runs on it, as on the web: a test that wants the order of things
+    // fixed asks for that.
     explicit Jobs( u32 threads = 0 );
     // Waits for background work to finish. What waits for the main thread
     // then is dropped: there is no frame left to run it in.
@@ -53,15 +55,17 @@ public:
     // logic_error.
     void RunMainQueue();
 
+    // Where the work runs; Jobs' own business.
+    struct Pool;
+
 private:
     void RequireMain( string_view what ) const;
 
     thread::id mMain;
     mutex mQueueLock;
     vector<function<void()>> mQueue;
-    // enkiTS, or nothing on the web. Gone first: background work it waits
-    // for may still queue work for the main thread.
-    struct Pool;
+    // enkiTS, or the main thread alone. Gone first: background work it
+    // waits for may still queue work for the main thread.
     Scope<Pool> mPool;
 };
 }

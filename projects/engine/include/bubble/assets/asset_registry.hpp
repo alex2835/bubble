@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/assets/asset_catalog.hpp"
 #include "bubble/core/asset_path.hpp"
+#include "bubble/core/jobs.hpp"
 #include "bubble/types/containers.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/function.hpp"
@@ -126,23 +127,29 @@ AssetPath ImportedPath( const AssetId& assetId, string_view kind );
 // What it loads is what the importer made of a source - bytecode, not the
 // .luau - each type read by its loader.
 //
-// For now loading is synchronous; later it runs in the background and Load
-// returns a ref that is Loading. The calls stay the same, so code written
-// against this one already checks State.
+// Load reads and loads on Jobs' pool and returns at once, its ref Loading;
+// the entry becomes Ready or Failed at the main thread's next turn
+// (Jobs::RunMainQueue), and OnLoaded listeners hear it. Code checks State
+// rather than waits: a module builds its runtime when what it needs is
+// there. LoadNow does it all here and now - for the importer, tests and
+// tools.
 class AssetRegistry
 {
 public:
     // The bytes the importer made of an asset, of a kind: from the project's
-    // import cache, from memory in tests, from fetch on the web.
+    // import cache, from memory in tests, from fetch on the web. Called on
+    // the pool, so it is one any thread may call.
     using ReadImported = function<expected<string, string>( const AssetId& assetId, string_view kind )>;
-    // Those bytes into the asset.
+    // Those bytes into the asset - on the pool too.
     template <typename T>
     using Loader = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
-    using ChangedListener = function<void( const AssetEntryBase& entry )>;
+    using Listener = function<void( const AssetEntryBase& entry )>;
 
-    // The catalog outlives the registry, and may change while it lives: a
-    // file that appears is found by the next Load.
-    AssetRegistry( const AssetCatalog& catalog, ReadImported read );
+    // The catalog and Jobs outlive the registry; the catalog may change
+    // while it lives - a file that appears is found by the next Load.
+    AssetRegistry( const AssetCatalog& catalog, ReadImported read, Jobs& jobs );
+    AssetRegistry( const AssetRegistry& ) = delete;
+    AssetRegistry& operator=( const AssetRegistry& ) = delete;
     // Reads the import cache of the project at `root` (ImportedPath).
     static ReadImported FromDirectory( OsPath root );
 
@@ -156,37 +163,47 @@ public:
             type_index( typeid( T ) ),
             RegisteredLoader{
                 string( kind ),
-                [load = std::move( load )]( string_view bytes, AssetEntryBase& entry ) -> expected<void, string> {
-                    auto assetMaybe = load( bytes, entry.Path() );
+                [load = std::move( load )]( string_view bytes, const AssetPath& path ) -> expected<Install, string> {
+                    auto assetMaybe = load( bytes, path );
                     if ( not assetMaybe )
                         return unexpected( std::move( assetMaybe.error() ) );
-                    static_cast<AssetEntry<T>&>( entry ).mDataMaybe.emplace( std::move( *assetMaybe ) );
-                    return {};
+                    return Install( [asset = CreateRef<T>( std::move( *assetMaybe ) )]( AssetEntryBase& entry ) {
+                        static_cast<AssetEntry<T>&>( entry ).mDataMaybe.emplace( std::move( *asset ) );
+                    } );
                 } } );
         if ( not added )
             throw logic_error( format( "AssetRegistry::RegisterLoader of {} twice", kind ) );
     }
 
     // The asset at `path`, or with the id; the same entry when it is in
-    // memory already. One the catalog does not have, one not imported as T's
-    // kind, or one its loader refuses gives a Failed ref with the reason in
-    // Error(); whoever asked reports it.
+    // memory already - Loading still, perhaps. One the catalog does not
+    // have, one not imported as T's kind, or one its loader refuses comes to
+    // be Failed with the reason in Error(); whoever asked reports it.
     template <typename T>
     AssetRef<T> Load( const AssetPath& path )
     {
-        const auto assetIdMaybe = mCatalog.TryIdOf( path );
-        if ( not assetIdMaybe )
-            return Unknown<T>( {}, path, format( "{} is not an asset of the project", path.View() ) );
-        return Typed<T>( LoadEntry( *assetIdMaybe, path, typeid( T ), &Make<T> ) );
+        return LoadAt<T>( path, When::Later );
     }
 
     template <typename T>
     AssetRef<T> Load( const AssetId& assetId )
     {
-        const auto pathMaybe = mCatalog.TryPathOf( assetId );
-        if ( not pathMaybe )
-            return Unknown<T>( assetId, {}, format( "no asset {} in the project", assetId.ToString() ) );
-        return Typed<T>( LoadEntry( assetId, *pathMaybe, typeid( T ), &Make<T> ) );
+        return LoadWith<T>( assetId, When::Later );
+    }
+
+    // The same, here and now: the ref is Ready or Failed when it returns. An
+    // entry that was Loading is loaded now, and what the pool makes of it
+    // later goes unused.
+    template <typename T>
+    AssetRef<T> LoadNow( const AssetPath& path )
+    {
+        return LoadAt<T>( path, When::Now );
+    }
+
+    template <typename T>
+    AssetRef<T> LoadNow( const AssetId& assetId )
+    {
+        return LoadWith<T>( assetId, When::Now );
     }
 
     // The asset if it is in memory - never loads.
@@ -206,20 +223,52 @@ public:
     // How many assets are in memory.
     size_t Count() const { return mIndex->mById.size(); }
 
-    // The asset was imported again: loads it into its entry and tells the
-    // listeners. If the new version fails, the old one stays and the error
-    // comes back. An asset nobody holds is not loaded, and nothing happens.
+    // The asset was imported again: loads it into its entry, here and now,
+    // and tells the listeners. If the new version fails, the old one stays
+    // and the error comes back. An asset nobody holds is not loaded, and
+    // nothing happens.
     expected<void, string> TryReload( const AssetPath& path );
 
-    // Called after every reload that took, with the entry.
-    AssetListenerHandle OnChanged( ChangedListener listener );
+    // An entry that was Loading is Ready or Failed: its first version came,
+    // by Load, LoadNow or a reload.
+    AssetListenerHandle OnLoaded( Listener listener );
+    // A reload of an entry loaded before took.
+    AssetListenerHandle OnChanged( Listener listener );
     void RemoveListener( AssetListenerHandle listenerHandle );
 
 private:
+    // What a load made, put into its entry on the main thread.
+    using Install = function<void( AssetEntryBase& entry )>;
+
     struct RegisteredLoader
     {
         string mKind;
-        function<expected<void, string>( string_view bytes, AssetEntryBase& entry )> mLoad;
+        function<expected<Install, string>( string_view bytes, const AssetPath& path )> mLoad;
+    };
+
+    enum class When : u8
+    {
+        Now,
+        Later,
+    };
+
+    enum class Heard : u8
+    {
+        Loaded,
+        Changed,
+    };
+
+    struct Listening
+    {
+        Heard mHeard = Heard::Loaded;
+        Listener mListener;
+    };
+
+    // The listeners, apart from the registry: a load the pool finishes
+    // after the registry went finds them gone and does nothing.
+    struct Listeners
+    {
+        SlotMap<Listening, AssetListenerTag> mAll;
     };
 
     using MakeEntry = Ref<AssetEntryBase> ( * )( const AssetId&, const AssetPath& );
@@ -248,15 +297,43 @@ private:
         return AssetRef<T>( entry );
     }
 
-    Ref<AssetEntryBase> LoadEntry( const AssetId& assetId, const AssetPath& path, type_index type, MakeEntry make );
+    template <typename T>
+    AssetRef<T> LoadAt( const AssetPath& path, When when )
+    {
+        const auto assetIdMaybe = mCatalog.TryIdOf( path );
+        if ( not assetIdMaybe )
+            return Unknown<T>( {}, path, format( "{} is not an asset of the project", path.View() ) );
+        return Typed<T>( LoadEntry( *assetIdMaybe, path, typeid( T ), &Make<T>, when ) );
+    }
+
+    template <typename T>
+    AssetRef<T> LoadWith( const AssetId& assetId, When when )
+    {
+        const auto pathMaybe = mCatalog.TryPathOf( assetId );
+        if ( not pathMaybe )
+            return Unknown<T>( assetId, {}, format( "no asset {} in the project", assetId.ToString() ) );
+        return Typed<T>( LoadEntry( assetId, *pathMaybe, typeid( T ), &Make<T>, when ) );
+    }
+
+    Ref<AssetEntryBase> LoadEntry( const AssetId& assetId,
+                                   const AssetPath& path,
+                                   type_index type,
+                                   MakeEntry make,
+                                   When when );
     Ref<AssetEntryBase> TryFindEntry( const AssetId& assetId ) const;
-    expected<void, string> TryLoadBytes( AssetEntryBase& entry );
+    const RegisteredLoader& LoaderOf( const AssetEntryBase& entry ) const;
+    void StartLoading( const Ref<AssetEntryBase>& entry );
+    // Loads the entry here and now; whether it took.
+    expected<void, string> TryLoadHere( AssetEntryBase& entry );
+    static void Finish( AssetEntryBase& entry, const expected<Install, string>& loaded );
+    static void Tell( const Listeners& listeners, Heard heard, const AssetEntryBase& entry );
 
     const AssetCatalog& mCatalog;
     ReadImported mRead;
+    Jobs& mJobs;
     hmap<type_index, RegisteredLoader> mLoaders;
     // Shared with the entries, which may outlive the registry.
     Ref<detail::AssetIndex> mIndex = CreateRef<detail::AssetIndex>();
-    SlotMap<ChangedListener, AssetListenerTag> mListeners;
+    Ref<Listeners> mListeners = CreateRef<Listeners>();
 };
 }

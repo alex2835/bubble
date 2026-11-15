@@ -26,6 +26,55 @@ void RunBackground( Jobs& jobs, const function<void()>& work )
 }
 }
 
+// Where jobs run: threads, or the main thread alone.
+struct Jobs::Pool
+{
+    virtual ~Pool() = default;
+    virtual u32 Threads() const = 0;
+    virtual void ParallelFor( u32 count, u32 grain, const function<void( u32, u32 )>& fn ) = 0;
+    virtual void Background( function<void()> work ) = 0;
+    // The main thread's turn, at RunMainQueue.
+    virtual void MainTurn() = 0;
+};
+
+namespace
+{
+// Everything on the main thread: the web without threads, and Jobs( 1 ) -
+// a test that wants the order of things fixed, a machine of one core.
+class MainThreadPool final : public Jobs::Pool
+{
+public:
+    explicit MainThreadPool( Jobs& jobs ) : mJobs( jobs ) {}
+
+    // As a pool waits for its threads.
+    ~MainThreadPool() override { MainTurn(); }
+
+    u32 Threads() const override { return 1; }
+
+    void ParallelFor( u32 count, u32, const function<void( u32, u32 )>& fn ) override
+    {
+        if ( count > 0 )
+            fn( 0, count );
+    }
+
+    // Run when the main queue is: what a thread would have got to by then.
+    void Background( function<void()> work ) override { mBackground.push_back( std::move( work ) ); }
+
+    // The background work waiting runs. Taken first - it may add more, for
+    // the next turn.
+    void MainTurn() override
+    {
+        const vector<function<void()>> due = exchange( mBackground, {} );
+        for ( const function<void()>& work : due )
+            RunBackground( mJobs, work );
+    }
+
+private:
+    Jobs& mJobs;
+    vector<function<void()>> mBackground;
+};
+}
+
 #ifndef BUBBLE_JOBS_INLINE
 // A background job's task: enkiTS keeps a pointer to it until it is done,
 // so it lives on the heap, owned by the Pool, and goes once it is complete.
@@ -50,24 +99,19 @@ private:
     function<void()> mWork;
 };
 
-struct Jobs::Pool
+namespace
 {
-    Jobs& mJobs;
-    enki::TaskScheduler mScheduler;
-    // The main thread's: Background adds, RunMainQueue drops what is done.
-    vector<Scope<BackgroundTask>> mBackground;
-
-    Pool( Jobs& jobs, u32 threads ) : mJobs( jobs )
-    {
-        mScheduler.Initialize( threads == 0 ? enki::GetNumHardwareThreads() : threads );
-    }
+class ThreadPool final : public Jobs::Pool
+{
+public:
+    ThreadPool( Jobs& jobs, u32 threads ) : mJobs( jobs ) { mScheduler.Initialize( threads ); }
 
     // Everything finishes before the tasks it runs go.
-    ~Pool() { mScheduler.WaitforAllAndShutdown(); }
+    ~ThreadPool() override { mScheduler.WaitforAllAndShutdown(); }
 
-    u32 Threads() const { return mScheduler.GetNumTaskThreads(); }
+    u32 Threads() const override { return mScheduler.GetNumTaskThreads(); }
 
-    void ParallelFor( u32 count, u32 grain, const function<void( u32, u32 )>& fn )
+    void ParallelFor( u32 count, u32 grain, const function<void( u32, u32 )>& fn ) override
     {
         mutex errorLock;
         exception_ptr error;
@@ -94,53 +138,45 @@ struct Jobs::Pool
             rethrow_exception( error );
     }
 
-    void Background( function<void()> work )
+    void Background( function<void()> work ) override
     {
         mBackground.push_back( CreateScope<BackgroundTask>( mJobs, std::move( work ) ) );
         mScheduler.AddTaskSetToPipe( mBackground.back().get() );
     }
 
-    // The main thread's turn: the tasks done go.
-    void MainTurn()
+    // The tasks done go.
+    void MainTurn() override
     {
         erase_if( mBackground, []( const Scope<BackgroundTask>& task ) { return task->GetIsComplete(); } );
     }
-};
-#else
-struct Jobs::Pool
-{
+
+private:
     Jobs& mJobs;
-    // Run on the main thread when the main queue is: what a thread would
-    // have got to by then.
-    vector<function<void()>> mBackground;
-
-    Pool( Jobs& jobs, u32 ) : mJobs( jobs ) {}
-
-    // As a pool waits for its threads.
-    ~Pool() { MainTurn(); }
-
-    u32 Threads() const { return 1; }
-
-    void ParallelFor( u32 count, u32, const function<void( u32, u32 )>& fn )
-    {
-        if ( count > 0 )
-            fn( 0, count );
-    }
-
-    void Background( function<void()> work ) { mBackground.push_back( std::move( work ) ); }
-
-    // The main thread's turn: the background work waiting runs. Taken
-    // first - it may add more, for the next turn.
-    void MainTurn()
-    {
-        const vector<function<void()>> due = exchange( mBackground, {} );
-        for ( const function<void()>& work : due )
-            RunBackground( mJobs, work );
-    }
+    enki::TaskScheduler mScheduler;
+    // The main thread's: Background adds, MainTurn drops what is done.
+    vector<Scope<BackgroundTask>> mBackground;
 };
+}
 #endif
 
-Jobs::Jobs( u32 threads ) : mMain( this_thread::get_id() ), mPool( CreateScope<Pool>( *this, threads ) )
+namespace
+{
+Scope<Jobs::Pool> MakePool( Jobs& jobs, u32 threads )
+{
+#ifdef BUBBLE_JOBS_INLINE
+    static_cast<void>( threads );
+    return CreateScope<MainThreadPool>( jobs );
+#else
+    const u32 count = threads == 0 ? enki::GetNumHardwareThreads() : threads;
+    // One thread is the main one, with no pool to hand work to.
+    if ( count <= 1 )
+        return CreateScope<MainThreadPool>( jobs );
+    return CreateScope<ThreadPool>( jobs, count );
+#endif
+}
+}
+
+Jobs::Jobs( u32 threads ) : mMain( this_thread::get_id() ), mPool( MakePool( *this, threads ) )
 {
 }
 

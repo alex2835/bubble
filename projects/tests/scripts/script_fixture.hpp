@@ -27,12 +27,16 @@ struct Scripts
     hmap<string, string> mFiles;
     AssetCatalog mCatalog;
     Importer mImporter = ScriptImporter();
-    AssetRegistry mAssets{ mCatalog, [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
-                              const auto found = mFiles.find( ImportedPath( assetId, kind ).View() );
-                              if ( found == mFiles.end() )
-                                  return unexpected( "no such file"s );
-                              return found->second;
-                          } };
+    // The main thread alone: the world's scripts wait for nothing here.
+    Jobs mJobs{ 1 };
+    AssetRegistry mAssets{ mCatalog,
+                           [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+                               const auto found = mFiles.find( ImportedPath( assetId, kind ).View() );
+                               if ( found == mFiles.end() )
+                                   return unexpected( "no such file"s );
+                               return found->second;
+                           },
+                           mJobs };
     // What the world holds loaded - as the world's scripts module would.
     vector<AssetRef<ScriptAsset>> mHeld;
     LuaState mState{ PrintToLog };
@@ -70,7 +74,7 @@ struct Scripts
     {
         const auto importedMaybe = TryWrite( path, source );
         REQUIRE_MESSAGE( importedMaybe, importedMaybe.error() );
-        auto asset = mAssets.Load<ScriptAsset>( *AssetPath::TryFrom( path ) );
+        auto asset = mAssets.LoadNow<ScriptAsset>( *AssetPath::TryFrom( path ) );
         REQUIRE_MESSAGE( asset.Ready(), asset.Entry().Error() );
         mHeld.push_back( std::move( asset ) );
     }

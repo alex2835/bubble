@@ -130,11 +130,13 @@ TEST_CASE( "A project's import takes every source with an importer, in order, an
     CHECK( first.mErrors[1].starts_with( "scripts/bad.luau:1:" ) );
 
     // What the script importer made, the engine's loader reads.
-    AssetRegistry assets( scanMaybe->mCatalog, [&]( const AssetId& assetId, string_view kind ) {
-        return project.TryRead( ImportedPath( assetId, kind ) );
-    } );
+    Jobs jobs( 1 );
+    AssetRegistry assets(
+        scanMaybe->mCatalog,
+        [&]( const AssetId& assetId, string_view kind ) { return project.TryRead( ImportedPath( assetId, kind ) ); },
+        jobs );
     RegisterScriptLoader( assets );
-    CHECK( assets.Load<ScriptAsset>( Path( "scripts/door.luau" ) ).Ready() );
+    CHECK( assets.LoadNow<ScriptAsset>( Path( "scripts/door.luau" ) ).Ready() );
 
     // Again: nothing changed, nothing imported, the broken ones still broken.
     const ProjectImport second = ImportProject( project, scanMaybe->mCatalog, importers );

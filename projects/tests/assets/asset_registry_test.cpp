@@ -1,12 +1,13 @@
 // The asset registry: one entry per asset, found through the catalog and
-// read from what the importer made of it, refs to entries, reloads into the
-// same entry. Synchronous for now; the calls are the ones loading in the
-// background will keep.
+// read from what the importer made of it, loaded on Jobs' pool or here and
+// now, refs to entries, reloads into the same entry.
 #include "bubble/assets/asset_registry.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/filesystem.hpp"
 #include "bubble/types/stream.hpp"
+#include "bubble/types/thread.hpp"
 #include <doctest.h>
 
 using namespace bubble;
@@ -29,14 +30,19 @@ struct Project
 {
     hmap<string, string> mImported;
     AssetCatalog mCatalog;
-    AssetRegistry mAssets{ mCatalog, [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
-                              const auto found = mImported.find( ImportedPath( assetId, kind ).View() );
-                              if ( found == mImported.end() )
-                                  return unexpected( "no such file"s );
-                              return found->second;
-                          } };
+    Jobs mJobs;
+    AssetRegistry mAssets{ mCatalog,
+                           [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+                               const auto found = mImported.find( ImportedPath( assetId, kind ).View() );
+                               if ( found == mImported.end() )
+                                   return unexpected( "no such file"s );
+                               return found->second;
+                           },
+                           mJobs };
 
-    Project()
+    // Everything on the main thread unless a test asks for threads.
+    explicit Project( u32 threads = 1 ) : mJobs( threads )
+
     {
         mAssets.RegisterLoader<TextAsset>( "text", []( string_view bytes, const AssetPath& ) {
             if ( bytes == "broken" )
@@ -68,10 +74,23 @@ struct Project
         return assetId;
     }
 
+    // Here and now.
     template <typename T = TextAsset>
     AssetRef<T> Load( string_view path )
     {
-        return mAssets.Load<T>( *AssetPath::TryFrom( path ) );
+        return mAssets.LoadNow<T>( *AssetPath::TryFrom( path ) );
+    }
+
+    // Runs the main thread's turns until `ref` is not Loading, or gives up
+    // after a good while.
+    template <typename T>
+    void Await( const AssetRef<T>& ref )
+    {
+        for ( u32 i = 0; i < 5000 and ref.State() == AssetState::Loading; ++i )
+        {
+            mJobs.RunMainQueue();
+            this_thread::sleep_for( chrono::milliseconds( 1 ) );
+        }
     }
 };
 }
@@ -87,7 +106,7 @@ TEST_CASE( "A loaded asset is Ready, and the same path is the same entry" )
     CHECK( hello.Entry().Id() == helloId );
     CHECK( project.Load( "notes/hello.txt" ) == hello );
     // By id, the same entry.
-    CHECK( project.mAssets.Load<TextAsset>( helloId ) == hello );
+    CHECK( project.mAssets.LoadNow<TextAsset>( helloId ) == hello );
 
     // TryFind never loads, by path or by id.
     CHECK( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "notes/hello.txt" ) ) == hello );
@@ -118,7 +137,7 @@ TEST_CASE( "An asset that cannot load fails with the reason" )
     const auto stray = project.Load( "stray.txt" );
     CHECK( stray.Entry().Error() == "stray.txt is not an asset of the project" );
     const AssetId unknown = AssetId::Generate();
-    CHECK( project.mAssets.Load<TextAsset>( unknown ).Entry().Error() ==
+    CHECK( project.mAssets.LoadNow<TextAsset>( unknown ).Entry().Error() ==
            "no asset " + unknown.ToString() + " in the project" );
     CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "stray.txt" ) ) );
 
@@ -363,11 +382,12 @@ TEST_CASE( "The registry reads a project's import cache, names in any script inc
     fs::create_directories( imported.parent_path() );
     ofstream( imported, ios::binary ) << "привет";
 
-    AssetRegistry assets( catalog, AssetRegistry::FromDirectory( root ) );
+    Jobs jobs( 1 );
+    AssetRegistry assets( catalog, AssetRegistry::FromDirectory( root ), jobs );
     assets.RegisterLoader<TextAsset>( "text", []( string_view bytes, const AssetPath& ) {
         return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
     } );
-    const auto text = assets.Load<TextAsset>( *AssetPath::TryFrom( "заметки/привет.txt" ) );
+    const auto text = assets.LoadNow<TextAsset>( *AssetPath::TryFrom( "заметки/привет.txt" ) );
     REQUIRE( text.Ready() );
     CHECK( text.TryGet()->mText == "привет" );
     fs::remove_all( root );
@@ -384,4 +404,80 @@ TEST_CASE( "A type has one loader, and a type with none is a bug" )
     };
     project.Add( "a.txt", "a" );
     CHECK_THROWS_AS( project.Load<Unloaded>( "a.txt" ), logic_error );
+}
+
+TEST_CASE( "Load reads on the pool, and the entry is Ready at the main thread's turn, its listeners told" )
+{
+    Project project( 2 );
+    project.Add( "a.txt", "a" );
+    project.Add( "bad.txt", "broken" );
+    vector<string> heard;
+    project.mAssets.OnLoaded( [&]( const AssetEntryBase& entry ) {
+        heard.push_back(
+            format( "{} {}", entry.Path().View(), entry.State() == AssetState::Ready ? "ready" : "failed" ) );
+    } );
+
+    const auto a = project.mAssets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    const auto bad = project.mAssets.Load<TextAsset>( *AssetPath::TryFrom( "bad.txt" ) );
+    CHECK( a.State() == AssetState::Loading );
+    CHECK_FALSE( a.TryGet() );
+    // Asked again while it loads: the same entry, loaded once.
+    CHECK( project.mAssets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) == a );
+    project.Await( a );
+    project.Await( bad );
+    REQUIRE( a.Ready() );
+    CHECK( a.TryGet()->mText == "a" );
+    CHECK( bad.Entry().Error() == "cannot read it" );
+    ranges::sort( heard );
+    CHECK( heard == vector<string>{ "a.txt ready", "bad.txt failed" } );
+}
+
+TEST_CASE( "LoadNow finishes an entry the pool is loading, and what the pool makes of it goes unused" )
+{
+    // One thread: the pool's work waits for the main queue, so the order is
+    // the test's.
+    Project project;
+    project.Add( "a.txt", "first" );
+    vector<string> heard;
+    project.mAssets.OnLoaded( [&]( const AssetEntryBase& entry ) { heard.push_back( entry.Path().String() ); } );
+    const auto later = project.mAssets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    CHECK( later.State() == AssetState::Loading );
+    project.Add( "a.txt", "second" );
+    const auto now = project.Load( "a.txt" );
+    CHECK( now == later );
+    CHECK( now.TryGet()->mText == "second" );
+    CHECK( heard == vector<string>{ "a.txt" } );
+    // The pool read "second" too, but the entry is not Loading any more.
+    project.Add( "a.txt", "third" );
+    project.mJobs.RunMainQueue();
+    CHECK( now.TryGet()->mText == "second" );
+    CHECK( heard.size() == 1 );
+    // A fresh LoadNow was never Loading: nobody is told.
+    project.Add( "b.txt", "b" );
+    CHECK( project.Load( "b.txt" ).Ready() );
+    CHECK( heard.size() == 1 );
+}
+
+TEST_CASE( "A load nobody waits for any more, or whose registry went, comes to nothing" )
+{
+    Project project;
+    project.Add( "a.txt", "a" );
+    {
+        const auto dropped = project.mAssets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    }
+    project.mJobs.RunMainQueue();
+    CHECK( project.mAssets.Count() == 0 );
+
+    Jobs jobs( 1 );
+    AssetRef<TextAsset> kept;
+    {
+        AssetRegistry assets(
+            project.mCatalog, [&]( const AssetId&, string_view ) { return expected<string, string>( "x" ); }, jobs );
+        assets.RegisterLoader<TextAsset>( "text", []( string_view bytes, const AssetPath& ) {
+            return expected<TextAsset, string>( TextAsset{ string( bytes ) } );
+        } );
+        kept = assets.Load<TextAsset>( *AssetPath::TryFrom( "a.txt" ) );
+    }
+    jobs.RunMainQueue();
+    CHECK( kept.State() == AssetState::Loading );
 }
