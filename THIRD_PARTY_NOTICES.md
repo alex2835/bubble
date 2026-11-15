@@ -7,6 +7,7 @@ next to the executable.
 | library | version | license | file |
 | --- | --- | --- | --- |
 | [doctest](https://github.com/doctest/doctest) | 2.4.12 | MIT | `deps/doctest/LICENSE.txt` (tests only) |
+| [enkiTS](https://github.com/dougbinks/enkiTS) | 1.12 | Zlib | `deps/enkiTS/License.txt` (not on the web) |
 | [EnTT](https://github.com/skypjack/entt) | 3.16.0 | MIT | `deps/entt/LICENSE` |
 | [GLM](https://github.com/g-truc/glm) | 1.0.3 | MIT | `deps/glm/copying.txt` |
 | [Luau](https://github.com/luau-lang/luau) | 0.741 | MIT | `deps/luau/LICENSE.txt`, `deps/luau/lua_LICENSE.txt` |

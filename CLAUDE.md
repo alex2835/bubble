@@ -35,7 +35,8 @@ deps/                         vendored, each with its license; listed in THIRD_P
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 projects/engine/include/bubble/
     types/                    aliases (std, glm), Handle/SlotMap, OptRef
-    core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32)
+    core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
+                              process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web: main thread)
     assets/                   AssetId, AssetRegistry (entries, AssetRef<T>, reload events)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
@@ -50,7 +51,7 @@ projects/engine/include/bubble/
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
-    world/                    App (one a process: reflection, component types, modules), World (a scene and its
+    world/                    App (one a process: Jobs, reflection, component types, modules), World (a scene and its
                               modules: data events - added, changed, removed - delivered at the world's turns, the
                               frame's phases in one list, FixedClock, Services by type, Events queued;
                               Snapshot/Restore - runtime built again from the data), Module

@@ -12,6 +12,13 @@ target_link_libraries( bubble_engine PUBLIC entt )
 # Vectors in Value and, later, everywhere; utf8proc only behind Text.
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
+# Jobs' pool; the web has none and runs jobs on the main thread.
+if( EMSCRIPTEN )
+    target_compile_definitions( bubble_engine PRIVATE BUBBLE_JOBS_INLINE )
+else()
+    target_link_libraries( bubble_engine PRIVATE enkiTS )
+endif()
+
 if( BUBBLE_PROFILE )
     target_link_libraries( bubble_engine PUBLIC tracy_client )
     target_compile_definitions( bubble_engine PUBLIC BUBBLE_PROFILE_ENABLED )

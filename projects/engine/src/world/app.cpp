@@ -3,7 +3,9 @@
 
 namespace bubble
 {
-App::App() = default;
+App::App( AppOptions options ) : mJobs( options.mThreads )
+{
+}
 
 void App::AddModule( ModuleType type )
 {

@@ -70,6 +70,21 @@ if( BUBBLE_PROFILE )
     endif()
 endif()
 
+# enkiTS 1.12 - the one pool of threads (bubble/core/jobs.hpp), its C++
+# scheduler only. Not on the web: there is no -pthread there, and Jobs runs
+# everything on the main thread itself.
+if( NOT EMSCRIPTEN )
+    find_package( Threads REQUIRED )
+    add_library( enkiTS STATIC ${CMAKE_CURRENT_SOURCE_DIR}/enkiTS/src/TaskScheduler.cpp )
+    target_include_directories( enkiTS SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/enkiTS/src )
+    target_link_libraries( enkiTS PUBLIC Threads::Threads )
+    if( MSVC )
+        target_compile_options( enkiTS PRIVATE /w )
+    else()
+        target_compile_options( enkiTS PRIVATE -w )
+    endif()
+endif()
+
 # EnTT 3.16.0 - header only: the scene's registry, later the reflection's
 # meta. SYSTEM, so its headers are under its own warnings, not ours.
 add_library( entt INTERFACE )
