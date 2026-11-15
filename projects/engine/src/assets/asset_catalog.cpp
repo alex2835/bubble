@@ -1,4 +1,5 @@
 #include "bubble/assets/asset_catalog.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
@@ -29,6 +30,15 @@ OptRef<const AssetPath> AssetCatalog::TryPathOf( const AssetId& assetId ) const
     if ( found == mPaths.end() )
         return nullopt;
     return found->second;
+}
+
+vector<AssetPath> AssetCatalog::Paths() const
+{
+    vector<AssetPath> paths;
+    for ( const auto& [path, assetId] : mIds )
+        paths.push_back( path );
+    ranges::sort( paths );
+    return paths;
 }
 
 string AssetCatalog::Describe( const AssetId& assetId ) const

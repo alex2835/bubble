@@ -90,7 +90,10 @@ ProjectFiles ProjectFiles::InMemory( hmap<string, string>& files )
     List list = [&files]() -> expected<vector<AssetPath>, string> {
         vector<AssetPath> paths;
         for ( const auto& [path, bytes] : files )
-            paths.push_back( *AssetPath::TryFrom( path ) );
+            // As on disk, what is under a folder whose name starts with a dot
+            // is not the project's.
+            if ( not path.starts_with( '.' ) and path.find( "/." ) == string::npos )
+                paths.push_back( *AssetPath::TryFrom( path ) );
         ranges::sort( paths );
         return paths;
     };

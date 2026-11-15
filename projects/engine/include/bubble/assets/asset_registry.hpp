@@ -116,52 +116,61 @@ private:
 
 using AssetListenerHandle = Handle<struct AssetListenerTag>;
 
+// Where the importer puts what it made of an asset, under the project's
+// root: .bubble/imported/<id>.<kind>. A folder whose name starts with a dot
+// is not the project's, so nothing here is taken for a source.
+AssetPath ImportedPath( const AssetId& assetId, string_view kind );
+
 // Every asset of the project in memory, one entry each, by id; a path is
 // turned into an id by the catalog. One per process, shared by its worlds.
-// Importers turn a file's bytes into the asset by its extension.
+// What it loads is what the importer made of a source - bytecode, not the
+// .luau - each type read by its loader.
 //
-// For now loading is synchronous and imports from the source file on the
-// spot; later it reads the import cache in the background and Load returns
-// a ref that is Loading. The calls stay the same, so code written against
-// this one already checks State.
+// For now loading is synchronous; later it runs in the background and Load
+// returns a ref that is Loading. The calls stay the same, so code written
+// against this one already checks State.
 class AssetRegistry
 {
 public:
-    // The bytes of a project file: from a directory, from memory in tests,
-    // from fetch on the web.
-    using ReadFile = function<expected<string, string>( const AssetPath& path )>;
-    // A file's bytes into the asset.
+    // The bytes the importer made of an asset, of a kind: from the project's
+    // import cache, from memory in tests, from fetch on the web.
+    using ReadImported = function<expected<string, string>( const AssetId& assetId, string_view kind )>;
+    // Those bytes into the asset.
     template <typename T>
-    using Importer = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
+    using Loader = function<expected<T, string>( string_view bytes, const AssetPath& path )>;
     using ChangedListener = function<void( const AssetEntryBase& entry )>;
 
     // The catalog outlives the registry, and may change while it lives: a
     // file that appears is found by the next Load.
-    AssetRegistry( const AssetCatalog& catalog, ReadFile read );
-    // Reads files under `root`.
-    static ReadFile FromDirectory( OsPath root );
+    AssetRegistry( const AssetCatalog& catalog, ReadImported read );
+    // Reads the import cache of the project at `root` (ImportedPath).
+    static ReadImported FromDirectory( OsPath root );
 
-    // `kind` names it in errors: "script", "texture".
+    // `kind` is what the importer makes - "script", "texture" - and names
+    // the imported file: <id>.script. One loader a type; a second is a
+    // logic_error, and so is loading a type that has none.
     template <typename T>
-    void RegisterImporter( string_view extension, string_view kind, Importer<T> import )
+    void RegisterLoader( string_view kind, Loader<T> load )
     {
-        mImporters.insert_or_assign(
-            string( extension ),
-            RegisteredImporter{
-                typeid( T ), string( kind ),
-                [import = std::move( import )]( string_view bytes, AssetEntryBase& entry ) -> expected<void, string> {
-                    auto assetMaybe = import( bytes, entry.Path() );
+        const auto [at, added] = mLoaders.try_emplace(
+            type_index( typeid( T ) ),
+            RegisteredLoader{
+                string( kind ),
+                [load = std::move( load )]( string_view bytes, AssetEntryBase& entry ) -> expected<void, string> {
+                    auto assetMaybe = load( bytes, entry.Path() );
                     if ( not assetMaybe )
                         return unexpected( std::move( assetMaybe.error() ) );
                     static_cast<AssetEntry<T>&>( entry ).mDataMaybe.emplace( std::move( *assetMaybe ) );
                     return {};
                 } } );
+        if ( not added )
+            throw logic_error( format( "AssetRegistry::RegisterLoader of {} twice", kind ) );
     }
 
     // The asset at `path`, or with the id; the same entry when it is in
-    // memory already. One the catalog does not have, a file that is
-    // missing, of an unknown kind or fails to import gives a Failed ref with
-    // the reason in Error(); whoever asked reports it.
+    // memory already. One the catalog does not have, one not imported as T's
+    // kind, or one its loader refuses gives a Failed ref with the reason in
+    // Error(); whoever asked reports it.
     template <typename T>
     AssetRef<T> Load( const AssetPath& path )
     {
@@ -197,9 +206,9 @@ public:
     // How many assets are in memory.
     size_t Count() const { return mIndex->mById.size(); }
 
-    // The file changed: imports it again into its entry and tells the
+    // The asset was imported again: loads it into its entry and tells the
     // listeners. If the new version fails, the old one stays and the error
-    // comes back. A file nobody holds is not loaded, and nothing happens.
+    // comes back. An asset nobody holds is not loaded, and nothing happens.
     expected<void, string> TryReload( const AssetPath& path );
 
     // Called after every reload that took, with the entry.
@@ -207,11 +216,10 @@ public:
     void RemoveListener( AssetListenerHandle listenerHandle );
 
 private:
-    struct RegisteredImporter
+    struct RegisteredLoader
     {
-        type_index mType;
         string mKind;
-        function<expected<void, string>( string_view bytes, AssetEntryBase& entry )> mImport;
+        function<expected<void, string>( string_view bytes, AssetEntryBase& entry )> mLoad;
     };
 
     using MakeEntry = Ref<AssetEntryBase> ( * )( const AssetId&, const AssetPath& );
@@ -242,11 +250,11 @@ private:
 
     Ref<AssetEntryBase> LoadEntry( const AssetId& assetId, const AssetPath& path, type_index type, MakeEntry make );
     Ref<AssetEntryBase> TryFindEntry( const AssetId& assetId ) const;
-    expected<void, string> TryImport( AssetEntryBase& entry );
+    expected<void, string> TryLoadBytes( AssetEntryBase& entry );
 
     const AssetCatalog& mCatalog;
-    ReadFile mRead;
-    hmap<string, RegisteredImporter> mImporters;
+    ReadImported mRead;
+    hmap<type_index, RegisteredLoader> mLoaders;
     // Shared with the entries, which may outlive the registry.
     Ref<detail::AssetIndex> mIndex = CreateRef<detail::AssetIndex>();
     SlotMap<ChangedListener, AssetListenerTag> mListeners;

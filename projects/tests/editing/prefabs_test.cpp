@@ -311,8 +311,7 @@ TEST_CASE( "Levels and prefabs keep their ids inside, and a level finds its pref
 
     // The prefab moved by a file manager, and the project scanned again.
     f.mFiles["props/buildings/house.prefab"] = f.mFiles.extract( "props/house.prefab" ).mapped();
-    constexpr array<string_view, 2> cEngineFiles = { ".scene", ".prefab" };
-    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( f.mFiles ), {}, cEngineFiles );
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( f.mFiles ), {}, cEngineFileExtensions );
     REQUIRE( scanMaybe );
     CHECK( scanMaybe->mWarnings.empty() );
     AssetCatalog assets = scanMaybe->mCatalog;

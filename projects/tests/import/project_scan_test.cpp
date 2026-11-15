@@ -10,7 +10,6 @@ using namespace bubble;
 namespace
 {
 constexpr array<string_view, 2> cSources = { ".luau", ".glb" };
-constexpr array<string_view, 2> cEngineFiles = { ".scene", ".prefab" };
 
 AssetPath Path( string_view text )
 {
@@ -26,7 +25,7 @@ AssetId IdIn( const hmap<string, string>& files, string_view importFile )
 TEST_CASE( "A source with no .import gets one with a new id, and keeps it" )
 {
     hmap<string, string> files{ { "scripts/player.luau", "" }, { "models/hero.glb", "" }, { "notes.txt", "" } };
-    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( scanMaybe );
     CHECK( scanMaybe->mWarnings.empty() );
     CHECK( scanMaybe->mCatalog.Count() == 2 );
@@ -39,7 +38,7 @@ TEST_CASE( "A source with no .import gets one with a new id, and keeps it" )
 
     // The next scan reads the same ids and writes nothing.
     const hmap<string, string> before = files;
-    const auto againMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto againMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( againMaybe );
     CHECK( againMaybe->mCatalog.TryIdOf( Path( "scripts/player.luau" ) ) == player );
     CHECK( files == before );
@@ -47,7 +46,7 @@ TEST_CASE( "A source with no .import gets one with a new id, and keeps it" )
     // Moved with its .import - by a file manager, by git - it keeps its id.
     files["scripts/hero/player.luau"] = files.extract( "scripts/player.luau" ).mapped();
     files["scripts/hero/player.luau.import"] = files.extract( "scripts/player.luau.import" ).mapped();
-    const auto movedMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto movedMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( movedMaybe );
     REQUIRE( movedMaybe->mCatalog.TryPathOf( player ) );
     CHECK( *movedMaybe->mCatalog.TryPathOf( player ) == Path( "scripts/hero/player.luau" ) );
@@ -56,7 +55,7 @@ TEST_CASE( "A source with no .import gets one with a new id, and keeps it" )
 TEST_CASE( "A file copied with its .import gets a new id, its settings kept, and a warning" )
 {
     hmap<string, string> files{ { "models/chair.glb", "" } };
-    REQUIRE( TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles ) );
+    REQUIRE( TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions ) );
     const AssetId chair = IdIn( files, "models/chair.glb.import" );
     ImportFile withSettings = *TryParseImportFile( files["models/chair.glb.import"] );
     withSettings.mSettings = *Json::TryParse( R"({ "scale": 2 })" );
@@ -64,7 +63,7 @@ TEST_CASE( "A file copied with its .import gets a new id, its settings kept, and
     files["models/chair_copy.glb"] = "";
     files["models/chair_copy.glb.import"] = files["models/chair.glb.import"];
 
-    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( scanMaybe );
     // The first in the order of paths keeps it.
     CHECK( scanMaybe->mCatalog.TryIdOf( Path( "models/chair.glb" ) ) == chair );
@@ -86,7 +85,7 @@ TEST_CASE( "A broken .import leaves its source out, and one with no source is an
     hmap<string, string> files{ { "models/hero.glb", "" },
                                 { "models/hero.glb.import", "<<<<<<< merge" },
                                 { "models/villain.glb.import", WriteImportFile( orphan ) } };
-    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( scanMaybe );
     CHECK( scanMaybe->mCatalog.Count() == 0 );
     REQUIRE( scanMaybe->mWarnings.size() == 1 );
@@ -100,13 +99,14 @@ TEST_CASE( "A broken .import leaves its source out, and one with no source is an
 TEST_CASE( "A scan that cannot list, read or write the project fails, saying what" )
 {
     const ProjectFiles unlisted( {}, {}, [] { return expected<vector<AssetPath>, string>( unexpected( "gone"s ) ); } );
-    CHECK( TryScanProject( unlisted, cSources, cEngineFiles ).error() == "gone" );
+    CHECK( TryScanProject( unlisted, cSources, cEngineFileExtensions ).error() == "gone" );
 
     const ProjectFiles readOnly(
         []( const AssetPath& ) { return expected<string, string>( "" ); },
         []( const AssetPath&, string_view ) { return expected<void, string>( unexpected( "read-only"s ) ); },
         [] { return expected<vector<AssetPath>, string>( vector{ Path( "a.luau" ) } ); } );
-    CHECK( TryScanProject( readOnly, cSources, cEngineFiles ).error() == "cannot write a.luau.import: read-only" );
+    CHECK( TryScanProject( readOnly, cSources, cEngineFileExtensions ).error() ==
+           "cannot write a.luau.import: read-only" );
 }
 
 TEST_CASE( "A level or a prefab keeps its id inside: one without gets one written in, a copy a new one" )
@@ -117,7 +117,7 @@ TEST_CASE( "A level or a prefab keeps its id inside: one without gets one writte
                                 { "levels/street_copy.scene", withId },
                                 { "props/house.prefab", R"({ "version": 1, "next_id": 1, "root": { "id": 0 } })" },
                                 { "levels/broken.scene", "{ oops" } };
-    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFiles );
+    const auto scanMaybe = TryScanProject( ProjectFiles::InMemory( files ), cSources, cEngineFileExtensions );
     REQUIRE( scanMaybe );
     CHECK( scanMaybe->mCatalog.TryIdOf( Path( "levels/street.scene" ) ) == street );
     // No .import beside an engine file: the id is inside.

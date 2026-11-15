@@ -27,7 +27,7 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 | `luaubind/type` | `LuaType`/`LuaTypeBuilder<T>`: C++ structs as tagged userdata, fields and methods by atom |
 | `luaubind/data` | raw `TryLuaEncode`/`TryLuaDecode`/`TryLuaDeepCopy` under `LuaState::TryEncode`/`TryDecode`/`TryDeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
-| `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptImporter`: `.luau` → bytecode in the asset registry; compiles on the spot for now |
+| `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptLoader`: the registry reads the bytecode the importer put in the import cache (`<id>.script`). Compiling is `ScriptImporter()` in `bubble_import` (`bubble/import/script_importer.hpp`); the runner never compiles |
 | `editing/editor_lua` (bubble_editing) | `EditorLua`: the editor's own VM, never a world's. `editor.ops.<group>.<verb>( args )` and `editor.run` run operators (args read by what the operator declares, through `src/lua_values` - the editor's own Luau ↔ Value), `editor.group( label, fn )` makes one history step, `editor.get/children/components/exists/selection/poll` read the active document |
 | `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `TryRunFile`/`TryRunScript`/`TryRunLibrary`, passport), `require`, `scripts` (`TryLoad`/`Unload`), `reload` (`Changed`, `TryRerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
 
@@ -149,8 +149,14 @@ local tuning = require( "./player_tuning" )     -- next to this file
 ## C++ recipes
 
 ```cpp
-AssetRegistry assets( AssetRegistry::FromDirectory( projectRoot ) );   // one per process
-RegisterScriptImporter( assets );
+// The editor: scan the project (ids from .import files), import what changed.
+ProjectFiles files = ProjectFiles::FromDirectory( projectRoot );
+Importers importers;
+importers.Add( ScriptImporter() );                     // .luau -> bytecode in .bubble/imported
+AssetCatalog catalog = TryScanProject( files, importers.Extensions(), cEngineFileExtensions )->mCatalog;
+ImportProject( files, catalog, importers );            // errors per file, listed
+AssetRegistry assets( catalog, AssetRegistry::FromDirectory( projectRoot ) );   // one per process
+RegisterScriptLoader( assets );
 LuaState lua( PrintToLog );                            // outlives everything below
 ScriptRuntime runtime( lua, assets, { "on_start", "on_update" } );
 lua.Globals()["raycast"] = [&]( Vec3 from, Vec3 to ) { return Hit( from, to ); };   // a lambda is a function
@@ -239,10 +245,12 @@ headers: `state_test.cpp` is the API as users see it, `binding_test.cpp` the
 traits, bound functions and types, `data_test.cpp` the codec.
 The runtime is tested in `projects/tests/scripts/`: `script_helpers.hpp` has
 `Bytecode` and `LogWatch` (assert what was logged); `script_fixture.hpp` has
-the `Scripts` fixture - project files in memory behind a registry,
-`record( text )` and `destroy()` bound for observing order and lifetimes,
-`Load`/`AddLibrary` (write + load the asset), `TryChange` (write + registry
-reload, as an edit on disk), `Evaluate`, `Field`/`Number`/`Set` on self.
+the `Scripts` fixture - project files in memory, a catalog of them, the
+script importer compiling into the import cache there and a registry
+reading it, `record( text )` and `destroy()` bound for observing order and
+lifetimes, `Load`/`AddLibrary` (write + import + load the asset), `TryChange`
+(write + import + registry reload, as an edit on disk), `Evaluate`,
+`Field`/`Number`/`Set` on self.
 Runtime tests are in `script_runtime_test.cpp`, libraries in
 `script_require_test.cpp`.
 Every new behaviour gets a test that would fail without it; error messages are

@@ -26,16 +26,21 @@ AssetEntryBase::~AssetEntryBase()
     EraseExpired( index->mById, mId );
 }
 
-AssetRegistry::AssetRegistry( const AssetCatalog& catalog, ReadFile read )
+AssetPath ImportedPath( const AssetId& assetId, string_view kind )
+{
+    return *AssetPath::TryFrom( format( ".bubble/imported/{}.{}", assetId.ToString(), kind ) );
+}
+
+AssetRegistry::AssetRegistry( const AssetCatalog& catalog, ReadImported read )
     : mCatalog( catalog ),
       mRead( std::move( read ) )
 {
 }
 
-AssetRegistry::ReadFile AssetRegistry::FromDirectory( OsPath root )
+AssetRegistry::ReadImported AssetRegistry::FromDirectory( OsPath root )
 {
-    return [root = std::move( root )]( const AssetPath& path ) -> expected<string, string> {
-        ifstream file( path.ToOsPath( root ), ios::binary );
+    return [root = std::move( root )]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+        ifstream file( ImportedPath( assetId, kind ).ToOsPath( root ), ios::binary );
         if ( not file )
             return unexpected( "no such file"s );
         ostringstream bytes;
@@ -70,7 +75,7 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetId& assetId,
     Ref<AssetEntryBase> entry = make( assetId, path );
     mIndex->mById[assetId] = entry;
     entry->mIndex = mIndex;
-    if ( auto importedMaybe = TryImport( *entry ); not importedMaybe )
+    if ( auto importedMaybe = TryLoadBytes( *entry ); not importedMaybe )
     {
         entry->mState = AssetState::Failed;
         entry->mError = std::move( importedMaybe.error() );
@@ -80,18 +85,16 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetId& assetId,
     return entry;
 }
 
-expected<void, string> AssetRegistry::TryImport( AssetEntryBase& entry )
+expected<void, string> AssetRegistry::TryLoadBytes( AssetEntryBase& entry )
 {
-    const string_view extension = entry.mPath.Extension();
-    const auto importer = mImporters.find( extension );
-    if ( importer == mImporters.end() )
-        return unexpected( format( "no importer for '{}' files", extension ) );
-    if ( importer->second.mType != entry.mType )
-        return unexpected( format( "a {} file, asked for as something else", importer->second.mKind ) );
-    auto bytesMaybe = mRead( entry.mPath );
+    const auto loader = mLoaders.find( entry.mType );
+    if ( loader == mLoaders.end() )
+        throw logic_error(
+            format( "AssetRegistry: {} asked for as a type no loader is registered for", entry.mPath.View() ) );
+    auto bytesMaybe = mRead( entry.mId, loader->second.mKind );
     if ( not bytesMaybe )
-        return unexpected( std::move( bytesMaybe.error() ) );
-    return importer->second.mImport( *bytesMaybe, entry );
+        return unexpected( format( "no imported {}: {}", loader->second.mKind, bytesMaybe.error() ) );
+    return loader->second.mLoad( *bytesMaybe, entry );
 }
 
 expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
@@ -100,9 +103,9 @@ expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
     const Ref<AssetEntryBase> entry = assetIdMaybe ? TryFindEntry( *assetIdMaybe ) : nullptr;
     if ( entry == nullptr )
         return {};
-    // An importer fills the entry only when it succeeds: a failed import
-    // leaves the old version in place.
-    if ( auto importedMaybe = TryImport( *entry ); not importedMaybe )
+    // A loader fills the entry only when it succeeds: a failed load leaves
+    // the old version in place.
+    if ( auto importedMaybe = TryLoadBytes( *entry ); not importedMaybe )
     {
         // An entry that never loaded keeps saying why.
         if ( entry->mState != AssetState::Ready )

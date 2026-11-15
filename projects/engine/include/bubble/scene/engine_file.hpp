@@ -31,6 +31,9 @@ struct FileContext
     PrefabSource mPrefabs;
 };
 
+// The files the engine writes itself: levels and prefabs.
+constexpr array<string_view, 2> cEngineFileExtensions = { ".scene", ".prefab" };
+
 // A level and a prefab are assets the engine writes itself, so each keeps
 // its own id inside rather than in an .import: "asset" at the top of the
 // file. Nothing for a file without one - written by hand, never saved by

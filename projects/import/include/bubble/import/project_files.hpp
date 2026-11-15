@@ -31,7 +31,9 @@ public:
     // folders on the way are made. Folders and files whose names start with
     // a dot - .git, the import cache in .bubble - are not the project's.
     static ProjectFiles FromDirectory( OsPath root );
-    // The files of `files`, by path; it outlives what this returns.
+    // The files of `files`, by path; it outlives what this returns. As on
+    // disk, what is under a folder whose name starts with a dot is read and
+    // written but not listed.
     static ProjectFiles InMemory( hmap<string, string>& files );
 
     expected<string, string> TryRead( const AssetPath& path ) const { return mRead( path ); }

@@ -1,9 +1,12 @@
 #pragma once
-// A world's scripts without the world: project files in memory, an asset
-// registry that imports .luau from them, a sealed LuaState, a ScriptRuntime
-// with three callbacks, and two functions bound for observing - record( text )
-// for order, destroy() for lifetimes.
+// A world's scripts without the world: project files in memory, the script
+// importer compiling them into the import cache there, an asset registry
+// reading it, a sealed LuaState, a ScriptRuntime with three callbacks, and
+// two functions bound for observing - record( text ) for order, destroy()
+// for lifetimes.
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/import/import_cache.hpp"
+#include "bubble/import/script_importer.hpp"
 #include "bubble/scripts/script_asset.hpp"
 #include "bubble/scripts/script_runtime.hpp"
 #include "scripts/script_helpers.hpp"
@@ -19,11 +22,13 @@ enum Callback : u32
 
 struct Scripts
 {
-    // The project's files, by path, and the catalog of them.
+    // The project's files, by path - the import cache too - and the catalog
+    // of them.
     hmap<string, string> mFiles;
     AssetCatalog mCatalog;
-    AssetRegistry mAssets{ mCatalog, [this]( const AssetPath& path ) -> expected<string, string> {
-                              const auto found = mFiles.find( path.View() );
+    Importer mImporter = ScriptImporter();
+    AssetRegistry mAssets{ mCatalog, [this]( const AssetId& assetId, string_view kind ) -> expected<string, string> {
+                              const auto found = mFiles.find( ImportedPath( assetId, kind ).View() );
                               if ( found == mFiles.end() )
                                   return unexpected( "no such file"s );
                               return found->second;
@@ -43,31 +48,42 @@ struct Scripts
         globals["record"] = [this]( string text ) { mRecorded.push_back( std::move( text ) ); };
         globals["destroy"] = [this]() { mRuntime.Destroy( mDoomedHandle ); };
         mState.Seal();
-        RegisterScriptImporter( mAssets );
+        RegisterScriptLoader( mAssets );
     }
 
     lua_State* L() const { return mState.L(); }
 
-    // Writes the file and loads it into the registry, as a world loads what
-    // it needs before its scripts run.
-    void AddFile( string_view path, string_view source )
+    // Writes the file and imports it, as the editor does as files appear.
+    expected<ImportOutcome, string> TryWrite( string_view path, string_view source )
     {
         mFiles[string( path )] = string( source );
         const AssetPath assetPath = *AssetPath::TryFrom( path );
         if ( not mCatalog.TryIdOf( assetPath ) )
             mCatalog.Add( AssetId::Generate(), assetPath );
-        auto asset = mAssets.Load<ScriptAsset>( assetPath );
+        return TryImportAsset( ProjectFiles::InMemory( mFiles ), mImporter, assetPath, *mCatalog.TryIdOf( assetPath ),
+                               Json( Json::Object() ) );
+    }
+
+    // Writes the file, imports it and loads it into the registry, as a
+    // world loads what it needs before its scripts run.
+    void AddFile( string_view path, string_view source )
+    {
+        const auto importedMaybe = TryWrite( path, source );
+        REQUIRE_MESSAGE( importedMaybe, importedMaybe.error() );
+        auto asset = mAssets.Load<ScriptAsset>( *AssetPath::TryFrom( path ) );
         REQUIRE_MESSAGE( asset.Ready(), asset.Entry().Error() );
         mHeld.push_back( std::move( asset ) );
     }
 
     void AddLibrary( string_view path, string_view source ) { AddFile( path, source ); }
 
-    // The file changed on disk: the registry imports it again and the
-    // runtime hears of it. Fails only if the new version does not compile.
+    // The file changed on disk: it is imported again, the registry loads
+    // the new version and the runtime hears of it. Fails only if the new
+    // version does not compile.
     expected<void, string> TryChange( string_view path, string_view source )
     {
-        mFiles[string( path )] = string( source );
+        if ( auto importedMaybe = TryWrite( path, source ); not importedMaybe )
+            return unexpected( std::move( importedMaybe.error() ) );
         return mAssets.TryReload( *AssetPath::TryFrom( path ) );
     }
 
