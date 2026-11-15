@@ -47,6 +47,13 @@ projects/engine/include/bubble/
                               (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader)
+    input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
+                              snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
+                              window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
+                              touch areas), Input (the devices' state -> actions; LatchStep/LatchFrame each see a press
+                              once, at any frame rate)
+    platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents, gamepads opened as
+                              they come, QuitRequested, Run - a loop, or the browser's frames), Window
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -94,6 +101,8 @@ projects/editing/include/bubble/editing/
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
+projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a window and the
+                              actions it fires, logged
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; deps/ tests deps (luaubind
                               too)
 ```

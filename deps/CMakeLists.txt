@@ -85,6 +85,26 @@ if( NOT EMSCRIPTEN )
     endif()
 endif()
 
+# SDL 3.4.20 - windows, input and the frame loop on every platform, the web
+# too; seen only inside bubble/platform. Static, with what the engine uses:
+# video and events, gamepads, haptics and sensors, file dialogs for the
+# editor. Its 2D renderer, GPU API, camera and audio stay out, and so do its
+# tests, examples and install rules.
+set( SDL_SHARED OFF CACHE BOOL "" FORCE )
+set( SDL_STATIC ON CACHE BOOL "" FORCE )
+foreach( option SDL_TEST_LIBRARY SDL_TESTS SDL_EXAMPLES SDL_INSTALL SDL_UNINSTALL SDL_AUDIO SDL_GPU SDL_RENDER
+                SDL_CAMERA )
+    set( ${option} OFF CACHE BOOL "" FORCE )
+endforeach()
+add_subdirectory( SDL EXCLUDE_FROM_ALL )
+# Its headers under its own warnings, not ours, and its code too.
+set_property( TARGET SDL3-static SDL3_Headers PROPERTY SYSTEM TRUE )
+if( MSVC )
+    target_compile_options( SDL3-static PRIVATE /w )
+else()
+    target_compile_options( SDL3-static PRIVATE -w )
+endif()
+
 # stb_image 2.32 - images decoded by the texture importer, in the editor and
 # the cook; a runner reads textures already imported. Its implementation is
 # compiled once in stb_image.cpp.

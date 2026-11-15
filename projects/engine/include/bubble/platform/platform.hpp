@@ -1,0 +1,58 @@
+#pragma once
+#include "bubble/input/input_event.hpp"
+#include "bubble/platform/window.hpp"
+#include "bubble/types/containers.hpp"
+#include "bubble/types/function.hpp"
+#include "bubble/types/pointer.hpp"
+
+struct SDL_Gamepad;
+
+namespace bubble
+{
+struct PlatformOptions
+{
+    // SDL's video driver by name, the system's own when empty. Tests take
+    // "dummy": windows that are not on any screen, events pushed by hand.
+    string mVideoDriver;
+    // The mouse touches as well: touch controls tried where there is no
+    // touchscreen.
+    bool mMouseAsTouch = false;
+};
+
+// The system's side of the engine: SDL started, its events made the
+// engine's own, windows, the frame loop. SDL is nowhere else. One a
+// process, made by the app before anything that needs a window, and gone
+// after them all.
+class Platform
+{
+public:
+    // A second one while the first is there is an error.
+    static expected<Scope<Platform>, string> TryStart( const PlatformOptions& options = {} );
+    ~Platform();
+    Platform( const Platform& ) = delete;
+    Platform& operator=( const Platform& ) = delete;
+
+    expected<Window, string> TryOpenWindow( const WindowOptions& options = {} );
+
+    // What happened since the call before, in order: input in the engine's
+    // terms - for the UI first, then Input - while gamepads coming and
+    // going are opened and closed here, and a request to quit is kept.
+    span<const InputEvent> Poll();
+    // The last window was closed, or the system asked the game to end.
+    bool QuitRequested() const { return mQuitRequested; }
+
+    // Calls `frame` with the seconds since the call before - 0 the first
+    // time - until it returns false: a loop on the desktop, the browser's
+    // animation frames on the web. There Run never returns, and what is on
+    // the stack when it is called stays alive, as the page goes on.
+    void Run( function<bool( f64 elapsed )> frame );
+
+private:
+    Platform() = default;
+
+    vector<InputEvent> mEvents;
+    // Opened as they come, by SDL's id: closed when they go, or with SDL.
+    hmap<u32, SDL_Gamepad*> mGamepads;
+    bool mQuitRequested = false;
+};
+}

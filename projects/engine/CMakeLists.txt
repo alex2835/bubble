@@ -12,6 +12,9 @@ target_link_libraries( bubble_engine PUBLIC entt )
 # Vectors in Value and, later, everywhere; utf8proc only behind Text.
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
+# Windows, input and the frame loop: SDL, behind bubble/platform alone.
+target_link_libraries( bubble_engine PRIVATE SDL3::SDL3-static )
+
 # Jobs' pool; the web has none and runs jobs on the main thread. Assets
 # come by fetch there.
 if( EMSCRIPTEN )
