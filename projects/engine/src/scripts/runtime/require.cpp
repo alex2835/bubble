@@ -10,57 +10,7 @@ namespace bubble
 {
 expected<string, string> ScriptRuntime::TryResolve( string_view from, string_view request ) const
 {
-    string joined;
-    if ( request.starts_with( "./" ) or request.starts_with( "../" ) )
-    {
-        const size_t slash = from.rfind( '/' );
-        const string_view directory = slash == string_view::npos ? string_view() : from.substr( 0, slash );
-        joined = string( directory ) + "/" + string( request );
-    }
-    else if ( request.starts_with( '@' ) )
-    {
-        const size_t slash = request.find( '/' );
-        const string_view alias = request.substr( 1, slash == string_view::npos ? string_view::npos : slash - 1 );
-        const auto found = mAliases.find( alias );
-        if ( found == mAliases.end() )
-        {
-            vector<string> known;
-            for ( const auto& entry : mAliases )
-                known.push_back( "@" + entry.first );
-            ranges::sort( known );
-            return unexpected( format( "no alias @{} (aliases: {})", alias, detail::Join( known ) ) );
-        }
-        joined = found->second + ( slash == string_view::npos ? "" : string( request.substr( slash ) ) );
-    }
-    else
-        return unexpected( "a path starts with ./, ../ or @alias"s );
-
-    // "." steps go, ".." takes one back.
-    vector<string_view> steps;
-    const string_view all = joined;
-    for ( size_t at = 0; at <= all.size(); )
-    {
-        const size_t end = min( all.find( '/', at ), all.size() );
-        const string_view step = all.substr( at, end - at );
-        at = end + 1;
-        if ( step.empty() or step == "." )
-            continue;
-        if ( step == ".." )
-        {
-            if ( steps.empty() )
-                return unexpected( "the path leads out of the project"s );
-            steps.pop_back();
-        }
-        else
-            steps.push_back( step );
-    }
-    string path;
-    for ( const string_view step : steps )
-        path += ( path.empty() ? "" : "/" ) + string( step );
-    path += ".luau";
-    if ( auto validMaybe = AssetPath::TryFrom( path ); not validMaybe )
-        return unexpected( validMaybe.error() );
-    return path;
+    return TryResolveRequire( from, request, mAliases );
 }
 
 expected<LuaValue, string> ScriptRuntime::TryRequire( const LuaTable& file, const string& request )

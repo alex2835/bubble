@@ -33,6 +33,11 @@ expected<string, string> TryCompileScript( string_view source, const CompileOpti
     compile.debugLevel = 1;
     // Lets native code generation specialise on argument types everywhere.
     compile.typeInfoLevel = 1;
+    vector<const char*> mutableGlobals;
+    for ( const string& name : options.mMutableGlobals )
+        mutableGlobals.push_back( name.c_str() );
+    mutableGlobals.push_back( nullptr );
+    compile.mutableGlobals = mutableGlobals.data();
 
     size_t size = 0;
     const std::unique_ptr<char, decltype( &std::free )> bytecode(

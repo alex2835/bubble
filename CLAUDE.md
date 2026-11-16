@@ -99,11 +99,23 @@ projects/engine/include/bubble/
                               found by the path when the id is not)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
-    scripts/                  lua.hpp (luaubind names in bubble), ScriptAsset, ScriptRuntime
+    scripts/                  lua.hpp (luaubind names in bubble; Entity, Color, AssetId cross as Luau types),
+                              ScriptAsset (bytecode, props read from the AST, requires resolved; TryResolveRequire),
+                              ScriptRuntime; ScriptModule (a world's Luau state and runtime: Script component - asset
+                              + props overrides as a Value record -, ScriptInstance runtime, callbacks on_start /
+                              on_fixed_update / on_update / on_destroy in the frame's order, the require graph loaded
+                              first, self kept by snapshots, the time limit, progress and save slots);
+                              src/scripts/world_api (entity, color, asset, each component a Luau type from reflection,
+                              services described as such - debug_draw -, input, math.random on the world's Random),
+                              script_values (Value <-> Luau), script_declarations (bubble.d.luau from App's
+                              descriptions), script_saves (ScriptProgress, SaveSlots in memory or a folder, the slot
+                              format), src/scripts/save_api (save.write/read/info/list)
     world/                    App (one a process: Jobs, reflection, component types, modules), World (a scene and its
                               modules: data events - added, changed, removed - delivered at the world's turns, the
                               frame's phases in one list, FixedClock, Services by type, Events queued;
-                              Snapshot/Restore - runtime built again from the data), Module; transform (position,
+                              Snapshot/Restore - runtime built again from the data, a module's own state through
+                              Module::TrySnapshot/Restoring -, WorldInput: the actions a step and a frame see,
+                              GetActions), Module; transform (position,
                               rotation in radians - Y, X, Z -, scale) and TransformModule: WorldTransform each frame
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage, PBR lighting,
@@ -116,7 +128,10 @@ projects/import/include/bubble/import/
                               Importer
                               (source + settings -> the engine's format), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
-                              changes), ScriptImporter (.luau -> bytecode), ShaderImporter (.wgsl, the contract checked),
+                              changes), ScriptImporter (.luau -> ScriptAsset: compiled, props
+                              and requires read from the AST; with a ScriptCheck - bubble.d.luau, .luaurc aliases,
+                              the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
+                              callbacks annotated; TryProjectScriptCheck, TryReadLuaurc), ShaderImporter (.wgsl, the contract checked),
                               MaterialImporter (.mat checked), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
@@ -136,7 +151,9 @@ projects/editing/include/bubble/editing/
                               an entity back under its own number (Revive)
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
-                              Renderer, the camera turned by move_x, a touch or click picking what it lands on;
+                              Renderer and played by scripts compiled in memory: the red box walks by move_x and
+                              move_z, the camera follows it, a pad lights up when it is reached (progress, the
+                              autosave slot in Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
                               logged); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames

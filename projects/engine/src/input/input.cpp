@@ -34,9 +34,16 @@ const ActionState& Actions::State( Name action ) const
 {
     const opt<u32> indexMaybe = mMap ? mMap->TryIndexOf( action ) : nullopt;
     if ( not indexMaybe )
-        throw logic_error( format( "no action \"{}\" ({})", action.ToString(),
-                                   mMap and not mMap->List().empty() ? "actions: " + mMap->Names() : "no actions" ) );
+        throw logic_error( TryState( action ).error() );
     return mStates[*indexMaybe];
+}
+
+expected<ActionState, string> Actions::TryState( Name action ) const
+{
+    if ( const opt<u32> indexMaybe = mMap ? mMap->TryIndexOf( action ) : nullopt )
+        return mStates[*indexMaybe];
+    return unexpected( format( "no action \"{}\" ({})", action.ToString(),
+                               mMap and not mMap->List().empty() ? "actions: " + mMap->Names() : "no actions" ) );
 }
 
 Input::Input( ActionMap map ) : mMap( CreateRef<const ActionMap>( std::move( map ) ) )

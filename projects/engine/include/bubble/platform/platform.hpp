@@ -2,6 +2,7 @@
 #include "bubble/input/input_event.hpp"
 #include "bubble/platform/window.hpp"
 #include "bubble/types/containers.hpp"
+#include "bubble/types/filesystem.hpp"
 #include "bubble/types/function.hpp"
 #include "bubble/types/pointer.hpp"
 
@@ -33,6 +34,11 @@ public:
     Platform& operator=( const Platform& ) = delete;
 
     expected<Window, string> TryOpenWindow( const WindowOptions& options = {} );
+
+    // Where a game keeps what it saves: the user's own folder for it -
+    // %APPDATA%\bubble\<game> on Windows, ~/.local/share on Linux - made if
+    // it is not there. The error says why the system gives none.
+    expected<OsPath, string> TrySaveFolder( string_view game ) const;
 
     // What happened since the call before, in order: input in the engine's
     // terms - for the UI first, then Input - while gamepads coming and

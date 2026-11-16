@@ -40,33 +40,66 @@ expected<ScriptInstanceHandle, string> ScriptRuntime::TryCreate( ScriptHandle sc
         return unexpected( label + ": " + copiedMaybe.error() );
     if ( auto copiedMaybe = TryCopyInto( self, locals, false ); not copiedMaybe )
         return unexpected( label + ": " + copiedMaybe.error() );
+    if ( auto overriddenMaybe = TryOverride( *mScripts.TryGet( scriptHandle ), label, self, overrides );
+         not overriddenMaybe )
+        return unexpected( std::move( overriddenMaybe.error() ) );
 
+    return mInstances.Add( Instance{ scriptHandle, std::move( label ), std::move( self ), {}, {}, true } );
+}
+
+expected<void, string> ScriptRuntime::TryOverride( const Script& script,
+                                                   const string& label,
+                                                   const LuaTable& self,
+                                                   const LuaTable& overrides )
+{
     for ( const auto& [key, value] : overrides.Pairs() )
     {
-        const LuaValue fallback = props.RawGet( key );
-        if ( not locals.RawGet( key ).IsNil() )
+        const LuaValue fallback = script.mProps.RawGet( key );
+        if ( not script.mLocals.RawGet( key ).IsNil() )
             return unexpected( format( "{}: {} is a local of {}: it starts the same in every instance, the scene "
                                        "cannot set it",
-                                       label, key.Describe(), path ) );
+                                       label, key.Describe(), script.mPath ) );
         if ( fallback.IsNil() or not key.Is( LuaKind::String ) )
         {
             vector<string> names;
-            for ( const auto& entry : props.Pairs() )
+            for ( const auto& entry : script.mProps.Pairs() )
                 names.push_back( entry.first.TryAs<string>().value_or( "?" ) );
             ranges::sort( names );
-            return unexpected( format( "{}: {} is not a prop of {} (props: {})", label, key.Describe(), path,
+            return unexpected( format( "{}: {} is not a prop of {} (props: {})", label, key.Describe(), script.mPath,
                                        detail::Join( names ) ) );
         }
-        if ( fallback.Kind() != value.Kind() )
+        // The engine's types are all userdata; each is a kind of its own.
+        const auto kindOf = [&]( const LuaValue& of ) {
+            return of.Is( LuaKind::Userdata ) ? "a " + mLua.Describe( of ) : string( detail::KindName( of.Kind() ) );
+        };
+        if ( kindOf( fallback ) != kindOf( value ) )
             return unexpected( format( "{}: prop {} is {} in {}, the override is {}", label, *key.TryAs<string>(),
-                                       detail::KindName( fallback.Kind() ), path, detail::KindName( value.Kind() ) ) );
+                                       kindOf( fallback ), script.mPath, kindOf( value ) ) );
         auto copyMaybe = mLua.TryDeepCopy( value );
         if ( not copyMaybe )
             return unexpected( label + ": " + copyMaybe.error() );
         self.RawSet( key, *copyMaybe );
     }
+    return {};
+}
 
-    return mInstances.Add( Instance{ scriptHandle, std::move( label ), std::move( self ), {}, {}, true } );
+expected<void, string> ScriptRuntime::TrySetProps( ScriptInstanceHandle instanceHandle, const LuaTable& overrides )
+{
+    const auto instanceMaybe = mInstances.TryGet( instanceHandle );
+    if ( not instanceMaybe )
+        return unexpected( "the instance is gone"s );
+    const auto scriptMaybe = mScripts.TryGet( instanceMaybe->mScriptHandle );
+    const string label = instanceMaybe->mLabel;
+    const LuaTable self = instanceMaybe->mSelf;
+    // Laid on a table of their own first, so a bad override leaves self be.
+    LuaTable props = mLua.NewTable();
+    if ( auto copiedMaybe = TryCopyInto( props, scriptMaybe->mProps, false ); not copiedMaybe )
+        return unexpected( label + ": " + copiedMaybe.error() );
+    if ( auto overriddenMaybe = TryOverride( *scriptMaybe, label, props, overrides ); not overriddenMaybe )
+        return overriddenMaybe;
+    for ( const auto& [key, value] : props.Pairs() )
+        self.RawSet( key, value );
+    return {};
 }
 
 void ScriptRuntime::Destroy( ScriptInstanceHandle instanceHandle )

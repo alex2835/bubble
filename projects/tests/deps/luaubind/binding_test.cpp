@@ -10,6 +10,30 @@ using namespace luaubind::test;
 
 namespace
 {
+// A value type of the engine's, crossing by value: an id and a name.
+struct Badge
+{
+    int mId = 0;
+    string mName;
+
+    friend bool operator==( const Badge&, const Badge& ) = default;
+};
+
+// No ==, so two of them are two values.
+struct Ticket
+{
+    int mSeat = 0;
+};
+}
+
+template <>
+struct luaubind::LuaUserType<Badge>
+{
+    static constexpr const char* cName = "badge";
+};
+
+namespace
+{
 struct Vec3
 {
     f32 x = 0, y = 0, z = 0;
@@ -249,4 +273,122 @@ TEST_CASE( "An engine type hands its object back typed, and only as the type it 
     // Asking for another C++ type is a bug in the engine, not in a script.
     CHECK_THROWS_AS( (void)type.To<Vec3>( L, 1 ), std::logic_error );
     lua_settop( L, 0 );
+}
+
+namespace
+{
+LuaType& RegisterBadge( LuaState& state )
+{
+    return LuaTypeBuilder<Badge>( state, "badge" )
+        .ReadOnly( "id", &Badge::mId )
+        .Property(
+            "name", []( Badge& self ) { return self.mName; },
+            []( Badge& self, string name ) {
+                if ( name.empty() )
+                    throw LuaError( "a badge's name is not empty" );
+                self.mName = std::move( name );
+            } )
+        .Property( "shout", []( Badge& self ) { return self.mName + "!"; } )
+        .Method( "check",
+                 []( Badge& self, int id ) {
+                     if ( id != self.mId )
+                         throw LuaError( "not this badge" );
+                     return true;
+                 } )
+        .ToString( []( const Badge& self ) { return "badge " + self.mName; } )
+        .Saved( []( const Badge& self ) { return std::to_string( self.mId ) + ":" + self.mName; },
+                []( string_view bytes ) -> expected<Badge, string> {
+                    const size_t colon = bytes.find( ':' );
+                    if ( colon == string_view::npos )
+                        return std::unexpected( "no id"s );
+                    return Badge{ std::stoi( string( bytes.substr( 0, colon ) ) ),
+                                  string( bytes.substr( colon + 1 ) ) };
+                } )
+        .Type();
+}
+}
+
+TEST_CASE( "A user type crosses by value: as an argument, a result, a field, and equal by its value" )
+{
+    LuaState state;
+    RegisterBadge( state );
+    LuaTable globals = state.Globals();
+    globals["make"] = []( int id, string name ) { return Badge{ id, std::move( name ) }; };
+    Badge seen;
+    globals["see"] = [&]( const Badge& badge ) { seen = badge; };
+
+    const LuaValue result = Evaluate( state, R"(
+local a = make( 1, "ann" )
+local b = make( 1, "ann" )
+see( a )
+return { same = a == b, other = a == make( 2, "bo" ), kind = typeof( a ), text = tostring( a ), shout = a.shout }
+)" );
+    const LuaTable table( result );
+    CHECK( table["same"].TryAs<bool>() == true );
+    CHECK( table["other"].TryAs<bool>() == false );
+    CHECK( table["kind"].TryAs<string>() == "badge" );
+    CHECK( table["text"].TryAs<string>() == "badge ann" );
+    CHECK( table["shout"].TryAs<string>() == "ann!" );
+    CHECK( seen == Badge{ 1, "ann" } );
+    // A value held from C++ reads back as the type.
+    CHECK( state.Value( Badge{ 3, "cy" } ).TryAs<Badge>() == Badge{ 3, "cy" } );
+    CHECK_FALSE( state.Value( 3 ).TryAs<Badge>().has_value() );
+    CHECK( Balanced( state ) );
+}
+
+TEST_CASE( "A user type's errors are the script's, at its line, and a wrong argument names the type" )
+{
+    LuaState state;
+    RegisterBadge( state );
+    LuaTable globals = state.Globals();
+    globals["make"] = []( int id, string name ) { return Badge{ id, std::move( name ) }; };
+    globals["see"] = []( const Badge& ) {};
+    lua_State* L = state.L();
+
+    CHECK( ErrorOf( L, "see( 3 )" ).find( "badge expected" ) != string::npos );
+    CHECK( ErrorOf( L, "local b = make( 1, 'a' )\nb.name = ''" ) == "test:2: a badge's name is not empty" );
+    CHECK( ErrorOf( L, "local b = make( 1, 'a' )\nb:check( 2 )" ) == "test:2: not this badge" );
+    CHECK( ErrorOf( L, "make( 1, 'a' ).name = 5" ).find( "badge.name: string expected, got number" ) != string::npos );
+    CHECK( ErrorOf( L, "make( 1, 'a' ).shout = 'x'" ).find( "badge.shout is read-only" ) != string::npos );
+    CHECK( Balanced( state ) );
+}
+
+TEST_CASE( "A user type's method runs on the coroutine that called it" )
+{
+    LuaState state;
+    lua_State* seenOn = nullptr;
+    LuaTypeBuilder<Badge>( state, "badge" ).Method( "where", [&]( Badge& ) { seenOn = state.Active(); } );
+    state.Globals()["make"] = []() { return Badge{}; };
+    const LuaFunction body( Evaluate( state, "return function() make():where() end" ) );
+    const LuaThread thread = state.NewThread( body );
+    REQUIRE( thread.Resume().mStatus == LuaResume::Status::Finished );
+    CHECK( seenOn != nullptr );
+    CHECK( seenOn != state.L() );
+}
+
+TEST_CASE( "A user type crossing into a state that has not registered it is the engine's mistake" )
+{
+    LuaState state;
+    CHECK_THROWS_AS( (void)state.Value( Badge{} ), std::logic_error );
+    RegisterBadge( state );
+    // One Luau type for each C++ type that crosses by value.
+    CHECK_THROWS_AS( LuaTypeBuilder<Badge>( state, "other_badge" ), std::logic_error );
+}
+
+TEST_CASE( "A type with no == is equal only to itself, and a type's C++ objects come back from values" )
+{
+    LuaState state;
+    LuaType& type = LuaTypeBuilder<Ticket>( state, "ticket" ).Field( "seat", &Ticket::mSeat ).Type();
+    const LuaValue ticket = type.New( Ticket{ 4 } );
+    state.Globals()["a"] = ticket;
+    state.Globals()["b"] = type.New( Ticket{ 4 } );
+    const LuaValue result = Evaluate( state, "return { a == a, a == b, tostring( a ) }" );
+    const LuaTable table( result );
+    CHECK( table[1].TryAs<bool>() == true );
+    CHECK( table[2].TryAs<bool>() == false );
+    CHECK( table[3].TryAs<string>() == "ticket" );
+    REQUIRE( type.TryTo<Ticket>( ticket ) != nullptr );
+    CHECK( type.TryTo<Ticket>( ticket )->mSeat == 4 );
+    CHECK( type.TryTo<Ticket>( state.Value( 1 ) ) == nullptr );
+    CHECK( Balanced( state ) );
 }

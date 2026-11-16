@@ -1,5 +1,6 @@
 #include "bubble/reflection/reflection.hpp"
 #include "bubble/core/text.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/math.hpp"
 
@@ -9,6 +10,7 @@ namespace
 {
 const FieldInfo cNoFieldInfo{};
 const TypeInfo cNoTypeInfo{};
+const MethodInfo cNoMethodInfo{};
 
 // By C++ type, not by meta type: a value made without our context - a
 // MetaAny( 1.0f ) - has the same type from another one.
@@ -64,6 +66,35 @@ const FieldInfo& Reflection::InfoOf( const MetaField& field )
 {
     const FieldInfo* info = field.custom();
     return info ? *info : cNoFieldInfo;
+}
+
+void Reflection::ForEachMethod( const MetaType& type, const function<void( Name, const MetaMethod& )>& fn ) const
+{
+    vector<pair<string, Name>> names;
+    for ( const auto& [id, method] : type.func() )
+        names.emplace_back( Name::FromHash( id ).ToString(), Name::FromHash( id ) );
+    ranges::sort( names );
+    for ( const auto& [text, name] : names )
+        fn( name, type.func( name.Hash() ) );
+}
+
+vector<MetaType> Reflection::Services() const
+{
+    vector<pair<string, MetaType>> found;
+    for ( const Name name : mDescribed )
+        if ( const auto typeMaybe = TryFind( name ); typeMaybe and InfoOf( *typeMaybe ).mService )
+            found.emplace_back( name.ToString(), *typeMaybe );
+    ranges::sort( found, []( const auto& a, const auto& b ) { return a.first < b.first; } );
+    vector<MetaType> services;
+    for ( const auto& [text, type] : found )
+        services.push_back( type );
+    return services;
+}
+
+const MethodInfo& Reflection::InfoOf( const MetaMethod& method )
+{
+    const MethodInfo* info = method.custom();
+    return info ? *info : cNoMethodInfo;
 }
 
 const TypeInfo& Reflection::InfoOf( const MetaType& type )

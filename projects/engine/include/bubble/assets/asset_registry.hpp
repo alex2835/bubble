@@ -44,6 +44,8 @@ public:
     const string& Error() const { return mError; }
     // Grows with every reload that took.
     u32 Version() const { return mVersion; }
+    // The C++ type its loader makes.
+    type_index Type() const { return mType; }
 
 protected:
     friend class AssetRegistry;
@@ -236,6 +238,7 @@ public:
 
     // How many assets are in memory.
     size_t Count() const { return mIndex->mById.size(); }
+    const AssetCatalog& Catalog() const { return mCatalog; }
 
     // The asset was imported again: loads it into its entry, here and now,
     // and tells the listeners. If the new version fails, the old one stays

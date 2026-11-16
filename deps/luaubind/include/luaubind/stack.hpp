@@ -194,6 +194,39 @@ struct LuaTraits<LuaThread> : detail::LuaKindTraits<LuaThread, LUA_TTHREAD>
     static constexpr const char* cName = "thread";
 };
 
+// A C++ type that crosses as the userdata of the one LuaType registered
+// for it, by value - a copy each way. A type opts in by naming itself:
+//
+//     template <> struct luaubind::LuaUserType<Entity> { static constexpr const char* cName = "entity"; };
+//
+// and LuaTypeBuilder<Entity> registers it with a state before it crosses
+// there; crossing into a state that has not is a logic_error.
+template <typename T>
+struct LuaUserType;
+
+template <typename T>
+concept LuaUserTypeLike = requires { LuaUserType<T>::cName; };
+
+namespace detail
+{
+// In type.hpp, where LuaType is whole.
+template <typename T>
+bool IsUser( lua_State* L, int index );
+template <typename T>
+void PushUser( lua_State* L, const T& value );
+template <typename T>
+T& CheckUser( lua_State* L, int index );
+}
+
+template <LuaUserTypeLike T>
+struct LuaTraits<T>
+{
+    static constexpr const char* cName = LuaUserType<T>::cName;
+    static bool Is( lua_State* L, int index ) { return detail::IsUser<T>( L, index ); }
+    static void Push( lua_State* L, const T& value ) { detail::PushUser<T>( L, value ); }
+    static T Check( lua_State* L, int index ) { return detail::CheckUser<T>( L, index ); }
+};
+
 // Thrown by a bound function: a script error at the line that called it,
 // "player.luau:12: what went wrong".
 class LuaError : public std::runtime_error

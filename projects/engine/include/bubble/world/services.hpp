@@ -33,6 +33,16 @@ public:
         return *entt::any_cast<T>( &found->second );
     }
 
+    // By the type's hash - entt::type_hash, what reflection's types carry:
+    // how scripts find a service they know by its description.
+    OptRef<entt::any> TryGetAny( u32 typeHash )
+    {
+        const auto found = mServices.find( typeHash );
+        if ( found == mServices.end() )
+            return nullopt;
+        return found->second;
+    }
+
     // One nobody added is a logic_error: the module that adds it is missing.
     template <typename T>
     T& Get()

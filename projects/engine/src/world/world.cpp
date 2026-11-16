@@ -5,6 +5,7 @@ namespace bubble
 {
 World::World( App& app, Scene scene, WorldOptions options )
     : mApp( app ),
+      mLevel( options.mLevel ),
       mClock( options.mStepsPerSecond ),
       mRandom( options.mSeed ),
       mScene( std::move( scene ) )
@@ -41,6 +42,7 @@ void World::Frame( f64 elapsed )
     for ( u32 i = 0; i < due; ++i )
         Step();
 
+    mFrameActions = mInput.mLatchFrame ? mInput.mLatchFrame() : Actions();
     DeliverDataEvents();
     const f32 dt = static_cast<f32>( elapsed );
     for ( const Phase phase : { Phase::Update, Phase::Animation, Phase::Transforms, Phase::Audio, Phase::Render } )
@@ -51,10 +53,13 @@ void World::Step()
 {
     BUBBLE_PROFILE_ZONE();
     const f32 dt = mClock.Dt();
+    mStepActions = mInput.mLatchStep ? mInput.mLatchStep() : Actions();
+    mInStep = true;
     DeliverDataEvents();
     Run( Phase::FixedUpdate, dt );
     Run( Phase::Physics, dt );
     mEvents.Deliver();
+    mInStep = false;
     ++mSteps;
 }
 
@@ -63,8 +68,11 @@ WorldSnapshot World::Snapshot()
     BUBBLE_PROFILE_ZONE();
     RequireBetweenFrames( "Snapshot" );
     DeliverDataEvents();
+    vector<Ref<const ModuleSnapshot>> modules;
+    for ( const Scope<Module>& module : mModules )
+        modules.push_back( module->TrySnapshot() );
     return WorldSnapshot( SceneSnapshot( mScene, mApp.GetComponentTypes() ), mClock, mRandom, mSteps,
-                          mEvents.CopyWaiting() );
+                          mEvents.CopyWaiting(), std::move( modules ) );
 }
 
 void World::Restore( const WorldSnapshot& snapshot )
@@ -74,6 +82,11 @@ void World::Restore( const WorldSnapshot& snapshot )
     // What waited was about the scene that goes: the modules hear it all
     // anew.
     mPending.clear();
+    for ( size_t at = 0; at < mModules.size(); ++at )
+    {
+        const bool kept = at < snapshot.mModules.size() and snapshot.mModules[at];
+        mModules[at]->Restoring( kept ? OptRef<const ModuleSnapshot>( *snapshot.mModules[at] ) : nullopt );
+    }
     snapshot.mScene.Restore( mScene, mApp.GetComponentTypes() );
     DeliverDataEvents();
     // The runtime built again lies in the order it was built in; the

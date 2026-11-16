@@ -17,6 +17,9 @@ struct CompileOptions
 {
     // 1 keeps every line and local debuggable; 2 inlines, for shipped builds.
     int mOptimization = 1;
+    // Globals whose fields change while scripts run: Luau would otherwise
+    // read `name.field` once, when the code loads, from a sealed state.
+    vector<string> mMutableGlobals;
 };
 
 // Source to bytecode. The engine loads bytecode only - scripts are compiled

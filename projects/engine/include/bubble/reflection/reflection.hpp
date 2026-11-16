@@ -72,6 +72,9 @@ struct FieldInfo
 struct MethodInfo
 {
     const char* mTooltip = nullptr;
+    // Its parameters' names, "from, to, color": what script declarations
+    // and the console show, as reflection keeps only the types.
+    const char* mParameters = nullptr;
 };
 
 // What the editor shows about a type as a whole.
@@ -79,6 +82,9 @@ struct TypeInfo
 {
     // A line under the inspector's title: what the fields do not say.
     const char* mNote = nullptr;
+    // A world's service that scripts call by the type's name -
+    // debug_draw.line( ... ) - through its methods.
+    bool mService = false;
 };
 
 using FieldListenerHandle = Handle<struct FieldListenerTag>;
@@ -119,7 +125,16 @@ public:
 
     TypeBuilder& Note( const char* note )
     {
-        mFactory.template custom<TypeInfo>( TypeInfo{ note } );
+        mInfo.mNote = note;
+        mFactory.template custom<TypeInfo>( mInfo );
+        return *this;
+    }
+
+    // T is a world's service: scripts reach its methods by the type's name.
+    TypeBuilder& Service()
+    {
+        mInfo.mService = true;
+        mFactory.template custom<TypeInfo>( mInfo );
         return *this;
     }
 
@@ -127,6 +142,7 @@ private:
     static u32 Declare( string_view name ) { return Name::Declare( name ).Hash(); }
 
     entt::meta_factory<T> mFactory;
+    TypeInfo mInfo;
 };
 
 // The descriptions of types, and who listens for their fields. Passed
@@ -176,8 +192,13 @@ public:
 
     // The fields in the order they were described.
     void ForEachField( const MetaType& type, const function<void( Name, const MetaField& )>& fn ) const;
+    // The methods, by name.
+    void ForEachMethod( const MetaType& type, const function<void( Name, const MetaMethod& )>& fn ) const;
+    // The types described as services, by name.
+    vector<MetaType> Services() const;
     static const FieldInfo& InfoOf( const MetaField& field );
     static const TypeInfo& InfoOf( const MetaType& type );
+    static const MethodInfo& InfoOf( const MetaMethod& method );
 
     // One field of `object` by name: a reference into it for a Field, a copy
     // for a Property.

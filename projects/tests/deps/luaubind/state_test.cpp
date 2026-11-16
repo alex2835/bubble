@@ -302,3 +302,23 @@ TEST_CASE( "print goes to the handler" )
     Evaluate( lua, "print( 'hp', 10, true ) return nil" );
     CHECK( printed == "hp\t10\ttrue" );
 }
+
+TEST_CASE( "Code still running past the time limit fails where it got to, and the state goes on" )
+{
+    LuaState state;
+    state.SetTimeLimit( std::chrono::milliseconds( 20 ) );
+    const LuaFunction spin( Evaluate( state, "return function() local n = 0 while true do n += 1 end end" ) );
+    const auto spunMaybe = spin();
+    REQUIRE_FALSE( spunMaybe );
+    CHECK( spunMaybe.error().mMessage == "test:1: ran longer than 20 ms - an endless loop?" );
+    // A pcall inside does not hold it: the next safepoint out fails again.
+    const LuaFunction stubborn(
+        Evaluate( state, "return function() while true do pcall( function() while true do end end ) end end" ) );
+    CHECK_FALSE( stubborn() );
+    // A coroutine's turn is a call of its own.
+    const LuaThread thread = state.NewThread( spin );
+    CHECK( thread.Resume().mStatus == LuaResume::Status::Failed );
+    // The clock starts again at the next call.
+    CHECK( Evaluate( state, "local n = 0 for i = 1, 1000 do n += i end return n" ).TryAs<int>() == 500500 );
+    CHECK( Balanced( state ) );
+}

@@ -105,8 +105,10 @@ TEST_CASE( "Props that a scene file could not hold are refused on load" )
 {
     Scripts scripts;
     CHECK( scripts.LoadError( "a.luau", "props { entity = 1 }" ).find( "cannot be called 'entity'" ) != string::npos );
-    CHECK( scripts.LoadError( "b.luau", "props { hit = function() end }" ).find( "a function cannot be saved" ) !=
-           string::npos );
+    // Import refuses a default that is not data before anything runs.
+    const auto importedMaybe = scripts.TryWrite( "b.luau", "props { hit = function() end }" );
+    REQUIRE_FALSE( importedMaybe );
+    CHECK( importedMaybe.error().find( "b.luau:1: props: hit: a literal the inspector can show" ) != string::npos );
     CHECK( scripts.LoadError( "c.luau", "props { a = 1 }\nprops { b = 2 }" ).find( "declared once" ) != string::npos );
     CHECK( scripts.LoadError( "d.luau", "on_update = 5" ).find( "on_update is a number, not a function" ) !=
            string::npos );

@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/types/function.hpp"
+#include "bubble/types/opt_ref.hpp"
 #include "bubble/types/pointer.hpp"
 #include "bubble/types/string.hpp"
 
@@ -8,6 +9,13 @@ namespace bubble
 class ComponentTypes;
 class Reflection;
 class World;
+
+// A module's part of a WorldSnapshot, its own to read.
+class ModuleSnapshot
+{
+public:
+    virtual ~ModuleSnapshot() = default;
+};
 
 // A part of the engine that turns data into behaviour: physics, audio,
 // scripts. One is made for each world, and it reaches the rest of the world
@@ -22,6 +30,16 @@ class Module
 {
 public:
     virtual ~Module() = default;
+
+    // What the module keeps that no component holds - Luau's self tables,
+    // a physics engine's state - as a WorldSnapshot carries it; nothing when
+    // the components say it all.
+    virtual Ref<const ModuleSnapshot> TrySnapshot() { return nullptr; }
+    // World::Restore is about to put the scene back as a snapshot has it;
+    // `snapshotMaybe` is the module's part of it, made by this module or by
+    // the same module of another world of the App. The scene's components
+    // then go and come back as data events.
+    virtual void Restoring( OptRef<const ModuleSnapshot> snapshotMaybe ) { (void)snapshotMaybe; }
 };
 
 // What App knows of a module: how to describe its components, once a

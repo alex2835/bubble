@@ -3,8 +3,11 @@
 #include "luaubind/common.hpp"
 #include "luaubind/stack.hpp"
 #include "luaubind/value.hpp"
+#include <chrono>
 #include <stdexcept>
 #include <type_traits>
+#include <typeindex>
+#include <unordered_map>
 
 namespace luaubind
 {
@@ -53,6 +56,11 @@ public:
 
     void Seal();
     bool Sealed() const { return mSealed; }
+    // Script code still running `limit` after the engine called into it -
+    // an endless loop - fails where it got to, as a script error at that
+    // line: "player.luau:12: ran longer than 1000 ms - an endless loop?".
+    // Nested calls count from the outermost. Zero, the default, is none.
+    void SetTimeLimit( std::chrono::milliseconds limit );
     bool NativeCode() const { return mNativeCode; }
 
     // The C API, for the binding layer and tests only.
@@ -154,6 +162,10 @@ public:
     LuaTable Clone( const LuaValue& table );
     void SetMetatable( const LuaValue& table, const LuaValue& metatable );
     void Freeze( const LuaValue& table );
+    // Writable again: a global table scripts are meant to change, which
+    // Seal froze with the rest. Its code is compiled with its name among
+    // CompileOptions::mMutableGlobals.
+    void Thaw( const LuaValue& table );
     bool Frozen( const LuaValue& table );
 
     // ---- code ------------------------------------------------------------
@@ -218,6 +230,10 @@ public:
     // Registered types by their userdata tag, null for none; LuaTypeBuilder
     // adds them.
     LuaType* TryFindType( int tag ) const;
+    // The type a LuaUserType crosses as, null when it is not registered.
+    LuaType* TryFindType( std::type_index type ) const;
+    // By its name in Luau: what the data codec reads back.
+    LuaType* TryFindType( string_view name ) const;
 
 private:
     friend class LuaType;
@@ -267,15 +283,45 @@ private:
 
     static int Print( lua_State* L );
     static i16 UserAtom( lua_State* L, const char* text, size_t length );
+    static void Interrupt( lua_State* L, int gc );
+
+    // Around the engine's calls into script code: the outermost starts the
+    // clock the time limit counts from.
+    class Entry
+    {
+    public:
+        explicit Entry( LuaState& state ) : mState( state )
+        {
+            if ( mState.mEntries++ == 0 )
+            {
+                mState.mEnteredAt = std::chrono::steady_clock::now();
+                mState.mOverTime = false;
+            }
+        }
+        ~Entry() { --mState.mEntries; }
+        Entry( const Entry& ) = delete;
+        Entry& operator=( const Entry& ) = delete;
+
+    private:
+        LuaState& mState;
+    };
 
     lua_State* mL = nullptr;
     lua_State* mActive = nullptr;
     PrintHandler mPrint;
     bool mSealed = false;
     bool mNativeCode = false;
+    std::chrono::milliseconds mTimeLimit{ 0 };
+    std::chrono::steady_clock::time_point mEnteredAt;
+    int mEntries = 0;
+    u32 mSafepoints = 0;
+    // Past the limit: every safepoint fails from then on, so a pcall in a
+    // loop cannot catch its way to running for ever.
+    bool mOverTime = false;
     vector<string> mAtomNames;
     StringMap<i16> mAtoms;
     vector<std::unique_ptr<LuaType>> mTypes;
+    std::unordered_map<std::type_index, LuaType*> mUserTypes;
     // The stack where the last error of a TryPCall was raised.
     string mLastTraceback;
 };

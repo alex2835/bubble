@@ -1,4 +1,5 @@
 #include "luaubind/data.hpp"
+#include "luaubind/type.hpp"
 #include <algorithm>
 #include <bit>
 #include <cstring>
@@ -15,7 +16,7 @@ namespace
 static_assert( std::endian::native == std::endian::little );
 
 // Bumped when the layout changes; old bytes are then refused, not converted.
-constexpr u8 cFormat = 1;
+constexpr u8 cFormat = 2;
 constexpr int cMaxDepth = 100;
 
 enum class Tag : u8
@@ -27,6 +28,8 @@ enum class Tag : u8
     String,
     Vector,
     Table,
+    // An engine type's value: its name, then the bytes it saves as.
+    User,
 };
 
 bool IsIdentifier( string_view text )
@@ -101,9 +104,7 @@ public:
                 size_t length = 0;
                 const char* text = lua_tolstring( L, index, &length );
                 Put( Tag::String );
-                const auto size = static_cast<u32>( length );
-                Put( &size, sizeof( size ) );
-                Put( text, length );
+                PutString( string_view( text, length ) );
                 return {};
             }
             case LUA_TVECTOR:
@@ -111,6 +112,17 @@ public:
                 Put( lua_tovector( L, index ), 3 * sizeof( float ) );
                 return {};
             case LUA_TTABLE: return TryTable( index, depth );
+            case LUA_TUSERDATA:
+            {
+                const LuaType* type = LuaState::Of( L ).TryFindType( lua_userdatatag( L, index ) );
+                if ( type == nullptr or not type->Saves() )
+                    return std::unexpected( std::format( "{}: a {} cannot be saved", mPath.Where(),
+                                                         type != nullptr ? type->Name() : "userdata"s ) );
+                Put( Tag::User );
+                PutString( type->Name() );
+                PutString( type->EncodeData( lua_touserdata( L, index ) ) );
+                return {};
+            }
             default:
                 return std::unexpected(
                     std::format( "{}: a {} cannot be saved", mPath.Where(), luaL_typename( L, index ) ) );
@@ -160,6 +172,12 @@ private:
 
     void Put( Tag tag ) { mOut.push_back( static_cast<char>( tag ) ); }
     void Put( const void* data, size_t size ) { mOut.append( static_cast<const char*>( data ), size ); }
+    void PutString( string_view text )
+    {
+        const auto size = static_cast<u32>( text.size() );
+        Put( &size, sizeof( size ) );
+        Put( text.data(), text.size() );
+    }
 
     lua_State* mL;
     string mOut;
@@ -194,11 +212,10 @@ public:
             }
             case Tag::String:
             {
-                u32 size = 0;
-                if ( not Get( &size, sizeof( size ) ) or mIn.size() - mAt < size )
+                const auto textMaybe = TryString();
+                if ( not textMaybe )
                     return TryShort();
-                lua_pushlstring( L, mIn.data() + mAt, size );
-                mAt += size;
+                lua_pushlstring( L, textMaybe->data(), textMaybe->size() );
                 return {};
             }
             case Tag::Vector:
@@ -210,11 +227,35 @@ public:
                 return {};
             }
             case Tag::Table: return TryTable( depth );
+            case Tag::User:
+            {
+                const auto nameMaybe = TryString();
+                const auto bytesMaybe = nameMaybe ? TryString() : std::nullopt;
+                if ( not bytesMaybe )
+                    return TryShort();
+                const LuaType* type = LuaState::Of( L ).TryFindType( *nameMaybe );
+                if ( type == nullptr or not type->Saves() )
+                    return std::unexpected( std::format( "the data holds a {}, which is not saved here", *nameMaybe ) );
+                if ( auto decodedMaybe = type->TryDecodeData( L, *bytesMaybe ); not decodedMaybe )
+                    return std::unexpected( std::format( "a {}: {}", *nameMaybe, decodedMaybe.error() ) );
+                return {};
+            }
         }
         return std::unexpected( "the data is damaged: unknown value"s );
     }
 
     bool AtEnd() const { return mAt == mIn.size(); }
+
+    // A length and that many bytes, pointing into the input.
+    opt<string_view> TryString()
+    {
+        u32 size = 0;
+        if ( not Get( &size, sizeof( size ) ) or mIn.size() - mAt < size )
+            return std::nullopt;
+        const string_view text( mIn.data() + mAt, size );
+        mAt += size;
+        return text;
+    }
 
     bool Get( void* out, size_t size )
     {

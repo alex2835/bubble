@@ -1,11 +1,13 @@
 // The runner: a game on its own. The project and its levels come with
 // their stages; for now a scene made here - boxes of a few materials on the
-// ground under the sun, a warm lamp - drawn by the renderer, the camera
-// circling it as the actions say: stages 5 and 6 checked by hand. The
-// keyboard, a gamepad and touches drive "move_x"; the mouse touches too, for
-// a screen without touch. A touch or a click picks what it lands on: its box
-// drawn around it, its path logged. `--frames N` quits after N frames
-// drawn: a run a script can check.
+// ground under the sun, a warm lamp - drawn by the renderer and played by
+// scripts: the red box walks as "move_x" and "move_z" say, the camera
+// follows it, and a pad lights up when the box reaches it - remembered in
+// `progress` and written to the "autosave" slot, which the next run reads.
+// Stages 5 to 7 checked by hand. The keyboard, a gamepad and touches drive
+// the actions; the mouse touches too, for a screen without touch. A touch
+// or a click picks what it lands on: its box drawn around it, its path
+// logged. `--frames N` quits after N frames drawn: a run a script can check.
 #include "bubble/assets/model_primitives.hpp"
 #include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
@@ -14,6 +16,7 @@
 #include "bubble/render/gpu/gpu.hpp"
 #include "bubble/render/gpu/renderer.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/scripts/script_module.hpp"
 #include "bubble/types/thread.hpp"
 #include "bubble/world/transform.hpp"
 #include "bubble/world/world.hpp"
@@ -24,9 +27,12 @@ namespace
 {
 ActionMap Controls()
 {
-    // The left half of the window turns the camera one way or the other.
+    // The left half of the window walks left and right, the right half
+    // forward and back.
     const TouchArea leftQuarter{ .mMin = { 0.0f, 0.0f }, .mMax = { 0.25f, 1.0f } };
     const TouchArea secondQuarter{ .mMin = { 0.25f, 0.0f }, .mMax = { 0.5f, 1.0f } };
+    const TouchArea topRight{ .mMin = { 0.5f, 0.0f }, .mMax = { 1.0f, 0.5f } };
+    const TouchArea bottomRight{ .mMin = { 0.5f, 0.5f }, .mMax = { 1.0f, 1.0f } };
     ActionMap map;
     map.Bind( "move_x", Key::A, -1.0f )
         .Bind( "move_x", Key::D )
@@ -35,6 +41,13 @@ ActionMap Controls()
         .Bind( "move_x", GamepadAxis::LeftX )
         .Bind( "move_x", leftQuarter, -1.0f )
         .Bind( "move_x", secondQuarter );
+    map.Bind( "move_z", Key::W )
+        .Bind( "move_z", Key::S, -1.0f )
+        .Bind( "move_z", Key::Up )
+        .Bind( "move_z", Key::Down, -1.0f )
+        .Bind( "move_z", GamepadAxis::LeftY, -1.0f )
+        .Bind( "move_z", topRight )
+        .Bind( "move_z", bottomRight, -1.0f );
     return map;
 }
 
@@ -68,6 +81,21 @@ struct Project
         return Add( path, WriteMaterialAsset( *TryReadMaterialAsset( json ) ), cMaterialKind );
     }
 
+    // Compiled here as the importer compiles it - progress read each time -
+    // but not checked: the runner has no analyzer. Written typed all the
+    // same.
+    AssetId AddScript( string_view path, string_view source )
+    {
+        auto bytecodeMaybe =
+            TryCompileScript( source, CompileOptions{ .mOptimization = 1, .mMutableGlobals = { "progress" } } );
+        if ( not bytecodeMaybe )
+            throw logic_error( string( path ) + bytecodeMaybe.error() );
+        return Add(
+            path,
+            WriteScriptAsset( ScriptAsset{ .mBytecode = std::move( *bytecodeMaybe ), .mProps = {}, .mRequires = {} } ),
+            cScriptKind );
+    }
+
     AssetRegistry::ReadImported Read()
     {
         return AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
@@ -95,6 +123,70 @@ fn surface( in: SurfaceInput ) -> SurfaceOutput
     return out;
 }
 )wgsl";
+
+// The red box: walks on the ground as the actions say.
+constexpr string_view cPlayer = R"luau(
+local P = props { speed = 3 }
+type Self = typeof( P ) & { entity: entity }
+
+function on_fixed_update( self: Self, dt: number )
+    local move = vector.create( input.axis( "move_x" ), 0, -input.axis( "move_z" ) )
+    if vector.magnitude( move ) > 1 then
+        move = vector.normalize( move )
+    end
+    local t = self.entity.transform
+    t.position += move * self.speed * dt
+end
+)luau";
+
+// The camera: behind its target and above, looking down at it.
+constexpr string_view cFollow = R"luau(
+local P = props { target = entity(), offset = vector.create( 0, 6, 9 ) }
+type Self = typeof( P ) & { entity: entity }
+
+function on_update( self: Self, dt: number )
+    local t = self.entity.transform
+    t.position = self.target.transform.position + self.offset
+    t.rotation = vector.create( -math.atan2( self.offset.y, self.offset.z ), 0, 0 )
+end
+)luau";
+
+// The pad: lit once its target has stood on it - in this run, the last
+// level's (progress) or an earlier run's (the autosave slot).
+constexpr string_view cPad = R"luau(
+local P = props { target = entity(), reach = 1.2 }
+type Self = typeof( P ) & { entity: entity }
+
+local function light_up( self: Self )
+    self.entity.model.tint = color( 0.3, 1, 0.4 )
+end
+
+function on_start( self: Self )
+    local saved = save.read( "autosave" )
+    if progress.pad_reached or ( saved and saved.pad_reached ) then
+        light_up( self )
+    end
+end
+
+function on_update( self: Self, dt: number )
+    if not progress.pad_reached then
+        debug_draw.line( self.entity.transform.position, self.target.transform.position, color( 1, 0.85, 0.1 ) )
+    end
+end
+
+function on_fixed_update( self: Self, dt: number )
+    if progress.pad_reached then
+        return
+    end
+    local apart = self.target.transform.position - self.entity.transform.position
+    if vector.magnitude( vector.create( apart.x, 0, apart.z ) ) < self.reach then
+        progress.pad_reached = true
+        save.write( "autosave", { pad_reached = true } )
+        print( "the pad is reached: written to the autosave slot" )
+        light_up( self )
+    end
+end
+)luau";
 
 Scene Level( Project& project )
 {
@@ -134,10 +226,20 @@ Scene Level( Project& project )
     };
     for ( size_t at = 0; at < boxes.size(); ++at )
     {
-        const Entity entity = CreateChild( scene, scene.Root(), Make( "box" ) );
+        const Entity entity = CreateChild( scene, scene.Root(), Make( at == 0 ? "player" : "box" ) );
         scene.Add<Transform>( entity, boxes[at] );
         scene.Add<Model>( entity, Model{ .mAsset = box, .mMaterials = { materials[at] }, .mTint = {} } );
     }
+    const Entity player = *TryResolve( scene, EntityPath{ Make( "/player" ) } );
+    scene.Add<Script>( player, Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
+                                       .mProps = Value( Value::Record{} ) } );
+    const Value target(
+        Value::Record{ ValueField{ Name::Declare( "target" ), Value( EntityPath{ Make( "/player" ) } ) } } );
+
+    const Entity pad = CreateChild( scene, scene.Root(), Make( "pad" ) );
+    scene.Add<Transform>( pad, Transform{ .mPosition = { 3.5f, 0.03f, 3.0f }, .mScale = { 1.5f, 0.06f, 1.5f } } );
+    scene.Add<Model>( pad, Model{ .mAsset = box, .mMaterials = { grass }, .mTint = {} } );
+    scene.Add<Script>( pad, Script{ .mAsset = project.AddScript( "scripts/pad.luau", cPad ), .mProps = target } );
 
     const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
     scene.Add<Transform>( sun, Transform{ .mRotation = { glm::radians( -40.0f ), glm::radians( 35.0f ), 0.0f } } );
@@ -147,21 +249,13 @@ Scene Level( Project& project )
     scene.Add<PointLight>( lamp, PointLight{ .mColor = { .mR = 1.0f, .mG = 0.6f, .mB = 0.3f, .mA = 1.0f },
                                              .mIntensity = 15.0f,
                                              .mRange = 8.0f } );
-    // Placed each frame by the loop, as the actions turn it.
+    // Placed each frame by its script, behind the player.
     const Entity camera = CreateChild( scene, scene.Root(), Make( "camera" ) );
     scene.Add<Transform>( camera );
     scene.Add<Camera>( camera );
+    scene.Add<Script>( camera,
+                       Script{ .mAsset = project.AddScript( "scripts/follow.luau", cFollow ), .mProps = target } );
     return scene;
-}
-
-// Around the middle of the scene, `turn` radians round, looking down at it.
-Transform Orbit( f32 turn )
-{
-    constexpr f32 cDistance = 11.0f;
-    constexpr f32 cPitch = -0.55f;
-    const vec3 position( sin( turn ) * cos( cPitch ) * cDistance, -sin( cPitch ) * cDistance,
-                         cos( turn ) * cos( cPitch ) * cDistance );
-    return Transform{ .mPosition = position, .mRotation = { cPitch, turn, 0.0f } };
 }
 
 // The frames to draw before quitting, from `--frames N`; none: until the
@@ -208,10 +302,22 @@ int main( int argc, char** argv )
     RegisterMaterialLoader( assets );
     RegisterShaderLoader( assets );
     RegisterTextureLoader( assets );
+    RegisterScriptLoader( assets );
+    // Saves in the user's folder; without one the game plays on, unsaved.
+    Ref<SaveSlots> saves;
+    if ( auto folderMaybe = platform.TrySaveFolder( "runner" ) )
+        saves = SaveSlotsInFolder( *folderMaybe, app.GetJobs() );
+    else
+        LogWarning( "{}", folderMaybe.error() );
     app.AddModule( TransformModule() );
+    app.AddModule( ScriptModule( assets, ScriptModuleOptions{ .mGlobals = {},
+                                                              .mAliases = {},
+                                                              .mTimeLimit = 1.0,
+                                                              .mProgress = CreateRef<ScriptProgress>(),
+                                                              .mSaves = saves,
+                                                              .mGameVersion = "runner 0.7" } ) );
     app.AddModule( RenderModule( assets ) );
     World world( app, Level( project ) );
-    const Entity camera = *TryResolve( world.GetScene(), EntityPath{ Make( "/camera" ) } );
 
     // The GPU after the window, and gone before it.
     const Scope<GpuStartup> startup = Gpu::Start( window );
@@ -219,7 +325,8 @@ int main( int argc, char** argv )
     Scope<Renderer> renderer;
     RenderView view;
     Input input( Controls() );
-    f32 turn = 2.2f;
+    world.SetInput( WorldInput{ .mLatchStep = [&] { return input.LatchStep(); },
+                                .mLatchFrame = [&] { return input.LatchFrame(); } } );
     Entity picked;
     platform.Run( [&]( f64 elapsed ) {
         for ( const InputEvent& event : platform.Poll() )
@@ -235,10 +342,6 @@ int main( int argc, char** argv )
                 picked = *pickedMaybe;
                 LogInfo( "picked {}", Describe( world.GetScene(), picked ) );
             }
-        const Actions actions = input.LatchFrame();
-        turn += actions.Axis( "move_x"_n ) * static_cast<f32>( elapsed ) * 1.5f;
-        world.GetScene().Get<Transform>( camera ) = Orbit( turn );
-
         // What there is to see by: the world's axes, the picked item's box.
         DebugDraw& debug = world.Get<DebugDraw>();
         debug.Axes( mat4( 1.0f ), 1.5f );

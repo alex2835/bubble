@@ -1,4 +1,7 @@
 #pragma once
+#include "bubble/assets/asset_id.hpp"
+#include "bubble/core/color.hpp"
+#include "bubble/scene/entity.hpp"
 #include "bubble/types/string.hpp"
 #include <luaubind/luaubind.hpp>
 
@@ -27,3 +30,23 @@ using luaubind::TryCompileScript;
 // into the log, as script messages.
 void PrintToLog( string_view text );
 }
+
+// The engine's value types cross into Luau as types of their own, by value;
+// a world's scripts module registers them in its state.
+template <>
+struct luaubind::LuaUserType<bubble::Entity>
+{
+    static constexpr const char* cName = "entity";
+};
+
+template <>
+struct luaubind::LuaUserType<bubble::Color>
+{
+    static constexpr const char* cName = "color";
+};
+
+template <>
+struct luaubind::LuaUserType<bubble::AssetId>
+{
+    static constexpr const char* cName = "asset";
+};

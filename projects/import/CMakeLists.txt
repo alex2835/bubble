@@ -8,7 +8,8 @@ file( GLOB_RECURSE BUBBLE_IMPORT_HEADERS CONFIGURE_DEPENDS include/*.hpp )
 add_library( bubble_import STATIC ${BUBBLE_IMPORT_SOURCES} ${BUBBLE_IMPORT_HEADERS} )
 target_include_directories( bubble_import PUBLIC include )
 bubble_target_warnings( bubble_import )
-target_link_libraries( bubble_import PUBLIC bubble_engine PRIVATE stb_image )
+# The analyzer checks scripts strictly as they are imported.
+target_link_libraries( bubble_import PUBLIC bubble_engine PRIVATE stb_image luau_analysis )
 # Models where assimp is built: not on the web.
 if( TARGET assimp )
     target_link_libraries( bubble_import PRIVATE assimp meshoptimizer )

@@ -12,6 +12,7 @@ using WeakRef = std::weak_ptr<T>;
 template <typename T>
 using Scope = std::unique_ptr<T>;
 
+using std::enable_shared_from_this;
 using std::static_pointer_cast;
 
 template <typename T, typename... Args>

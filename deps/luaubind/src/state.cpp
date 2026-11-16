@@ -201,6 +201,13 @@ void LuaState::Freeze( const LuaValue& table )
     lua_pop( mActive, 1 );
 }
 
+void LuaState::Thaw( const LuaValue& table )
+{
+    table.Push( mActive );
+    lua_setreadonly( mActive, -1, false );
+    lua_pop( mActive, 1 );
+}
+
 bool LuaState::Frozen( const LuaValue& table )
 {
     table.Push( mActive );
@@ -228,9 +235,40 @@ expected<LuaFunction, string> LuaState::TryLoad( string_view chunk, string_view 
     return LuaFunction( LuaValue( L, -1 ) );
 }
 
+void LuaState::SetTimeLimit( std::chrono::milliseconds limit )
+{
+    mTimeLimit = limit;
+    lua_callbacks( mL )->interrupt = limit.count() > 0 ? &LuaState::Interrupt : nullptr;
+}
+
+void LuaState::Interrupt( lua_State* L, int gc )
+{
+    // In the middle of a collection an error would leave the heap half
+    // swept; the next safepoint will do.
+    if ( gc >= 0 )
+        return;
+    LuaState& state = Of( L );
+    if ( state.mEntries == 0 )
+        return;
+    // The clock costs more than a safepoint: one look in 256 is soon enough.
+    if ( not state.mOverTime and ( ++state.mSafepoints & 255u ) == 0 )
+        state.mOverTime = std::chrono::steady_clock::now() - state.mEnteredAt > state.mTimeLimit;
+    if ( state.mOverTime )
+    {
+        // The running function's line: at a safepoint no C function stands
+        // between, so level 0 is the script's.
+        luaL_where( L, 0 );
+        lua_pushfstring( L, "ran longer than %lld ms - an endless loop?",
+                         static_cast<long long>( state.mTimeLimit.count() ) );
+        lua_concat( L, 2 );
+        lua_error( L );
+    }
+}
+
 expected<LuaValue, ScriptError> LuaState::TryCallImpl( lua_State* L, int top )
 {
     const StackRestore restore( L, top );
+    const Entry entry( *this );
     if ( auto calledMaybe = TryPCall( L, lua_gettop( L ) - top - 1, 1 ); not calledMaybe )
         return std::unexpected( std::move( calledMaybe.error() ) );
     return LuaValue( L, -1 );
@@ -273,6 +311,7 @@ LuaResume LuaState::ResumeImpl( lua_State* co, int nargs )
     lua_State* from = mActive;
     int status = LUA_OK;
     {
+        const Entry entry( *this );
         const detail::ActiveThreadScope active( co );
         status = lua_resume( co, from, nargs );
     }
@@ -358,6 +397,20 @@ LuaType* LuaState::TryFindType( int tag ) const
     if ( tag < 1 or static_cast<size_t>( tag ) > mTypes.size() )
         return nullptr;
     return mTypes[static_cast<size_t>( tag - 1 )].get();
+}
+
+LuaType* LuaState::TryFindType( std::type_index type ) const
+{
+    const auto found = mUserTypes.find( type );
+    return found == mUserTypes.end() ? nullptr : found->second;
+}
+
+LuaType* LuaState::TryFindType( string_view name ) const
+{
+    for ( const auto& type : mTypes )
+        if ( type->Name() == name )
+            return type.get();
+    return nullptr;
 }
 
 i16 LuaState::UserAtom( lua_State* L, const char* text, size_t length )

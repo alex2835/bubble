@@ -150,6 +150,14 @@ ModuleType RenderModule( AssetRegistry& assets )
                     .Field<&Model::mAsset>( "asset" )
                     .Field<&Model::mMaterials>( "materials" )
                     .Field<&Model::mTint>( "tint", color );
+                // Scripts draw too: debug_draw.line( from, to, color ).
+                reflection.Type<DebugDraw>( "debug_draw" )
+                    .Service()
+                    .Method<&DebugDraw::Line>( "line", { .mTooltip = nullptr, .mParameters = "from, to, color" } )
+                    .Method<static_cast<void ( DebugDraw::* )( vec3, vec3, Color )>( &DebugDraw::Box )>(
+                        "box", { .mTooltip = "A box along the world's axes.", .mParameters = "min, max, color" } )
+                    .Method<&DebugDraw::Sphere>( "sphere", { .mTooltip = "Three circles, one about each axis.",
+                                                             .mParameters = "centre, radius, color" } );
                 componentTypes.Add<Camera>();
                 componentTypes.Add<DirectionalLight>();
                 componentTypes.Add<PointLight>();

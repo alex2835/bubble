@@ -17,7 +17,7 @@ void PutNumber32( string& out, u32 value )
 string NestedBytes( int tables )
 {
     string bytes;
-    bytes.push_back( static_cast<char>( 1 ) ); // the format itself
+    bytes.push_back( static_cast<char>( 2 ) ); // the format itself
     for ( int table = 0; table < tables; ++table )
     {
         bytes.push_back( static_cast<char>( 6 ) ); // a table
@@ -211,4 +211,74 @@ TEST_CASE( "A deep copy is independent but keeps sharing, cycles and functions" 
         and value.list[2] == 2)" ) );
     lua_pop( L, 1 );
     CHECK( lua_gettop( L ) == 0 );
+}
+
+namespace
+{
+struct Coin
+{
+    int mValue = 0;
+};
+
+struct Lamp
+{
+    int mWatts = 0;
+};
+}
+
+template <>
+struct luaubind::LuaUserType<Coin>
+{
+    static constexpr const char* cName = "coin";
+};
+
+namespace
+{
+void RegisterCoin( LuaState& state )
+{
+    LuaTypeBuilder<Coin>( state, "coin" )
+        .ReadOnly( "value", &Coin::mValue )
+        .Saved( []( const Coin& coin ) { return std::to_string( coin.mValue ); },
+                []( string_view bytes ) -> expected<Coin, string> {
+                    if ( bytes == "13" )
+                        return std::unexpected( "an unlucky coin"s );
+                    return Coin{ std::stoi( string( bytes ) ) };
+                } );
+}
+}
+
+TEST_CASE( "An engine type that says how it saves goes to bytes and comes back, in another state too" )
+{
+    LuaState saving;
+    RegisterCoin( saving );
+    saving.Globals()["coin"] = []( int value ) { return Coin{ value }; };
+    const auto bytesMaybe = saving.TryEncode( Evaluate( saving, "return { purse = { coin( 5 ), coin( 7 ) } }" ) );
+    REQUIRE_MESSAGE( bytesMaybe, bytesMaybe.error() );
+
+    LuaState loading;
+    RegisterCoin( loading );
+    const auto valueMaybe = loading.TryDecode( *bytesMaybe );
+    REQUIRE_MESSAGE( valueMaybe, valueMaybe.error() );
+    loading.Globals()["data"] = *valueMaybe;
+    CHECK( Evaluate( loading, "return data.purse[1].value + data.purse[2].value" ).TryAs<int>() == 12 );
+
+    // A state that does not know the type cannot read it, nor a value it refuses.
+    LuaState stranger;
+    CHECK( stranger.TryDecode( *bytesMaybe ).error() == "the data holds a coin, which is not saved here" );
+    const auto unluckyMaybe = saving.TryEncode( Evaluate( saving, "return coin( 13 )" ) );
+    REQUIRE( unluckyMaybe );
+    CHECK( loading.TryDecode( *unluckyMaybe ).error() == "a coin: an unlucky coin" );
+    CHECK( Balanced( saving ) );
+    CHECK( Balanced( loading ) );
+}
+
+TEST_CASE( "An engine type that does not say how it saves cannot be saved, and the error names it" )
+{
+    LuaState state;
+    LuaType& type = LuaTypeBuilder<Lamp>( state, "lamp" ).Type();
+    state.Globals()["lamp"] = type.New( Lamp{ 60 } );
+    const auto bytesMaybe = state.TryEncode( Evaluate( state, "return { hall = { lamp } }" ) );
+    REQUIRE_FALSE( bytesMaybe );
+    CHECK( bytesMaybe.error() == "hall[1]: a lamp cannot be saved" );
+    CHECK( Balanced( state ) );
 }

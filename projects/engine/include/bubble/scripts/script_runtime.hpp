@@ -24,6 +24,8 @@ using ScriptInstanceHandle = Handle<struct ScriptInstanceTag>;
 //   props { name = default, ... }   the file's properties, declared once
 //   locals { name = start, ... }    each instance's own state: in self like
 //                                   props, but not set by the scene or saved
+//                                   (both return their table, for self's type:
+//                                   type Self = typeof( P ) & { entity: entity })
 //   prop( default, info )           a property with hints for the inspector
 //   require( "./x" | "@alias/x" )   a library's value, shared by the world
 //   start( fn, ... )                runs fn as a coroutine of the instance
@@ -76,6 +78,12 @@ public:
     expected<ScriptInstanceHandle, string> TryCreate( ScriptHandle scriptHandle,
                                                       string label,
                                                       const LuaTable& overrides = {} );
+    // The props of a running instance laid anew: each its default, or
+    // what `overrides` says, checked as TryCreate checks them. What fails
+    // changes nothing; the rest of self - locals, what the script keeps -
+    // stays as it is.
+    expected<void, string> TrySetProps( ScriptInstanceHandle instanceHandle, const LuaTable& overrides );
+
     // Takes it off its events and stops its coroutines. Safe from inside
     // its own callback, and on a handle that is gone already.
     void Destroy( ScriptInstanceHandle instanceHandle );
@@ -199,6 +207,12 @@ private:
     expected<void, string> TryCheckProps( const LuaTable& props );
     expected<void, string> TryCheckLocals( const LuaTable& locals, const LuaTable& props );
     expected<void, string> TryCopyInto( const LuaTable& self, const LuaTable& from, bool onlyMissing );
+    // Lays `overrides` on `self`, which holds the props: each key a prop of
+    // `script`, of the kind its default is.
+    expected<void, string> TryOverride( const Script& script,
+                                        const string& label,
+                                        const LuaTable& self,
+                                        const LuaTable& overrides );
     expected<string, string> TryResolve( string_view from, string_view request ) const;
     // `file` is the environment of the code that called require.
     expected<LuaValue, string> TryRequire( const LuaTable& file, const string& request );

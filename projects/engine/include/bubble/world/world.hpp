@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/core/random.hpp"
+#include "bubble/input/input.hpp"
 #include "bubble/scene/scene.hpp"
 #include "bubble/scene/scene_snapshot.hpp"
 #include "bubble/types/format.hpp"
@@ -30,29 +31,46 @@ enum class Phase : u8
 
 struct WorldOptions
 {
+    // The level the scene was loaded from: what a save slot names.
+    AssetId mLevel = {};
     u32 mStepsPerSecond = 60;
     // Where GetRandom() - and, later, Luau's math.random - start from: the
     // same seed and the same input play the same game.
     u64 mSeed = 0;
 };
 
+// Where a world's input comes from - Input's latches, a replay's record:
+// each fixed step takes its actions as it begins, each frame its own before
+// its phases. A world with none sees no actions.
+struct WorldInput
+{
+    function<Actions()> mLatchStep;
+    function<Actions()> mLatchFrame;
+};
+
 class World;
 
 // A world as it stands, copied in memory: what rewind goes back to, a
 // checkpoint. The scene's data (SceneSnapshot), the clock part-way to the
-// next step, the steps done, the Random and the events waiting - all a
-// world's future follows from besides its input. Not a save: it lasts as
-// long as App's types do.
+// next step, the steps done, the Random, the events waiting and what the
+// modules keep beyond the components - all a world's future follows from
+// besides its input. Not a save: it lasts as long as App's types do.
 class WorldSnapshot
 {
 private:
     friend class World;
-    WorldSnapshot( SceneSnapshot scene, FixedClock clock, Random random, u64 steps, vector<Events::Emitted> events )
+    WorldSnapshot( SceneSnapshot scene,
+                   FixedClock clock,
+                   Random random,
+                   u64 steps,
+                   vector<Events::Emitted> events,
+                   vector<Ref<const ModuleSnapshot>> modules )
         : mScene( std::move( scene ) ),
           mClock( clock ),
           mRandom( random ),
           mSteps( steps ),
-          mEvents( std::move( events ) )
+          mEvents( std::move( events ) ),
+          mModules( std::move( modules ) )
     {
     }
 
@@ -61,6 +79,8 @@ private:
     Random mRandom;
     u64 mSteps = 0;
     vector<Events::Emitted> mEvents;
+    // By the module's place in App's list; null where it keeps nothing.
+    vector<Ref<const ModuleSnapshot>> mModules;
 };
 
 // One live scene and its modules: the game, a prefab's preview, a test,
@@ -107,12 +127,20 @@ public:
     // From inside a phase or a data event it is a logic_error.
     WorldSnapshot Snapshot();
     // Puts the world back as `snapshot` has it, the modules and their hooks
-    // staying: they hear every component go, then every one there was come
-    // back, and build their runtime again from the data. It goes on from
-    // there as the world the snapshot was taken from did - this one or
-    // another of the same App: the editor's Play starts from the level's. From
-    // inside a phase or a data event it is a logic_error.
+    // staying: each is handed its part (Module::Restoring), then they hear
+    // every component go, then every one there was come back, and build
+    // their runtime again from the data. It goes on from there as the world
+    // the snapshot was taken from did - this one or another of the same App:
+    // the editor's Play starts from the level's. From inside a phase or a
+    // data event it is a logic_error.
     void Restore( const WorldSnapshot& snapshot );
+
+    void SetInput( WorldInput input ) { mInput = std::move( input ); }
+    // The actions as the code running now sees them: a fixed step's while
+    // one runs, the frame's otherwise.
+    const Actions& GetActions() const { return mInStep ? mStepActions : mFrameActions; }
+
+    const AssetId& Level() const { return mLevel; }
 
     // Fixed steps done since the world was made.
     u64 Steps() const { return mSteps; }
@@ -240,6 +268,7 @@ private:
     static constexpr size_t cPhases = static_cast<size_t>( Phase::Render ) + 1;
 
     App& mApp;
+    AssetId mLevel = {};
     FixedClock mClock;
     Random mRandom;
     Scene mScene;
@@ -257,6 +286,10 @@ private:
     bool mRunning = false;
     bool mPaused = false;
     u64 mSteps = 0;
+    WorldInput mInput;
+    Actions mStepActions;
+    Actions mFrameActions;
+    bool mInStep = false;
     // Made last, gone first: the rest of the world is there for them both
     // ways.
     vector<Scope<Module>> mModules;

@@ -27,15 +27,44 @@ tested in `projects/tests/deps/luaubind`. The engine pulls its names into
 | `luaubind/type` | `LuaType`/`LuaTypeBuilder<T>`: C++ structs as tagged userdata, fields and methods by atom |
 | `luaubind/data` | raw `TryLuaEncode`/`TryLuaDecode`/`TryLuaDeepCopy` under `LuaState::TryEncode`/`TryDecode`/`TryDeepCopy` |
 | `scripts/lua` (engine) | the luaubind names in `bubble`, and `PrintToLog` - the print handler engine states use |
-| `scripts/script_asset` | `ScriptAsset` (bytecode) and `RegisterScriptLoader`: the registry reads the bytecode the importer put in the import cache (`<id>.script`). Compiling is `ScriptImporter()` in `bubble_import` (`bubble/import/script_importer.hpp`); the runner never compiles |
+| `scripts/script_asset` | `ScriptAsset` (bytecode, the props read from the AST, the requires resolved), its bytes (`WriteScriptAsset`/`TryReadScriptAsset`), `RegisterScriptLoader`, `TryResolveRequire`. Compiling is `ScriptImporter( check )` in `bubble_import` (`bubble/import/script_importer.hpp`) |
 | `editing/editor_lua` (bubble_editing) | `EditorLua`: the editor's own VM, never a world's. `editor.ops.<group>.<verb>( args )` and `editor.run` run operators (args read by what the operator declares, through `src/lua_values` - the editor's own Luau ↔ Value), `editor.group( label, fn )` makes one history step, `editor.get/children/components/exists/selection/poll` read the active document |
 | `scripts/script_runtime` | `ScriptRuntime`: runs script assets in its VM; entity scripts (one per path), instances, libraries, coroutines, events, hot reload on registry changes; hands out `ScriptHandle`/`ScriptInstanceHandle`. Written on luaubind's types only, no `lua_*`. One header; the code in `src/scripts/runtime/`: `runtime` (construction, globals, aliases), `files` (environment, `TryRunFile`/`TryRunScript`/`TryRunLibrary`, passport), `require`, `scripts` (`TryLoad`/`Unload`), `reload` (`Changed`, `TryRerun`), `instances`, `events`, `tasks` (coroutines, `Tick`), `text.hpp` (message helpers) |
 
-Not there yet (stage 7): the World module that owns a runtime and a
-runtime component per entity, `self.entity`, `Value` ↔ Luau and the
-`asset`/`entity`/`color`/`list` constructors, props and requires read from
-the AST on import, reading `.luaurc` (luau_config) into `TrySetAlias`,
-`bubble.d.luau`, the `interrupt` guard against endless loops.
+**In a world** (`scripts/script_module`, stage 7): `ScriptModule( assets,
+options )` gives each world its own `LuaState` and `ScriptRuntime` (a world
+service). An entity's `Script` component (asset + props overrides as a
+`Value` record) gets a `ScriptInstance` runtime component; the instance
+starts at the first fixed step or frame once its file and the libraries its
+`mRequires` name, all the way down, are loaded; `self.entity` is set, then
+`on_start`. `on_fixed_update( self, dt )` each step (coroutines `Tick` after
+it), `on_update( self, dt )` each frame (paused too), `on_destroy( self )` when
+the Script or its entity goes (the entity already gone then). A prop changed
+in the scene is laid on self (`TrySetProps`). `Snapshot`/`Restore` keep each
+self (same world: self back, `on_start` again; another world: new). The
+engine's API is in `src/scripts/world_api.cpp`: `entity` (name, path, parent,
+alive, child, find, destroy, has/add/remove, a field per component),
+components as Luau types from reflection (writes go through
+`ComponentTypes::TrySetField`), `color(...)`, `asset( path )`, `entity()`,
+services described with `TypeBuilder::Service()` by name (`debug_draw.line`),
+`input.down/pressed/released/axis` (the step's actions in a fixed step, the
+frame's otherwise), `math.random` on the world's `Random`. `progress` is the
+one writable global table (compiled with `mMutableGlobals = { "progress" }`,
+thawed after Seal), carried between worlds by `ScriptProgress`; `save.write
+/read/info/list` over `SaveSlots`. Calls into Luau fail after
+`mTimeLimit` (luaubind `SetTimeLimit`, the `interrupt` callback).
+`WriteScriptDeclarations( app, labels )` writes `bubble.d.luau` (`declare
+extern type ... with`, Luau 0.741's syntax).
+
+**Import** (`bubble/import/script_importer`): `ScriptImporter( ScriptCheck )`
+compiles, reads `props { ... }` from the AST (literal defaults only:
+numbers, strings, booleans, `vector.create`, `color`, `asset`, `entity()`,
+`prop( default, hints )`, tables; an empty list as `{} :: { T }`) and
+resolves requires (`TryResolveRequire`, `.luaurc` aliases via
+`TryReadLuaurc`). With declarations it checks strictly with Luau.Analysis.
+Self is typed in the script: `local P = props {...}`, `type Self = typeof( P
+) & { entity: entity }` (add `& typeof( L )` for locals), and every
+callback's parameters annotated.
 
 **Every script is typed** (decided 2026-11-14, doc «Скрипты» → «Только
 типизированный код»): the Luau analyzer checks each file in strict mode

@@ -68,6 +68,8 @@ void ScriptRuntime::RegisterGlobals()
         if ( not mPropsOf[file].IsNil() )
             throw LuaError( "props is declared once, at the top of the file" );
         mPropsOf[file] = props;
+        // For its type: `type Self = typeof( P ) & { entity: entity }`.
+        return props;
     };
 
     globals["locals"] = [this]( const LuaTable& locals ) {
@@ -77,6 +79,7 @@ void ScriptRuntime::RegisterGlobals()
         if ( not mLocalsOf[file].IsNil() )
             throw LuaError( "locals is declared once, at the top of the file" );
         mLocalsOf[file] = locals;
+        return locals;
     };
 
     // The hints are for the inspector and are read on import; at run time

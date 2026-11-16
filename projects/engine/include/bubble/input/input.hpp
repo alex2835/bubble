@@ -36,6 +36,11 @@ public:
     bool Released( Name action ) const { return State( action ).mReleased; }
     f32 Axis( Name action ) const { return State( action ).mValue; }
     const ActionState& State( Name action ) const;
+    // The same for a name from a script: an action the map does not have
+    // is an error naming those it does.
+    expected<ActionState, string> TryState( Name action ) const;
+    // Whether a map made them: a world nobody plays has none.
+    bool Mapped() const { return mMap != nullptr; }
 
     // In the map's order.
     span<const ActionState> States() const { return mStates; }

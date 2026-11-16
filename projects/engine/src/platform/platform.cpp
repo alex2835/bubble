@@ -1,5 +1,6 @@
 #include "bubble/platform/platform.hpp"
 #include "bubble/core/log.hpp"
+#include "bubble/core/utf8.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/thread.hpp"
@@ -102,6 +103,16 @@ Platform::~Platform()
     for ( const auto& [id, gamepad] : mGamepads )
         SDL_CloseGamepad( gamepad );
     SDL_Quit();
+}
+
+expected<OsPath, string> Platform::TrySaveFolder( string_view game ) const
+{
+    char* folder = SDL_GetPrefPath( "bubble", string( game ).c_str() );
+    if ( folder == nullptr )
+        return unexpected( format( "no folder to save {} in: {}", game, SDL_GetError() ) );
+    const OsPath path = PathFromUtf8( folder );
+    SDL_free( folder );
+    return path;
 }
 
 expected<Window, string> Platform::TryOpenWindow( const WindowOptions& options )
