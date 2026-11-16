@@ -69,7 +69,9 @@ projects/engine/include/bubble/
                               one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
                               registry's models and textures by id, made again after a reload, Collect),
                               Renderer (a RenderScene through a camera into a RenderTarget: shadow map, opaque then
-                              transparent surfaces in rgba16float with reversed depth, ACES tonemapping; materials
+                              transparent surfaces in rgba16float with reversed depth, ACES tonemapping; frustum
+                              culling, each mesh's LOD by its error in pixels with hysteresis, meshes alike in one
+                              instanced call; Stats - what the last frame drew; materials
                               built from their bases, shader and textures in src/render/gpu/gpu_materials - the
                               standard one while they load, a magenta placeholder when they fail), EngineShader (the WGSL of
                               projects/engine/shaders, built in by cmake/embed_shaders.cmake); WGPU types stop here
@@ -131,9 +133,10 @@ projects/editing/include/bubble/editing/
                               an entity back under its own number (Revive)
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
-                              Renderer, the camera turned by move_x
+                              Renderer, the camera turned by move_x; `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
-                              logged); deps/ tests deps (luaubind
+                              logged); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
+                              drawn and read back); deps/ tests deps (luaubind
                               too)
 ```
 

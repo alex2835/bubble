@@ -1,8 +1,10 @@
 // The runner: a game on its own. The project and its levels come with
 // their stages; for now a scene made here - boxes of a few materials on the
 // ground under the sun, a warm lamp - drawn by the renderer, the camera
-// circling it as the actions say: stages 5 and 6 checked by hand. The keyboard, a gamepad and
-// touches drive "move_x"; the mouse touches too, for a screen without touch.
+// circling it as the actions say: stages 5 and 6 checked by hand. The
+// keyboard, a gamepad and touches drive "move_x"; the mouse touches too, for
+// a screen without touch. `--frames N` quits after N frames drawn: a run a
+// script can check.
 #include "bubble/assets/model_primitives.hpp"
 #include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
@@ -160,10 +162,27 @@ Transform Orbit( f32 turn )
                          cos( turn ) * cos( cPitch ) * cDistance );
     return Transform{ .mPosition = position, .mRotation = { cPitch, turn, 0.0f } };
 }
+
+// The frames to draw before quitting, from `--frames N`; none: until the
+// window closes.
+opt<u64> TryFramesToDraw( int argc, char** argv )
+{
+    for ( int at = 1; at + 1 < argc; ++at )
+        if ( string_view( argv[at] ) == "--frames" )
+        {
+            u64 frames = 0;
+            const string_view text( argv[at + 1] );
+            if ( from_chars( text.data(), text.data() + text.size(), frames ).ec == errc() )
+                return frames;
+        }
+    return nullopt;
+}
 }
 
-int main()
+int main( int argc, char** argv )
 {
+    const opt<u64> framesToDraw = TryFramesToDraw( argc, argv );
+    u64 framesDrawn = 0;
     const auto platformMaybe = Platform::TryStart( PlatformOptions{ .mVideoDriver = {}, .mMouseAsTouch = true } );
     if ( not platformMaybe )
     {
@@ -232,12 +251,15 @@ int main()
                 scene, scene.mCameras.front(),
                 RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() } );
             surface.Present();
+            ++framesDrawn;
         }
 #ifndef __EMSCRIPTEN__
         // Minimized: nothing to present, nothing to wait for.
         else
             this_thread::sleep_for( chrono::milliseconds( 10 ) );
 #endif
+        if ( framesToDraw and framesDrawn >= *framesToDraw )
+            return false;
         return not platform.QuitRequested();
     } );
     return 0;

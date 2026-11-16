@@ -4,82 +4,23 @@
 // ground through a transparent one, and the placeholder for one that cannot
 // be drawn. Not on the web, as gpu_test.cpp.
 #ifndef __EMSCRIPTEN__
-#include "bubble/assets/model_primitives.hpp"
-#include "bubble/assets/shader_asset.hpp"
-#include "bubble/render/gpu/renderer.hpp"
-#include "bubble/scene/hierarchy.hpp"
-#include "bubble/world/transform.hpp"
-#include "bubble/world/world.hpp"
 #include "log_watch.hpp"
-#include "render/gpu_helpers.hpp"
+#include "render/render_fixture.hpp"
 #include <doctest.h>
 
 using namespace bubble;
+using namespace bubble::test;
 
 namespace
 {
 constexpr i32 cSize = 64;
 
-Text Make( string_view utf8 )
+struct Drawing : RenderFixture
 {
-    return *Text::TryFrom( utf8 );
-}
+    AssetId mBox = ImportModel( "models/box.glb", MakeBox( vec3( 1.0f ) ) );
+    AssetId mGround = ImportModel( "models/ground.glb", MakePlane( 10.0f ) );
 
-struct Drawing
-{
-    hmap<string, string> mImported;
-    AssetCatalog mCatalog;
-    App mApp{ AppOptions{ .mThreads = 1 } };
-    AssetRegistry mAssets{ mCatalog, AssetRegistry::AtOnce( [this]( const AssetId& assetId, string_view kind ) {
-                               const auto found = mImported.find( ImportedPath( assetId, kind ).View() );
-                               if ( found == mImported.end() )
-                                   return expected<string, string>( unexpected( "no such file"s ) );
-                               return expected<string, string>( found->second );
-                           } ),
-                           mApp.GetJobs() };
-    Scope<Gpu> mGpu = StartGpu();
-    Renderer mRenderer{ *mGpu, mAssets };
-    GpuTexture mTarget{ *mGpu,
-                        GpuTextureOptions{ .mSize = ivec2( cSize ),
-                                           .mMips = 1,
-                                           .mFormat = WGPUTextureFormat_RGBA8UnormSrgb,
-                                           .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
-                                           .mLabel = "target" } };
-    AssetId mBox;
-    AssetId mGround;
-
-    Drawing()
-    {
-        RegisterModelLoader( mAssets );
-        RegisterMaterialLoader( mAssets );
-        RegisterShaderLoader( mAssets );
-        RegisterTextureLoader( mAssets );
-        mApp.AddModule( TransformModule() );
-        mApp.AddModule( RenderModule( mAssets ) );
-        mBox = Import( "models/box.glb", WriteModelAsset( MakeBox( vec3( 1.0f ) ) ), cModelKind );
-        mGround = Import( "models/ground.glb", WriteModelAsset( MakePlane( 10.0f ) ), cModelKind );
-    }
-
-    // The importer's output for the asset at `path` - again, if it was.
-    AssetId Import( string_view path, string bytes, string_view kind )
-    {
-        const AssetPath assetPath = *AssetPath::TryFrom( path );
-        auto assetIdMaybe = mCatalog.TryIdOf( assetPath );
-        if ( not assetIdMaybe )
-        {
-            assetIdMaybe = AssetId::Generate();
-            mCatalog.Add( *assetIdMaybe, assetPath );
-        }
-        mImported[ImportedPath( *assetIdMaybe, kind ).String()] = std::move( bytes );
-        return *assetIdMaybe;
-    }
-
-    AssetId Material( string_view path, const string& json )
-    {
-        const auto materialMaybe = TryReadMaterialAsset( json );
-        REQUIRE_MESSAGE( materialMaybe, materialMaybe.error() );
-        return Import( path, WriteMaterialAsset( *materialMaybe ), cMaterialKind );
-    }
+    AssetId Material( string_view path, const string& json ) { return ImportMaterial( path, json ); }
 
     // The box with `materials` and `tint` on the ground with its own, under
     // the sun, a camera high above looking straight down.
@@ -101,31 +42,11 @@ struct Drawing
         scene.Add<Camera>( eye );
         return scene;
     }
-
-    // A few frames - long enough for loads, the GPU's checks and textures to
-    // come - and the last one's pixels.
-    vector<u8> Draw( World& world )
-    {
-        for ( u32 frame = 0; frame < 8; ++frame )
-        {
-            world.Frame( 1.0 / 60.0 );
-            mApp.GetJobs().RunMainQueue();
-            const RenderScene& scene = world.Get<RenderScene>();
-            Required( mGpu->TryCheckNow( [&] {
-                mRenderer.Draw(
-                    scene, scene.mCameras.front(),
-                    RenderTarget{ .mView = mTarget.View(), .mSize = mTarget.Size(), .mFormat = mTarget.Format() } );
-            } ) );
-            mGpu->Poll();
-        }
-        return Required( mGpu->TryReadRgba8( mTarget ) );
-    }
 };
 
 vec3 ColorAt( const vector<u8>& pixels, i32 x, i32 y = cSize / 2 )
 {
-    const size_t at = ( static_cast<size_t>( y ) * cSize + static_cast<size_t>( x ) ) * 4;
-    return vec3( pixels[at], pixels[at + 1], pixels[at + 2] ) / 255.0f;
+    return test::ColorAt( pixels, cSize, x, y );
 }
 
 // The box's top, seen from above: the middle of the picture.
@@ -254,7 +175,7 @@ fn surface( in: SurfaceInput ) -> SurfaceOutput
     const AssetId uncompiled = drawing.Material(
         "materials/uncompiled.mat", format( R"({{ "shader": {{ "asset": "{}" }} }})", broken.ToString() ) );
     const AssetId shiny = drawing.Material( "materials/shiny.mat", R"({ "params": { "shine": 1 } })" );
-    const test::LogWatch log;
+    const LogWatch log;
     World world( drawing.mApp, drawing.Level( { uncompiled } ) );
     const vec3 placeholder = Top( drawing.Draw( world ) );
     CAPTURE( placeholder.r );

@@ -51,6 +51,20 @@ struct Renderer::ObjectData
 };
 static_assert( sizeof( Renderer::ObjectData ) == 144 );
 
+struct Renderer::Item
+{
+    const RenderItem& mSource;
+    const GpuModel& mModel;
+    ObjectData mObject;
+    // Its box in the world, and the sphere around that box.
+    vec3 mMin{ 0.0f };
+    vec3 mMax{ 0.0f };
+    vec3 mCentre{ 0.0f };
+    f32 mRadius = 0;
+    // How much its world matrix grows its model, at most.
+    f32 mScale = 1;
+};
+
 namespace
 {
 // No light has it: no shadow this frame.
@@ -76,6 +90,35 @@ mat4 ShadowViewProjection( vec3 direction, vec3 boundsMin, vec3 boundsMax, f32& 
     const mat4 view = glm::lookAtRH( centre - direction * radius * 2.0f, centre, up );
     texelSize = radius * 2.0f / static_cast<f32>( mapSize );
     return glm::orthoRH_ZO( -radius, radius, -radius, radius, radius * 4.0f, 0.0f ) * view;
+}
+
+// The planes a view-projection's clip space is bounded by, each facing in:
+// x and y from -w to w, depth from 0 to w.
+struct Frustum
+{
+    array<vec4, 6> mPlanes;
+};
+
+Frustum FrustumOf( const mat4& viewProjection )
+{
+    const auto row = [&]( i32 at ) {
+        return vec4( viewProjection[0][at], viewProjection[1][at], viewProjection[2][at], viewProjection[3][at] );
+    };
+    return Frustum{ .mPlanes = { row( 3 ) + row( 0 ), row( 3 ) - row( 0 ), row( 3 ) + row( 1 ), row( 3 ) - row( 1 ),
+                                 row( 2 ), row( 3 ) - row( 2 ) } };
+}
+
+// Whether a box in the world may be seen: not wholly behind any plane.
+bool Overlaps( const Frustum& frustum, vec3 min, vec3 max )
+{
+    for ( const vec4& plane : frustum.mPlanes )
+    {
+        // The box's corner farthest along the plane's normal.
+        const vec3 corner( plane.x > 0 ? max.x : min.x, plane.y > 0 ? max.y : min.y, plane.z > 0 ? max.z : min.z );
+        if ( glm::dot( vec3( plane ), corner ) + plane.w < 0.0f )
+            return false;
+    }
+    return true;
 }
 
 // Where an item's model may reach in the world: its box's corners, moved.
@@ -221,65 +264,90 @@ WGPURenderPipeline Renderer::TonemapFor( WGPUTextureFormat format )
     return pipeline.Get();
 }
 
-void Renderer::Gather( const RenderScene& scene, vec3 eye )
+void Renderer::Collect( const RenderScene& scene )
 {
-    mMaterials->BeginFrame();
-    mObjectData.clear();
-    mDraws.clear();
+    mItems.clear();
     mBoundsMin = vec3( numeric_limits<f32>::max() );
     mBoundsMax = vec3( -numeric_limits<f32>::max() );
-    for ( const RenderItem& item : scene.mItems )
+    for ( const RenderItem& source : scene.mItems )
     {
-        const auto modelMaybe = mAssets.TryModel( item.mModel );
+        const auto modelMaybe = mAssets.TryModel( source.mModel );
         if ( not modelMaybe )
             continue;
-        const u32 object = static_cast<u32>( mObjectData.size() );
-        mObjectData.push_back( ObjectData{ .mModel = item.mWorld,
-                                           .mNormal = mat4( glm::transpose( glm::inverse( mat3( item.mWorld ) ) ) ),
-                                           .mTint = item.mTint } );
-        const vec3 toItem = vec3( item.mWorld[3] ) - eye;
-        for ( u32 mesh = 0; mesh < modelMaybe->Meshes().size(); ++mesh )
-        {
-            const AssetRef<MaterialAsset> none;
-            const AssetRef<MaterialAsset>& materialRef = mesh < item.mMaterials.size() ? item.mMaterials[mesh] : none;
-            mDraws.push_back( DrawCall{ .mModel = *modelMaybe,
-                                        .mMaterial = mMaterials->For( materialRef ),
-                                        .mMesh = mesh,
-                                        .mObject = object,
-                                        .mDistance = glm::dot( toItem, toItem ) } );
-        }
-        Grow( mBoundsMin, mBoundsMax, item.mWorld, modelMaybe->Min(), modelMaybe->Max() );
+        const mat3 turn( source.mWorld );
+        Item item{ .mSource = source,
+                   .mModel = *modelMaybe,
+                   .mObject = ObjectData{ .mModel = source.mWorld,
+                                          .mNormal = mat4( glm::transpose( glm::inverse( turn ) ) ),
+                                          .mTint = source.mTint },
+                   .mMin = vec3( numeric_limits<f32>::max() ),
+                   .mMax = vec3( -numeric_limits<f32>::max() ),
+                   .mCentre = vec3( 0.0f ),
+                   .mRadius = 0,
+                   .mScale = max( { glm::length( turn[0] ), glm::length( turn[1] ), glm::length( turn[2] ) } ) };
+        Grow( item.mMin, item.mMax, source.mWorld, modelMaybe->Min(), modelMaybe->Max() );
+        item.mCentre = ( item.mMin + item.mMax ) * 0.5f;
+        item.mRadius = glm::length( item.mMax - item.mMin ) * 0.5f;
+        mBoundsMin = glm::min( mBoundsMin, item.mMin );
+        mBoundsMax = glm::max( mBoundsMax, item.mMax );
+        mItems.push_back( std::move( item ) );
     }
+}
 
-    // Opaque first, grouped so a pipeline and a material are set once for
-    // all they draw; transparent after, the farthest first, each over what
-    // is behind it.
-    mOrder.resize( mDraws.size() );
-    for ( u32 draw = 0; draw < mDraws.size(); ++draw )
-        mOrder[draw] = draw;
-    const auto opaqueEnd = stable_partition( mOrder.begin(), mOrder.end(),
-                                             [&]( u32 draw ) { return not mDraws[draw].mMaterial.mTransparent; } );
-    mOpaqueDraws = static_cast<size_t>( opaqueEnd - mOrder.begin() );
-    sort( mOrder.begin(), opaqueEnd, [&]( u32 a, u32 b ) {
-        const DrawCall& first = mDraws[a];
-        const DrawCall& second = mDraws[b];
-        if ( first.mMaterial.mPipeline != second.mMaterial.mPipeline )
-            return first.mMaterial.mPipeline < second.mMaterial.mPipeline;
-        if ( &first.mMaterial != &second.mMaterial )
-            return &first.mMaterial < &second.mMaterial;
-        return &first.mModel < &second.mModel;
-    } );
-    sort( opaqueEnd, mOrder.end(), [&]( u32 a, u32 b ) { return mDraws[a].mDistance > mDraws[b].mDistance; } );
+u32 Renderer::LodOf( const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne )
+{
+    const vector<GpuLod>& lods = item.mModel.Meshes()[mesh].mLods;
+    LodChoice& choice = mLods[( u64{ static_cast<u32>( item.mSource.mEntity ) } << 16 ) | mesh];
+    if ( choice.mFrame == mFrameCount )
+        return choice.mLod;
+    const u32 previous = choice.mFrame + 1 == mFrameCount ? choice.mLod : 0;
+    // From the sphere's surface: inside it, or near, the full mesh.
+    const f32 distance = max( glm::length( item.mCentre - eye ) - item.mRadius, 1e-3f );
+    const f32 pixelsPerError = item.mScale * pixelsAtOne / distance;
+    u32 lod = 0;
+    for ( u32 level = static_cast<u32>( lods.size() ); level-- > 1; )
+    {
+        const f32 limit = mOptions.mLodPixels * ( level > previous ? 0.75f : 1.0f );
+        if ( lods[level].mError * pixelsPerError <= limit )
+        {
+            lod = level;
+            break;
+        }
+    }
+    choice = LodChoice{ .mLod = lod, .mFrame = mFrameCount };
+    return lod;
+}
 
-    mLightData.clear();
-    for ( const RenderLight& light : scene.mLights )
-        mLightData.push_back( LightData{ .mPosition = light.mPosition,
-                                         .mRange = light.mRange,
-                                         .mDirection = light.mDirection,
-                                         .mInnerCos = light.mInnerCos,
-                                         .mRadiance = light.mRadiance,
-                                         .mOuterCos = light.mOuterCos,
-                                         .mDirectional = light.mKind == RenderLightKind::Directional ? 1u : 0u } );
+void Renderer::Order( const vector<DrawCall>& draws, vector<u32>& order, vector<Batch>& batches, bool shadow )
+{
+    order.resize( draws.size() );
+    for ( u32 draw = 0; draw < draws.size(); ++draw )
+        order[draw] = draw;
+    const auto opaqueEnd = stable_partition( order.begin(), order.end(),
+                                             [&]( u32 draw ) { return not draws[draw].mMaterial.mTransparent; } );
+    // The shadow's pipeline is one; the materials do not matter there.
+    const auto key = [&]( const DrawCall& draw ) {
+        return tuple<WGPURenderPipeline, const GpuMaterial*, const GpuModel*, u32, u32>(
+            shadow ? nullptr : draw.mMaterial.mPipeline, shadow ? nullptr : &draw.mMaterial, &draw.mModel, draw.mMesh,
+            draw.mLod );
+    };
+    sort( order.begin(), opaqueEnd, [&]( u32 a, u32 b ) { return key( draws[a] ) < key( draws[b] ); } );
+    sort( opaqueEnd, order.end(), [&]( u32 a, u32 b ) { return draws[a].mDistance > draws[b].mDistance; } );
+
+    batches.clear();
+    const size_t opaque = static_cast<size_t>( opaqueEnd - order.begin() );
+    for ( size_t at = 0; at < order.size(); ++at )
+    {
+        const DrawCall& draw = draws[order[at]];
+        const bool joins =
+            not batches.empty() and at < opaque and key( draws[order[batches.back().mDraw]] ) == key( draw );
+        if ( joins )
+            ++batches.back().mInstances;
+        else
+            batches.push_back(
+                Batch{ .mDraw = at, .mFirstInstance = static_cast<u32>( mObjectData.size() ), .mInstances = 1 } );
+        mObjectData.push_back( mItems[draw.mItem].mObject );
+    }
 }
 
 void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target )
@@ -288,12 +356,15 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
     if ( target.mSize.x <= 0 or target.mSize.y <= 0 )
         return;
     Resize( target.mSize );
-    Gather( scene, vec3( camera.mWorld[3] ) );
+    ++mFrameCount;
+    mMaterials->BeginFrame();
+    Collect( scene );
 
+    const vec3 eye( camera.mWorld[3] );
     FrameUniforms frame{ .mViewProjection = ViewProjection( camera, target.mSize ),
                          .mShadowViewProjection = mat4( 1.0f ),
-                         .mCameraPosition = vec3( camera.mWorld[3] ),
-                         .mLightCount = static_cast<u32>( mLightData.size() ),
+                         .mCameraPosition = eye,
+                         .mLightCount = static_cast<u32>( scene.mLights.size() ),
                          .mAmbient = vec3( ToLinear( mOptions.mAmbient ) ) * mOptions.mAmbientIntensity,
                          .mShadowLight = cNoShadow,
                          .mShadowNormalOffset = 0,
@@ -301,7 +372,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
                          .mPadding = {} };
     // The first directional light that casts shadows, when there is
     // anything to cast them.
-    if ( not mObjectData.empty() )
+    if ( not mItems.empty() )
         for ( u32 light = 0; light < scene.mLights.size(); ++light )
             if ( scene.mLights[light].mKind == RenderLightKind::Directional and scene.mLights[light].mShadows )
             {
@@ -312,6 +383,73 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
                 frame.mShadowNormalOffset = texelSize * 1.5f;
                 break;
             }
+
+    // What the camera sees, each mesh at its level; what the light sees, a
+    // level coarser - a shadow's edge hides more than a surface does.
+    const Frustum view = FrustumOf( frame.mViewProjection );
+    const Frustum light = FrustumOf( frame.mShadowViewProjection );
+    const f32 pixelsAtOne = static_cast<f32>( target.mSize.y ) / ( 2.0f * tan( camera.mFov * 0.5f ) );
+    mDraws.clear();
+    mShadowDraws.clear();
+    mStats = RenderStats();
+    mStats.mItems = static_cast<u32>( mItems.size() );
+    for ( u32 at = 0; at < mItems.size(); ++at )
+    {
+        const Item& item = mItems[at];
+        const bool seen = Overlaps( view, item.mMin, item.mMax );
+        const bool casts = frame.mShadowLight != cNoShadow and Overlaps( light, item.mMin, item.mMax );
+        if ( not seen and not casts )
+            continue;
+        mStats.mVisible += seen ? 1 : 0;
+        const vec3 toItem = item.mCentre - eye;
+        const vector<GpuMesh>& meshes = item.mModel.Meshes();
+        for ( u32 mesh = 0; mesh < meshes.size(); ++mesh )
+        {
+            const AssetRef<MaterialAsset> none;
+            const auto& materials = item.mSource.mMaterials;
+            const GpuMaterial& material = mMaterials->For( mesh < materials.size() ? materials[mesh] : none );
+            const u32 lod = LodOf( item, mesh, eye, pixelsAtOne );
+            const DrawCall draw{ .mModel = item.mModel,
+                                 .mMaterial = material,
+                                 .mMesh = mesh,
+                                 .mLod = lod,
+                                 .mItem = at,
+                                 .mDistance = glm::dot( toItem, toItem ) };
+            if ( seen )
+                mDraws.push_back( draw );
+            // What is transparent casts no shadow.
+            if ( casts and not material.mTransparent )
+            {
+                mShadowDraws.push_back( draw );
+                mShadowDraws.back().mLod = min( lod + 1, static_cast<u32>( meshes[mesh].mLods.size() - 1 ) );
+            }
+        }
+    }
+    // Choices for meshes no longer drawn go.
+    erase_if( mLods, [&]( const auto& choice ) { return choice.second.mFrame + 1 < mFrameCount; } );
+
+    mObjectData.clear();
+    Order( mDraws, mOrder, mBatches, false );
+    Order( mShadowDraws, mShadowOrder, mShadowBatches, true );
+    mStats.mDrawCalls = static_cast<u32>( mBatches.size() );
+    mStats.mShadowDrawCalls = static_cast<u32>( mShadowBatches.size() );
+    for ( const Batch& batch : mBatches )
+    {
+        const DrawCall& draw = mDraws[mOrder[batch.mDraw]];
+        mStats.mInstances += batch.mInstances;
+        mStats.mTriangles +=
+            u64{ draw.mModel.Meshes()[draw.mMesh].mLods[draw.mLod].mIndexCount / 3 } * batch.mInstances;
+    }
+
+    mLightData.clear();
+    for ( const RenderLight& sceneLight : scene.mLights )
+        mLightData.push_back( LightData{ .mPosition = sceneLight.mPosition,
+                                         .mRange = sceneLight.mRange,
+                                         .mDirection = sceneLight.mDirection,
+                                         .mInnerCos = sceneLight.mInnerCos,
+                                         .mRadiance = sceneLight.mRadiance,
+                                         .mOuterCos = sceneLight.mOuterCos,
+                                         .mDirectional = sceneLight.mKind == RenderLightKind::Directional ? 1u : 0u } );
 
     bool grown = Fit( mLights, max<u64>( mLightData.size(), 1 ) * sizeof( LightData ), "lights" );
     grown = Fit( mObjects, max<u64>( mObjectData.size(), 1 ) * sizeof( ObjectData ), "objects" ) or grown;
@@ -325,15 +463,16 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         mObjects.Write( mGpu, 0, AsBytes( mObjectData ) );
 
     const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mGpu.Device(), nullptr ) );
-    // The draws from `first` up to `last` in order; with their materials,
-    // or - the shadow's - with the pipeline already set.
-    const auto drawRange = [&]( WGPURenderPassEncoder pass, size_t first, size_t last, bool materials ) {
+    // The calls; with their materials, or - the shadow's - with the
+    // pipeline already set.
+    const auto drawBatches = [&]( WGPURenderPassEncoder pass, const vector<DrawCall>& draws, const vector<u32>& order,
+                                  const vector<Batch>& batches, bool materials ) {
         OptRef<const GpuModel> boundModel;
         OptRef<const GpuMaterial> boundMaterial;
         WGPURenderPipeline boundPipeline = nullptr;
-        for ( size_t at = first; at < last; ++at )
+        for ( const Batch& batch : batches )
         {
-            const DrawCall& draw = mDraws[mOrder[at]];
+            const DrawCall& draw = draws[order[batch.mDraw]];
             if ( materials and boundMaterial != OptRef<const GpuMaterial>( draw.mMaterial ) )
             {
                 if ( boundPipeline != draw.mMaterial.mPipeline )
@@ -349,7 +488,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
                 draw.mModel.Bind( pass );
                 boundModel = draw.mModel;
             }
-            draw.mModel.Draw( pass, draw.mMesh, 0, draw.mObject );
+            draw.mModel.Draw( pass, draw.mMesh, draw.mLod, batch.mFirstInstance, batch.mInstances );
         }
     };
 
@@ -367,8 +506,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         wgpuRenderPassEncoderSetPipeline( pass.Get(), mShadowPipeline.Get() );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mShadowFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
-        // What is transparent casts no shadow.
-        drawRange( pass.Get(), 0, mOpaqueDraws, false );
+        drawBatches( pass.Get(), mShadowDraws, mShadowOrder, mShadowBatches, false );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 
@@ -392,7 +530,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         const GpuRenderPassHandle pass( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &descriptor ) );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
-        drawRange( pass.Get(), 0, mOrder.size(), true );
+        drawBatches( pass.Get(), mDraws, mOrder, mBatches, true );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 
