@@ -95,7 +95,10 @@ Scene Level( Models& models )
     scene.Add<PointLight>( lamp, PointLight{ .mColor = { .mR = 1.0f, .mG = 0.6f, .mB = 0.3f, .mA = 1.0f },
                                              .mIntensity = 15.0f,
                                              .mRange = 8.0f } );
-    scene.Add<Camera>( CreateChild( scene, scene.Root(), Make( "camera" ) ) );
+    // Placed each frame by the loop, as the actions turn it.
+    const Entity camera = CreateChild( scene, scene.Root(), Make( "camera" ) );
+    scene.Add<Transform>( camera );
+    scene.Add<Camera>( camera );
     return scene;
 }
 
