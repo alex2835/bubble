@@ -26,6 +26,7 @@ public:
         world.OnRemoved<Model>( [this]( Entity entity ) { mWorld.GetScene().Remove<ModelRuntime>( entity ); } );
         world.AddStep( Phase::Render, [this]( f32 ) { Gather(); } );
         world.GetServices().Add( mScene );
+        world.GetServices().Add( mDebug );
     }
 
 private:
@@ -64,6 +65,7 @@ private:
         mScene.mItems.clear();
         mScene.mLights.clear();
         mScene.mCameras.clear();
+        mScene.mLines = mDebug.Take();
         mScene.mTime = static_cast<f32>( static_cast<f64>( mWorld.Steps() ) + mWorld.Alpha() ) * mWorld.FixedDt();
         scene.ForEach<ModelRuntime, Model>( [&]( Entity entity, const ModelRuntime& runtime, const Model& model ) {
             mScene.mItems.push_back( RenderItem{ .mEntity = entity,
@@ -114,6 +116,7 @@ private:
     World& mWorld;
     AssetRegistry& mAssets;
     RenderScene mScene;
+    DebugDraw mDebug;
 };
 }
 

@@ -42,6 +42,8 @@ struct Object
     // The model component's tint, in linear light: the surface's color is
     // multiplied by it.
     tint: vec4f,
+    // Whose it is, for a click to find (pick.wgsl).
+    entity: u32,
 }
 
 @group( 0 ) @binding( 0 ) var<uniform> frame: Frame;

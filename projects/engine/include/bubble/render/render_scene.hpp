@@ -3,6 +3,7 @@
 #include "bubble/assets/material_asset.hpp"
 #include "bubble/assets/model_asset.hpp"
 #include "bubble/core/color.hpp"
+#include "bubble/render/debug_draw.hpp"
 #include "bubble/scene/entity.hpp"
 #include "bubble/types/matrix.hpp"
 #include "bubble/world/module.hpp"
@@ -115,9 +116,12 @@ struct RenderScene
     // The world's time in seconds, its fixed steps' and the part of the
     // next one: what a material moves by.
     f32 mTime = 0;
+    // What the world's DebugDraw drew this frame.
+    vector<DebugLine> mLines;
 };
 
 // The camera, light and model components, and the RenderScene gathered
-// from them; models come from `assets`, which outlives every world.
+// from them, the DebugDraw's lines with them - both the world's services;
+// models come from `assets`, which outlives every world.
 ModuleType RenderModule( AssetRegistry& assets );
 }

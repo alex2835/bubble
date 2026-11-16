@@ -3,8 +3,9 @@
 // ground under the sun, a warm lamp - drawn by the renderer, the camera
 // circling it as the actions say: stages 5 and 6 checked by hand. The
 // keyboard, a gamepad and touches drive "move_x"; the mouse touches too, for
-// a screen without touch. `--frames N` quits after N frames drawn: a run a
-// script can check.
+// a screen without touch. A touch or a click picks what it lands on: its box
+// drawn around it, its path logged. `--frames N` quits after N frames
+// drawn: a run a script can check.
 #include "bubble/assets/model_primitives.hpp"
 #include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
@@ -218,12 +219,32 @@ int main( int argc, char** argv )
     Scope<Renderer> renderer;
     Input input( Controls() );
     f32 turn = 2.2f;
+    Entity picked;
     platform.Run( [&]( f64 elapsed ) {
         for ( const InputEvent& event : platform.Poll() )
+        {
             input.Handle( event );
+            // A touch is a share of the window; the target is its pixels.
+            if ( const auto* touch = get_if<TouchDown>( &event ); touch and renderer )
+                renderer->Pick( ivec2( touch->mPosition * vec2( window.PixelSize() ) ) );
+        }
+        if ( renderer )
+            if ( const auto pickedMaybe = renderer->TryPicked() )
+            {
+                picked = *pickedMaybe;
+                LogInfo( "picked {}", Describe( world.GetScene(), picked ) );
+            }
         const Actions actions = input.LatchFrame();
         turn += actions.Axis( "move_x"_n ) * static_cast<f32>( elapsed ) * 1.5f;
         world.GetScene().Get<Transform>( camera ) = Orbit( turn );
+
+        // What there is to see by: the world's axes, the picked item's box.
+        DebugDraw& debug = world.Get<DebugDraw>();
+        debug.Axes( mat4( 1.0f ), 1.5f );
+        for ( const RenderItem& item : world.Get<RenderScene>().mItems )
+            if ( const auto modelMaybe = item.mModel.TryGet(); modelMaybe and item.mEntity == picked )
+                debug.Box( item.mWorld, modelMaybe->mMin, modelMaybe->mMax,
+                           Color{ .mR = 1.0f, .mG = 0.85f, .mB = 0.1f, .mA = 1.0f } );
         world.Frame( elapsed );
         app.GetJobs().RunMainQueue();
 

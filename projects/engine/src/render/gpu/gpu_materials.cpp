@@ -358,6 +358,7 @@ GpuMaterial GpuMaterials::Build( const MaterialShader& shader,
     const MaterialLayout& layout = shader.Layout();
     GpuMaterial material{ .mPipeline = shader.Pipeline( transparent, doubleSided ),
                           .mTransparent = transparent,
+                          .mDoubleSided = doubleSided,
                           .mUniforms = {},
                           .mGroup = {} };
     vector<WGPUBindGroupEntry> entries;

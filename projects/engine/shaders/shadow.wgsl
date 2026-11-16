@@ -7,6 +7,7 @@ struct Object
     model: mat4x4f,
     normal: mat4x4f,
     tint: vec4f,
+    entity: u32,
 }
 
 @group( 0 ) @binding( 0 ) var<uniform> light_view_projection: mat4x4f;

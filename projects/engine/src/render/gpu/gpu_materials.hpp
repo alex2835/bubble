@@ -62,6 +62,7 @@ struct GpuMaterial
     // materials again.
     WGPURenderPipeline mPipeline = nullptr;
     bool mTransparent = false;
+    bool mDoubleSided = false;
     GpuBuffer mUniforms;
     GpuBindGroupHandle mGroup;
 };

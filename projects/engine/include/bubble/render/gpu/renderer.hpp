@@ -52,7 +52,8 @@ struct GpuMaterial;
 // Draws what a world gathered - its RenderScene - as one camera sees it,
 // into a target: the shadowed directional light's shadow map, the opaque
 // surfaces in linear light (rgba16float, depth reversed), the transparent
-// ones over them from the farthest, then tonemapping into the target. Models
+// ones over them from the farthest, the debug drawing's lines, then
+// tonemapping into the target. Models
 // come as GpuAssets has them - one still loading is not drawn yet - and each
 // mesh with its material, which loads what it needs from the registry. What
 // is out of view is not drawn, each mesh at the level of detail its size on
@@ -69,6 +70,14 @@ public:
 
     void Draw( const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target );
 
+    // Asks which entity the next Draw shows at `pixel` of its target, from
+    // the top left: TryPicked gives it once it has come back from the GPU -
+    // a frame or so later. A new ask drops one still on its way.
+    void Pick( ivec2 pixel );
+    // The entity asked for, once: Entity::Null where nothing was drawn;
+    // nothing while it has not come back.
+    opt<Entity> TryPicked();
+
     GpuAssets& Assets() { return mAssets; }
     const RenderStats& Stats() const { return mStats; }
 
@@ -78,6 +87,9 @@ public:
     struct ObjectData;
     // An item whose model has come, as this frame takes it.
     struct Item;
+    struct LineVertex;
+    // A pick on its way back from the GPU: shared with the map's callback.
+    struct PickState;
 
 private:
     struct DrawCall
@@ -118,7 +130,8 @@ private:
     void Order( const vector<DrawCall>& draws, vector<u32>& order, vector<Batch>& batches, bool shadow );
     // Grows a storage buffer to hold `bytes`, and says whether it did - its
     // bind group is made again then.
-    bool Fit( GpuBuffer& buffer, u64 bytes, string_view label );
+    bool Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferUsage usage = WGPUBufferUsage_Storage );
+    void EncodePick( WGPUCommandEncoder encoder, ivec2 size );
     void MakeBindGroups();
     WGPURenderPipeline TonemapFor( WGPUTextureFormat format );
 
@@ -128,11 +141,16 @@ private:
 
     GpuShaderHandle mShadow;
     GpuShaderHandle mTonemap;
+    GpuShaderHandle mLines;
+    GpuShaderHandle mPick;
     GpuBindGroupLayoutHandle mFrameLayout;
     GpuBindGroupLayoutHandle mObjectsLayout;
     GpuBindGroupLayoutHandle mShadowFrameLayout;
     GpuBindGroupLayoutHandle mTonemapLayout;
     GpuRenderPipelineHandle mShadowPipeline;
+    GpuRenderPipelineHandle mLinePipeline;
+    // One side, two sides.
+    array<GpuRenderPipelineHandle, 2> mPickPipelines;
     hmap<u32, GpuRenderPipelineHandle> mTonemapPipelines;
 
     GpuSamplerHandle mShadowSampler;
@@ -145,9 +163,13 @@ private:
     GpuBindGroupHandle mShadowFrameGroup;
     GpuBindGroupHandle mObjectsGroup;
 
+    GpuBuffer mLineVertices;
+
     // Sized to the target.
     GpuTexture mHdr;
     GpuTexture mDepth;
+    // Made at the first pick.
+    GpuTexture mPickIds;
     GpuBindGroupHandle mTonemapGroup;
 
     // After the layouts it builds its pipelines with.
@@ -165,7 +187,11 @@ private:
     vector<Batch> mShadowBatches;
     vec3 mBoundsMin{ 0.0f };
     vec3 mBoundsMax{ 0.0f };
+    vector<LineVertex> mLineData;
     hmap<u64, LodChoice> mLods;
+    opt<ivec2> mPickWanted;
+    GpuBuffer mPickBuffer;
+    Ref<PickState> mPicking;
     u64 mFrameCount = 0;
     RenderStats mStats;
 };

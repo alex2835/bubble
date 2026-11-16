@@ -48,8 +48,24 @@ struct Renderer::ObjectData
     mat4 mModel{ 1.0f };
     mat4 mNormal{ 1.0f };
     vec4 mTint{ 1.0f };
+    u32 mEntity = 0;
+    array<u32, 3> mPadding{};
 };
-static_assert( sizeof( Renderer::ObjectData ) == 144 );
+static_assert( sizeof( Renderer::ObjectData ) == 160 );
+static_assert( offsetof( Renderer::ObjectData, mEntity ) == 144 );
+
+struct Renderer::LineVertex
+{
+    vec3 mPosition{ 0.0f };
+    vec4 mColor{ 1.0f };
+};
+static_assert( sizeof( Renderer::LineVertex ) == 28 );
+
+struct Renderer::PickState
+{
+    bool mDone = false;
+    bool mMapped = false;
+};
 
 struct Renderer::Item
 {
@@ -69,6 +85,16 @@ namespace
 {
 // No light has it: no shadow this frame.
 constexpr u32 cNoShadow = ~0u;
+constexpr WGPUTextureFormat cPickFormat = WGPUTextureFormat_R32Uint;
+// A copy's rows are this far apart at least: room for the one texel read.
+constexpr u64 cPickBytes = 256;
+
+void OnPickMapped( WGPUMapAsyncStatus status, WGPUStringView, void* held, void* )
+{
+    const Scope<Ref<Renderer::PickState>> state( static_cast<Ref<Renderer::PickState>*>( held ) );
+    ( *state )->mDone = true;
+    ( *state )->mMapped = status == WGPUMapAsyncStatus_Success;
+}
 
 // The view and projection a camera sees through, depth reversed: the
 // near plane at 1, the far one at 0 - glm's own projection with the two
@@ -141,6 +167,8 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
 {
     mShadow = CreateShader( gpu, EngineShader( "shadow.wgsl" ), "shadow.wgsl" );
     mTonemap = CreateShader( gpu, EngineShader( "tonemap.wgsl" ), "tonemap.wgsl" );
+    mLines = CreateShader( gpu, EngineShader( "debug_lines.wgsl" ), "debug_lines.wgsl" );
+    mPick = CreateShader( gpu, EngineShader( "pick.wgsl" ), "pick.wgsl" );
 
     const WGPUShaderStage both = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
     mFrameLayout = CreateLayout( gpu, "frame",
@@ -182,6 +210,48 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
                                  .mCullMode = WGPUCullMode_None,
                                  .mBlend = false } );
 
+    const auto lineAttribute = []( WGPUVertexFormat format, u64 offset, u32 location ) {
+        WGPUVertexAttribute attribute = WGPU_VERTEX_ATTRIBUTE_INIT;
+        attribute.format = format;
+        attribute.offset = offset;
+        attribute.shaderLocation = location;
+        return attribute;
+    };
+    mLinePipeline = CreateRenderPipeline(
+        gpu,
+        GpuPipelineOptions{
+            .mLabel = "debug lines",
+            .mShader = mLines.Get(),
+            .mVertexEntry = "vs_main",
+            .mFragmentEntry = "fs_main",
+            .mBindGroupLayouts = { mFrameLayout.Get() },
+            .mVertexBuffers = { GpuVertexBufferLayout{
+                .mStride = sizeof( LineVertex ),
+                .mAttributes = { lineAttribute( WGPUVertexFormat_Float32x3, offsetof( LineVertex, mPosition ), 0 ),
+                                 lineAttribute( WGPUVertexFormat_Float32x4, offsetof( LineVertex, mColor ), 1 ) } } },
+            .mColorFormat = cHdrFormat,
+            .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
+                                       .mCompare = WGPUCompareFunction_Greater,
+                                       .mWrite = false,
+                                       .mBias = 0,
+                                       .mBiasSlopeScale = 0 },
+            .mTopology = WGPUPrimitiveTopology_LineList,
+            .mCullMode = WGPUCullMode_None,
+            .mBlend = true } );
+    for ( const bool doubleSided : { false, true } )
+        mPickPipelines[doubleSided ? 1 : 0] = CreateRenderPipeline(
+            gpu, GpuPipelineOptions{ .mLabel = "pick",
+                                     .mShader = mPick.Get(),
+                                     .mVertexEntry = "vs_main",
+                                     .mFragmentEntry = "fs_main",
+                                     .mBindGroupLayouts = { mFrameLayout.Get(), mObjectsLayout.Get() },
+                                     .mVertexBuffers = { ModelVertexLayout() },
+                                     .mColorFormat = cPickFormat,
+                                     .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat },
+                                     .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                     .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
+                                     .mBlend = false } );
+
     WGPUSamplerDescriptor sampler = WGPU_SAMPLER_DESCRIPTOR_INIT;
     sampler.label = ToGpuString( "shadow" );
     sampler.magFilter = WGPUFilterMode_Linear;
@@ -205,14 +275,100 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
 
 Renderer::~Renderer() = default;
 
-bool Renderer::Fit( GpuBuffer& buffer, u64 bytes, string_view label )
+bool Renderer::Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferUsage usage )
 {
     if ( buffer and buffer.Size() >= bytes )
         return false;
     // Twice as much as asked: a scene that grows a little does not make it
     // again every frame.
-    buffer = GpuBuffer( mGpu, WGPUBufferUsage_Storage, max( bytes * 2, buffer.Size() * 2 ), label );
+    buffer = GpuBuffer( mGpu, usage, max( bytes * 2, buffer.Size() * 2 ), label );
     return true;
+}
+
+void Renderer::Pick( ivec2 pixel )
+{
+    mPickWanted = pixel;
+}
+
+opt<Entity> Renderer::TryPicked()
+{
+    if ( not mPicking or not mPicking->mDone )
+        return nullopt;
+    Entity picked;
+    if ( mPicking->mMapped )
+    {
+        array<byte, 4> texel{};
+        const auto* mapped = static_cast<const byte*>(
+            wgpuBufferGetConstMappedRange( mPickBuffer.Get(), 0, static_cast<size_t>( cPickBytes ) ) );
+        if ( mapped != nullptr )
+            copy_n( mapped, texel.size(), texel.data() );
+        wgpuBufferUnmap( mPickBuffer.Get() );
+        picked = Entity( bit_cast<u32>( texel ) );
+    }
+    mPicking.reset();
+    return picked;
+}
+
+void Renderer::EncodePick( WGPUCommandEncoder encoder, ivec2 size )
+{
+    const ivec2 pixel = glm::clamp( *mPickWanted, ivec2( 0 ), size - 1 );
+    mPickWanted.reset();
+    if ( not mPickIds or mPickIds.Size() != size )
+        mPickIds =
+            GpuTexture( mGpu, GpuTextureOptions{ .mSize = size,
+                                                 .mMips = 1,
+                                                 .mFormat = cPickFormat,
+                                                 .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
+                                                 .mLabel = "pick" } );
+    {
+        WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
+        color.view = mPickIds.View();
+        color.loadOp = WGPULoadOp_Clear;
+        color.storeOp = WGPUStoreOp_Store;
+        // Entity::Null where nothing is drawn.
+        color.clearValue = WGPUColor{ static_cast<f64>( ~0u ), 0.0, 0.0, 0.0 };
+        WGPURenderPassDepthStencilAttachment depth = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
+        depth.view = mDepth.View();
+        depth.depthLoadOp = WGPULoadOp_Clear;
+        depth.depthStoreOp = WGPUStoreOp_Discard;
+        depth.depthClearValue = 0.0f;
+        WGPURenderPassDescriptor descriptor = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
+        descriptor.label = ToGpuString( "pick" );
+        descriptor.colorAttachmentCount = 1;
+        descriptor.colorAttachments = &color;
+        descriptor.depthStencilAttachment = &depth;
+        const GpuRenderPassHandle pass( wgpuCommandEncoderBeginRenderPass( encoder, &descriptor ) );
+        // The one pixel asked for is all that is shaded.
+        wgpuRenderPassEncoderSetScissorRect( pass.Get(), static_cast<u32>( pixel.x ), static_cast<u32>( pixel.y ), 1,
+                                             1 );
+        wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mFrameGroup.Get(), 0, nullptr );
+        wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
+        OptRef<const GpuModel> boundModel;
+        for ( const Batch& batch : mBatches )
+        {
+            const DrawCall& draw = mDraws[mOrder[batch.mDraw]];
+            wgpuRenderPassEncoderSetPipeline( pass.Get(), mPickPipelines[draw.mMaterial.mDoubleSided ? 1 : 0].Get() );
+            if ( boundModel != OptRef<const GpuModel>( draw.mModel ) )
+            {
+                draw.mModel.Bind( pass.Get() );
+                boundModel = draw.mModel;
+            }
+            draw.mModel.Draw( pass.Get(), draw.mMesh, draw.mLod, batch.mFirstInstance, batch.mInstances );
+        }
+        wgpuRenderPassEncoderEnd( pass.Get() );
+    }
+    // A new buffer for each pick: one still mapping for the last one goes
+    // its own way.
+    mPickBuffer = GpuBuffer( mGpu, WGPUBufferUsage_MapRead, cPickBytes, "pick" );
+    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    source.texture = mPickIds.Get();
+    source.origin = WGPUOrigin3D{ static_cast<u32>( pixel.x ), static_cast<u32>( pixel.y ), 0 };
+    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    destination.buffer = mPickBuffer.Get();
+    destination.layout.bytesPerRow = static_cast<u32>( cPickBytes );
+    destination.layout.rowsPerImage = 1;
+    const WGPUExtent3D extent{ 1, 1, 1 };
+    wgpuCommandEncoderCopyTextureToBuffer( encoder, &source, &destination, &extent );
 }
 
 void Renderer::MakeBindGroups()
@@ -279,7 +435,9 @@ void Renderer::Collect( const RenderScene& scene )
                    .mModel = *modelMaybe,
                    .mObject = ObjectData{ .mModel = source.mWorld,
                                           .mNormal = mat4( glm::transpose( glm::inverse( turn ) ) ),
-                                          .mTint = source.mTint },
+                                          .mTint = source.mTint,
+                                          .mEntity = static_cast<u32>( source.mEntity ),
+                                          .mPadding = {} },
                    .mMin = vec3( numeric_limits<f32>::max() ),
                    .mMax = vec3( -numeric_limits<f32>::max() ),
                    .mCentre = vec3( 0.0f ),
@@ -425,6 +583,20 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
             }
         }
     }
+    // The debug drawing's lines, in linear light.
+    mLineData.clear();
+    for ( const DebugLine& line : scene.mLines )
+    {
+        const vec4 color = ToLinear( line.mColor );
+        mLineData.push_back( LineVertex{ .mPosition = line.mFrom, .mColor = color } );
+        mLineData.push_back( LineVertex{ .mPosition = line.mTo, .mColor = color } );
+    }
+    if ( not mLineData.empty() )
+    {
+        Fit( mLineVertices, mLineData.size() * sizeof( LineVertex ), "debug lines", WGPUBufferUsage_Vertex );
+        mLineVertices.Write( mGpu, 0, AsBytes( mLineData ) );
+    }
+
     // Choices for meshes no longer drawn go.
     erase_if( mLods, [&]( const auto& choice ) { return choice.second.mFrame + 1 < mFrameCount; } );
 
@@ -531,8 +703,18 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
         drawBatches( pass.Get(), mDraws, mOrder, mBatches, true );
+        if ( not mLineData.empty() )
+        {
+            wgpuRenderPassEncoderSetPipeline( pass.Get(), mLinePipeline.Get() );
+            wgpuRenderPassEncoderSetVertexBuffer( pass.Get(), 0, mLineVertices.Get(), 0, WGPU_WHOLE_SIZE );
+            wgpuRenderPassEncoderDraw( pass.Get(), static_cast<u32>( mLineData.size() ), 1, 0, 0 );
+        }
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
+
+    const bool picking = mPickWanted.has_value();
+    if ( picking )
+        EncodePick( encoder.Get(), target.mSize );
 
     {
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
@@ -551,5 +733,17 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
     mGpu.Submit( encoder );
+
+    // Mapped once the GPU has done what was submitted; the answer comes at
+    // a Poll.
+    if ( picking )
+    {
+        mPicking = CreateRef<PickState>();
+        WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+        callback.mode = WGPUCallbackMode_AllowProcessEvents;
+        callback.callback = &OnPickMapped;
+        callback.userdata1 = CreateScope<Ref<PickState>>( mPicking ).release();
+        wgpuBufferMapAsync( mPickBuffer.Get(), WGPUMapMode_Read, 0, static_cast<size_t>( cPickBytes ), callback );
+    }
 }
 }
