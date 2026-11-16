@@ -35,11 +35,15 @@ struct RenderFixture
                            mApp.GetJobs() };
     Scope<Gpu> mGpu = StartGpu();
     Renderer mRenderer{ *mGpu, mAssets };
+    // What Draw draws: one view, its target.
+    RenderView mView;
     GpuTexture mTarget;
 
-    explicit RenderFixture( i32 size = 64 )
+    explicit RenderFixture( i32 size = 64 ) : RenderFixture( ivec2( size ) ) {}
+
+    explicit RenderFixture( ivec2 size )
         : mTarget( *mGpu,
-                   GpuTextureOptions{ .mSize = ivec2( size ),
+                   GpuTextureOptions{ .mSize = size,
                                       .mMips = 1,
                                       .mFormat = WGPUTextureFormat_RGBA8UnormSrgb,
                                       .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
@@ -92,7 +96,7 @@ struct RenderFixture
             REQUIRE_FALSE( scene.mCameras.empty() );
             Required( mGpu->TryCheckNow( [&] {
                 mRenderer.Draw(
-                    scene, scene.mCameras.front(),
+                    mView, scene, scene.mCameras.front(),
                     RenderTarget{ .mView = mTarget.View(), .mSize = mTarget.Size(), .mFormat = mTarget.Format() } );
             } ) );
             mGpu->Poll();

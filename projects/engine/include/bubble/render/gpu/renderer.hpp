@@ -49,16 +49,71 @@ struct RenderStats
 class GpuMaterials;
 struct GpuMaterial;
 
+// One place a world is seen from, drawn each frame: the game's window, the
+// editor's viewport, a material's preview. What lasts from one of its
+// frames to the next - targets of its size, the level each of its meshes
+// was at, a pick on its way, what it drew - is its own, so views drawn in
+// one frame, of one world or of several, never disturb each other. Made
+// before the renderer draws it, gone before the Gpu.
+class RenderView
+{
+public:
+    RenderView();
+    ~RenderView();
+    RenderView( const RenderView& ) = delete;
+    RenderView& operator=( const RenderView& ) = delete;
+
+    // Asks which entity the next Draw of this view shows at `pixel` of its
+    // target, from the top left: TryPicked gives it once it has come back
+    // from the GPU - when the GPU has drawn that frame: a frame or so later
+    // on a real one, more on a slow one. A new ask drops one still on its
+    // way.
+    void Pick( ivec2 pixel );
+    // The entity asked for, once: Entity::Null where nothing was drawn;
+    // nothing while it has not come back.
+    opt<Entity> TryPicked();
+
+    const RenderStats& Stats() const { return mStats; }
+
+    // A pick on its way back from the GPU: shared with the map's callback.
+    struct PickState;
+
+private:
+    friend class Renderer;
+
+    // A mesh's level the frames before: a mesh grows coarser only once its
+    // error is well within the limit, so one at the limit does not flicker.
+    struct LodChoice
+    {
+        u32 mLod = 0;
+        u64 mFrame = 0;
+    };
+
+    // Sized to the view's target.
+    GpuTexture mHdr;
+    GpuTexture mDepth;
+    GpuBindGroupHandle mTonemapGroup;
+    // Made at the first pick.
+    GpuTexture mPickIds;
+    opt<ivec2> mPickWanted;
+    GpuBuffer mPickBuffer;
+    Ref<PickState> mPicking;
+    hmap<u64, LodChoice> mLods;
+    u64 mFrames = 0;
+    RenderStats mStats;
+};
+
 // Draws what a world gathered - its RenderScene - as one camera sees it,
-// into a target: the shadowed directional light's shadow map, the opaque
-// surfaces in linear light (rgba16float, depth reversed), the transparent
-// ones over them from the farthest, the debug drawing's lines, then
-// tonemapping into the target. Models
-// come as GpuAssets has them - one still loading is not drawn yet - and each
-// mesh with its material, which loads what it needs from the registry. What
-// is out of view is not drawn, each mesh at the level of detail its size on
-// screen needs, and meshes alike - model, mesh, level, material - in one
-// call. One a process, after the Gpu, beside the registry.
+// into a view's target: the shadowed directional light's shadow map, the
+// opaque surfaces in linear light (rgba16float, depth reversed), the
+// transparent ones over them from the farthest, the debug drawing's lines,
+// then tonemapping into the target. Models come as GpuAssets has them - one
+// still loading is not drawn yet - and each mesh with its material, which
+// loads what it needs from the registry. What is out of view is not drawn,
+// each mesh at the level of detail its size on screen needs, and meshes
+// alike - model, mesh, level, material - in one call. One a process, after
+// the Gpu, beside the registry; each Draw is submitted whole, so views
+// follow one another on the GPU as they were drawn.
 class Renderer
 {
 public:
@@ -68,28 +123,17 @@ public:
     Renderer( const Renderer& ) = delete;
     Renderer& operator=( const Renderer& ) = delete;
 
-    void Draw( const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target );
-
-    // Asks which entity the next Draw shows at `pixel` of its target, from
-    // the top left: TryPicked gives it once it has come back from the GPU -
-    // a frame or so later. A new ask drops one still on its way.
-    void Pick( ivec2 pixel );
-    // The entity asked for, once: Entity::Null where nothing was drawn;
-    // nothing while it has not come back.
-    opt<Entity> TryPicked();
+    void Draw( RenderView& view, const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target );
 
     GpuAssets& Assets() { return mAssets; }
-    const RenderStats& Stats() const { return mStats; }
 
-    // The shader's own layouts, kept in step with standard.wgsl.
+    // The shaders' own layouts, kept in step with lit.wgsl.
     struct FrameUniforms;
     struct LightData;
     struct ObjectData;
     // An item whose model has come, as this frame takes it.
     struct Item;
     struct LineVertex;
-    // A pick on its way back from the GPU: shared with the map's callback.
-    struct PickState;
 
 private:
     struct DrawCall
@@ -112,17 +156,9 @@ private:
         u32 mInstances = 0;
     };
 
-    // A mesh's level the frames before: a mesh grows coarser only once its
-    // error is well within the limit, so one at the limit does not flicker.
-    struct LodChoice
-    {
-        u32 mLod = 0;
-        u64 mFrame = 0;
-    };
-
-    void Resize( ivec2 size );
+    void Resize( RenderView& view, ivec2 size );
     void Collect( const RenderScene& scene );
-    u32 LodOf( const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne );
+    u32 LodOf( RenderView& view, const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne );
     // The draws in order and as calls: the opaque grouped by pipeline,
     // material, model, mesh and level, one call for each run alike; the
     // transparent after, the farthest first, a call each. Instances go to
@@ -131,7 +167,7 @@ private:
     // Grows a storage buffer to hold `bytes`, and says whether it did - its
     // bind group is made again then.
     bool Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferUsage usage = WGPUBufferUsage_Storage );
-    void EncodePick( WGPUCommandEncoder encoder, ivec2 size );
+    void EncodePick( RenderView& view, WGPUCommandEncoder encoder, ivec2 size );
     void MakeBindGroups();
     WGPURenderPipeline TonemapFor( WGPUTextureFormat format );
 
@@ -165,13 +201,6 @@ private:
 
     GpuBuffer mLineVertices;
 
-    // Sized to the target.
-    GpuTexture mHdr;
-    GpuTexture mDepth;
-    // Made at the first pick.
-    GpuTexture mPickIds;
-    GpuBindGroupHandle mTonemapGroup;
-
     // After the layouts it builds its pipelines with.
     Scope<GpuMaterials> mMaterials;
 
@@ -188,11 +217,5 @@ private:
     vec3 mBoundsMin{ 0.0f };
     vec3 mBoundsMax{ 0.0f };
     vector<LineVertex> mLineData;
-    hmap<u64, LodChoice> mLods;
-    opt<ivec2> mPickWanted;
-    GpuBuffer mPickBuffer;
-    Ref<PickState> mPicking;
-    u64 mFrameCount = 0;
-    RenderStats mStats;
 };
 }

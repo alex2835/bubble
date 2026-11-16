@@ -9,6 +9,11 @@ target_link_libraries( bubble_tests PRIVATE SDL3::SDL3-static )
 # Folders follow the engine's: core/, scripts/, scripts/lua/; deps/ checks
 # the vendored libraries. Shared helpers are included from the tests' root.
 target_include_directories( bubble_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
+# The pictures the renderer's tests are checked against, and where one that
+# fails is written: render/reference_image.hpp.
+target_compile_definitions( bubble_tests PRIVATE BUBBLE_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+                                                 BUBBLE_TEST_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}" )
+target_link_libraries( bubble_tests PRIVATE stb_image )
 bubble_executable( bubble_tests )
 
 # doctest's TEST_CASE names its functions with __COUNTER__, which clang 22

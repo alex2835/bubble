@@ -102,11 +102,17 @@ struct Picking : test::RenderFixture
         return scene;
     }
 
+    // Frames until the pick is back: a slow GPU answers frames later.
     opt<Entity> PickAt( World& world, ivec2 pixel )
     {
-        mRenderer.Pick( pixel );
-        Draw( world, 2 );
-        return mRenderer.TryPicked();
+        mView.Pick( pixel );
+        for ( u32 frame = 0; frame < 600; ++frame )
+        {
+            Draw( world, 1 );
+            if ( const auto pickedMaybe = mView.TryPicked() )
+                return pickedMaybe;
+        }
+        return nullopt;
     }
 };
 }
@@ -116,11 +122,11 @@ TEST_CASE( "A click finds the entity drawn where it is, and nothing where nothin
     Picking f;
     World world( f.mApp, f.Level() );
     f.Draw( world );
-    CHECK_FALSE( f.mRenderer.TryPicked() );
+    CHECK_FALSE( f.mView.TryPicked() );
 
     CHECK( f.PickAt( world, PixelOf( -2.0f, 0.0f, 1.0f ) ) == f.mLeft );
     // Given once.
-    CHECK_FALSE( f.mRenderer.TryPicked() );
+    CHECK_FALSE( f.mView.TryPicked() );
     CHECK( f.PickAt( world, PixelOf( 2.0f, 0.0f, 1.0f ) ) == f.mRight );
     CHECK( f.PickAt( world, PixelOf( 0.0f, 0.0f ) ) == Entity::Null );
     // Past the target's edge: its nearest pixel.

@@ -217,6 +217,7 @@ int main( int argc, char** argv )
     const Scope<GpuStartup> startup = Gpu::Start( window );
     Scope<Gpu> gpu;
     Scope<Renderer> renderer;
+    RenderView view;
     Input input( Controls() );
     f32 turn = 2.2f;
     Entity picked;
@@ -226,10 +227,10 @@ int main( int argc, char** argv )
             input.Handle( event );
             // A touch is a share of the window; the target is its pixels.
             if ( const auto* touch = get_if<TouchDown>( &event ); touch and renderer )
-                renderer->Pick( ivec2( touch->mPosition * vec2( window.PixelSize() ) ) );
+                view.Pick( ivec2( touch->mPosition * vec2( window.PixelSize() ) ) );
         }
         if ( renderer )
-            if ( const auto pickedMaybe = renderer->TryPicked() )
+            if ( const auto pickedMaybe = view.TryPicked() )
             {
                 picked = *pickedMaybe;
                 LogInfo( "picked {}", Describe( world.GetScene(), picked ) );
@@ -269,7 +270,7 @@ int main( int argc, char** argv )
         {
             const RenderScene& scene = world.Get<RenderScene>();
             renderer->Draw(
-                scene, scene.mCameras.front(),
+                view, scene, scene.mCameras.front(),
                 RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() } );
             surface.Present();
             ++framesDrawn;

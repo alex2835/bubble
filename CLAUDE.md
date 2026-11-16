@@ -68,13 +68,14 @@ projects/engine/include/bubble/
                               CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
                               one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
                               registry's models and textures by id, made again after a reload, Collect),
-                              Renderer (a RenderScene through a camera into a RenderTarget: shadow map, opaque then
+                              Renderer (one a process; Draw( view, scene, camera, target ): shadow map, opaque then
                               transparent surfaces in rgba16float with reversed depth, ACES tonemapping; frustum
                               culling, each mesh's LOD by its error in pixels with hysteresis, meshes alike in one
-                              instanced call; the debug drawing's lines; Pick/TryPicked - the entity at a pixel,
-                              back a frame or so later; Stats - what the last frame drew; materials
+                              instanced call; the debug drawing's lines; materials
                               built from their bases, shader and textures in src/render/gpu/gpu_materials - the
-                              standard one while they load, a magenta placeholder when they fail), EngineShader (the WGSL of
+                              standard one while they load, a magenta placeholder when they fail), RenderView (one
+                              place a world is seen from: its targets, LOD hysteresis, Pick/TryPicked - the entity
+                              at a pixel, back when the GPU has drawn that frame -, Stats), EngineShader (the WGSL of
                               projects/engine/shaders, built in by cmake/embed_shaders.cmake); WGPU types stop here
     render/                   render_scene: camera, directional_light, point_light, spot_light, model (asset,
                               materials by mesh, tint); RenderModule gathers them each frame into RenderScene (items,
@@ -139,7 +140,9 @@ projects/runner/              bubble_runner, on the engine alone (never import o
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
                               logged); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
-                              drawn and read back); deps/ tests deps (luaubind
+                              drawn and read back); render/reference_image.hpp + render/reference/*.png (pictures
+                              checked with a rasterizer's tolerance; BUBBLE_UPDATE_REFERENCES=1 writes them anew, a
+                              failing one goes beside the tests' binary); deps/ tests deps (luaubind
                               too)
 ```
 

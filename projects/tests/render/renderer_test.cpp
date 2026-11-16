@@ -39,6 +39,7 @@ struct Drawing
                            mApp.GetJobs() };
     Scope<Gpu> mGpu = StartGpu();
     Renderer mRenderer{ *mGpu, mAssets };
+    RenderView mView;
     GpuTexture mTarget{ *mGpu,
                         GpuTextureOptions{ .mSize = ivec2( cSize ),
                                            .mMips = 1,
@@ -94,7 +95,7 @@ struct Drawing
         REQUIRE( scene.mCameras.size() == 1 );
         Required( mGpu->TryCheckNow( [&] {
             mRenderer.Draw(
-                scene, scene.mCameras[0],
+                mView, scene, scene.mCameras[0],
                 RenderTarget{ .mView = mTarget.View(), .mSize = mTarget.Size(), .mFormat = mTarget.Format() } );
         } ) );
         return Required( mGpu->TryReadRgba8( mTarget ) );

@@ -76,7 +76,7 @@ TEST_CASE( "What the camera does not see is not drawn, and it still casts its sh
     World world( f.mApp, std::move( scene ) );
     f.Draw( world );
 
-    const RenderStats& stats = f.mRenderer.Stats();
+    const RenderStats& stats = f.mView.Stats();
     CHECK( stats.mItems == 2 );
     CHECK( stats.mVisible == 1 );
     CHECK( stats.mDrawCalls == 1 );
@@ -101,7 +101,7 @@ TEST_CASE( "Meshes alike are drawn in one call, each where its own item is" )
     World world( f.mApp, std::move( scene ) );
     const vector<u8> pixels = f.Draw( world );
 
-    const RenderStats& stats = f.mRenderer.Stats();
+    const RenderStats& stats = f.mView.Stats();
     CHECK( stats.mDrawCalls == 2 );
     CHECK( stats.mInstances == 3 );
     // Each instance drawn where its item is: both grey boxes, the sky
@@ -132,7 +132,7 @@ TEST_CASE( "A mesh far away draws a coarser level, and one near draws the full m
         AddCamera( scene, Transform{} );
         World world( f.mApp, std::move( scene ) );
         f.Draw( world );
-        CHECK( f.mRenderer.Stats().mTriangles == triangles );
+        CHECK( f.mView.Stats().mTriangles == triangles );
     }
 }
 
@@ -154,7 +154,7 @@ TEST_CASE( "A mesh at the edge between two levels keeps the one it had" )
         f.Draw( world );
         world.GetScene().Get<Transform>( entity ).mPosition.z = -edge;
         f.Draw( world, 2 );
-        CHECK( f.mRenderer.Stats().mTriangles == triangles );
+        CHECK( f.mView.Stats().mTriangles == triangles );
     }
 }
 #endif

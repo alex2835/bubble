@@ -61,7 +61,7 @@ struct Renderer::LineVertex
 };
 static_assert( sizeof( Renderer::LineVertex ) == 28 );
 
-struct Renderer::PickState
+struct RenderView::PickState
 {
     bool mDone = false;
     bool mMapped = false;
@@ -91,7 +91,7 @@ constexpr u64 cPickBytes = 256;
 
 void OnPickMapped( WGPUMapAsyncStatus status, WGPUStringView, void* held, void* )
 {
-    const Scope<Ref<Renderer::PickState>> state( static_cast<Ref<Renderer::PickState>*>( held ) );
+    const Scope<Ref<RenderView::PickState>> state( static_cast<Ref<RenderView::PickState>*>( held ) );
     ( *state )->mDone = true;
     ( *state )->mMapped = status == WGPUMapAsyncStatus_Success;
 }
@@ -285,12 +285,15 @@ bool Renderer::Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferU
     return true;
 }
 
-void Renderer::Pick( ivec2 pixel )
+RenderView::RenderView() = default;
+RenderView::~RenderView() = default;
+
+void RenderView::Pick( ivec2 pixel )
 {
     mPickWanted = pixel;
 }
 
-opt<Entity> Renderer::TryPicked()
+opt<Entity> RenderView::TryPicked()
 {
     if ( not mPicking or not mPicking->mDone )
         return nullopt;
@@ -309,12 +312,12 @@ opt<Entity> Renderer::TryPicked()
     return picked;
 }
 
-void Renderer::EncodePick( WGPUCommandEncoder encoder, ivec2 size )
+void Renderer::EncodePick( RenderView& view, WGPUCommandEncoder encoder, ivec2 size )
 {
-    const ivec2 pixel = glm::clamp( *mPickWanted, ivec2( 0 ), size - 1 );
-    mPickWanted.reset();
-    if ( not mPickIds or mPickIds.Size() != size )
-        mPickIds =
+    const ivec2 pixel = glm::clamp( *view.mPickWanted, ivec2( 0 ), size - 1 );
+    view.mPickWanted.reset();
+    if ( not view.mPickIds or view.mPickIds.Size() != size )
+        view.mPickIds =
             GpuTexture( mGpu, GpuTextureOptions{ .mSize = size,
                                                  .mMips = 1,
                                                  .mFormat = cPickFormat,
@@ -322,13 +325,13 @@ void Renderer::EncodePick( WGPUCommandEncoder encoder, ivec2 size )
                                                  .mLabel = "pick" } );
     {
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
-        color.view = mPickIds.View();
+        color.view = view.mPickIds.View();
         color.loadOp = WGPULoadOp_Clear;
         color.storeOp = WGPUStoreOp_Store;
         // Entity::Null where nothing is drawn.
         color.clearValue = WGPUColor{ static_cast<f64>( ~0u ), 0.0, 0.0, 0.0 };
         WGPURenderPassDepthStencilAttachment depth = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
-        depth.view = mDepth.View();
+        depth.view = view.mDepth.View();
         depth.depthLoadOp = WGPULoadOp_Clear;
         depth.depthStoreOp = WGPUStoreOp_Discard;
         depth.depthClearValue = 0.0f;
@@ -359,12 +362,12 @@ void Renderer::EncodePick( WGPUCommandEncoder encoder, ivec2 size )
     }
     // A new buffer for each pick: one still mapping for the last one goes
     // its own way.
-    mPickBuffer = GpuBuffer( mGpu, WGPUBufferUsage_MapRead, cPickBytes, "pick" );
+    view.mPickBuffer = GpuBuffer( mGpu, WGPUBufferUsage_MapRead, cPickBytes, "pick" );
     WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-    source.texture = mPickIds.Get();
+    source.texture = view.mPickIds.Get();
     source.origin = WGPUOrigin3D{ static_cast<u32>( pixel.x ), static_cast<u32>( pixel.y ), 0 };
     WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-    destination.buffer = mPickBuffer.Get();
+    destination.buffer = view.mPickBuffer.Get();
     destination.layout.bytesPerRow = static_cast<u32>( cPickBytes );
     destination.layout.rowsPerImage = 1;
     const WGPUExtent3D extent{ 1, 1, 1 };
@@ -383,23 +386,23 @@ void Renderer::MakeBindGroups()
                                  vector<WGPUBindGroupEntry>{ BufferBinding( 0, mObjects ) } );
 }
 
-void Renderer::Resize( ivec2 size )
+void Renderer::Resize( RenderView& view, ivec2 size )
 {
-    if ( mHdr and mHdr.Size() == size )
+    if ( view.mHdr and view.mHdr.Size() == size )
         return;
-    mHdr = GpuTexture( mGpu,
-                       GpuTextureOptions{ .mSize = size,
-                                          .mMips = 1,
-                                          .mFormat = cHdrFormat,
-                                          .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
-                                          .mLabel = "hdr" } );
-    mDepth = GpuTexture( mGpu, GpuTextureOptions{ .mSize = size,
-                                                  .mMips = 1,
-                                                  .mFormat = cDepthFormat,
-                                                  .mUsage = WGPUTextureUsage_RenderAttachment,
-                                                  .mLabel = "depth" } );
-    mTonemapGroup = CreateGroup( mGpu, "tonemap", mTonemapLayout.Get(),
-                                 vector<WGPUBindGroupEntry>{ TextureBinding( 0, mHdr.View() ) } );
+    view.mHdr = GpuTexture(
+        mGpu, GpuTextureOptions{ .mSize = size,
+                                 .mMips = 1,
+                                 .mFormat = cHdrFormat,
+                                 .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding,
+                                 .mLabel = "hdr" } );
+    view.mDepth = GpuTexture( mGpu, GpuTextureOptions{ .mSize = size,
+                                                       .mMips = 1,
+                                                       .mFormat = cDepthFormat,
+                                                       .mUsage = WGPUTextureUsage_RenderAttachment,
+                                                       .mLabel = "depth" } );
+    view.mTonemapGroup = CreateGroup( mGpu, "tonemap", mTonemapLayout.Get(),
+                                      vector<WGPUBindGroupEntry>{ TextureBinding( 0, view.mHdr.View() ) } );
 }
 
 WGPURenderPipeline Renderer::TonemapFor( WGPUTextureFormat format )
@@ -452,13 +455,13 @@ void Renderer::Collect( const RenderScene& scene )
     }
 }
 
-u32 Renderer::LodOf( const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne )
+u32 Renderer::LodOf( RenderView& view, const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne )
 {
     const vector<GpuLod>& lods = item.mModel.Meshes()[mesh].mLods;
-    LodChoice& choice = mLods[( u64{ static_cast<u32>( item.mSource.mEntity ) } << 16 ) | mesh];
-    if ( choice.mFrame == mFrameCount )
+    RenderView::LodChoice& choice = view.mLods[( u64{ static_cast<u32>( item.mSource.mEntity ) } << 16 ) | mesh];
+    if ( choice.mFrame == view.mFrames )
         return choice.mLod;
-    const u32 previous = choice.mFrame + 1 == mFrameCount ? choice.mLod : 0;
+    const u32 previous = choice.mFrame + 1 == view.mFrames ? choice.mLod : 0;
     // From the sphere's surface: inside it, or near, the full mesh.
     const f32 distance = max( glm::length( item.mCentre - eye ) - item.mRadius, 1e-3f );
     const f32 pixelsPerError = item.mScale * pixelsAtOne / distance;
@@ -472,7 +475,7 @@ u32 Renderer::LodOf( const Item& item, u32 mesh, vec3 eye, f32 pixelsAtOne )
             break;
         }
     }
-    choice = LodChoice{ .mLod = lod, .mFrame = mFrameCount };
+    choice = RenderView::LodChoice{ .mLod = lod, .mFrame = view.mFrames };
     return lod;
 }
 
@@ -508,13 +511,16 @@ void Renderer::Order( const vector<DrawCall>& draws, vector<u32>& order, vector<
     }
 }
 
-void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target )
+void Renderer::Draw( RenderView& view,
+                     const RenderScene& scene,
+                     const RenderCamera& camera,
+                     const RenderTarget& target )
 {
     BUBBLE_PROFILE_ZONE();
     if ( target.mSize.x <= 0 or target.mSize.y <= 0 )
         return;
-    Resize( target.mSize );
-    ++mFrameCount;
+    Resize( view, target.mSize );
+    ++view.mFrames;
     mMaterials->BeginFrame();
     Collect( scene );
 
@@ -544,21 +550,21 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
 
     // What the camera sees, each mesh at its level; what the light sees, a
     // level coarser - a shadow's edge hides more than a surface does.
-    const Frustum view = FrustumOf( frame.mViewProjection );
+    const Frustum seen = FrustumOf( frame.mViewProjection );
     const Frustum light = FrustumOf( frame.mShadowViewProjection );
     const f32 pixelsAtOne = static_cast<f32>( target.mSize.y ) / ( 2.0f * tan( camera.mFov * 0.5f ) );
     mDraws.clear();
     mShadowDraws.clear();
-    mStats = RenderStats();
-    mStats.mItems = static_cast<u32>( mItems.size() );
+    view.mStats = RenderStats();
+    view.mStats.mItems = static_cast<u32>( mItems.size() );
     for ( u32 at = 0; at < mItems.size(); ++at )
     {
         const Item& item = mItems[at];
-        const bool seen = Overlaps( view, item.mMin, item.mMax );
+        const bool inView = Overlaps( seen, item.mMin, item.mMax );
         const bool casts = frame.mShadowLight != cNoShadow and Overlaps( light, item.mMin, item.mMax );
-        if ( not seen and not casts )
+        if ( not inView and not casts )
             continue;
-        mStats.mVisible += seen ? 1 : 0;
+        view.mStats.mVisible += inView ? 1 : 0;
         const vec3 toItem = item.mCentre - eye;
         const vector<GpuMesh>& meshes = item.mModel.Meshes();
         for ( u32 mesh = 0; mesh < meshes.size(); ++mesh )
@@ -566,14 +572,14 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
             const AssetRef<MaterialAsset> none;
             const auto& materials = item.mSource.mMaterials;
             const GpuMaterial& material = mMaterials->For( mesh < materials.size() ? materials[mesh] : none );
-            const u32 lod = LodOf( item, mesh, eye, pixelsAtOne );
+            const u32 lod = LodOf( view, item, mesh, eye, pixelsAtOne );
             const DrawCall draw{ .mModel = item.mModel,
                                  .mMaterial = material,
                                  .mMesh = mesh,
                                  .mLod = lod,
                                  .mItem = at,
                                  .mDistance = glm::dot( toItem, toItem ) };
-            if ( seen )
+            if ( inView )
                 mDraws.push_back( draw );
             // What is transparent casts no shadow.
             if ( casts and not material.mTransparent )
@@ -598,18 +604,18 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
     }
 
     // Choices for meshes no longer drawn go.
-    erase_if( mLods, [&]( const auto& choice ) { return choice.second.mFrame + 1 < mFrameCount; } );
+    erase_if( view.mLods, [&]( const auto& choice ) { return choice.second.mFrame + 1 < view.mFrames; } );
 
     mObjectData.clear();
     Order( mDraws, mOrder, mBatches, false );
     Order( mShadowDraws, mShadowOrder, mShadowBatches, true );
-    mStats.mDrawCalls = static_cast<u32>( mBatches.size() );
-    mStats.mShadowDrawCalls = static_cast<u32>( mShadowBatches.size() );
+    view.mStats.mDrawCalls = static_cast<u32>( mBatches.size() );
+    view.mStats.mShadowDrawCalls = static_cast<u32>( mShadowBatches.size() );
     for ( const Batch& batch : mBatches )
     {
         const DrawCall& draw = mDraws[mOrder[batch.mDraw]];
-        mStats.mInstances += batch.mInstances;
-        mStats.mTriangles +=
+        view.mStats.mInstances += batch.mInstances;
+        view.mStats.mTriangles +=
             u64{ draw.mModel.Meshes()[draw.mMesh].mLods[draw.mLod].mIndexCount / 3 } * batch.mInstances;
     }
 
@@ -685,12 +691,12 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
     {
         const vec4 background = ToLinear( mOptions.mBackground );
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
-        color.view = mHdr.View();
+        color.view = view.mHdr.View();
         color.loadOp = WGPULoadOp_Clear;
         color.storeOp = WGPUStoreOp_Store;
         color.clearValue = WGPUColor{ background.r, background.g, background.b, 1.0 };
         WGPURenderPassDepthStencilAttachment depth = WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
-        depth.view = mDepth.View();
+        depth.view = view.mDepth.View();
         depth.depthLoadOp = WGPULoadOp_Clear;
         depth.depthStoreOp = WGPUStoreOp_Discard;
         depth.depthClearValue = 0.0f;
@@ -712,9 +718,9 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 
-    const bool picking = mPickWanted.has_value();
+    const bool picking = view.mPickWanted.has_value();
     if ( picking )
-        EncodePick( encoder.Get(), target.mSize );
+        EncodePick( view, encoder.Get(), target.mSize );
 
     {
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
@@ -728,7 +734,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         descriptor.colorAttachments = &color;
         const GpuRenderPassHandle pass( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &descriptor ) );
         wgpuRenderPassEncoderSetPipeline( pass.Get(), TonemapFor( target.mFormat ) );
-        wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mTonemapGroup.Get(), 0, nullptr );
+        wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, view.mTonemapGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderDraw( pass.Get(), 3, 1, 0, 0 );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
@@ -738,12 +744,12 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
     // a Poll.
     if ( picking )
     {
-        mPicking = CreateRef<PickState>();
+        view.mPicking = CreateRef<RenderView::PickState>();
         WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
         callback.mode = WGPUCallbackMode_AllowProcessEvents;
         callback.callback = &OnPickMapped;
-        callback.userdata1 = CreateScope<Ref<PickState>>( mPicking ).release();
-        wgpuBufferMapAsync( mPickBuffer.Get(), WGPUMapMode_Read, 0, static_cast<size_t>( cPickBytes ), callback );
+        callback.userdata1 = CreateScope<Ref<RenderView::PickState>>( view.mPicking ).release();
+        wgpuBufferMapAsync( view.mPickBuffer.Get(), WGPUMapMode_Read, 0, static_cast<size_t>( cPickBytes ), callback );
     }
 }
 }
