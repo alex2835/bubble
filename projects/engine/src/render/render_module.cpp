@@ -7,10 +7,12 @@ namespace bubble
 {
 namespace
 {
-// A Model's asset, loading or loaded: built from the component, never saved.
+// A Model's assets, loading or loaded: built from the component, never
+// saved.
 struct ModelRuntime
 {
     AssetRef<ModelAsset> mModel;
+    vector<AssetRef<MaterialAsset>> mMaterials;
 };
 
 class Render final : public Module
@@ -20,6 +22,7 @@ public:
     {
         world.OnAdded<Model>( [this]( Entity entity ) { Build( entity ); } );
         world.OnChanged<Model>( "asset"_n, [this]( Entity entity ) { Build( entity ); } );
+        world.OnChanged<Model>( "materials"_n, [this]( Entity entity ) { Build( entity ); } );
         world.OnRemoved<Model>( [this]( Entity entity ) { mWorld.GetScene().Remove<ModelRuntime>( entity ); } );
         world.AddStep( Phase::Render, [this]( f32 ) { Gather(); } );
         world.GetServices().Add( mScene );
@@ -29,9 +32,16 @@ private:
     void Build( Entity entity )
     {
         Scene& scene = mWorld.GetScene();
-        const AssetId& assetId = scene.Get<Model>( entity ).mAsset;
-        // None chosen yet - a model just added in the editor - draws nothing.
-        scene.Add<ModelRuntime>( entity, assetId ? mAssets.Load<ModelAsset>( assetId ) : AssetRef<ModelAsset>() );
+        const Model& model = scene.Get<Model>( entity );
+        // None chosen yet - a model just added in the editor - draws nothing,
+        // and an empty slot draws the standard material.
+        ModelRuntime runtime{ .mModel =
+                                  model.mAsset ? mAssets.Load<ModelAsset>( model.mAsset ) : AssetRef<ModelAsset>(),
+                              .mMaterials = {} };
+        for ( const AssetId& materialId : model.mMaterials )
+            runtime.mMaterials.push_back( materialId ? mAssets.Load<MaterialAsset>( materialId )
+                                                     : AssetRef<MaterialAsset>() );
+        scene.Add<ModelRuntime>( entity, std::move( runtime ) );
     }
 
     mat4 WorldOf( Entity entity ) const
@@ -54,9 +64,13 @@ private:
         mScene.mItems.clear();
         mScene.mLights.clear();
         mScene.mCameras.clear();
-        scene.ForEach<ModelRuntime>( [&]( Entity entity, const ModelRuntime& runtime ) {
-            mScene.mItems.push_back(
-                RenderItem{ .mEntity = entity, .mModel = runtime.mModel, .mWorld = WorldOf( entity ) } );
+        mScene.mTime = static_cast<f32>( static_cast<f64>( mWorld.Steps() ) + mWorld.Alpha() ) * mWorld.FixedDt();
+        scene.ForEach<ModelRuntime, Model>( [&]( Entity entity, const ModelRuntime& runtime, const Model& model ) {
+            mScene.mItems.push_back( RenderItem{ .mEntity = entity,
+                                                 .mModel = runtime.mModel,
+                                                 .mMaterials = runtime.mMaterials,
+                                                 .mWorld = WorldOf( entity ),
+                                                 .mTint = ToLinear( model.mTint ) } );
         } );
         scene.ForEach<DirectionalLight>( [&]( Entity entity, const DirectionalLight& light ) {
             const mat4 world = WorldOf( entity );
@@ -129,7 +143,10 @@ ModuleType RenderModule( AssetRegistry& assets )
                     .Field<&SpotLight::mRange>( "range" )
                     .Field<&SpotLight::mInnerAngle>( "inner_angle", angle )
                     .Field<&SpotLight::mOuterAngle>( "outer_angle", angle );
-                reflection.Type<Model>( "model" ).Field<&Model::mAsset>( "asset" );
+                reflection.Type<Model>( "model" )
+                    .Field<&Model::mAsset>( "asset" )
+                    .Field<&Model::mMaterials>( "materials" )
+                    .Field<&Model::mTint>( "tint", color );
                 componentTypes.Add<Camera>();
                 componentTypes.Add<DirectionalLight>();
                 componentTypes.Add<PointLight>();

@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/assets/material_asset.hpp"
 #include "bubble/assets/model_asset.hpp"
 #include "bubble/core/color.hpp"
 #include "bubble/scene/entity.hpp"
@@ -44,10 +45,15 @@ struct SpotLight
     f32 mOuterAngle = 0.6981317f; // 40°
 };
 
-// A model drawn where its entity is.
+// A model drawn where its entity is: each of its meshes with the material
+// in its slot - a mesh past the list, or with none, in the standard one -
+// its color times `tint`, which changes this one alone and keeps it drawn
+// with the others that share its material.
 struct Model
 {
     AssetId mAsset;
+    vector<AssetId> mMaterials;
+    Color mTint;
 };
 
 enum class RenderLightKind : u8
@@ -89,7 +95,11 @@ struct RenderItem
 {
     Entity mEntity;
     AssetRef<ModelAsset> mModel;
+    // By mesh; an empty ref is the standard material.
+    vector<AssetRef<MaterialAsset>> mMaterials;
     mat4 mWorld{ 1.0f };
+    // In linear light.
+    vec4 mTint{ 1.0f };
 };
 
 // What there is to draw in a world, as the render module gathers it once a
@@ -102,6 +112,9 @@ struct RenderScene
     vector<RenderLight> mLights;
     // In the order their components lie; the game looks through the first.
     vector<RenderCamera> mCameras;
+    // The world's time in seconds, its fixed steps' and the part of the
+    // next one: what a material moves by.
+    f32 mTime = 0;
 };
 
 // The camera, light and model components, and the RenderScene gathered

@@ -5,6 +5,8 @@
 #include "bubble/render/gpu/shaders.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
+#include "gpu_binding.hpp"
+#include "gpu_materials.hpp"
 #include <glm/ext/matrix_clip_space.hpp>
 
 namespace bubble
@@ -18,12 +20,14 @@ struct Renderer::FrameUniforms
     vec3 mAmbient{ 0.0f };
     u32 mShadowLight = 0;
     f32 mShadowNormalOffset = 0;
-    array<f32, 3> mPadding{};
+    f32 mTime = 0;
+    array<f32, 2> mPadding{};
 };
 static_assert( sizeof( Renderer::FrameUniforms ) == 176 );
 static_assert( offsetof( Renderer::FrameUniforms, mCameraPosition ) == 128 );
 static_assert( offsetof( Renderer::FrameUniforms, mAmbient ) == 144 );
 static_assert( offsetof( Renderer::FrameUniforms, mShadowNormalOffset ) == 160 );
+static_assert( offsetof( Renderer::FrameUniforms, mTime ) == 164 );
 
 struct Renderer::LightData
 {
@@ -43,92 +47,14 @@ struct Renderer::ObjectData
 {
     mat4 mModel{ 1.0f };
     mat4 mNormal{ 1.0f };
+    vec4 mTint{ 1.0f };
 };
-static_assert( sizeof( Renderer::ObjectData ) == 128 );
+static_assert( sizeof( Renderer::ObjectData ) == 144 );
 
 namespace
 {
-constexpr WGPUTextureFormat cHdrFormat = WGPUTextureFormat_RGBA16Float;
-constexpr WGPUTextureFormat cDepthFormat = WGPUTextureFormat_Depth32Float;
 // No light has it: no shadow this frame.
 constexpr u32 cNoShadow = ~0u;
-
-WGPUBindGroupLayoutEntry BufferEntry( u32 binding, WGPUShaderStage visibility, WGPUBufferBindingType type )
-{
-    WGPUBindGroupLayoutEntry entry = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
-    entry.binding = binding;
-    entry.visibility = visibility;
-    entry.buffer.type = type;
-    return entry;
-}
-
-WGPUBindGroupLayoutEntry TextureEntry( u32 binding, WGPUTextureSampleType sampleType )
-{
-    WGPUBindGroupLayoutEntry entry = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
-    entry.binding = binding;
-    entry.visibility = WGPUShaderStage_Fragment;
-    entry.texture.sampleType = sampleType;
-    entry.texture.viewDimension = WGPUTextureViewDimension_2D;
-    return entry;
-}
-
-WGPUBindGroupLayoutEntry ComparisonSamplerEntry( u32 binding )
-{
-    WGPUBindGroupLayoutEntry entry = WGPU_BIND_GROUP_LAYOUT_ENTRY_INIT;
-    entry.binding = binding;
-    entry.visibility = WGPUShaderStage_Fragment;
-    entry.sampler.type = WGPUSamplerBindingType_Comparison;
-    return entry;
-}
-
-GpuBindGroupLayoutHandle CreateLayout( const Gpu& gpu,
-                                       string_view label,
-                                       const vector<WGPUBindGroupLayoutEntry>& entries )
-{
-    WGPUBindGroupLayoutDescriptor descriptor = WGPU_BIND_GROUP_LAYOUT_DESCRIPTOR_INIT;
-    descriptor.label = ToGpuString( label );
-    descriptor.entryCount = entries.size();
-    descriptor.entries = entries.data();
-    return GpuBindGroupLayoutHandle( wgpuDeviceCreateBindGroupLayout( gpu.Device(), &descriptor ) );
-}
-
-WGPUBindGroupEntry BufferBinding( u32 binding, const GpuBuffer& buffer )
-{
-    WGPUBindGroupEntry entry = WGPU_BIND_GROUP_ENTRY_INIT;
-    entry.binding = binding;
-    entry.buffer = buffer.Get();
-    entry.size = buffer.Size();
-    return entry;
-}
-
-WGPUBindGroupEntry TextureBinding( u32 binding, WGPUTextureView view )
-{
-    WGPUBindGroupEntry entry = WGPU_BIND_GROUP_ENTRY_INIT;
-    entry.binding = binding;
-    entry.textureView = view;
-    return entry;
-}
-
-WGPUBindGroupEntry SamplerBinding( u32 binding, WGPUSampler sampler )
-{
-    WGPUBindGroupEntry entry = WGPU_BIND_GROUP_ENTRY_INIT;
-    entry.binding = binding;
-    entry.sampler = sampler;
-    return entry;
-}
-
-GpuBindGroupHandle CreateGroup( const Gpu& gpu,
-                                string_view label,
-                                WGPUBindGroupLayout layout,
-                                const vector<WGPUBindGroupEntry>& entries )
-{
-    WGPUBindGroupDescriptor descriptor = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
-    descriptor.label = ToGpuString( label );
-    descriptor.layout = layout;
-    descriptor.entryCount = entries.size();
-    descriptor.entries = entries.data();
-    return GpuBindGroupHandle( wgpuDeviceCreateBindGroup( gpu.Device(), &descriptor ) );
-}
 
 // The view and projection a camera sees through, depth reversed: the
 // near plane at 1, the far one at 0 - glm's own projection with the two
@@ -165,12 +91,11 @@ void Grow( vec3& boundsMin, vec3& boundsMax, const mat4& world, vec3 min, vec3 m
 }
 }
 
-Renderer::Renderer( Gpu& gpu, const AssetRegistry& assets, RendererOptions options )
+Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
     : mGpu( gpu ),
       mAssets( gpu, assets ),
       mOptions( options )
 {
-    mStandard = CreateShader( gpu, EngineShader( "standard.wgsl" ), "standard.wgsl" );
     mShadow = CreateShader( gpu, EngineShader( "shadow.wgsl" ), "shadow.wgsl" );
     mTonemap = CreateShader( gpu, EngineShader( "tonemap.wgsl" ), "tonemap.wgsl" );
 
@@ -180,28 +105,18 @@ Renderer::Renderer( Gpu& gpu, const AssetRegistry& assets, RendererOptions optio
                                      BufferEntry( 0, both, WGPUBufferBindingType_Uniform ),
                                      BufferEntry( 1, WGPUShaderStage_Fragment, WGPUBufferBindingType_ReadOnlyStorage ),
                                      TextureEntry( 2, WGPUTextureSampleType_Depth ),
-                                     ComparisonSamplerEntry( 3 ),
+                                     SamplerEntry( 3, WGPUSamplerBindingType_Comparison ),
                                  } );
-    mObjectsLayout = CreateLayout( gpu, "objects",
-                                   vector<WGPUBindGroupLayoutEntry>{ BufferEntry(
-                                       0, WGPUShaderStage_Vertex, WGPUBufferBindingType_ReadOnlyStorage ) } );
+    // The vertex stage reads an object's matrices, the fragment its tint.
+    mObjectsLayout = CreateLayout(
+        gpu, "objects",
+        vector<WGPUBindGroupLayoutEntry>{ BufferEntry( 0, both, WGPUBufferBindingType_ReadOnlyStorage ) } );
     mShadowFrameLayout = CreateLayout(
         gpu, "shadow frame",
         vector<WGPUBindGroupLayoutEntry>{ BufferEntry( 0, WGPUShaderStage_Vertex, WGPUBufferBindingType_Uniform ) } );
     mTonemapLayout = CreateLayout( gpu, "tonemap",
                                    vector<WGPUBindGroupLayoutEntry>{ TextureEntry( 0, WGPUTextureSampleType_Float ) } );
 
-    mStandardPipeline = CreateRenderPipeline(
-        gpu, GpuPipelineOptions{ .mLabel = "standard",
-                                 .mShader = mStandard.Get(),
-                                 .mVertexEntry = "vs_main",
-                                 .mFragmentEntry = "fs_main",
-                                 .mBindGroupLayouts = { mFrameLayout.Get(), mObjectsLayout.Get() },
-                                 .mVertexBuffers = { ModelVertexLayout() },
-                                 .mColorFormat = cHdrFormat,
-                                 .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat },
-                                 .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                 .mCullMode = WGPUCullMode_Back } );
     // Depth is reversed: pushing a caster away from the light is a bias
     // down.
     mShadowPipeline = CreateRenderPipeline(
@@ -218,7 +133,11 @@ Renderer::Renderer( Gpu& gpu, const AssetRegistry& assets, RendererOptions optio
                                                             .mBias = -2,
                                                             .mBiasSlopeScale = -2.0f },
                                  .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                 .mCullMode = WGPUCullMode_Back } );
+                                 // Both sides cast: a two-sided leaf as much
+                                 // as a closed box, whose far side the
+                                 // near one hides from the light anyway.
+                                 .mCullMode = WGPUCullMode_None,
+                                 .mBlend = false } );
 
     WGPUSamplerDescriptor sampler = WGPU_SAMPLER_DESCRIPTOR_INIT;
     sampler.label = ToGpuString( "shadow" );
@@ -238,6 +157,7 @@ Renderer::Renderer( Gpu& gpu, const AssetRegistry& assets, RendererOptions optio
     Fit( mLights, sizeof( LightData ), "lights" );
     Fit( mObjects, sizeof( ObjectData ), "objects" );
     MakeBindGroups();
+    mMaterials = CreateScope<GpuMaterials>( gpu, assets, mAssets, mFrameLayout.Get(), mObjectsLayout.Get() );
 }
 
 Renderer::~Renderer() = default;
@@ -296,12 +216,14 @@ WGPURenderPipeline Renderer::TonemapFor( WGPUTextureFormat format )
                                                                    .mColorFormat = format,
                                                                    .mDepth = nullopt,
                                                                    .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                                                   .mCullMode = WGPUCullMode_None } );
+                                                                   .mCullMode = WGPUCullMode_None,
+                                                                   .mBlend = false } );
     return pipeline.Get();
 }
 
-void Renderer::Gather( const RenderScene& scene )
+void Renderer::Gather( const RenderScene& scene, vec3 eye )
 {
+    mMaterials->BeginFrame();
     mObjectData.clear();
     mDraws.clear();
     mBoundsMin = vec3( numeric_limits<f32>::max() );
@@ -313,11 +235,41 @@ void Renderer::Gather( const RenderScene& scene )
             continue;
         const u32 object = static_cast<u32>( mObjectData.size() );
         mObjectData.push_back( ObjectData{ .mModel = item.mWorld,
-                                           .mNormal = mat4( glm::transpose( glm::inverse( mat3( item.mWorld ) ) ) ) } );
+                                           .mNormal = mat4( glm::transpose( glm::inverse( mat3( item.mWorld ) ) ) ),
+                                           .mTint = item.mTint } );
+        const vec3 toItem = vec3( item.mWorld[3] ) - eye;
         for ( u32 mesh = 0; mesh < modelMaybe->Meshes().size(); ++mesh )
-            mDraws.push_back( DrawCall{ .mModel = *modelMaybe, .mMesh = mesh, .mObject = object } );
+        {
+            const AssetRef<MaterialAsset> none;
+            const AssetRef<MaterialAsset>& materialRef = mesh < item.mMaterials.size() ? item.mMaterials[mesh] : none;
+            mDraws.push_back( DrawCall{ .mModel = *modelMaybe,
+                                        .mMaterial = mMaterials->For( materialRef ),
+                                        .mMesh = mesh,
+                                        .mObject = object,
+                                        .mDistance = glm::dot( toItem, toItem ) } );
+        }
         Grow( mBoundsMin, mBoundsMax, item.mWorld, modelMaybe->Min(), modelMaybe->Max() );
     }
+
+    // Opaque first, grouped so a pipeline and a material are set once for
+    // all they draw; transparent after, the farthest first, each over what
+    // is behind it.
+    mOrder.resize( mDraws.size() );
+    for ( u32 draw = 0; draw < mDraws.size(); ++draw )
+        mOrder[draw] = draw;
+    const auto opaqueEnd = stable_partition( mOrder.begin(), mOrder.end(),
+                                             [&]( u32 draw ) { return not mDraws[draw].mMaterial.mTransparent; } );
+    mOpaqueDraws = static_cast<size_t>( opaqueEnd - mOrder.begin() );
+    sort( mOrder.begin(), opaqueEnd, [&]( u32 a, u32 b ) {
+        const DrawCall& first = mDraws[a];
+        const DrawCall& second = mDraws[b];
+        if ( first.mMaterial.mPipeline != second.mMaterial.mPipeline )
+            return first.mMaterial.mPipeline < second.mMaterial.mPipeline;
+        if ( &first.mMaterial != &second.mMaterial )
+            return &first.mMaterial < &second.mMaterial;
+        return &first.mModel < &second.mModel;
+    } );
+    sort( opaqueEnd, mOrder.end(), [&]( u32 a, u32 b ) { return mDraws[a].mDistance > mDraws[b].mDistance; } );
 
     mLightData.clear();
     for ( const RenderLight& light : scene.mLights )
@@ -336,7 +288,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
     if ( target.mSize.x <= 0 or target.mSize.y <= 0 )
         return;
     Resize( target.mSize );
-    Gather( scene );
+    Gather( scene, vec3( camera.mWorld[3] ) );
 
     FrameUniforms frame{ .mViewProjection = ViewProjection( camera, target.mSize ),
                          .mShadowViewProjection = mat4( 1.0f ),
@@ -345,6 +297,7 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
                          .mAmbient = vec3( ToLinear( mOptions.mAmbient ) ) * mOptions.mAmbientIntensity,
                          .mShadowLight = cNoShadow,
                          .mShadowNormalOffset = 0,
+                         .mTime = scene.mTime,
                          .mPadding = {} };
     // The first directional light that casts shadows, when there is
     // anything to cast them.
@@ -372,14 +325,29 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         mObjects.Write( mGpu, 0, AsBytes( mObjectData ) );
 
     const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mGpu.Device(), nullptr ) );
-    const auto drawAll = [&]( WGPURenderPassEncoder pass ) {
-        OptRef<const GpuModel> bound;
-        for ( const DrawCall& draw : mDraws )
+    // The draws from `first` up to `last` in order; with their materials,
+    // or - the shadow's - with the pipeline already set.
+    const auto drawRange = [&]( WGPURenderPassEncoder pass, size_t first, size_t last, bool materials ) {
+        OptRef<const GpuModel> boundModel;
+        OptRef<const GpuMaterial> boundMaterial;
+        WGPURenderPipeline boundPipeline = nullptr;
+        for ( size_t at = first; at < last; ++at )
         {
-            if ( bound != OptRef<const GpuModel>( draw.mModel ) )
+            const DrawCall& draw = mDraws[mOrder[at]];
+            if ( materials and boundMaterial != OptRef<const GpuMaterial>( draw.mMaterial ) )
+            {
+                if ( boundPipeline != draw.mMaterial.mPipeline )
+                {
+                    wgpuRenderPassEncoderSetPipeline( pass, draw.mMaterial.mPipeline );
+                    boundPipeline = draw.mMaterial.mPipeline;
+                }
+                wgpuRenderPassEncoderSetBindGroup( pass, 2, draw.mMaterial.mGroup.Get(), 0, nullptr );
+                boundMaterial = draw.mMaterial;
+            }
+            if ( boundModel != OptRef<const GpuModel>( draw.mModel ) )
             {
                 draw.mModel.Bind( pass );
-                bound = draw.mModel;
+                boundModel = draw.mModel;
             }
             draw.mModel.Draw( pass, draw.mMesh, 0, draw.mObject );
         }
@@ -399,7 +367,8 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         wgpuRenderPassEncoderSetPipeline( pass.Get(), mShadowPipeline.Get() );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mShadowFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
-        drawAll( pass.Get() );
+        // What is transparent casts no shadow.
+        drawRange( pass.Get(), 0, mOpaqueDraws, false );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 
@@ -416,15 +385,14 @@ void Renderer::Draw( const RenderScene& scene, const RenderCamera& camera, const
         depth.depthStoreOp = WGPUStoreOp_Discard;
         depth.depthClearValue = 0.0f;
         WGPURenderPassDescriptor descriptor = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
-        descriptor.label = ToGpuString( "opaque" );
+        descriptor.label = ToGpuString( "surfaces" );
         descriptor.colorAttachmentCount = 1;
         descriptor.colorAttachments = &color;
         descriptor.depthStencilAttachment = &depth;
         const GpuRenderPassHandle pass( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &descriptor ) );
-        wgpuRenderPassEncoderSetPipeline( pass.Get(), mStandardPipeline.Get() );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
-        drawAll( pass.Get() );
+        drawRange( pass.Get(), 0, mOrder.size(), true );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 

@@ -28,16 +28,21 @@ struct RendererOptions
     u32 mShadowMapSize = 2048;
 };
 
+class GpuMaterials;
+struct GpuMaterial;
+
 // Draws what a world gathered - its RenderScene - as one camera sees it,
-// into a target: the shadowed directional light's shadow map, the lit
-// surfaces in linear light (rgba16float, depth reversed), then tonemapping
-// into the target. Models come as GpuAssets has them; one still loading is
-// not drawn yet. One a process, after the Gpu, beside the registry.
+// into a target: the shadowed directional light's shadow map, the opaque
+// surfaces in linear light (rgba16float, depth reversed), the transparent
+// ones over them from the farthest, then tonemapping into the target. Models
+// come as GpuAssets has them - one still loading is not drawn yet - and each
+// mesh with its material, which loads what it needs from the registry. One
+// a process, after the Gpu, beside the registry.
 class Renderer
 {
 public:
     // The Gpu and the registry outlive it.
-    Renderer( Gpu& gpu, const AssetRegistry& assets, RendererOptions options = {} );
+    Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options = {} );
     ~Renderer();
     Renderer( const Renderer& ) = delete;
     Renderer& operator=( const Renderer& ) = delete;
@@ -55,12 +60,16 @@ private:
     struct DrawCall
     {
         const GpuModel& mModel;
+        const GpuMaterial& mMaterial;
         u32 mMesh = 0;
         u32 mObject = 0;
+        // From the camera to the item, squared: transparent ones are drawn
+        // from the farthest.
+        f32 mDistance = 0;
     };
 
     void Resize( ivec2 size );
-    void Gather( const RenderScene& scene );
+    void Gather( const RenderScene& scene, vec3 eye );
     // Grows a storage buffer to hold `bytes`, and says whether it did - its
     // bind group is made again then.
     bool Fit( GpuBuffer& buffer, u64 bytes, string_view label );
@@ -71,14 +80,12 @@ private:
     GpuAssets mAssets;
     RendererOptions mOptions;
 
-    GpuShaderHandle mStandard;
     GpuShaderHandle mShadow;
     GpuShaderHandle mTonemap;
     GpuBindGroupLayoutHandle mFrameLayout;
     GpuBindGroupLayoutHandle mObjectsLayout;
     GpuBindGroupLayoutHandle mShadowFrameLayout;
     GpuBindGroupLayoutHandle mTonemapLayout;
-    GpuRenderPipelineHandle mStandardPipeline;
     GpuRenderPipelineHandle mShadowPipeline;
     hmap<u32, GpuRenderPipelineHandle> mTonemapPipelines;
 
@@ -97,10 +104,17 @@ private:
     GpuTexture mDepth;
     GpuBindGroupHandle mTonemapGroup;
 
+    // After the layouts it builds its pipelines with.
+    Scope<GpuMaterials> mMaterials;
+
     // This frame's, kept for their room.
     vector<ObjectData> mObjectData;
     vector<LightData> mLightData;
     vector<DrawCall> mDraws;
+    // The draws in the order they are made: the opaque ones by pipeline and
+    // material, then the transparent ones from the farthest.
+    vector<u32> mOrder;
+    size_t mOpaqueDraws = 0;
     vec3 mBoundsMin{ 0.0f };
     vec3 mBoundsMax{ 0.0f };
 };

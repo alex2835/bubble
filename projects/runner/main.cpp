@@ -1,9 +1,10 @@
 // The runner: a game on its own. The project and its levels come with
-// their stages; for now a scene made here - boxes on the ground under the
-// sun, a warm lamp - drawn by the renderer, the camera circling it as the
-// actions say: stages 5 and 6 checked by hand. The keyboard, a gamepad and
+// their stages; for now a scene made here - boxes of a few materials on the
+// ground under the sun, a warm lamp - drawn by the renderer, the camera
+// circling it as the actions say: stages 5 and 6 checked by hand. The keyboard, a gamepad and
 // touches drive "move_x"; the mouse touches too, for a screen without touch.
 #include "bubble/assets/model_primitives.hpp"
+#include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
 #include "bubble/platform/platform.hpp"
@@ -39,19 +40,29 @@ Text Make( string_view utf8 )
     return *Text::TryFrom( utf8 );
 }
 
-// What the importer would have made of a project's models, in memory: the
+// What the importer would have made of a project's assets, in memory: the
 // runner has no project yet.
-struct Models
+struct Project
 {
     hmap<string, string> mImported;
     AssetCatalog mCatalog;
 
-    AssetId Add( string_view path, const ModelAsset& model )
+    AssetId Add( string_view path, string bytes, string_view kind )
     {
         const AssetId assetId = AssetId::Generate();
         mCatalog.Add( assetId, *AssetPath::TryFrom( path ) );
-        mImported[ImportedPath( assetId, cModelKind ).String()] = WriteModelAsset( model );
+        mImported[ImportedPath( assetId, kind ).String()] = std::move( bytes );
         return assetId;
+    }
+
+    AssetId AddModel( string_view path, const ModelAsset& model )
+    {
+        return Add( path, WriteModelAsset( model ), cModelKind );
+    }
+
+    AssetId AddMaterial( string_view path, string_view json )
+    {
+        return Add( path, WriteMaterialAsset( *TryReadMaterialAsset( json ) ), cMaterialKind );
     }
 
     AssetRegistry::ReadImported Read()
@@ -65,14 +76,52 @@ struct Models
     }
 };
 
-Scene Level( Models& models )
+// A material's own WGSL: a glow that breathes with the world's time.
+constexpr string_view cPulse = R"wgsl(struct Material
 {
+    glow: vec3f, // @color @default( 0.2, 1, 0.6 )
+    rate: f32, // @default( 2 )
+}
+@group( 2 ) @binding( 0 ) var<uniform> material: Material;
+
+fn surface( in: SurfaceInput ) -> SurfaceOutput
+{
+    var out = surface_defaults( in );
+    out.albedo = vec3f( 0.05 );
+    out.emissive = material.glow * ( 1.0 + sin( in.time * material.rate ) );
+    return out;
+}
+)wgsl";
+
+Scene Level( Project& project )
+{
+    const AssetId paint =
+        project.AddMaterial( "materials/paint.mat", R"({ "params": { "base_color": [ 0.8, 0.15, 0.1, 1 ] } })" );
+    const AssetId shinyPaint = project.AddMaterial(
+        "materials/shiny_paint.mat",
+        format( R"({{ "base": {{ "asset": "{}" }}, "params": {{ "roughness": 0.2 }} }})", paint.ToString() ) );
+    const AssetId gold = project.AddMaterial(
+        "materials/gold.mat",
+        R"({ "params": { "base_color": [ 1, 0.78, 0.35, 1 ], "metallic": 1, "roughness": 0.3 } })" );
+    const AssetId glass = project.AddMaterial(
+        "materials/glass.mat",
+        R"({ "transparent": true, "params": { "base_color": [ 0.6, 0.8, 1, 0.35 ], "roughness": 0.1 } })" );
+    const AssetId pulse =
+        project.AddMaterial( "materials/pulse.mat",
+                             format( R"({{ "shader": {{ "asset": "{}" }} }})",
+                                     project.Add( "shaders/pulse.wgsl", string( cPulse ), cShaderKind ).ToString() ) );
+    const AssetId grass = project.AddMaterial(
+        "materials/grass.mat", R"({ "params": { "base_color": [ 0.45, 0.6, 0.35, 1 ], "roughness": 0.9 } })" );
+
     Scene scene;
     const Entity ground = CreateChild( scene, scene.Root(), Make( "ground" ) );
     scene.Add<Transform>( ground );
-    scene.Add<Model>( ground, Model{ .mAsset = models.Add( "models/ground.glb", MakePlane( 20.0f ) ) } );
+    scene.Add<Model>( ground, Model{ .mAsset = project.AddModel( "models/ground.glb", MakePlane( 20.0f ) ),
+                                     .mMaterials = { grass },
+                                     .mTint = {} } );
 
-    const AssetId box = models.Add( "models/box.glb", MakeBox( vec3( 1.0f ) ) );
+    const AssetId box = project.AddModel( "models/box.glb", MakeBox( vec3( 1.0f ) ) );
+    const array<AssetId, 5> materials{ paint, gold, glass, pulse, shinyPaint };
     const array<Transform, 5> boxes{
         Transform{ .mPosition = { 0.0f, 0.5f, 0.0f } },
         Transform{ .mPosition = { 2.5f, 1.0f, -1.0f }, .mRotation = { 0.0f, 0.6f, 0.0f }, .mScale = vec3( 2.0f ) },
@@ -80,11 +129,11 @@ Scene Level( Models& models )
         Transform{ .mPosition = { -1.5f, 1.5f, -2.5f }, .mRotation = { 0.5f, 0.8f, 0.2f }, .mScale = vec3( 1.0f ) },
         Transform{ .mPosition = { 1.0f, 0.25f, 2.5f }, .mScale = { 3.0f, 0.5f, 0.5f } },
     };
-    for ( const Transform& placed : boxes )
+    for ( size_t at = 0; at < boxes.size(); ++at )
     {
         const Entity entity = CreateChild( scene, scene.Root(), Make( "box" ) );
-        scene.Add<Transform>( entity, placed );
-        scene.Add<Model>( entity, Model{ .mAsset = box } );
+        scene.Add<Transform>( entity, boxes[at] );
+        scene.Add<Model>( entity, Model{ .mAsset = box, .mMaterials = { materials[at] }, .mTint = {} } );
     }
 
     const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
@@ -132,13 +181,16 @@ int main()
     const Window& window = *windowMaybe;
 
     // What Jobs may still read as it goes outlives App.
-    Models models;
+    Project project;
     App app;
-    AssetRegistry assets( models.mCatalog, models.Read(), app.GetJobs() );
+    AssetRegistry assets( project.mCatalog, project.Read(), app.GetJobs() );
     RegisterModelLoader( assets );
+    RegisterMaterialLoader( assets );
+    RegisterShaderLoader( assets );
+    RegisterTextureLoader( assets );
     app.AddModule( TransformModule() );
     app.AddModule( RenderModule( assets ) );
-    World world( app, Level( models ) );
+    World world( app, Level( project ) );
     const Entity camera = *TryResolve( world.GetScene(), EntityPath{ Make( "/camera" ) } );
 
     // The GPU after the window, and gone before it.

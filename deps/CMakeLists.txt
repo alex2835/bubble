@@ -226,3 +226,7 @@ endif()
 # luaubind - our own small C++ binding for Luau, kept apart from the engine so
 # it depends on Luau alone.
 add_subdirectory( luaubind )
+
+# wgsl_reflect - our own reflection of WGSL source: materials' parameters
+# and bindings. The standard library only.
+add_subdirectory( wgsl_reflect )

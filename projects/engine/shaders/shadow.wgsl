@@ -1,10 +1,12 @@
 // A shadow map: the depth of what the light sees, reversed - nearer the
 // light is greater - and nothing else.
 
+// As lit.wgsl has it: the array's stride is the whole struct.
 struct Object
 {
     model: mat4x4f,
     normal: mat4x4f,
+    tint: vec4f,
 }
 
 @group( 0 ) @binding( 0 ) var<uniform> light_view_projection: mat4x4f;

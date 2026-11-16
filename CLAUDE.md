@@ -28,7 +28,7 @@ out\build\windows-debug\bin\bubble_tests.exe
 - Run release too when touching anything with lifetimes or the Luau stack.
 - Format what you change with VS's clang-format before finishing:
   `"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\Llvm\x64\bin\clang-format.exe" -i <files>`
-  (only `projects/` and `deps/luaubind/`, never vendored deps).
+  (only `projects/`, `deps/luaubind/` and `deps/wgsl_reflect/`, never vendored deps).
 
 ## Layout
 
@@ -36,6 +36,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md. wgpu-native alone is
                               downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
+deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
+                              the comment on a line; the standard library only
 projects/engine/include/bubble/
     types/                    aliases (std, glm; matrix.hpp for mat4/quat), Handle/SlotMap, OptRef
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
@@ -48,7 +50,8 @@ projects/engine/include/bubble/
                               (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader);
-                              MakeBox/MakePlane (models made in code)
+                              MakeBox/MakePlane (models made in code); ShaderAsset (a material's WGSL), MaterialAsset
+                              (.mat JSON: shader or base, double_sided, transparent, params by name)
     input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
                               snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
@@ -65,11 +68,16 @@ projects/engine/include/bubble/
                               CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
                               one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
                               registry's models and textures by id, made again after a reload, Collect),
-                              Renderer (a RenderScene through a camera into a RenderTarget: shadow map, lit surfaces
-                              in rgba16float with reversed depth, ACES tonemapping), EngineShader (the WGSL of
+                              Renderer (a RenderScene through a camera into a RenderTarget: shadow map, opaque then
+                              transparent surfaces in rgba16float with reversed depth, ACES tonemapping; materials
+                              built from their bases, shader and textures in src/render/gpu/gpu_materials - the
+                              standard one while they load, a magenta placeholder when they fail), EngineShader (the WGSL of
                               projects/engine/shaders, built in by cmake/embed_shaders.cmake); WGPU types stop here
-    render/                   render_scene: camera, directional_light, point_light, spot_light, model; RenderModule
-                              gathers them each frame into RenderScene (items, lights, cameras), a world's service
+    render/                   render_scene: camera, directional_light, point_light, spot_light, model (asset,
+                              materials by mesh, tint); RenderModule gathers them each frame into RenderScene (items,
+                              lights, cameras, time), a world's service; material_layout: TryReflectMaterial - what a
+                              material's WGSL declares, against the contract (group 2, one uniform struct, textures,
+                              samplers, fn surface; @default and @color in a line's comment)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
                               siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
@@ -93,7 +101,8 @@ projects/engine/include/bubble/
                               Snapshot/Restore - runtime built again from the data), Module; transform (position,
                               rotation in radians - Y, X, Z -, scale) and TransformModule: WorldTransform each frame
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
-projects/engine/shaders/      the engine's WGSL: standard (PBR, lights, shadow), shadow, tonemap
+projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage, PBR lighting,
+                              the shadow; built after a material's own), standard_material, shadow, tonemap
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
                               files: read, list with stamps, a save replaces the file whole), ImportFile
@@ -102,7 +111,8 @@ projects/import/include/bubble/import/
                               Importer
                               (source + settings -> the engine's format), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
-                              changes), ScriptImporter (.luau -> bytecode), TextureImporters (stb_image: png, jpg,
+                              changes), ScriptImporter (.luau -> bytecode), ShaderImporter (.wgsl, the contract checked),
+                              MaterialImporter (.mat checked), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
@@ -120,8 +130,10 @@ projects/editing/include/bubble/editing/
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
-                              code - boxes, the sun, a lamp - drawn by the Renderer, the camera turned by move_x
-projects/tests/               doctest; folders follow the engine's, import/ and editing/; deps/ tests deps (luaubind
+                              code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
+                              Renderer, the camera turned by move_x
+projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
+                              logged); deps/ tests deps (luaubind
                               too)
 ```
 

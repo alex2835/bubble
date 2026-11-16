@@ -136,7 +136,8 @@ struct Drawing
                                                                .mColorFormat = mTarget.Format(),
                                                                .mDepth = nullopt,
                                                                .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                                               .mCullMode = WGPUCullMode_Back } );
+                                                               .mCullMode = WGPUCullMode_Back,
+                                                               .mBlend = false } );
 
             WGPUSamplerDescriptor samplerDescriptor = WGPU_SAMPLER_DESCRIPTOR_INIT;
             const GpuSamplerHandle sampler( wgpuDeviceCreateSampler( gpu.Device(), &samplerDescriptor ) );

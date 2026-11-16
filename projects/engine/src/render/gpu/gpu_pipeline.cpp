@@ -37,8 +37,16 @@ GpuRenderPipelineHandle CreateRenderPipeline( const Gpu& gpu, const GpuPipelineO
         buffers.push_back( bufferLayout );
     }
 
+    WGPUBlendState blend = WGPU_BLEND_STATE_INIT;
+    blend.color.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+    blend.color.operation = WGPUBlendOperation_Add;
+    blend.alpha.srcFactor = WGPUBlendFactor_One;
+    blend.alpha.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+    blend.alpha.operation = WGPUBlendOperation_Add;
     WGPUColorTargetState target = WGPU_COLOR_TARGET_STATE_INIT;
     target.format = options.mColorFormat;
+    target.blend = options.mBlend ? &blend : nullptr;
     WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
     fragment.module = options.mShader;
     fragment.entryPoint = ToGpuString( options.mFragmentEntry );

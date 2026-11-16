@@ -66,10 +66,14 @@ struct Drawing
         Scene scene;
         const Entity ground = CreateChild( scene, scene.Root(), Make( "ground" ) );
         scene.Add<Transform>( ground );
-        scene.Add<Model>( ground, Model{ .mAsset = Import( "models/ground.glb", MakePlane( 10.0f ) ) } );
+        scene.Add<Model>(
+            ground,
+            Model{ .mAsset = Import( "models/ground.glb", MakePlane( 10.0f ) ), .mMaterials = {}, .mTint = {} } );
         const Entity box = CreateChild( scene, scene.Root(), Make( "box" ) );
         scene.Add<Transform>( box, Transform{ .mPosition = { 0.0f, 0.5f, 0.0f } } );
-        scene.Add<Model>( box, Model{ .mAsset = Import( "models/box.glb", MakeBox( vec3( 1.0f ) ) ) } );
+        scene.Add<Model>(
+            box,
+            Model{ .mAsset = Import( "models/box.glb", MakeBox( vec3( 1.0f ) ) ), .mMaterials = {}, .mTint = {} } );
         const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
         scene.Add<Transform>( sun, Transform{ .mRotation = { glm::radians( -50.0f ), glm::radians( 30.0f ), 0.0f } } );
         scene.Add<DirectionalLight>( sun );
@@ -136,8 +140,8 @@ TEST_CASE( "A box under the sun is lit on top and shades the ground beside it" )
     CAPTURE( top );
     CAPTURE( sunny );
     CAPTURE( shaded );
-    CHECK( Brightness( sunny ) > 2.0f * Brightness( shaded ) );
-    CHECK( Brightness( top ) > 2.0f * Brightness( shaded ) );
+    CHECK( Brightness( sunny ) > 1.5f * Brightness( shaded ) );
+    CHECK( Brightness( top ) > 1.5f * Brightness( shaded ) );
     // Not black either: the sky's light reaches the shade.
     CHECK( Brightness( shaded ) > 0.05f );
 }

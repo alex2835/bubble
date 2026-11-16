@@ -3,7 +3,7 @@ include( CheckCXXCompilerFlag )
 file( GLOB_RECURSE BUBBLE_TEST_SOURCES CONFIGURE_DEPENDS *.cpp )
 
 add_executable( bubble_tests ${BUBBLE_TEST_SOURCES} )
-target_link_libraries( bubble_tests PRIVATE bubble_engine bubble_import bubble_editing doctest luau luau_analysis )
+target_link_libraries( bubble_tests PRIVATE bubble_engine bubble_import bubble_editing doctest luau luau_analysis wgsl_reflect )
 # The platform's tests push SDL's own events.
 target_link_libraries( bubble_tests PRIVATE SDL3::SDL3-static )
 # Folders follow the engine's: core/, scripts/, scripts/lua/; deps/ checks

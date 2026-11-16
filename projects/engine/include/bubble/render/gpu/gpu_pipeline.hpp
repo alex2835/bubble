@@ -35,9 +35,8 @@ struct GpuDepthOptions
     f32 mBiasSlopeScale = 0;
 };
 
-// What a render pipeline is made of. Everything WebGPU fixes in a pipeline
-// is here; what is not here yet - blending - comes with the passes that
-// need it.
+// What a render pipeline is made of: everything WebGPU fixes in a
+// pipeline that the engine's passes ask for.
 struct GpuPipelineOptions
 {
     string mLabel;
@@ -55,6 +54,9 @@ struct GpuPipelineOptions
     WGPUPrimitiveTopology mTopology = WGPUPrimitiveTopology_TriangleList;
     // Front faces turn counter-clockwise on screen, as in glTF.
     WGPUCullMode mCullMode = WGPUCullMode_Back;
+    // Over what is there by the fragment's alpha, which it does not
+    // premultiply.
+    bool mBlend = false;
 };
 
 GpuRenderPipelineHandle CreateRenderPipeline( const Gpu& gpu, const GpuPipelineOptions& options );

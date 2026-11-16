@@ -83,7 +83,7 @@ struct Fixture
         scene.Add<Camera>( eye, Camera{ .mFov = 1.0f, .mNear = 0.5f, .mFar = 100.0f } );
         const Entity rock = CreateChild( scene, scene.Root(), Make( "rock" ) );
         scene.Add<Transform>( rock, Transform{ .mPosition = { 2.0f, 0.0f, 0.0f } } );
-        scene.Add<Model>( rock, Model{ .mAsset = mRock } );
+        scene.Add<Model>( rock, Model{ .mAsset = mRock, .mMaterials = {}, .mTint = {} } );
         scene.Add<Model>( CreateChild( scene, scene.Root(), Make( "unset" ) ) );
         return scene;
     }

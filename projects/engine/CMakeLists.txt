@@ -21,6 +21,8 @@ bubble_target_warnings( bubble_engine )
 target_link_libraries( bubble_engine PUBLIC luaubind )
 # The scene is an EnTT registry, and its component templates live in its header.
 target_link_libraries( bubble_engine PUBLIC entt )
+# Materials' parameters and bindings, read from their WGSL.
+target_link_libraries( bubble_engine PRIVATE wgsl_reflect )
 # Vectors in Value and, later, everywhere; utf8proc only behind Text.
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
