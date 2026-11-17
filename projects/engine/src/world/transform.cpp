@@ -67,6 +67,26 @@ quat RotationOf( const Transform& transform )
            glm::angleAxis( angles.z, vec3( 0.0f, 0.0f, 1.0f ) );
 }
 
+vec3 AnglesOf( const quat& rotation )
+{
+    // The rotation is Ry * Rx * Rz; in glm's columns, m[column][row].
+    const mat3 m = glm::mat3_cast( rotation );
+    const f32 sinPitch = glm::clamp( -m[2][1], -1.0f, 1.0f );
+    const f32 pitch = asin( sinPitch );
+    if ( abs( sinPitch ) > 0.9999f )
+        return vec3( pitch, atan2( -m[0][2], m[0][0] ), 0.0f );
+    return vec3( pitch, atan2( m[2][0], m[2][2] ), atan2( m[0][1], m[1][1] ) );
+}
+
+mat4 ComputeWorldMatrix( const Scene& scene, Entity entity )
+{
+    mat4 matrix( 1.0f );
+    for ( Entity at = entity; scene.Alive( at ); at = ParentOf( scene, at ) )
+        if ( const auto transformMaybe = scene.TryGet<Transform>( at ) )
+            matrix = LocalMatrix( *transformMaybe ) * matrix;
+    return matrix;
+}
+
 mat4 LocalMatrix( const Transform& transform )
 {
     return glm::scale( glm::translate( mat4( 1.0f ), transform.mPosition ) * glm::mat4_cast( RotationOf( transform ) ),

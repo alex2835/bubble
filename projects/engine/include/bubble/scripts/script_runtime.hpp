@@ -102,6 +102,8 @@ public:
     {
         return CallWith( instanceHandle, callback, LuaRest{ { mLua.Value( args )... } } );
     }
+    // The same with arguments gathered already.
+    bool CallWith( ScriptInstanceHandle instanceHandle, u32 callback, const LuaRest& args );
 
     // Resumes the coroutines whose wait is over, instance by instance in a
     // fixed order. A paused world does not call it.
@@ -224,7 +226,6 @@ private:
     void Changed( const AssetEntryBase& entry );
     expected<void, ScriptError> TryRerun( ScriptHandle scriptHandle );
 
-    bool CallWith( ScriptInstanceHandle instanceHandle, u32 callback, const LuaRest& args );
     void EmitWith( string_view event, const LuaRest& args );
     void Fail( ScriptInstanceHandle instanceHandle, const ScriptError& error );
     void Start( ScriptInstanceHandle instanceHandle, const LuaFunction& fn, const LuaRest& args );

@@ -8,6 +8,7 @@ namespace bubble
 {
 class ComponentTypes;
 class Reflection;
+class ScriptApi;
 class World;
 
 // A module's part of a WorldSnapshot, its own to read.
@@ -40,6 +41,9 @@ public:
     // the same module of another world of the App. The scene's components
     // then go and come back as data events.
     virtual void Restoring( OptRef<const ModuleSnapshot> snapshotMaybe ) { (void)snapshotMaybe; }
+    // And then they are back, the runtime built again: what a module keeps
+    // beyond them can be laid on it.
+    virtual void Restored() {}
 };
 
 // What App knows of a module: how to describe its components, once a
@@ -55,5 +59,9 @@ struct ModuleType
     // steps and its services there, and leaves the scene alone: the world
     // tells it about every component there is once all modules are made.
     function<Scope<Module>( World& )> mCreate;
+    // What the module gives a world's scripts beyond its components'
+    // reflected fields: see ScriptApi. Asked for each world's scripts, and
+    // for bubble.d.luau.
+    function<void( ScriptApi& )> mScripts = {};
 };
 }

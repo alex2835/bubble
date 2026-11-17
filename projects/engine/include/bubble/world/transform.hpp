@@ -1,9 +1,12 @@
 #pragma once
+#include "bubble/scene/entity.hpp"
 #include "bubble/types/matrix.hpp"
 #include "bubble/world/module.hpp"
 
 namespace bubble
 {
+class Scene;
+
 // Where an entity is, relative to its parent: what files and the editor
 // hold. The rotation is three angles in radians, edited as degrees - about
 // Y, then X, then Z: yaw, pitch, roll, as Godot and Unity turn. Forward is
@@ -26,6 +29,14 @@ struct WorldTransform
 
 mat4 LocalMatrix( const Transform& transform );
 quat RotationOf( const Transform& transform );
+// The angles a Transform turns by for `rotation`: about Y, X, then Z. Looking
+// straight up or down, the roll is 0 and the yaw takes it all.
+vec3 AnglesOf( const quat& rotation );
+
+// The world transform as Phase::Transforms will make it, worked out now up
+// the tree: for a module that needs it between frames - a body made the
+// moment its entity comes.
+mat4 ComputeWorldMatrix( const Scene& scene, Entity entity );
 
 // "transform", and the world transforms made from it.
 ModuleType TransformModule();

@@ -5,13 +5,13 @@
 // self.entity.transform.position - with the fields its description gives;
 // the services described as such, by name - debug_draw.line( ... ); the
 // input's actions; and math.random drawing on the world's Random.
-#include "bubble/scripts/lua.hpp"
+#include "bubble/scripts/script_api.hpp"
 
 namespace bubble
 {
 class AssetRegistry;
-class World;
 
-// Into `lua` before it is sealed; `world` and `assets` outlive it.
-void RegisterWorldApi( LuaState& lua, World& world, const AssetRegistry& assets );
+// Into `lua` before it is sealed, with what the modules add (`api`);
+// `world` and `assets` outlive it.
+void RegisterWorldApi( LuaState& lua, World& world, const AssetRegistry& assets, const ScriptApi& api );
 }

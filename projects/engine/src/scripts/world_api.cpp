@@ -23,13 +23,7 @@ const Scene& Living( World& world, Entity entity )
     return scene;
 }
 
-// A component as a script holds it: its entity. Each component has a Luau
-// type of its own over it, so the type says which.
-struct ComponentRef
-{
-    Entity mEntity;
-};
-
+using ComponentRef = ScriptComponent;
 using ComponentType = ComponentTypes::Type;
 
 // "transform, script", for messages.
@@ -58,8 +52,8 @@ const ComponentType& ComponentNamed( World& world, const string& name )
 
 // The component's Luau type: a field for each field its description has
 // for files - read as a script sees a prop, written through ComponentTypes
-// so the world's modules hear of it.
-LuaType& RegisterComponent( LuaState& lua, World& world, const ComponentType& type )
+// so the world's modules hear of it - and what its module adds.
+LuaType& RegisterComponent( LuaState& lua, World& world, const ComponentType& type, const ScriptApi& api )
 {
     LuaTypeBuilder<ComponentRef> builder( lua, type.mName.ToString() );
     Reflection& reflection = world.GetApp().GetReflection();
@@ -105,6 +99,9 @@ LuaType& RegisterComponent( LuaState& lua, World& world, const ComponentType& ty
                                   throw LuaError( format( "{}: {}", where, setMaybe.error() ) );
                           } );
     } );
+    for ( const ScriptApi::Extension& extension : api.Extensions() )
+        if ( extension.mComponent == type.mName )
+            extension.mExtend( builder, world );
     builder.ToString( [&world, type]( const ComponentRef& self ) {
         return format( "{} of {}", type.mName.ToString(), Describe( world.GetScene(), self.mEntity ) );
     } );
@@ -121,12 +118,12 @@ opt<Entity> TryFind( World& world, Entity from, string_view path )
     return entityMaybe ? opt<Entity>( *entityMaybe ) : nullopt;
 }
 
-void RegisterEntity( LuaState& lua, World& world )
+void RegisterEntity( LuaState& lua, World& world, const ScriptApi& api )
 {
     // The components' types first: the entity's fields hand them out.
     vector<pair<ComponentType, LuaType*>> components;
     for ( const ComponentType& type : world.GetApp().GetComponentTypes().All() )
-        components.emplace_back( type, &RegisterComponent( lua, world, type ) );
+        components.emplace_back( type, &RegisterComponent( lua, world, type, api ) );
 
     LuaTypeBuilder<Entity> entity( lua, "entity" );
     for ( const auto& [type, luaType] : components )
@@ -380,13 +377,15 @@ void RegisterRandom( LuaState& lua, World& world )
 }
 }
 
-void RegisterWorldApi( LuaState& lua, World& world, const AssetRegistry& assets )
+void RegisterWorldApi( LuaState& lua, World& world, const AssetRegistry& assets, const ScriptApi& api )
 {
-    RegisterEntity( lua, world );
+    RegisterEntity( lua, world, api );
     RegisterColor( lua );
     RegisterAsset( lua, assets );
     RegisterServices( lua, world );
     RegisterInput( lua, world );
     RegisterRandom( lua, world );
+    for ( const ScriptApi::Globals& globals : api.AllGlobals() )
+        globals.mAdd( lua, world );
 }
 }

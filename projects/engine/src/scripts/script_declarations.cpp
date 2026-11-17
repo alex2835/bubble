@@ -1,4 +1,5 @@
 #include "bubble/scripts/script_declarations.hpp"
+#include "bubble/scripts/script_api.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/world/app.hpp"
@@ -60,7 +61,7 @@ vector<string> ParameterNames( const MethodInfo& info, size_t count )
     return names;
 }
 
-void WriteComponents( App& app, string& out )
+void WriteComponents( App& app, const ScriptApi& api, string& out )
 {
     const Reflection& reflection = app.GetReflection();
     for ( const ComponentTypes::Type& type : app.GetComponentTypes().All() )
@@ -71,6 +72,9 @@ void WriteComponents( App& app, string& out )
             if ( declared != type.mValueType.mFields.end() )
                 out += format( "    {}: {}\n", field.ToString(), LuauType( declared->mType ) );
         } );
+        for ( const ScriptApi::Extension& extension : api.Extensions() )
+            if ( extension.mComponent == type.mName )
+                out += extension.mDeclaration;
         out += "end\n\n";
     }
 }
@@ -144,7 +148,8 @@ string WriteScriptDeclarations( App& app, const ScriptLabels& labels )
 
     out += "declare extern type color with\n    r: number\n    g: number\n    b: number\n    a: number\nend\n\n";
     out += "declare extern type asset with\n    path: string\nend\n\n";
-    WriteComponents( app, out );
+    const ScriptApi api = CollectScriptApi( app );
+    WriteComponents( app, api, out );
     WriteEntity( app, out );
     WriteServices( app, out );
 
@@ -180,6 +185,15 @@ string WriteScriptDeclarations( App& app, const ScriptLabels& labels )
            "declare function wait_until(condition: () -> boolean): ()\n"
            "declare function on<A...>(event: string, fn: (A...) -> ()): ()\n"
            "declare function emit(event: string, ...: unknown): ()\n";
+
+    for ( const ScriptApi::Globals& globals : api.AllGlobals() )
+        out += "\n" + globals.mDeclaration;
+    if ( not api.Callbacks().empty() )
+    {
+        out += "\n-- Callbacks the engine calls besides on_start, on_fixed_update, on_update and on_destroy:\n";
+        for ( const ScriptApi::Callback& callback : api.Callbacks() )
+            out += "--     " + callback.mSignature + "\n";
+    }
     return out;
 }
 }

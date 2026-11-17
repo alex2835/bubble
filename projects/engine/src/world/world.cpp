@@ -96,6 +96,8 @@ void World::Restore( const WorldSnapshot& snapshot )
     mRandom = snapshot.mRandom;
     mSteps = snapshot.mSteps;
     mEvents.RestoreWaiting( snapshot.mEvents );
+    for ( const Scope<Module>& module : mModules )
+        module->Restored();
 }
 
 void World::RequireBetweenFrames( string_view what ) const

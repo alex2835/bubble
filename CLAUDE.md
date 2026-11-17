@@ -38,7 +38,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 ## Layout
 
 ```
-deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md. wgpu-native alone is
+deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (jolt built; miniaudio
+                              and ozz waiting for stage 8's audio and animation). wgpu-native alone is
                               downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
@@ -62,6 +63,12 @@ projects/engine/include/bubble/
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
                               touch areas), Input (the devices' state -> actions; LatchStep/LatchFrame each see a press
                               once, at any frame rate)
+    physics/                  PhysicsModule on Jolt (src/physics alone): box, sphere, capsule and mesh colliders,
+                              rigid_body (dynamic, or kinematic: moved by its transform), character_controller
+                              (CharacterVirtual: a velocity set each step, ground, steps, slopes); stepped in
+                              Phase::Physics on one thread, what moved written into transforms, contacts as
+                              ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
+                              velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents, gamepads opened as
                               they come, QuitRequested, Run - a loop, or the browser's frames), Window
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
@@ -110,6 +117,8 @@ projects/engine/include/bubble/
                               + props overrides as a Value record -, ScriptInstance runtime, callbacks on_start /
                               on_fixed_update / on_update / on_destroy in the frame's order, the require graph loaded
                               first, self kept by snapshots, the time limit, progress and save slots);
+                              ScriptApi (what a module adds to scripts beyond reflection: component members, globals,
+                              callbacks; ScriptCall - a module calling a script's callback through the world's events);
                               src/scripts/world_api (entity, color, asset, each component a Luau type from reflection,
                               services described as such - debug_draw -, input, math.random on the world's Random),
                               script_values (Value <-> Luau), script_declarations (bubble.d.luau from App's
@@ -119,9 +128,10 @@ projects/engine/include/bubble/
                               modules: data events - added, changed, removed - delivered at the world's turns, the
                               frame's phases in one list, FixedClock, Services by type, Events queued;
                               Snapshot/Restore - runtime built again from the data, a module's own state through
-                              Module::TrySnapshot/Restoring -, WorldInput: the actions a step and a frame see,
-                              GetActions), Module; transform (position,
-                              rotation in radians - Y, X, Z -, scale) and TransformModule: WorldTransform each frame
+                              Module::TrySnapshot/Restoring/Restored -, WorldInput: the actions a step and a frame
+                              see, GetActions), Module (ModuleType::mScripts: its ScriptApi); transform (position,
+                              rotation in radians - Y, X, Z -, scale; AnglesOf, ComputeWorldMatrix) and
+                              TransformModule: WorldTransform each frame
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage, PBR lighting,
                               the shadow; built after a material's own), standard_material, shadow, tonemap
@@ -156,9 +166,10 @@ projects/editing/include/bubble/editing/
                               an entity back under its own number (Revive)
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
-                              Renderer and played by scripts compiled in memory: the red box walks by move_x and
-                              move_z, the camera follows it, a pad lights up when it is reached (progress, the
-                              autosave slot in Platform::TrySaveFolder); a touch or click picking what it lands on;
+                              Renderer and played by scripts compiled in memory on physics: the red box - a character
+                              controller - walks by move_x and move_z and jumps, two boxes tumble, the camera follows,
+                              a pad lights up when it is reached (progress, the autosave slot in
+                              Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
                               logged); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames

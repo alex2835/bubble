@@ -49,9 +49,12 @@ public:
     Scripts( World& world, AssetRegistry& assets, const ScriptModuleOptions& options )
         : mWorld( world ),
           mAssets( assets ),
-          mRuntime( mLua, assets, vector<string>( cScriptCallbacks.begin(), cScriptCallbacks.end() ) )
+          mApi( CollectScriptApi( world.GetApp() ) ),
+          mRuntime( mLua, assets, CallbackNames( mApi ) )
     {
-        RegisterWorldApi( mLua, world, assets );
+        for ( u32 index = 0; index < mRuntime.Callbacks().size(); ++index )
+            mCallbackIndex[Name::Declare( mRuntime.Callbacks()[index] )] = index;
+        RegisterWorldApi( mLua, world, assets, mApi );
         RegisterSaves( mLua, world, options.mSaves, options.mGameVersion );
         mProgress = StartProgress( options.mProgress );
         mLua.Globals()["progress"] = mProgress;
@@ -83,10 +86,12 @@ public:
         } );
         world.GetServices().Add( mRuntime );
         mListenerHandle = assets.OnChanged( [this]( const AssetEntryBase& entry ) { Changed( entry ); } );
+        mCallsHandle = world.GetEvents().Subscribe<ScriptCall>( [this]( const ScriptCall& call ) { Heard( call ); } );
     }
 
     ~Scripts() override
     {
+        mWorld.GetEvents().Unsubscribe( mCallsHandle );
         mAssets.RemoveListener( mListenerHandle );
         mStore->mSaved.clear();
         if ( mProgressKept )
@@ -139,6 +144,28 @@ public:
     }
 
 private:
+    // The engine's callbacks, then the modules'.
+    static vector<string> CallbackNames( const ScriptApi& api )
+    {
+        vector<string> names( cScriptCallbacks.begin(), cScriptCallbacks.end() );
+        for ( const ScriptApi::Callback& callback : api.Callbacks() )
+            names.push_back( callback.mName );
+        return names;
+    }
+
+    // A module calls a script: its instance on the target, if there is one.
+    void Heard( const ScriptCall& call )
+    {
+        const auto found = mInstances.find( call.mTarget );
+        const auto index = mCallbackIndex.find( call.mCallback );
+        if ( found == mInstances.end() or index == mCallbackIndex.end() )
+            return;
+        LuaRest args;
+        for ( const ScriptArg& arg : call.mArgs )
+            args.mValues.push_back( visit( [&]( const auto& value ) { return mLua.Value( value ); }, arg ) );
+        mRuntime.CallWith( found->second, index->second, args );
+    }
+
     // What the last world left, or a new table: a new game, or bytes that
     // no longer read - logged.
     LuaTable StartProgress( const Ref<ScriptProgress>& kept )
@@ -364,10 +391,13 @@ private:
 
     World& mWorld;
     AssetRegistry& mAssets;
+    ScriptApi mApi;
     // The state first: everything below holds values of it.
     LuaState mLua{ PrintToLog };
     ScriptRuntime mRuntime;
+    hmap<Name, u32> mCallbackIndex;
     AssetListenerHandle mListenerHandle;
+    EventHandle mCallsHandle;
     // By entity, for when the entity and its ScriptInstance are gone.
     hmap<Entity, ScriptInstanceHandle> mInstances;
     Ref<SelfStore> mStore = CreateRef<SelfStore>();

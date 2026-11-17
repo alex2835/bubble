@@ -1,10 +1,10 @@
 // The runner: a game on its own. The project and its levels come with
 // their stages; for now a scene made here - boxes of a few materials on the
 // ground under the sun, a warm lamp - drawn by the renderer and played by
-// scripts: the red box walks as "move_x" and "move_z" say, the camera
-// follows it, and a pad lights up when the box reaches it - remembered in
-// `progress` and written to the "autosave" slot, which the next run reads.
-// Stages 5 to 7 checked by hand. The keyboard, a gamepad and touches drive
+// scripts on physics: the red box walks as "move_x" and "move_z" say and
+// jumps, two boxes tumble down, the camera follows, and a pad lights up when
+// the box reaches it - remembered in `progress` and written to the
+// "autosave" slot, which the next run reads. Stages 5 to 8 checked by hand. The keyboard, a gamepad and touches drive
 // the actions; the mouse touches too, for a screen without touch. A touch
 // or a click picks what it lands on: its box drawn around it, its path
 // logged. `--frames N` quits after N frames drawn: a run a script can check.
@@ -12,6 +12,7 @@
 #include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
+#include "bubble/physics/physics.hpp"
 #include "bubble/platform/platform.hpp"
 #include "bubble/render/gpu/gpu.hpp"
 #include "bubble/render/gpu/renderer.hpp"
@@ -48,6 +49,7 @@ ActionMap Controls()
         .Bind( "move_z", GamepadAxis::LeftY, -1.0f )
         .Bind( "move_z", topRight )
         .Bind( "move_z", bottomRight, -1.0f );
+    map.Bind( "jump", Key::Space ).Bind( "jump", GamepadButton::South );
     return map;
 }
 
@@ -124,9 +126,10 @@ fn surface( in: SurfaceInput ) -> SurfaceOutput
 }
 )wgsl";
 
-// The red box: walks on the ground as the actions say.
+// The red box: walks and jumps as the actions say. The jump is a height and
+// the time to its top, the two things seen on screen; gravity follows.
 constexpr string_view cPlayer = R"luau(
-local P = props { speed = 3 }
+local P = props { speed = 3, jump_height = 1.2, time_to_apex = 0.35 }
 type Self = typeof( P ) & { entity: entity }
 
 function on_fixed_update( self: Self, dt: number )
@@ -134,8 +137,13 @@ function on_fixed_update( self: Self, dt: number )
     if vector.magnitude( move ) > 1 then
         move = vector.normalize( move )
     end
-    local t = self.entity.transform
-    t.position += move * self.speed * dt
+    local body = self.entity.character_controller
+    local gravity = 2 * self.jump_height / ( self.time_to_apex * self.time_to_apex )
+    local rise = body.velocity.y - gravity * dt
+    if body.on_ground then
+        rise = if input.pressed( "jump" ) then gravity * self.time_to_apex else 0
+    end
+    body.velocity = move * self.speed + vector.create( 0, rise, 0 ) + body.ground_velocity
 end
 )luau";
 
@@ -211,9 +219,9 @@ Scene Level( Project& project )
     Scene scene;
     const Entity ground = CreateChild( scene, scene.Root(), Make( "ground" ) );
     scene.Add<Transform>( ground );
-    scene.Add<Model>( ground, Model{ .mAsset = project.AddModel( "models/ground.glb", MakePlane( 20.0f ) ),
-                                     .mMaterials = { grass },
-                                     .mTint = {} } );
+    const AssetId plane = project.AddModel( "models/ground.glb", MakePlane( 20.0f ) );
+    scene.Add<Model>( ground, Model{ .mAsset = plane, .mMaterials = { grass }, .mTint = {} } );
+    scene.Add<MeshCollider>( ground, MeshCollider{ .mModel = plane } );
 
     const AssetId box = project.AddModel( "models/box.glb", MakeBox( vec3( 1.0f ) ) );
     const array<AssetId, 5> materials{ paint, gold, glass, pulse, shinyPaint };
@@ -224,21 +232,35 @@ Scene Level( Project& project )
         Transform{ .mPosition = { -1.5f, 1.5f, -2.5f }, .mRotation = { 0.5f, 0.8f, 0.2f }, .mScale = vec3( 1.0f ) },
         Transform{ .mPosition = { 1.0f, 0.25f, 2.5f }, .mScale = { 3.0f, 0.5f, 0.5f } },
     };
-    for ( size_t at = 0; at < boxes.size(); ++at )
+    for ( size_t at = 1; at < boxes.size(); ++at )
     {
-        const Entity entity = CreateChild( scene, scene.Root(), Make( at == 0 ? "player" : "box" ) );
+        const Entity entity = CreateChild( scene, scene.Root(), Make( "box" ) );
         scene.Add<Transform>( entity, boxes[at] );
         scene.Add<Model>( entity, Model{ .mAsset = box, .mMaterials = { materials[at] }, .mTint = {} } );
+        scene.Add<BoxCollider>( entity );
+        // The glass and the glowing one fall and tumble; the rest stand.
+        if ( at == 2 or at == 3 )
+            scene.Add<RigidBody>( entity );
     }
-    const Entity player = *TryResolve( scene, EntityPath{ Make( "/player" ) } );
+    // The player stands on its feet: the character's origin; its box is a
+    // child, half a unit up.
+    const Entity player = CreateChild( scene, scene.Root(), Make( "player" ) );
+    scene.Add<Transform>( player );
+    scene.Add<CharacterController>(
+        player, CharacterController{
+                    .mRadius = 0.45f, .mHeight = 1.0f, .mMaxSlope = glm::radians( 45.0f ), .mStepHeight = 0.3f } );
     scene.Add<Script>( player, Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
                                        .mProps = Value( Value::Record{} ) } );
+    const Entity body = CreateChild( scene, player, Make( "body" ) );
+    scene.Add<Transform>( body, boxes[0] );
+    scene.Add<Model>( body, Model{ .mAsset = box, .mMaterials = { materials[0] }, .mTint = {} } );
     const Value target(
         Value::Record{ ValueField{ Name::Declare( "target" ), Value( EntityPath{ Make( "/player" ) } ) } } );
 
     const Entity pad = CreateChild( scene, scene.Root(), Make( "pad" ) );
     scene.Add<Transform>( pad, Transform{ .mPosition = { 3.5f, 0.03f, 3.0f }, .mScale = { 1.5f, 0.06f, 1.5f } } );
     scene.Add<Model>( pad, Model{ .mAsset = box, .mMaterials = { grass }, .mTint = {} } );
+    scene.Add<BoxCollider>( pad );
     scene.Add<Script>( pad, Script{ .mAsset = project.AddScript( "scripts/pad.luau", cPad ), .mProps = target } );
 
     const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
@@ -316,6 +338,7 @@ int main( int argc, char** argv )
                                                               .mProgress = CreateRef<ScriptProgress>(),
                                                               .mSaves = saves,
                                                               .mGameVersion = "runner 0.7" } ) );
+    app.AddModule( PhysicsModule( assets ) );
     app.AddModule( RenderModule( assets ) );
     World world( app, Level( project ) );
 
