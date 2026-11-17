@@ -102,6 +102,20 @@ else()
     target_compile_options( jolt PRIVATE -w PUBLIC -ffp-contract=off )
 endif()
 
+# miniaudio 0.11.26 - the audio device, mixing, decoding wav, flac and mp3;
+# the audio module's alone. One C file, built as C: under Emscripten it emits
+# Web Audio JavaScript and must not get a -std=c flag. Encoders left out.
+add_library( miniaudio STATIC ${CMAKE_CURRENT_SOURCE_DIR}/miniaudio/miniaudio.c )
+target_include_directories( miniaudio SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/miniaudio )
+if( MSVC )
+    target_compile_options( miniaudio PRIVATE /w )
+else()
+    target_compile_options( miniaudio PRIVATE -w )
+endif()
+if( UNIX AND NOT APPLE AND NOT EMSCRIPTEN )
+    target_link_libraries( miniaudio PUBLIC dl pthread m )
+endif()
+
 # SDL 3.4.20 - windows, input and the frame loop on every platform, the web
 # too; seen only inside bubble/platform. Static, with what the engine uses:
 # video and events, gamepads, haptics and sensors, file dialogs for the

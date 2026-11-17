@@ -38,8 +38,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 ## Layout
 
 ```
-deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (jolt built; miniaudio
-                              and ozz waiting for stage 8's audio and animation). wgpu-native alone is
+deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz waiting for
+                              stage 8's animation). wgpu-native alone is
                               downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
@@ -64,6 +64,13 @@ projects/engine/include/bubble/
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
                               touch areas), Input (the devices' state -> actions; LatchStep/LatchFrame each see a press
                               once, at any frame rate)
+    audio/                    on miniaudio (src/audio alone): AudioDevice (one a process: the mix, buses music, sfx,
+                              ui, voice under master, their volumes; Offline for tests, read with ReadFrames;
+                              Resume after a browser's gesture), SoundAsset (decoded whole, or streamed from its file
+                              - SoundData shared with the voices -), AudioModule: audio_source, audio_listener (or the
+                              first camera), 32 voices a world - the quietest gives way -, a paused world silent but
+                              for ui; AudioWorld (a service: PlaySound, a source's play/stop, SetAudible); scripts'
+                              audio.play_sound/play_sound_at/set_bus_volume and audio_source:play()/stop()
     physics/                  PhysicsModule on Jolt (src/physics alone): box, sphere, capsule and mesh colliders,
                               rigid_body (dynamic, or kinematic: moved by its transform), character_controller
                               (CharacterVirtual: a velocity set each step, ground, steps, slopes); stepped in
@@ -151,7 +158,8 @@ projects/import/include/bubble/import/
                               the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
                               callbacks annotated; TryProjectScriptCheck, TryReadLuaurc), ShaderImporter (.wgsl, the contract checked),
                               MaterialImporter (.mat checked), PrefabImporter (.prefab kept, checked against the
-                              component types), TextureImporters (stb_image: png, jpg,
+                              component types), SoundImporters (wav, flac, mp3: kept, checked by decoding; longer
+                              than 10 s streams, or as the .import's "stream" says), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
@@ -171,9 +179,9 @@ projects/editing/include/bubble/editing/
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character
-                              controller - walks by move_x and move_z, jumps, throws crates (a prefab spawned on E),
-                              two boxes tumble, the camera follows,
-                              a pad lights up when it is reached (progress, the autosave slot in
+                              controller - walks by move_x and move_z, jumps with a blip, throws crates (a prefab
+                              spawned on E), two boxes tumble, the camera follows,
+                              a pad chimes and lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was

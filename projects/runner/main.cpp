@@ -2,8 +2,8 @@
 // their stages; for now a scene made here - boxes of a few materials on the
 // ground under the sun, a warm lamp - drawn by the renderer and played by
 // scripts on physics: the red box walks as "move_x" and "move_z" say and
-// jumps and throws crates - a prefab spawned -, two boxes tumble down, the
-// camera follows, and a pad lights up when
+// jumps with a blip and throws crates - a prefab spawned -, two boxes tumble
+// down, the camera follows, and a pad chimes and lights up when
 // the box reaches it - remembered in `progress` and written to the
 // "autosave" slot, which the next run reads. Stages 5 to 8 checked by hand. The keyboard, a gamepad and touches drive
 // the actions; the mouse touches too, for a screen without touch. A touch
@@ -12,6 +12,7 @@
 #include "bubble/assets/model_primitives.hpp"
 #include "bubble/assets/prefab_asset.hpp"
 #include "bubble/assets/shader_asset.hpp"
+#include "bubble/audio/audio.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
 #include "bubble/physics/physics.hpp"
@@ -89,6 +90,11 @@ struct Project
     // Compiled here as the importer compiles it - progress read each time -
     // but not checked: the runner has no analyzer. Written typed all the
     // same.
+    AssetId AddSound( string_view path, const string& wav )
+    {
+        return Add( path, WriteSoundAsset( wav, false ), cSoundKind );
+    }
+
     AssetId AddScript( string_view path, string_view source )
     {
         auto bytecodeMaybe =
@@ -129,10 +135,43 @@ fn surface( in: SurfaceInput ) -> SurfaceOutput
 }
 )wgsl";
 
+// A tone `seconds` long at `frequency`, fading out: a 16-bit mono .wav, the
+// runner having no sound files of its own.
+string MakeTone( f32 seconds, f32 frequency )
+{
+    constexpr u32 cRate = 44100;
+    const auto frames = static_cast<u32>( seconds * static_cast<f32>( cRate ) );
+    const auto put = []( string& out, u32 value, u32 bytes ) {
+        for ( u32 byte = 0; byte < bytes; ++byte )
+            out.push_back( static_cast<char>( ( value >> ( 8 * byte ) ) & 0xFF ) );
+    };
+    string samples;
+    for ( u32 frame = 0; frame < frames; ++frame )
+    {
+        const f32 time = static_cast<f32>( frame ) / static_cast<f32>( cRate );
+        const f32 fade = 1.0f - time / seconds;
+        const f32 value = 0.5f * fade * fade * sin( 2.0f * glm::pi<f32>() * frequency * time );
+        put( samples, static_cast<u32>( static_cast<u16>( static_cast<i16>( value * 32767.0f ) ) ), 2 );
+    }
+    string wav = "RIFF";
+    put( wav, 36 + static_cast<u32>( samples.size() ), 4 );
+    wav += "WAVEfmt ";
+    put( wav, 16, 4 );
+    put( wav, 1, 2 );
+    put( wav, 1, 2 );
+    put( wav, cRate, 4 );
+    put( wav, cRate * 2, 4 );
+    put( wav, 2, 2 );
+    put( wav, 16, 2 );
+    wav += "data";
+    put( wav, static_cast<u32>( samples.size() ), 4 );
+    return wav + samples;
+}
+
 // The red box: walks and jumps as the actions say. The jump is a height and
 // the time to its top, the two things seen on screen; gravity follows.
 constexpr string_view cPlayer = R"luau(
-local P = props { speed = 3, jump_height = 1.2, time_to_apex = 0.35, crate = asset() }
+local P = props { speed = 3, jump_height = 1.2, time_to_apex = 0.35, crate = asset(), blip = asset() }
 type Self = typeof( P ) & { entity: entity }
 
 function on_fixed_update( self: Self, dt: number )
@@ -144,7 +183,11 @@ function on_fixed_update( self: Self, dt: number )
     local gravity = 2 * self.jump_height / ( self.time_to_apex * self.time_to_apex )
     local rise = body.velocity.y - gravity * dt
     if body.on_ground then
-        rise = if input.pressed( "jump" ) then gravity * self.time_to_apex else 0
+        rise = 0
+        if input.pressed( "jump" ) then
+            rise = gravity * self.time_to_apex
+            audio.play_sound( self.blip, 0.4 )
+        end
     end
     body.velocity = move * self.speed + vector.create( 0, rise, 0 ) + body.ground_velocity
     -- A crate from above, tumbling down beside the player.
@@ -170,7 +213,7 @@ end
 // The pad: lit once its target has stood on it - in this run, the last
 // level's (progress) or an earlier run's (the autosave slot).
 constexpr string_view cPad = R"luau(
-local P = props { target = entity(), reach = 1.2 }
+local P = props { target = entity(), reach = 1.2, chime = asset() }
 type Self = typeof( P ) & { entity: entity }
 
 local function light_up( self: Self )
@@ -197,6 +240,7 @@ function on_fixed_update( self: Self, dt: number )
     local apart = self.target.transform.position - self.entity.transform.position
     if vector.magnitude( vector.create( apart.x, 0, apart.z ) ) < self.reach then
         progress.pad_reached = true
+        audio.play_sound_at( self.chime, self.entity.transform.position )
         save.write( "autosave", { pad_reached = true } )
         print( "the pad is reached: written to the autosave slot" )
         light_up( self )
@@ -266,8 +310,12 @@ Scene Level( Project& project )
                                                box.ToString(), gold.ToString() ),
                                        cPrefabKind );
     scene.Add<Script>(
-        player, Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
-                        .mProps = Value( Value::Record{ ValueField{ Name::Declare( "crate" ), Value( crate ) } } ) } );
+        player,
+        Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
+                .mProps = Value( Value::Record{
+                    ValueField{ Name::Declare( "crate" ), Value( crate ) },
+                    ValueField{ Name::Declare( "blip" ),
+                                Value( project.AddSound( "sounds/blip.wav", MakeTone( 0.12f, 880.0f ) ) ) } } ) } );
     const Entity body = CreateChild( scene, player, Make( "body" ) );
     scene.Add<Transform>( body, boxes[0] );
     scene.Add<Model>( body, Model{ .mAsset = box, .mMaterials = { materials[0] }, .mTint = {} } );
@@ -278,7 +326,11 @@ Scene Level( Project& project )
     scene.Add<Transform>( pad, Transform{ .mPosition = { 3.5f, 0.03f, 3.0f }, .mScale = { 1.5f, 0.06f, 1.5f } } );
     scene.Add<Model>( pad, Model{ .mAsset = box, .mMaterials = { grass }, .mTint = {} } );
     scene.Add<BoxCollider>( pad );
-    scene.Add<Script>( pad, Script{ .mAsset = project.AddScript( "scripts/pad.luau", cPad ), .mProps = target } );
+    const Value padProps(
+        Value::Record{ ValueField{ Name::Declare( "target" ), Value( EntityPath{ Make( "/player" ) } ) },
+                       ValueField{ Name::Declare( "chime" ),
+                                   Value( project.AddSound( "sounds/chime.wav", MakeTone( 0.8f, 660.0f ) ) ) } } );
+    scene.Add<Script>( pad, Script{ .mAsset = project.AddScript( "scripts/pad.luau", cPad ), .mProps = padProps } );
 
     const Entity sun = CreateChild( scene, scene.Root(), Make( "sun" ) );
     scene.Add<Transform>( sun, Transform{ .mRotation = { glm::radians( -40.0f ), glm::radians( 35.0f ), 0.0f } } );
@@ -343,6 +395,12 @@ int main( int argc, char** argv )
     RegisterTextureLoader( assets );
     RegisterScriptLoader( assets );
     RegisterPrefabLoader( assets );
+    RegisterSoundLoader( assets );
+    // The system's sound; with none the game plays on, silent.
+    auto deviceMaybe = AudioDevice::TryStart();
+    if ( not deviceMaybe )
+        LogWarning( "{}", deviceMaybe.error() );
+    const Scope<AudioDevice> audio = deviceMaybe ? std::move( *deviceMaybe ) : AudioDevice::Offline();
     // Saves in the user's folder; without one the game plays on, unsaved.
     Ref<SaveSlots> saves;
     if ( auto folderMaybe = platform.TrySaveFolder( "runner" ) )
@@ -357,6 +415,7 @@ int main( int argc, char** argv )
                                                               .mSaves = saves,
                                                               .mGameVersion = "runner 0.7" } ) );
     app.AddModule( PhysicsModule( assets ) );
+    app.AddModule( AudioModule( assets, *audio ) );
     app.AddModule( RenderModule( assets ) );
     World world( app, Level( project ) );
 
@@ -372,6 +431,8 @@ int main( int argc, char** argv )
     platform.Run( [&]( f64 elapsed ) {
         for ( const InputEvent& event : platform.Poll() )
         {
+            // A browser plays sound once the page saw a gesture.
+            audio->Resume();
             input.Handle( event );
             // A touch is a share of the window; the target is its pixels.
             if ( const auto* touch = get_if<TouchDown>( &event ); touch and renderer )

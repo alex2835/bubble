@@ -26,8 +26,8 @@ target_link_libraries( bubble_engine PRIVATE wgsl_reflect )
 # Vectors in Value and, later, everywhere; utf8proc only behind Text.
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
-# Physics: Jolt, behind src/physics alone.
-target_link_libraries( bubble_engine PRIVATE jolt )
+# Physics: Jolt, behind src/physics alone. Audio: miniaudio, behind src/audio.
+target_link_libraries( bubble_engine PRIVATE jolt miniaudio )
 
 # Windows, input and the frame loop: SDL, behind bubble/platform alone.
 target_link_libraries( bubble_engine PRIVATE SDL3::SDL3-static )
