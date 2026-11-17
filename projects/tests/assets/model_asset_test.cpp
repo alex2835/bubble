@@ -27,9 +27,40 @@ TEST_CASE( "A model's bytes read back as written, and broken ones say what is wr
     CHECK( read.mLods[1].mError == 0.25f );
 
     CHECK( TryReadModelAsset( bytes.substr( 0, bytes.size() - 2 ) ).error() == "a model cut short" );
-    CHECK( TryReadModelAsset( bytes + "x" ).error() == "a model with more after its last mesh" );
+    CHECK( TryReadModelAsset( bytes + "x" ).error() == "a model with more after its joints" );
     CHECK( TryReadModelAsset( "OBJ!" ).error() == "not a model the importer made" );
     model.mMeshes[0].mLods[0].mIndices = { 0, 1, 3 };
     CHECK( TryReadModelAsset( WriteModelAsset( model ) ).error() ==
            "mesh 0 of a model has an index 3 past its 3 vertices" );
+}
+
+TEST_CASE( "A skinned model's joints and weights read back, and a vertex on a joint it lacks is refused" )
+{
+    ModelMesh mesh{ .mMaterial = "skin", .mVertices = vector<ModelVertex>( 3 ), .mLods = {} };
+    mesh.mLods.push_back( ModelLod{ .mError = 0, .mIndices = { 0, 1, 2 } } );
+    for ( u16 vertex = 0; vertex < 3; ++vertex )
+        mesh.mSkin.push_back(
+            ModelSkinVertex{ .mJoints = { vertex, 1, 0, 0 }, .mWeights = vec4( 0.75f, 0.25f, 0.0f, 0.0f ) } );
+    ModelAsset model{ .mMin = vec3( -1.0f ), .mMax = vec3( 1.0f ), .mMeshes = { mesh } };
+    for ( const string_view name : { "root", "arm", "hand" } )
+        model.mJoints.push_back( ModelJoint{ .mName = string( name ),
+                                             .mRest = glm::translate( mat4( 1.0f ), vec3( 0.0f, 1.0f, 0.0f ) ),
+                                             .mInverseBind = glm::scale( mat4( 1.0f ), vec3( 2.0f ) ) } );
+
+    const auto readMaybe = TryReadModelAsset( WriteModelAsset( model ) );
+    REQUIRE_MESSAGE( readMaybe, readMaybe.error() );
+    REQUIRE( readMaybe->mMeshes[0].mSkin.size() == 3 );
+    CHECK( readMaybe->mMeshes[0].mSkin[2].mJoints == array<u16, 4>{ 2, 1, 0, 0 } );
+    CHECK( readMaybe->mMeshes[0].mSkin[2].mWeights == vec4( 0.75f, 0.25f, 0.0f, 0.0f ) );
+    REQUIRE( readMaybe->mJoints.size() == 3 );
+    CHECK( readMaybe->mJoints[1].mName == "arm" );
+    CHECK( readMaybe->mJoints[1].mRest[3] == vec4( 0.0f, 1.0f, 0.0f, 1.0f ) );
+    CHECK( readMaybe->mJoints[2].mInverseBind[0][0] == 2.0f );
+
+    model.mJoints.pop_back();
+    CHECK( TryReadModelAsset( WriteModelAsset( model ) ).error() ==
+           "mesh 0 of a model has a vertex on joint 2, past its 2 joints" );
+    model.mMeshes[0].mSkin.pop_back();
+    CHECK( TryReadModelAsset( WriteModelAsset( model ) ).error() ==
+           "mesh 0 of a model has a skin of 2 vertices, not its 3" );
 }

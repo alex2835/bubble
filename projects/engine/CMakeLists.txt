@@ -27,7 +27,8 @@ target_link_libraries( bubble_engine PRIVATE wgsl_reflect )
 target_link_libraries( bubble_engine PUBLIC glm PRIVATE utf8proc )
 
 # Physics: Jolt, behind src/physics alone. Audio: miniaudio, behind src/audio.
-target_link_libraries( bubble_engine PRIVATE jolt miniaudio )
+# Animation: ozz's runtime, behind src/animation.
+target_link_libraries( bubble_engine PRIVATE jolt miniaudio ozz_runtime )
 
 # Windows, input and the frame loop: SDL, behind bubble/platform alone.
 target_link_libraries( bubble_engine PRIVATE SDL3::SDL3-static )

@@ -16,7 +16,7 @@ TEST_CASE( "A material is imported as the engine reads it, and a broken one says
     const AssetPath path = *AssetPath::TryFrom( "materials/red.mat" );
     const auto importedMaybe = importer.mImport( R"({ "params": { "roughness": 0.3 } })", Json(), path );
     REQUIRE_MESSAGE( importedMaybe, importedMaybe.error() );
-    const auto materialMaybe = TryReadMaterialAsset( *importedMaybe );
+    const auto materialMaybe = TryReadMaterialAsset( importedMaybe->mBytes );
     REQUIRE( materialMaybe );
     CHECK( materialMaybe->mParams.front().second.mNumbers == vector<f32>{ 0.3f } );
 
@@ -32,7 +32,7 @@ TEST_CASE( "A material's WGSL is imported once it keeps the contract" )
     CHECK( importer.mExtension == ".wgsl" );
     const AssetPath path = *AssetPath::TryFrom( "shaders/glow.wgsl" );
     const string source = "fn surface( in: SurfaceInput ) -> SurfaceOutput { return surface_defaults( in ); }";
-    CHECK( importer.mImport( source, Json(), path ) == source );
+    CHECK( importer.mImport( source, Json(), path )->mBytes == source );
     CHECK( importer.mImport( "fn shade() {}", Json(), path ).error() ==
            "shaders/glow.wgsl: no fn surface( in: SurfaceInput ) -> SurfaceOutput, which a material is" );
 }

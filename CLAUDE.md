@@ -38,9 +38,9 @@ out\build\windows-debug\bin\bubble_tests.exe
 ## Layout
 
 ```
-deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz waiting for
-                              stage 8's animation). wgpu-native alone is
-                              downloaded at configure time into out/downloads, pinned by version and SHA-256
+deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
+                              own CMake: its runtime in the engine, its offline builders in import). wgpu-native
+                              alone is downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
                               the comment on a line; the standard library only
@@ -49,16 +49,30 @@ projects/engine/include/bubble/
     core/                     log, profile, utf8, AssetPath, process, Name, Text, Color, Random (PCG32), Jobs (the
                               process's one pool on enkiTS: ParallelFor, Background, RunOnMain; the web and Jobs( 1 ):
                               the main thread alone)
-    assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id,
+    assets/                   AssetId (random, 32 hex), AssetCatalog (id <-> path), AssetRegistry (entries by id
+                              and type - a source imported as several kinds, a model with its skeleton and clips -,
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
                               .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
                               runs, then OnLoaded) or here and now (LoadNow); reads hand their bytes over at once
                               (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
-                              (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader);
+                              (meshes: vertices, a skin's joints and weights beside them, LOD levels sharing them,
+                              the box; the joints - name, rest, inverse bind -; "BMDL", RegisterModelLoader;
+                              SkinPose: a skinned model's matrices this frame, runtime);
                               MakeBox/MakePlane (models made in code); ShaderAsset (a material's WGSL), MaterialAsset
                               (.mat JSON: shader or base, double_sided, transparent, params by name); PrefabAsset
                               (a .prefab's text, parsed where it is used)
+    animation/                on ozz's runtime (src/animation alone): animation_graph (.anim: parameters, states - a
+                              clip, a blend along a parameter, nothing -, transitions by conditions and exit time,
+                              triggers, "return", events at shares of a clip, root motion on a state; parsed, and
+                              stepped as plain data), animation_assets (the skeleton and clips a model's importer
+                              writes beside it under its id; RegisterAnimationLoaders), AnimationModule: animator
+                              (graph, speed) - the graph stepped each fixed step in Phase::Physics, its events
+                              ScriptCalls to on_animation_event; poses sampled each frame between the last two steps
+                              on Jobs' pool, transitions eased by inertialization, written as the model's SkinPose -,
+                              bone_attachment (an entity hung on a joint of its parent's pose: ParentOffset);
+                              AnimationWorld (a service: set, trigger, state, joints, root motion); scripts'
+                              animator:set/trigger, animator.state, root_velocity, root_turn
     input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
                               snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
@@ -86,12 +100,15 @@ projects/engine/include/bubble/
                               Resize/TryAcquire/Present), GpuHandle (WGPU objects owned; aliases ...Handle),
                               GpuBuffer, GpuTexture (a texture and its view; from a TextureAsset with its mips),
                               CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
-                              one index buffer, LODs as index ranges), GpuAssets (the GPU's copies of the
+                              one index buffer, LODs as index ranges, a skin's joints and weights in a second vertex
+                              buffer, its rest pose's matrices), GpuAssets (the GPU's copies of the
                               registry's models and textures by id, made again after a reload, Collect),
                               Renderer (one a process; Draw( view, scene, camera, target ): shadow map, opaque then
                               transparent surfaces in rgba16float with reversed depth, ACES tonemapping; frustum
                               culling, each mesh's LOD by its error in pixels with hysteresis, meshes alike in one
-                              instanced call; the debug drawing's lines; materials
+                              instanced call; skinned meshes through their own pipelines - vs_skinned -, each
+                              instance's joint matrices in one storage buffer, its pose's or its model's rest; the
+                              debug drawing's lines; materials
                               built from their bases, shader and textures in src/render/gpu/gpu_materials - the
                               standard one while they load, a magenta placeholder when they fail), RenderView (one
                               place a world is seen from: its targets, LOD hysteresis, Pick/TryPicked - the entity
@@ -141,27 +158,33 @@ projects/engine/include/bubble/
                               Module::TrySnapshot/Restoring/Restored -, WorldInput: the actions a step and a frame
                               see, GetActions), Module (ModuleType::mScripts: its ScriptApi); transform (position,
                               rotation in radians - Y, X, Z -, scale; AnglesOf, ComputeWorldMatrix) and
-                              TransformModule: WorldTransform each frame
+                              TransformModule: WorldTransform each frame, through an entity's ParentOffset (a joint
+                              it hangs on) when it has one
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
-projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage, PBR lighting,
-                              the shadow; built after a material's own), standard_material, shadow, tonemap
+projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage - vs_skinned for
+                              a skin -, PBR lighting, the shadow; built after a material's own), standard_material,
+                              shadow, pick (each with a skinned vertex stage too), tonemap
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
                               files: read, list with stamps, a save replaces the file whole), ImportFile
                               (<source>.import: the asset's id and settings), TryScanProject (ids from .import files
                               and from inside levels and prefabs, new ones written, a copy re-ided, orphans listed);
                               Importer
-                              (source + settings -> the engine's format), the import cache (TryImportAsset,
+                              (source + settings -> the engine's format; mMoreKinds: what else it makes under the
+                              same id, written every time, empty when the source has none), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
                               changes), ScriptImporter (.luau -> ScriptAsset: compiled, props
                               and requires read from the AST; with a ScriptCheck - bubble.d.luau, .luaurc aliases,
                               the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
                               callbacks annotated; TryProjectScriptCheck, TryReadLuaurc), ShaderImporter (.wgsl, the contract checked),
                               MaterialImporter (.mat checked), PrefabImporter (.prefab kept, checked against the
-                              component types), SoundImporters (wav, flac, mp3: kept, checked by decoding; longer
+                              component types), AnimationGraphImporter (.anim kept, checked), SoundImporters (wav, flac, mp3: kept, checked by decoding; longer
                               than 10 s streams, or as the .import's "stream" says), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
-                              obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
+                              obj; meshoptimizer's ordering and LODs; a skin - its bones and every node over them -
+                              as the model's joints and ozz's skeleton and clips beside it, a mesh with no bones on
+                              the joint over it, root motion out of the clips as "root_motion" says; not on the web
+                              - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
                               in step: TryRefresh polls the stamps, scans and imports what changed, says what the
                               registry reloads)
@@ -185,7 +208,8 @@ projects/runner/              bubble_runner, on the engine alone (never import o
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
-                              logged); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
+                              logged); animation/skinned_model.hpp (a skinned .glb made in code: two joints, three
+                              clips); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
                               drawn and read back); render/reference_image.hpp + render/reference/*.png (pictures
                               checked with a rasterizer's tolerance; BUBBLE_UPDATE_REFERENCES=1 writes them anew, a
                               failing one goes beside the tests' binary); deps/ tests deps (luaubind

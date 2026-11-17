@@ -44,6 +44,8 @@ struct Object
     tint: vec4f,
     // Whose it is, for a click to find (pick.wgsl).
     entity: u32,
+    // A skinned mesh's: where its joints' matrices start in skins.
+    skin: u32,
 }
 
 @group( 0 ) @binding( 0 ) var<uniform> frame: Frame;
@@ -51,6 +53,9 @@ struct Object
 @group( 0 ) @binding( 2 ) var shadow_map: texture_depth_2d;
 @group( 0 ) @binding( 3 ) var shadow_sampler: sampler_comparison;
 @group( 1 ) @binding( 0 ) var<storage, read> objects: array<Object>;
+// Each skinned object's joints, a matrix each: the joint's pose times its
+// inverse bind, in the model's space.
+@group( 1 ) @binding( 1 ) var<storage, read> skins: array<mat4x4f>;
 
 // What a material's surface() is told of the point it shades.
 struct SurfaceInput
@@ -152,6 +157,39 @@ fn vs_main( vertex: Vertex ) -> Varyings
     out.clip = frame.view_projection * world;
     out.world = world.xyz;
     out.normal = ( object.normal * vec4f( vertex.normal, 0.0 ) ).xyz;
+    out.uv = vertex.uv;
+    out.object = vertex.object;
+    return out;
+}
+
+// A vertex of a skinned mesh: the joints that move it and how much.
+struct SkinnedVertex
+{
+    @builtin( instance_index ) object: u32,
+    @location( 0 ) position: vec3f,
+    @location( 1 ) normal: vec3f,
+    @location( 2 ) uv: vec2f,
+    @location( 3 ) joints: vec4u,
+    @location( 4 ) weights: vec4f,
+}
+
+// Where a skinned vertex goes: its joints' matrices, by its weights.
+fn skin_of( first: u32, joints: vec4u, weights: vec4f ) -> mat4x4f
+{
+    return skins[first + joints.x] * weights.x + skins[first + joints.y] * weights.y +
+           skins[first + joints.z] * weights.z + skins[first + joints.w] * weights.w;
+}
+
+@vertex
+fn vs_skinned( vertex: SkinnedVertex ) -> Varyings
+{
+    let object = objects[vertex.object];
+    let skin = skin_of( object.skin, vertex.joints, vertex.weights );
+    let world = object.model * skin * vec4f( vertex.position, 1.0 );
+    var out: Varyings;
+    out.clip = frame.view_projection * world;
+    out.world = world.xyz;
+    out.normal = ( object.normal * skin * vec4f( vertex.normal, 0.0 ) ).xyz;
     out.uv = vertex.uv;
     out.object = vertex.object;
     return out;

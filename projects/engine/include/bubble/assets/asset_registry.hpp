@@ -17,11 +17,36 @@ class AssetEntryBase;
 
 namespace detail
 {
-// Where the registry finds entries, by id. Weak: an entry lives as long as
-// its refs do, and takes itself out of the index when it goes.
+// One asset as one type: a source may be imported as several kinds - a
+// model, its skeleton, its clips - under its one id.
+struct AssetKey
+{
+    AssetId mId;
+    type_index mType;
+
+    friend bool operator==( const AssetKey&, const AssetKey& ) = default;
+};
+}
+}
+
+template <>
+struct std::hash<bubble::detail::AssetKey>
+{
+    size_t operator()( const bubble::detail::AssetKey& key ) const
+    {
+        return std::hash<bubble::AssetId>{}( key.mId ) ^ ( key.mType.hash_code() * 0x9e3779b97f4a7c15ull );
+    }
+};
+
+namespace bubble
+{
+namespace detail
+{
+// Where the registry finds entries, by id and type. Weak: an entry lives as
+// long as its refs do, and takes itself out of the index when it goes.
 struct AssetIndex
 {
-    hmap<AssetId, WeakRef<AssetEntryBase>> mById;
+    hmap<AssetKey, WeakRef<AssetEntryBase>> mByKey;
 };
 }
 
@@ -63,9 +88,8 @@ protected:
     AssetState mState = AssetState::Loading;
     string mError;
     u32 mVersion = 0;
-    // Empty for an entry the registry does not list (a file asked for as the
-    // wrong kind, an asset the catalog does not have), and once the registry
-    // is gone.
+    // Empty for an entry the registry does not list (an asset the catalog
+    // does not have), and once the registry is gone.
     WeakRef<detail::AssetIndex> mIndex;
 };
 
@@ -124,10 +148,12 @@ using AssetListenerHandle = Handle<struct AssetListenerTag>;
 // is not the project's, so nothing here is taken for a source.
 AssetPath ImportedPath( const AssetId& assetId, string_view kind );
 
-// Every asset of the project in memory, one entry each, by id; a path is
-// turned into an id by the catalog. One per process, shared by its worlds.
-// What it loads is what the importer made of a source - bytecode, not the
-// .luau - each type read by its loader.
+// Every asset of the project in memory, one entry each, by id and type; a
+// path is turned into an id by the catalog. One per process, shared by its
+// worlds. What it loads is what the importer made of a source - bytecode,
+// not the .luau - each type read by its loader from the kind it names: one
+// source may have several, a model its skeleton and clips beside it, each
+// its own entry.
 //
 // Load reads and loads on Jobs' pool and returns at once, its ref Loading;
 // the entry becomes Ready or Failed at the main thread's next turn
@@ -190,7 +216,7 @@ public:
             throw logic_error( format( "AssetRegistry::RegisterLoader of {} twice", kind ) );
     }
 
-    // The asset at `path`, or with the id; the same entry when it is in
+    // The asset at `path`, or with the id, as T; the same entry when it is in
     // memory already - Loading still, perhaps. One the catalog does not
     // have, one not imported as T's kind, or one its loader refuses comes to
     // be Failed with the reason in Error(); whoever asked reports it.
@@ -233,17 +259,17 @@ public:
     template <typename T>
     AssetRef<T> TryFind( const AssetId& assetId ) const
     {
-        return Typed<T>( TryFindEntry( assetId ) );
+        return Typed<T>( TryFindEntry( assetId, typeid( T ) ) );
     }
 
-    // How many assets are in memory.
-    size_t Count() const { return mIndex->mById.size(); }
+    // How many entries are in memory.
+    size_t Count() const { return mIndex->mByKey.size(); }
     const AssetCatalog& Catalog() const { return mCatalog; }
 
-    // The asset was imported again: loads it into its entry, here and now,
-    // and tells the listeners. If the new version fails, the old one stays
-    // and the error comes back. An asset nobody holds is not loaded, and
-    // nothing happens.
+    // The asset was imported again: loads it into its entries - each type in
+    // memory -, here and now, and tells the listeners. If a new version
+    // fails, the old one stays and the error comes back, the others loaded
+    // still. An asset nobody holds is not loaded, and nothing happens.
     expected<void, string> TryReload( const AssetPath& path );
 
     // An entry that was Loading is Ready or Failed: its first version came,
@@ -337,7 +363,7 @@ private:
                                    type_index type,
                                    MakeEntry make,
                                    When when );
-    Ref<AssetEntryBase> TryFindEntry( const AssetId& assetId ) const;
+    Ref<AssetEntryBase> TryFindEntry( const AssetId& assetId, type_index type ) const;
     const RegisteredLoader& LoaderOf( const AssetEntryBase& entry ) const;
     void StartLoading( const Ref<AssetEntryBase>& entry );
     // Loads the entry here and now; whether it took.

@@ -18,7 +18,7 @@ TEST_CASE( "A prefab is imported as it is, once it reads; one that does not is r
         R"({ "version": 1, "next_id": 1, "root": { "id": 0, "components": { "transform": { "position": [ 1, 2, 3 ] } } } })";
     const auto importedMaybe = importer.mImport( good, Json(), *AssetPath::TryFrom( "prefabs/crate.prefab" ) );
     REQUIRE_MESSAGE( importedMaybe, importedMaybe.error() );
-    CHECK( *importedMaybe == good );
+    CHECK( importedMaybe->mBytes == good );
 
     const auto brokenMaybe =
         importer.mImport( R"({ "version": 1, "next_id": 1, "root": { "id": 0, "components": { "lamp": {} } } })",

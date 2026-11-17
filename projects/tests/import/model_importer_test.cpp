@@ -3,6 +3,8 @@
 // no window: stage 4's "done".
 #include "bubble/import/model_importer.hpp"
 #ifdef BUBBLE_IMPORT_MODELS
+#include "animation/skinned_model.hpp"
+#include "bubble/animation/animation_assets.hpp"
 #include "bubble/assets/asset_registry.hpp"
 #include "bubble/assets/model_asset.hpp"
 #include "bubble/assets/texture_asset.hpp"
@@ -47,18 +49,23 @@ string Grid( u32 side )
     return obj;
 }
 
-expected<ModelAsset, string> TryImport( string_view source, string_view settings = "{}" )
+expected<ImportedAsset, string> TryImportAs( string_view extension, string_view source, string_view settings )
 {
     for ( const Importer& importer : ModelImporters() )
-        if ( importer.mExtension == ".obj" )
-        {
-            auto bytesMaybe =
-                importer.mImport( source, *Json::TryParse( settings ), *AssetPath::TryFrom( "models/a.obj" ) );
-            if ( not bytesMaybe )
-                return unexpected( std::move( bytesMaybe.error() ) );
-            return TryReadModelAsset( *bytesMaybe );
-        }
+        if ( importer.mExtension == extension )
+            return importer.mImport( source, *Json::TryParse( settings ),
+                                     *AssetPath::TryFrom( format( "models/a{}", extension ) ) );
     return unexpected( "no importer"s );
+}
+
+expected<ModelAsset, string> TryImport( string_view source, string_view settings = "{}" )
+{
+    auto importedMaybe = TryImportAs( ".obj", source, settings );
+    if ( not importedMaybe )
+        return unexpected( std::move( importedMaybe.error() ) );
+    // No skin: no skeleton, no clips.
+    REQUIRE( importedMaybe->mMore.empty() );
+    return TryReadModelAsset( importedMaybe->mBytes );
 }
 }
 
@@ -109,12 +116,77 @@ TEST_CASE( "A model that will not import, and settings that are wrong, say why" 
                .ends_with( "settings.lods: 1.5 is not a share between 0 and 1" ) );
     CHECK( TryImport( cCube, R"({ "flip": true })" )
                .error()
-               .ends_with( "settings.flip: not a field (fields: lods, scale)" ) );
+               .ends_with( "settings.flip: not a field (fields: lods, scale, root_motion)" ) );
     CHECK( TryImport( "v 1 2 3\n" ).error().starts_with( "models/a.obj: " ) );
     vector<string> extensions;
     for ( const Importer& importer : ModelImporters() )
         extensions.push_back( importer.mExtension );
     CHECK( extensions == vector<string>{ ".glb", ".gltf", ".fbx", ".obj" } );
+}
+
+TEST_CASE( "A skinned glTF brings its skeleton and clips beside the model, its skin bound to the joints" )
+{
+    const auto importedMaybe = TryImportAs( ".glb", test::SkinnedGlb(), "{}" );
+    REQUIRE_MESSAGE( importedMaybe, importedMaybe.error() );
+    const auto modelMaybe = TryReadModelAsset( importedMaybe->mBytes );
+    REQUIRE_MESSAGE( modelMaybe, modelMaybe.error() );
+    const ModelAsset& model = *modelMaybe;
+
+    // The bones and every node over them, parents first.
+    vector<string> names;
+    for ( const ModelJoint& joint : model.mJoints )
+        names.push_back( joint.mName );
+    CHECK( names == vector<string>{ "armature", "lower", "upper" } );
+    CHECK( model.mJoints[2].mRest[3] == vec4( 0.0f, 1.0f, 0.0f, 1.0f ) );
+    CHECK( model.mJoints[2].mInverseBind[3] == vec4( 0.0f, -1.0f, 0.0f, 1.0f ) );
+    // A node that is no bone binds nothing.
+    CHECK( model.mJoints[0].mInverseBind == mat4( 1.0f ) );
+
+    REQUIRE( model.mMeshes.size() == 1 );
+    const ModelMesh& mesh = model.mMeshes[0];
+    CHECK( mesh.mMaterial == "skin" );
+    REQUIRE( mesh.mSkin.size() == mesh.mVertices.size() );
+    for ( size_t v = 0; v < mesh.mVertices.size(); ++v )
+    {
+        const f32 y = mesh.mVertices[v].mPosition.y;
+        const ModelSkinVertex& skin = mesh.mSkin[v];
+        CAPTURE( y );
+        // The top on upper alone, the middle half and half, the bottom on lower.
+        const f32 onUpper =
+            ( skin.mJoints[0] == 2 ? skin.mWeights[0] : 0.0f ) + ( skin.mJoints[1] == 2 ? skin.mWeights[1] : 0.0f );
+        CHECK( onUpper == doctest::Approx( y / 2.0f ) );
+        CHECK( skin.mWeights.x + skin.mWeights.y + skin.mWeights.z + skin.mWeights.w == doctest::Approx( 1.0f ) );
+    }
+    CHECK( model.mMin == vec3( -0.1f, 0.0f, 0.0f ) );
+    CHECK( model.mMax == vec3( 0.1f, 2.0f, 0.0f ) );
+
+    CHECK( importedMaybe->mMore.at( string( cSkeletonKind ) ).starts_with( "BSKL" ) );
+    CHECK( importedMaybe->mMore.at( string( cClipsKind ) ).starts_with( "BCLP" ) );
+    for ( const Importer& importer : ModelImporters() )
+        CHECK( importer.mMoreKinds == vector<string>{ string( cSkeletonKind ), string( cClipsKind ) } );
+
+    // Scaled, the joints move apart as the vertices do.
+    const auto scaledMaybe = TryImportAs( ".glb", test::SkinnedGlb(), R"({ "scale": 2 })" );
+    REQUIRE_MESSAGE( scaledMaybe, scaledMaybe.error() );
+    const ModelAsset scaled = *TryReadModelAsset( scaledMaybe->mBytes );
+    CHECK( scaled.mJoints[2].mRest[3] == vec4( 0.0f, 2.0f, 0.0f, 1.0f ) );
+    CHECK( scaled.mJoints[2].mInverseBind[3] == vec4( 0.0f, -2.0f, 0.0f, 1.0f ) );
+    CHECK( scaled.mMax == vec3( 0.2f, 4.0f, 0.0f ) );
+}
+
+TEST_CASE( "Root motion comes out of a skinned model's clips into tracks of their own, as its settings say" )
+{
+    const auto plainMaybe = TryImportAs( ".glb", test::SkinnedGlb(), "{}" );
+    const auto movedMaybe = TryImportAs( ".glb", test::SkinnedGlb(), R"({ "root_motion": "lower" })" );
+    REQUIRE_MESSAGE( plainMaybe, plainMaybe.error() );
+    REQUIRE_MESSAGE( movedMaybe, movedMaybe.error() );
+    // The tracks make the clips' bytes longer.
+    CHECK( movedMaybe->mMore.at( string( cClipsKind ) ).size() > plainMaybe->mMore.at( string( cClipsKind ) ).size() );
+
+    CHECK( TryImportAs( ".glb", test::SkinnedGlb(), R"({ "root_motion": "tail" })" ).error() ==
+           "models/a.glb: settings.root_motion: no joint tail in its skeleton (joints: armature, lower, upper)" );
+    CHECK( TryImportAs( ".obj", cCube, R"({ "root_motion": "hips" })" ).error() ==
+           "models/a.obj: settings.root_motion: it has no skin, and so no skeleton" );
 }
 
 TEST_CASE( "A model and a texture are imported and loaded with no window" )

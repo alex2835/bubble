@@ -101,6 +101,10 @@ struct RenderItem
     mat4 mWorld{ 1.0f };
     // In linear light.
     vec4 mTint{ 1.0f };
+    // Its skin's pose, mSkinCount matrices from mSkinFirst in the scene's
+    // mSkins; none drawn at rest.
+    u32 mSkinFirst = 0;
+    u32 mSkinCount = 0;
 };
 
 // What there is to draw in a world, as the render module gathers it once a
@@ -110,6 +114,8 @@ struct RenderItem
 struct RenderScene
 {
     vector<RenderItem> mItems;
+    // The items' skin poses, one after another (SkinPose).
+    vector<mat4> mSkins;
     vector<RenderLight> mLights;
     // In the order their components lie; the game looks through the first.
     vector<RenderCamera> mCameras;

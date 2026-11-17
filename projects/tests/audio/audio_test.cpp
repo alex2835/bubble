@@ -282,12 +282,12 @@ TEST_CASE( "Sounds are imported as they are, longer ones to stream; what does no
     const AssetPath path = *AssetPath::TryFrom( "sounds/a.wav" );
     const auto shortMaybe = wav.mImport( MakeWav( 0.5f ), Json(), path );
     REQUIRE_MESSAGE( shortMaybe, shortMaybe.error() );
-    CHECK( shortMaybe->substr( 8, 4 ) == string( "\0\0\0\0", 4 ) );
+    CHECK( shortMaybe->mBytes.substr( 8, 4 ) == string( "\0\0\0\0", 4 ) );
     Json::Object settings;
     settings.push_back( Json::Member{ "stream", Json( true ) } );
     const auto streamedMaybe = wav.mImport( MakeWav( 0.5f ), Json( settings ), path );
     REQUIRE( streamedMaybe );
-    CHECK( streamedMaybe->substr( 8, 4 ) == string( "\1\0\0\0", 4 ) );
+    CHECK( streamedMaybe->mBytes.substr( 8, 4 ) == string( "\1\0\0\0", 4 ) );
     CHECK( wav.mImport( "not a sound", Json(), path ).error() ==
            "sounds/a.wav: not a sound miniaudio decodes - wav, flac or mp3" );
     const auto infoMaybe = TryProbeSound( MakeWav( 1.5f ) );

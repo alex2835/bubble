@@ -116,6 +116,32 @@ if( UNIX AND NOT APPLE AND NOT EMSCRIPTEN )
     target_link_libraries( miniaudio PUBLIC dl pthread m )
 endif()
 
+# ozz-animation 0.17.0 - skeletons and clips. Built here from its sources, not
+# by its own CMake, which sets flags for the whole build. ozz_runtime - the
+# maths, archives and jobs: sampling, blending, local to model - is the
+# animation module's alone; ozz_offline - the raw types and their builders,
+# the optimizer - the model importer's, in the editor and the cook. The web
+# has no SSE: the reference maths there.
+file( GLOB_RECURSE ozz_runtime_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ozz/src/base/*.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/ozz/src/animation/runtime/*.cc )
+add_library( ozz_runtime STATIC ${ozz_runtime_sources} )
+target_include_directories( ozz_runtime SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ozz/include )
+target_include_directories( ozz_runtime PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ozz/src )
+if( EMSCRIPTEN )
+    target_compile_definitions( ozz_runtime PUBLIC OZZ_BUILD_SIMD_REF )
+endif()
+file( GLOB ozz_offline_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/ozz/src/animation/offline/*.cc )
+add_library( ozz_offline STATIC ${ozz_offline_sources} )
+target_include_directories( ozz_offline PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ozz/src )
+target_link_libraries( ozz_offline PUBLIC ozz_runtime )
+foreach( target ozz_runtime ozz_offline )
+    if( MSVC )
+        target_compile_options( ${target} PRIVATE /w )
+    else()
+        target_compile_options( ${target} PRIVATE -w )
+    endif()
+endforeach()
+
 # SDL 3.4.20 - windows, input and the frame loop on every platform, the web
 # too; seen only inside bubble/platform. Static, with what the engine uses:
 # video and events, gamepads, haptics and sensors, file dialogs for the

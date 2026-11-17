@@ -49,10 +49,13 @@ struct Renderer::ObjectData
     mat4 mNormal{ 1.0f };
     vec4 mTint{ 1.0f };
     u32 mEntity = 0;
-    array<u32, 3> mPadding{};
+    // Where a skinned mesh's joint matrices start in the frame's skins.
+    u32 mSkin = 0;
+    array<u32, 2> mPadding{};
 };
 static_assert( sizeof( Renderer::ObjectData ) == 160 );
 static_assert( offsetof( Renderer::ObjectData, mEntity ) == 144 );
+static_assert( offsetof( Renderer::ObjectData, mSkin ) == 148 );
 
 struct Renderer::LineVertex
 {
@@ -147,6 +150,15 @@ bool Overlaps( const Frustum& frustum, vec3 min, vec3 max )
     return true;
 }
 
+// The vertex buffers a model's mesh is drawn from: its vertices, and its
+// skin beside them when it is skinned.
+vector<GpuVertexBufferLayout> VertexLayouts( bool skinned )
+{
+    if ( skinned )
+        return vector<GpuVertexBufferLayout>{ ModelVertexLayout(), ModelSkinLayout() };
+    return vector<GpuVertexBufferLayout>{ ModelVertexLayout() };
+}
+
 // Where an item's model may reach in the world: its box's corners, moved.
 void Grow( vec3& boundsMin, vec3& boundsMax, const mat4& world, vec3 min, vec3 max )
 {
@@ -178,10 +190,13 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
                                      TextureEntry( 2, WGPUTextureSampleType_Depth ),
                                      SamplerEntry( 3, WGPUSamplerBindingType_Comparison ),
                                  } );
-    // The vertex stage reads an object's matrices, the fragment its tint.
-    mObjectsLayout = CreateLayout(
-        gpu, "objects",
-        vector<WGPUBindGroupLayoutEntry>{ BufferEntry( 0, both, WGPUBufferBindingType_ReadOnlyStorage ) } );
+    // The vertex stage reads an object's matrices and its skin's, the
+    // fragment its tint.
+    mObjectsLayout =
+        CreateLayout( gpu, "objects",
+                      vector<WGPUBindGroupLayoutEntry>{
+                          BufferEntry( 0, both, WGPUBufferBindingType_ReadOnlyStorage ),
+                          BufferEntry( 1, WGPUShaderStage_Vertex, WGPUBufferBindingType_ReadOnlyStorage ) } );
     mShadowFrameLayout = CreateLayout(
         gpu, "shadow frame",
         vector<WGPUBindGroupLayoutEntry>{ BufferEntry( 0, WGPUShaderStage_Vertex, WGPUBufferBindingType_Uniform ) } );
@@ -190,25 +205,26 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
 
     // Depth is reversed: pushing a caster away from the light is a bias
     // down.
-    mShadowPipeline = CreateRenderPipeline(
-        gpu, GpuPipelineOptions{ .mLabel = "shadow",
-                                 .mShader = mShadow.Get(),
-                                 .mVertexEntry = "vs_main",
-                                 .mFragmentEntry = "",
-                                 .mBindGroupLayouts = { mShadowFrameLayout.Get(), mObjectsLayout.Get() },
-                                 .mVertexBuffers = { ModelVertexLayout() },
-                                 .mColorFormat = WGPUTextureFormat_Undefined,
-                                 .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
-                                                            .mCompare = WGPUCompareFunction_Greater,
-                                                            .mWrite = true,
-                                                            .mBias = -2,
-                                                            .mBiasSlopeScale = -2.0f },
-                                 .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                 // Both sides cast: a two-sided leaf as much
-                                 // as a closed box, whose far side the
-                                 // near one hides from the light anyway.
-                                 .mCullMode = WGPUCullMode_None,
-                                 .mBlend = false } );
+    for ( const bool skinned : { false, true } )
+        mShadowPipelines[skinned ? 1 : 0] = CreateRenderPipeline(
+            gpu, GpuPipelineOptions{ .mLabel = "shadow",
+                                     .mShader = mShadow.Get(),
+                                     .mVertexEntry = skinned ? "vs_skinned" : "vs_main",
+                                     .mFragmentEntry = "",
+                                     .mBindGroupLayouts = { mShadowFrameLayout.Get(), mObjectsLayout.Get() },
+                                     .mVertexBuffers = VertexLayouts( skinned ),
+                                     .mColorFormat = WGPUTextureFormat_Undefined,
+                                     .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
+                                                                .mCompare = WGPUCompareFunction_Greater,
+                                                                .mWrite = true,
+                                                                .mBias = -2,
+                                                                .mBiasSlopeScale = -2.0f },
+                                     .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                     // Both sides cast: a two-sided leaf as much
+                                     // as a closed box, whose far side the
+                                     // near one hides from the light anyway.
+                                     .mCullMode = WGPUCullMode_None,
+                                     .mBlend = false } );
 
     const auto lineAttribute = []( WGPUVertexFormat format, u64 offset, u32 location ) {
         WGPUVertexAttribute attribute = WGPU_VERTEX_ATTRIBUTE_INIT;
@@ -238,19 +254,20 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
             .mTopology = WGPUPrimitiveTopology_LineList,
             .mCullMode = WGPUCullMode_None,
             .mBlend = true } );
-    for ( const bool doubleSided : { false, true } )
-        mPickPipelines[doubleSided ? 1 : 0] = CreateRenderPipeline(
-            gpu, GpuPipelineOptions{ .mLabel = "pick",
-                                     .mShader = mPick.Get(),
-                                     .mVertexEntry = "vs_main",
-                                     .mFragmentEntry = "fs_main",
-                                     .mBindGroupLayouts = { mFrameLayout.Get(), mObjectsLayout.Get() },
-                                     .mVertexBuffers = { ModelVertexLayout() },
-                                     .mColorFormat = cPickFormat,
-                                     .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat },
-                                     .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                     .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
-                                     .mBlend = false } );
+    for ( const bool skinned : { false, true } )
+        for ( const bool doubleSided : { false, true } )
+            mPickPipelines[( skinned ? 2 : 0 ) + ( doubleSided ? 1 : 0 )] = CreateRenderPipeline(
+                gpu, GpuPipelineOptions{ .mLabel = "pick",
+                                         .mShader = mPick.Get(),
+                                         .mVertexEntry = skinned ? "vs_skinned" : "vs_main",
+                                         .mFragmentEntry = "fs_main",
+                                         .mBindGroupLayouts = { mFrameLayout.Get(), mObjectsLayout.Get() },
+                                         .mVertexBuffers = VertexLayouts( skinned ),
+                                         .mColorFormat = cPickFormat,
+                                         .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat },
+                                         .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                         .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
+                                         .mBlend = false } );
 
     WGPUSamplerDescriptor sampler = WGPU_SAMPLER_DESCRIPTOR_INIT;
     sampler.label = ToGpuString( "shadow" );
@@ -269,6 +286,7 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
     // Room for one of each: a storage binding is never empty.
     Fit( mLights, sizeof( LightData ), "lights" );
     Fit( mObjects, sizeof( ObjectData ), "objects" );
+    Fit( mSkins, sizeof( mat4 ), "skins" );
     MakeBindGroups();
     mMaterials = CreateScope<GpuMaterials>( gpu, assets, mAssets, mFrameLayout.Get(), mObjectsLayout.Get() );
 }
@@ -350,7 +368,8 @@ void Renderer::EncodePick( RenderView& view, WGPUCommandEncoder encoder, ivec2 s
         for ( const Batch& batch : mBatches )
         {
             const DrawCall& draw = mDraws[mOrder[batch.mDraw]];
-            wgpuRenderPassEncoderSetPipeline( pass.Get(), mPickPipelines[draw.mMaterial.mDoubleSided ? 1 : 0].Get() );
+            wgpuRenderPassEncoderSetPipeline(
+                pass.Get(), mPickPipelines[( draw.mSkinned ? 2 : 0 ) + ( draw.mMaterial.mDoubleSided ? 1 : 0 )].Get() );
             if ( boundModel != OptRef<const GpuModel>( draw.mModel ) )
             {
                 draw.mModel.Bind( pass.Get() );
@@ -382,8 +401,9 @@ void Renderer::MakeBindGroups()
                                                            SamplerBinding( 3, mShadowSampler.Get() ) } );
     mShadowFrameGroup = CreateGroup( mGpu, "shadow frame", mShadowFrameLayout.Get(),
                                      vector<WGPUBindGroupEntry>{ BufferBinding( 0, mShadowFrame ) } );
-    mObjectsGroup = CreateGroup( mGpu, "objects", mObjectsLayout.Get(),
-                                 vector<WGPUBindGroupEntry>{ BufferBinding( 0, mObjects ) } );
+    mObjectsGroup =
+        CreateGroup( mGpu, "objects", mObjectsLayout.Get(),
+                     vector<WGPUBindGroupEntry>{ BufferBinding( 0, mObjects ), BufferBinding( 1, mSkins ) } );
 }
 
 void Renderer::Resize( RenderView& view, ivec2 size )
@@ -426,6 +446,7 @@ WGPURenderPipeline Renderer::TonemapFor( WGPUTextureFormat format )
 void Renderer::Collect( const RenderScene& scene )
 {
     mItems.clear();
+    mSkinData.clear();
     mBoundsMin = vec3( numeric_limits<f32>::max() );
     mBoundsMax = vec3( -numeric_limits<f32>::max() );
     for ( const RenderItem& source : scene.mItems )
@@ -440,12 +461,24 @@ void Renderer::Collect( const RenderScene& scene )
                                           .mNormal = mat4( glm::transpose( glm::inverse( turn ) ) ),
                                           .mTint = source.mTint,
                                           .mEntity = static_cast<u32>( source.mEntity ),
+                                          .mSkin = 0,
                                           .mPadding = {} },
                    .mMin = vec3( numeric_limits<f32>::max() ),
                    .mMax = vec3( -numeric_limits<f32>::max() ),
                    .mCentre = vec3( 0.0f ),
                    .mRadius = 0,
                    .mScale = max( { glm::length( turn[0] ), glm::length( turn[1] ), glm::length( turn[2] ) } ) };
+        // Its skin as posed, or at rest when the pose is not for this model.
+        const vector<mat4>& rest = modelMaybe->RestSkin();
+        if ( not rest.empty() )
+        {
+            item.mObject.mSkin = static_cast<u32>( mSkinData.size() );
+            if ( source.mSkinCount == rest.size() )
+                mSkinData.insert( mSkinData.end(), scene.mSkins.begin() + source.mSkinFirst,
+                                  scene.mSkins.begin() + source.mSkinFirst + source.mSkinCount );
+            else
+                mSkinData.insert( mSkinData.end(), rest.begin(), rest.end() );
+        }
         Grow( item.mMin, item.mMax, source.mWorld, modelMaybe->Min(), modelMaybe->Max() );
         item.mCentre = ( item.mMin + item.mMax ) * 0.5f;
         item.mRadius = glm::length( item.mMax - item.mMin ) * 0.5f;
@@ -479,6 +512,11 @@ u32 Renderer::LodOf( RenderView& view, const Item& item, u32 mesh, vec3 eye, f32
     return lod;
 }
 
+WGPURenderPipeline Renderer::PipelineOf( const DrawCall& draw )
+{
+    return draw.mSkinned ? draw.mMaterial.mSkinnedPipeline : draw.mMaterial.mPipeline;
+}
+
 void Renderer::Order( const vector<DrawCall>& draws, vector<u32>& order, vector<Batch>& batches, bool shadow )
 {
     order.resize( draws.size() );
@@ -486,10 +524,11 @@ void Renderer::Order( const vector<DrawCall>& draws, vector<u32>& order, vector<
         order[draw] = draw;
     const auto opaqueEnd = stable_partition( order.begin(), order.end(),
                                              [&]( u32 draw ) { return not draws[draw].mMaterial.mTransparent; } );
-    // The shadow's pipeline is one; the materials do not matter there.
+    // The shadow's pipeline is one a kind of mesh, which the mesh says; the
+    // materials do not matter there.
     const auto key = [&]( const DrawCall& draw ) {
         return tuple<WGPURenderPipeline, const GpuMaterial*, const GpuModel*, u32, u32>(
-            shadow ? nullptr : draw.mMaterial.mPipeline, shadow ? nullptr : &draw.mMaterial, &draw.mModel, draw.mMesh,
+            shadow ? nullptr : PipelineOf( draw ), shadow ? nullptr : &draw.mMaterial, &draw.mModel, draw.mMesh,
             draw.mLod );
     };
     sort( order.begin(), opaqueEnd, [&]( u32 a, u32 b ) { return key( draws[a] ) < key( draws[b] ); } );
@@ -578,7 +617,8 @@ void Renderer::Draw( RenderView& view,
                                  .mMesh = mesh,
                                  .mLod = lod,
                                  .mItem = at,
-                                 .mDistance = glm::dot( toItem, toItem ) };
+                                 .mDistance = glm::dot( toItem, toItem ),
+                                 .mSkinned = meshes[mesh].mSkinned };
             if ( inView )
                 mDraws.push_back( draw );
             // What is transparent casts no shadow.
@@ -631,6 +671,7 @@ void Renderer::Draw( RenderView& view,
 
     bool grown = Fit( mLights, max<u64>( mLightData.size(), 1 ) * sizeof( LightData ), "lights" );
     grown = Fit( mObjects, max<u64>( mObjectData.size(), 1 ) * sizeof( ObjectData ), "objects" ) or grown;
+    grown = Fit( mSkins, max<u64>( mSkinData.size(), 1 ) * sizeof( mat4 ), "skins" ) or grown;
     if ( grown )
         MakeBindGroups();
     mFrame.Write( mGpu, 0, AsBytes( frame ) );
@@ -639,6 +680,8 @@ void Renderer::Draw( RenderView& view,
         mLights.Write( mGpu, 0, AsBytes( mLightData ) );
     if ( not mObjectData.empty() )
         mObjects.Write( mGpu, 0, AsBytes( mObjectData ) );
+    if ( not mSkinData.empty() )
+        mSkins.Write( mGpu, 0, AsBytes( mSkinData ) );
 
     const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mGpu.Device(), nullptr ) );
     // The calls; with their materials, or - the shadow's - with the
@@ -651,13 +694,15 @@ void Renderer::Draw( RenderView& view,
         for ( const Batch& batch : batches )
         {
             const DrawCall& draw = draws[order[batch.mDraw]];
+            const WGPURenderPipeline pipeline =
+                materials ? PipelineOf( draw ) : mShadowPipelines[draw.mSkinned ? 1 : 0].Get();
+            if ( boundPipeline != pipeline )
+            {
+                wgpuRenderPassEncoderSetPipeline( pass, pipeline );
+                boundPipeline = pipeline;
+            }
             if ( materials and boundMaterial != OptRef<const GpuMaterial>( draw.mMaterial ) )
             {
-                if ( boundPipeline != draw.mMaterial.mPipeline )
-                {
-                    wgpuRenderPassEncoderSetPipeline( pass, draw.mMaterial.mPipeline );
-                    boundPipeline = draw.mMaterial.mPipeline;
-                }
                 wgpuRenderPassEncoderSetBindGroup( pass, 2, draw.mMaterial.mGroup.Get(), 0, nullptr );
                 boundMaterial = draw.mMaterial;
             }
@@ -681,7 +726,6 @@ void Renderer::Draw( RenderView& view,
         descriptor.label = ToGpuString( "shadow" );
         descriptor.depthStencilAttachment = &depth;
         const GpuRenderPassHandle pass( wgpuCommandEncoderBeginRenderPass( encoder.Get(), &descriptor ) );
-        wgpuRenderPassEncoderSetPipeline( pass.Get(), mShadowPipeline.Get() );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, mShadowFrameGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 1, mObjectsGroup.Get(), 0, nullptr );
         drawBatches( pass.Get(), mShadowDraws, mShadowOrder, mShadowBatches, false );

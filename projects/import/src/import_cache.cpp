@@ -2,6 +2,7 @@
 #include "bubble/assets/asset_registry.hpp"
 #include "bubble/core/profile.hpp"
 #include "bubble/import/import_file.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
@@ -44,12 +45,28 @@ expected<ImportOutcome, string> TryImportAsset( const ProjectFiles& files,
     auto importedMaybe = importer.mImport( *sourceMaybe, settings, path );
     if ( not importedMaybe )
         return unexpected( std::move( importedMaybe.error() ) );
+    for ( const auto& [kind, bytes] : importedMaybe->mMore )
+        if ( find( importer.mMoreKinds.begin(), importer.mMoreKinds.end(), kind ) == importer.mMoreKinds.end() )
+            throw logic_error(
+                format( "the {} importer made {}, which is not among its kinds", importer.mKind, kind ) );
     // What it made first, then the key: a pass cut short in between imports
     // it again next time.
-    const AssetPath importedPath = ImportedPath( assetId, importer.mKind );
-    if ( auto writtenMaybe = files.TryWrite( importedPath, *importedMaybe ); not writtenMaybe )
-        return unexpected(
-            format( "{}: cannot write {}: {}", path.View(), importedPath.View(), writtenMaybe.error() ) );
+    const auto write = [&]( string_view kind, const string& bytes ) -> expected<void, string> {
+        const AssetPath importedPath = ImportedPath( assetId, kind );
+        if ( auto writtenMaybe = files.TryWrite( importedPath, bytes ); not writtenMaybe )
+            return unexpected(
+                format( "{}: cannot write {}: {}", path.View(), importedPath.View(), writtenMaybe.error() ) );
+        return {};
+    };
+    if ( auto writtenMaybe = write( importer.mKind, importedMaybe->mBytes ); not writtenMaybe )
+        return unexpected( std::move( writtenMaybe.error() ) );
+    for ( const string& kind : importer.mMoreKinds )
+    {
+        const auto found = importedMaybe->mMore.find( kind );
+        if ( auto writtenMaybe = write( kind, found == importedMaybe->mMore.end() ? ""s : found->second );
+             not writtenMaybe )
+            return unexpected( std::move( writtenMaybe.error() ) );
+    }
     if ( auto writtenMaybe = files.TryWrite( KeyPath( assetId ), key ); not writtenMaybe )
         return unexpected(
             format( "{}: cannot write {}: {}", path.View(), KeyPath( assetId ).View(), writtenMaybe.error() ) );

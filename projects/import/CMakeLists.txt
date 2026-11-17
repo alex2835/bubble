@@ -10,8 +10,9 @@ target_include_directories( bubble_import PUBLIC include )
 bubble_target_warnings( bubble_import )
 # The analyzer checks scripts strictly as they are imported.
 target_link_libraries( bubble_import PUBLIC bubble_engine PRIVATE stb_image luau_analysis )
-# Models where assimp is built: not on the web.
+# Models where assimp is built: not on the web. Their skeletons and clips
+# through ozz's builders.
 if( TARGET assimp )
-    target_link_libraries( bubble_import PRIVATE assimp meshoptimizer )
+    target_link_libraries( bubble_import PRIVATE assimp meshoptimizer ozz_offline )
     target_compile_definitions( bubble_import PUBLIC BUBBLE_IMPORT_MODELS )
 endif()

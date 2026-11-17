@@ -45,7 +45,7 @@ struct Imports
         auto bytesMaybe = importer.mImport( source, Json(), *AssetPath::TryFrom( path ) );
         if ( not bytesMaybe )
             return unexpected( std::move( bytesMaybe.error() ) );
-        return TryReadScriptAsset( *bytesMaybe );
+        return TryReadScriptAsset( bytesMaybe->mBytes );
     }
 
     string Error( string_view path, string_view source )
@@ -263,7 +263,7 @@ local P = props { model = asset( "models/hero.glb" ), size = math2.twice( 2 ) }
                                              "local n: number = math2.twice( 2 )",
                                              Json(), *AssetPath::TryFrom( "scripts/user.luau" ) );
     REQUIRE_MESSAGE( goodMaybe, goodMaybe.error() );
-    const auto assetMaybe = TryReadScriptAsset( *goodMaybe );
+    const auto assetMaybe = TryReadScriptAsset( goodMaybe->mBytes );
     REQUIRE( assetMaybe );
     CHECK( assetMaybe->mProps.front().mDefault == Value( hero ) );
     CHECK( assetMaybe->mRequires == vector<string>{ "scripts/tools/math2.luau" } );

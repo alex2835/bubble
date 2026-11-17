@@ -14,9 +14,9 @@ namespace
 {
 constexpr string_view cStandardLabel = "standard_material.wgsl";
 
-u32 PipelineIndex( bool transparent, bool doubleSided )
+u32 PipelineIndex( bool transparent, bool doubleSided, bool skinned )
 {
-    return ( transparent ? 2u : 0u ) + ( doubleSided ? 1u : 0u );
+    return ( skinned ? 4u : 0u ) + ( transparent ? 2u : 0u ) + ( doubleSided ? 1u : 0u );
 }
 
 GpuTexture OneTexel( const Gpu& gpu, array<u8, 4> rgba, string_view label )
@@ -99,27 +99,31 @@ MaterialShader::MaterialShader( Gpu& gpu,
     mCheck = gpu.Check( [&] {
         mModule = CreateShader( gpu, wgsl, label );
         mGroupLayout = CreateLayout( gpu, label, entries );
-        for ( const bool transparent : { false, true } )
-            for ( const bool doubleSided : { false, true } )
-                mPipelines[PipelineIndex( transparent, doubleSided )] = CreateRenderPipeline(
-                    gpu, GpuPipelineOptions{ .mLabel = string( label ),
-                                             .mShader = mModule.Get(),
-                                             .mVertexEntry = "vs_main",
-                                             .mFragmentEntry = "fs_main",
-                                             .mBindGroupLayouts = { frame, objects, mGroupLayout.Get() },
-                                             .mVertexBuffers = { ModelVertexLayout() },
-                                             .mColorFormat = cHdrFormat,
-                                             // What is behind a transparent
-                                             // surface still shows through
-                                             // the next one.
-                                             .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
-                                                                        .mCompare = WGPUCompareFunction_Greater,
-                                                                        .mWrite = not transparent,
-                                                                        .mBias = 0,
-                                                                        .mBiasSlopeScale = 0 },
-                                             .mTopology = WGPUPrimitiveTopology_TriangleList,
-                                             .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
-                                             .mBlend = transparent } );
+        for ( const bool skinned : { false, true } )
+            for ( const bool transparent : { false, true } )
+                for ( const bool doubleSided : { false, true } )
+                    mPipelines[PipelineIndex( transparent, doubleSided, skinned )] = CreateRenderPipeline(
+                        gpu, GpuPipelineOptions{
+                                 .mLabel = string( label ),
+                                 .mShader = mModule.Get(),
+                                 .mVertexEntry = skinned ? "vs_skinned" : "vs_main",
+                                 .mFragmentEntry = "fs_main",
+                                 .mBindGroupLayouts = { frame, objects, mGroupLayout.Get() },
+                                 .mVertexBuffers =
+                                     skinned ? vector<GpuVertexBufferLayout>{ ModelVertexLayout(), ModelSkinLayout() }
+                                             : vector<GpuVertexBufferLayout>{ ModelVertexLayout() },
+                                 .mColorFormat = cHdrFormat,
+                                 // What is behind a transparent
+                                 // surface still shows through
+                                 // the next one.
+                                 .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
+                                                            .mCompare = WGPUCompareFunction_Greater,
+                                                            .mWrite = not transparent,
+                                                            .mBias = 0,
+                                                            .mBiasSlopeScale = 0 },
+                                 .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                 .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
+                                 .mBlend = transparent } );
     } );
     mState = trusted ? State::Ready : State::Waiting;
 }
@@ -142,9 +146,9 @@ MaterialShader::State MaterialShader::Poll()
     return mState;
 }
 
-WGPURenderPipeline MaterialShader::Pipeline( bool transparent, bool doubleSided ) const
+WGPURenderPipeline MaterialShader::Pipeline( bool transparent, bool doubleSided, bool skinned ) const
 {
-    return mPipelines[PipelineIndex( transparent, doubleSided )].Get();
+    return mPipelines[PipelineIndex( transparent, doubleSided, skinned )].Get();
 }
 
 GpuMaterials::GpuMaterials( Gpu& gpu,
@@ -356,7 +360,8 @@ GpuMaterial GpuMaterials::Build( const MaterialShader& shader,
                                  bool doubleSided )
 {
     const MaterialLayout& layout = shader.Layout();
-    GpuMaterial material{ .mPipeline = shader.Pipeline( transparent, doubleSided ),
+    GpuMaterial material{ .mPipeline = shader.Pipeline( transparent, doubleSided, false ),
+                          .mSkinnedPipeline = shader.Pipeline( transparent, doubleSided, true ),
                           .mTransparent = transparent,
                           .mDoubleSided = doubleSided,
                           .mUniforms = {},

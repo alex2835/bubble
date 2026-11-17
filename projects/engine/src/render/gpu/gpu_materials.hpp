@@ -14,7 +14,7 @@ constexpr WGPUTextureFormat cDepthFormat = WGPUTextureFormat_Depth32Float;
 // A material's shader on the GPU: its WGSL with the engine's lit.wgsl after
 // it, what it declares, the layout of its bind group (group 2), and a
 // pipeline for each way a material draws - opaque or transparent, one side
-// or two.
+// or two, a mesh skinned or not.
 class MaterialShader
 {
 public:
@@ -43,7 +43,7 @@ public:
     const string& Error() const { return mError; }
     const MaterialLayout& Layout() const { return mLayout; }
     WGPUBindGroupLayout GroupLayout() const { return mGroupLayout.Get(); }
-    WGPURenderPipeline Pipeline( bool transparent, bool doubleSided ) const;
+    WGPURenderPipeline Pipeline( bool transparent, bool doubleSided, bool skinned ) const;
 
 private:
     State mState = State::Waiting;
@@ -51,7 +51,7 @@ private:
     MaterialLayout mLayout;
     GpuShaderHandle mModule;
     GpuBindGroupLayoutHandle mGroupLayout;
-    array<GpuRenderPipelineHandle, 4> mPipelines;
+    array<GpuRenderPipelineHandle, 8> mPipelines;
     opt<GpuCheck> mCheck;
 };
 
@@ -61,6 +61,8 @@ struct GpuMaterial
     // Its shader's, which outlives it: a shader built again builds its
     // materials again.
     WGPURenderPipeline mPipeline = nullptr;
+    // The same for a skinned mesh.
+    WGPURenderPipeline mSkinnedPipeline = nullptr;
     bool mTransparent = false;
     bool mDoubleSided = false;
     GpuBuffer mUniforms;

@@ -146,6 +146,8 @@ private:
         // From the camera to the item, squared: transparent ones are drawn
         // from the farthest.
         f32 mDistance = 0;
+        // Its mesh's: drawn through the skinned pipelines.
+        bool mSkinned = false;
     };
 
     // Draws in a row that are one call: instances from `mFirstInstance` on.
@@ -164,6 +166,8 @@ private:
     // transparent after, the farthest first, a call each. Instances go to
     // the object data in the order they are drawn.
     void Order( const vector<DrawCall>& draws, vector<u32>& order, vector<Batch>& batches, bool shadow );
+    // Its material's pipeline for its kind of mesh.
+    static WGPURenderPipeline PipelineOf( const DrawCall& draw );
     // Grows a storage buffer to hold `bytes`, and says whether it did - its
     // bind group is made again then.
     bool Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferUsage usage = WGPUBufferUsage_Storage );
@@ -183,10 +187,11 @@ private:
     GpuBindGroupLayoutHandle mObjectsLayout;
     GpuBindGroupLayoutHandle mShadowFrameLayout;
     GpuBindGroupLayoutHandle mTonemapLayout;
-    GpuRenderPipelineHandle mShadowPipeline;
+    // A mesh not skinned, a skinned one.
+    array<GpuRenderPipelineHandle, 2> mShadowPipelines;
     GpuRenderPipelineHandle mLinePipeline;
-    // One side, two sides.
-    array<GpuRenderPipelineHandle, 2> mPickPipelines;
+    // One side, two sides; then the same for a skinned mesh.
+    array<GpuRenderPipelineHandle, 4> mPickPipelines;
     hmap<u32, GpuRenderPipelineHandle> mTonemapPipelines;
 
     GpuSamplerHandle mShadowSampler;
@@ -195,6 +200,7 @@ private:
     GpuBuffer mShadowFrame;
     GpuBuffer mLights;
     GpuBuffer mObjects;
+    GpuBuffer mSkins;
     GpuBindGroupHandle mFrameGroup;
     GpuBindGroupHandle mShadowFrameGroup;
     GpuBindGroupHandle mObjectsGroup;
@@ -207,6 +213,7 @@ private:
     // This frame's, kept for their room.
     vector<Item> mItems;
     vector<ObjectData> mObjectData;
+    vector<mat4> mSkinData;
     vector<LightData> mLightData;
     vector<DrawCall> mDraws;
     vector<DrawCall> mShadowDraws;

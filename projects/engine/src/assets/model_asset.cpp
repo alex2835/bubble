@@ -8,9 +8,12 @@ namespace bubble
 namespace
 {
 constexpr string_view cMagic = "BMDL";
-constexpr u32 cVersion = 1;
+constexpr u32 cVersion = 2;
 // Position, normal, texture coordinate.
 constexpr u64 cVertexBytes = 8 * 4;
+// Four joints as two u32s, four weights.
+constexpr u64 cSkinBytes = 6 * 4;
+constexpr u64 cMatrixBytes = 16 * 4;
 
 void WriteVec3( BinaryWriter& out, vec3 v )
 {
@@ -27,6 +30,27 @@ opt<vec3> TryVec3( BinaryReader& reader )
     if ( not xMaybe or not yMaybe or not zMaybe )
         return nullopt;
     return vec3( *xMaybe, *yMaybe, *zMaybe );
+}
+
+void WriteMatrix( BinaryWriter& out, const mat4& matrix )
+{
+    for ( i32 column = 0; column < 4; ++column )
+        for ( i32 row = 0; row < 4; ++row )
+            out.F32( matrix[column][row] );
+}
+
+opt<mat4> TryMatrix( BinaryReader& reader )
+{
+    mat4 matrix( 1.0f );
+    for ( i32 column = 0; column < 4; ++column )
+        for ( i32 row = 0; row < 4; ++row )
+        {
+            const auto valueMaybe = reader.TryF32();
+            if ( not valueMaybe )
+                return nullopt;
+            matrix[column][row] = *valueMaybe;
+        }
+    return matrix;
 }
 }
 
@@ -49,6 +73,14 @@ string WriteModelAsset( const ModelAsset& model )
             out.F32( vertex.mUv.x );
             out.F32( vertex.mUv.y );
         }
+        out.U32( static_cast<u32>( mesh.mSkin.size() ) );
+        for ( const ModelSkinVertex& skin : mesh.mSkin )
+        {
+            out.U32( u32{ skin.mJoints[0] } | ( u32{ skin.mJoints[1] } << 16 ) );
+            out.U32( u32{ skin.mJoints[2] } | ( u32{ skin.mJoints[3] } << 16 ) );
+            for ( i32 slot = 0; slot < 4; ++slot )
+                out.F32( skin.mWeights[slot] );
+        }
         out.U32( static_cast<u32>( mesh.mLods.size() ) );
         for ( const ModelLod& lod : mesh.mLods )
         {
@@ -57,6 +89,13 @@ string WriteModelAsset( const ModelAsset& model )
             for ( const u32 index : lod.mIndices )
                 out.U32( index );
         }
+    }
+    out.U32( static_cast<u32>( model.mJoints.size() ) );
+    for ( const ModelJoint& joint : model.mJoints )
+    {
+        out.Text( joint.mName );
+        WriteMatrix( out, joint.mRest );
+        WriteMatrix( out, joint.mInverseBind );
     }
     return out.Take();
 }
@@ -103,6 +142,22 @@ expected<ModelAsset, string> TryReadModelAsset( string_view bytes )
             vertex =
                 ModelVertex{ .mPosition = *positionMaybe, .mNormal = *normalMaybe, .mUv = vec2( *uMaybe, *vMaybe ) };
         }
+        const auto skinMaybe = reader.TryU32();
+        if ( not skinMaybe or *skinMaybe * cSkinBytes > reader.Left() )
+            return cutShort();
+        if ( *skinMaybe != 0 and *skinMaybe != mesh.mVertices.size() )
+            return unexpected( format( "mesh {} of a model has a skin of {} vertices, not its {}", m, *skinMaybe,
+                                       mesh.mVertices.size() ) );
+        mesh.mSkin.resize( *skinMaybe );
+        for ( ModelSkinVertex& skin : mesh.mSkin )
+        {
+            const u32 low = *reader.TryU32();
+            const u32 high = *reader.TryU32();
+            skin.mJoints = { static_cast<u16>( low & 0xFFFF ), static_cast<u16>( low >> 16 ),
+                             static_cast<u16>( high & 0xFFFF ), static_cast<u16>( high >> 16 ) };
+            for ( i32 slot = 0; slot < 4; ++slot )
+                skin.mWeights[slot] = *reader.TryF32();
+        }
         const auto lodsMaybe = reader.TryU32();
         if ( not lodsMaybe )
             return cutShort();
@@ -126,8 +181,27 @@ expected<ModelAsset, string> TryReadModelAsset( string_view bytes )
         }
         model.mMeshes.push_back( std::move( mesh ) );
     }
+    const auto jointsMaybe = reader.TryU32();
+    if ( not jointsMaybe or *jointsMaybe * cMatrixBytes * 2 > reader.Left() )
+        return cutShort();
+    for ( u32 j = 0; j < *jointsMaybe; ++j )
+    {
+        const auto nameMaybe = reader.TryText();
+        const auto restMaybe = nameMaybe ? TryMatrix( reader ) : nullopt;
+        const auto inverseBindMaybe = restMaybe ? TryMatrix( reader ) : nullopt;
+        if ( not inverseBindMaybe )
+            return cutShort();
+        model.mJoints.push_back(
+            ModelJoint{ .mName = string( *nameMaybe ), .mRest = *restMaybe, .mInverseBind = *inverseBindMaybe } );
+    }
+    for ( u32 m = 0; m < model.mMeshes.size(); ++m )
+        for ( const ModelSkinVertex& skin : model.mMeshes[m].mSkin )
+            for ( const u16 joint : skin.mJoints )
+                if ( joint >= model.mJoints.size() )
+                    return unexpected( format( "mesh {} of a model has a vertex on joint {}, past its {} joints", m,
+                                               joint, model.mJoints.size() ) );
     if ( not reader.AtEnd() )
-        return unexpected( "a model with more after its last mesh"s );
+        return unexpected( "a model with more after its joints"s );
     return model;
 }
 

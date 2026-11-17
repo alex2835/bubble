@@ -56,7 +56,7 @@ expected<TextureAsset, string> TryImport( string_view source,
             auto bytesMaybe = importer.mImport( source, *Json::TryParse( settings ), Path( "textures/a.png" ) );
             if ( not bytesMaybe )
                 return unexpected( std::move( bytesMaybe.error() ) );
-            return TryReadTextureAsset( *bytesMaybe );
+            return TryReadTextureAsset( bytesMaybe->mBytes );
         }
     return unexpected( "no importer"s );
 }

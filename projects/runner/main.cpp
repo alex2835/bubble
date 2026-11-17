@@ -9,6 +9,8 @@
 // the actions; the mouse touches too, for a screen without touch. A touch
 // or a click picks what it lands on: its box drawn around it, its path
 // logged. `--frames N` quits after N frames drawn: a run a script can check.
+#include "bubble/animation/animation.hpp"
+#include "bubble/animation/animation_assets.hpp"
 #include "bubble/assets/model_primitives.hpp"
 #include "bubble/assets/prefab_asset.hpp"
 #include "bubble/assets/shader_asset.hpp"
@@ -396,6 +398,7 @@ int main( int argc, char** argv )
     RegisterScriptLoader( assets );
     RegisterPrefabLoader( assets );
     RegisterSoundLoader( assets );
+    RegisterAnimationLoaders( assets );
     // The system's sound; with none the game plays on, silent.
     auto deviceMaybe = AudioDevice::TryStart();
     if ( not deviceMaybe )
@@ -416,6 +419,7 @@ int main( int argc, char** argv )
                                                               .mGameVersion = "runner 0.7" } ) );
     app.AddModule( PhysicsModule( assets ) );
     app.AddModule( AudioModule( assets, *audio ) );
+    app.AddModule( AnimationModule( assets ) );
     app.AddModule( RenderModule( assets ) );
     World world( app, Level( project ) );
 

@@ -63,16 +63,23 @@ private:
         BUBBLE_PROFILE_ZONE_NAMED( "Render: gather" );
         Scene& scene = mWorld.GetScene();
         mScene.mItems.clear();
+        mScene.mSkins.clear();
         mScene.mLights.clear();
         mScene.mCameras.clear();
         mScene.mLines = mDebug.Take();
         mScene.mTime = static_cast<f32>( static_cast<f64>( mWorld.Steps() ) + mWorld.Alpha() ) * mWorld.FixedDt();
         scene.ForEach<ModelRuntime, Model>( [&]( Entity entity, const ModelRuntime& runtime, const Model& model ) {
-            mScene.mItems.push_back( RenderItem{ .mEntity = entity,
-                                                 .mModel = runtime.mModel,
-                                                 .mMaterials = runtime.mMaterials,
-                                                 .mWorld = WorldOf( entity ),
-                                                 .mTint = ToLinear( model.mTint ) } );
+            RenderItem& item = mScene.mItems.emplace_back( RenderItem{ .mEntity = entity,
+                                                                       .mModel = runtime.mModel,
+                                                                       .mMaterials = runtime.mMaterials,
+                                                                       .mWorld = WorldOf( entity ),
+                                                                       .mTint = ToLinear( model.mTint ) } );
+            if ( const auto skinMaybe = scene.TryGet<SkinPose>( entity ) )
+            {
+                item.mSkinFirst = static_cast<u32>( mScene.mSkins.size() );
+                item.mSkinCount = static_cast<u32>( skinMaybe->mMatrices.size() );
+                mScene.mSkins.insert( mScene.mSkins.end(), skinMaybe->mMatrices.begin(), skinMaybe->mMatrices.end() );
+            }
         } );
         scene.ForEach<DirectionalLight>( [&]( Entity entity, const DirectionalLight& light ) {
             const mat4 world = WorldOf( entity );

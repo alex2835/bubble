@@ -21,7 +21,9 @@ using f64 = double;
 static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::abs;
+using std::atan2;
 using std::cos;
+using std::floor;
 using std::isfinite;
 using std::isnan;
 using std::numeric_limits;

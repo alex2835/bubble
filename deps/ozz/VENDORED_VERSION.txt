@@ -10,3 +10,8 @@ offline Raw* types and builders instead, so no importer tool is needed.
 Patches:
 - src/animation/offline/CMakeLists.txt: no add_subdirectory of tools/fbx/gltf.
 - build-utils/cmake/compiler_settings.cmake: does not add /W4 on MSVC.
+
+Its own CMake is not used: deps/CMakeLists.txt builds ozz_runtime (base and
+animation/runtime) and ozz_offline (animation/offline) from the sources, so
+its compiler settings stay out of the build. The patches above stay for
+whoever builds it the upstream way.

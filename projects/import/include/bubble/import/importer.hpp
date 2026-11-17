@@ -8,6 +8,18 @@
 
 namespace bubble
 {
+// What an importer made of a source: the bytes of its kind, and of each kind
+// it makes beside - a model's skeleton and clips -, by kind.
+struct ImportedAsset
+{
+    // Not explicit: most importers make one kind and return its bytes.
+    ImportedAsset( string bytes ) : mBytes( std::move( bytes ) ) {}
+
+    string mBytes;
+    // A kind of Importer::mMoreKinds the source has none of is left out.
+    hmap<string, string> mMore;
+};
+
 // A source file and its settings into the engine's format: a .luau into
 // bytecode, a .png into a texture. What it makes goes to the import cache
 // (ImportedPath), and the registry's loader of the same kind reads it.
@@ -17,13 +29,18 @@ struct Importer
     string mExtension;
     // What it makes: "script". Names the imported file and its loader.
     string mKind;
+    // What it may make beside, under the same id: "skeleton", "clips". Each
+    // is written every import - empty when the source has none of it, which
+    // its loader refuses -, so no file is left over from an earlier one.
+    vector<string> mMoreKinds = {};
     // Made larger when what it makes changes: every asset it made is
     // imported again.
     u32 mVersion = 1;
     // The source's bytes and the settings in its .import into what the
     // engine loads. The error says what is wrong with the source, its path
     // first: "scripts/player.luau:3: Expected ...".
-    function<expected<string, string>( string_view source, const Json& settings, const AssetPath& path )> mImport;
+    function<expected<ImportedAsset, string>( string_view source, const Json& settings, const AssetPath& path )>
+        mImport;
 };
 
 // The importers a project has, one an extension.

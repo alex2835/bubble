@@ -23,7 +23,7 @@ AssetEntryBase::~AssetEntryBase()
     const Ref<detail::AssetIndex> index = mIndex.lock();
     if ( index == nullptr )
         return;
-    EraseExpired( index->mById, mId );
+    EraseExpired( index->mByKey, detail::AssetKey{ mId, mType } );
 }
 
 AssetPath ImportedPath( const AssetId& assetId, string_view kind )
@@ -91,10 +91,10 @@ AssetRegistry::ReadImported AssetRegistry::FromDirectory( OsPath root )
     } );
 }
 
-Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetId& assetId ) const
+Ref<AssetEntryBase> AssetRegistry::TryFindEntry( const AssetId& assetId, type_index type ) const
 {
-    const auto found = mIndex->mById.find( assetId );
-    return found == mIndex->mById.end() ? nullptr : found->second.lock();
+    const auto found = mIndex->mByKey.find( detail::AssetKey{ assetId, type } );
+    return found == mIndex->mByKey.end() ? nullptr : found->second.lock();
 }
 
 const AssetRegistry::RegisteredLoader& AssetRegistry::LoaderOf( const AssetEntryBase& entry ) const
@@ -112,17 +112,8 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetId& assetId,
                                               MakeEntry make,
                                               When when )
 {
-    if ( Ref<AssetEntryBase> entry = TryFindEntry( assetId ) )
+    if ( Ref<AssetEntryBase> entry = TryFindEntry( assetId, type ) )
     {
-        if ( entry->mType != type )
-        {
-            // The same file asked for as another kind: a failed ref of the
-            // kind asked, beside the one in memory.
-            Ref<AssetEntryBase> wrong = make( assetId, path );
-            wrong->mState = AssetState::Failed;
-            wrong->mError = format( "{} is loaded as another kind of asset", path.View() );
-            return wrong;
-        }
         if ( when == When::Now and entry->mState == AssetState::Loading )
         {
             static_cast<void>( TryLoadHere( *entry ) );
@@ -132,7 +123,7 @@ Ref<AssetEntryBase> AssetRegistry::LoadEntry( const AssetId& assetId,
     }
 
     Ref<AssetEntryBase> entry = make( assetId, path );
-    mIndex->mById[assetId] = entry;
+    mIndex->mByKey[detail::AssetKey{ assetId, type }] = entry;
     entry->mIndex = mIndex;
     // Nobody has seen it Loading, so nobody is told it is not.
     if ( when == When::Now )
@@ -206,24 +197,40 @@ void AssetRegistry::Tell( const Listeners& listeners, Heard heard, const AssetEn
 expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
 {
     const auto assetIdMaybe = mCatalog.TryIdOf( path );
-    const Ref<AssetEntryBase> entry = assetIdMaybe ? TryFindEntry( *assetIdMaybe ) : nullptr;
-    if ( entry == nullptr )
+    if ( not assetIdMaybe )
         return {};
-    const RegisteredLoader& loader = LoaderOf( *entry );
-    const auto loadedMaybe = TryReadHere( mRead, loader.mKind, loader.mLoad, entry->mId, entry->mPath );
-    // A load fills the entry only when it succeeds: a failed one leaves the
-    // old version in place, and an entry that never loaded keeps saying
-    // why.
-    if ( not loadedMaybe )
+    // Held first: a listener may let go of another entry of the asset.
+    vector<Ref<AssetEntryBase>> entries;
+    for ( const auto& [key, weakEntry] : mIndex->mByKey )
+        if ( key.mId == *assetIdMaybe )
+            if ( Ref<AssetEntryBase> entry = weakEntry.lock() )
+                entries.push_back( std::move( entry ) );
+    // In the order of their kinds, whatever the map's: listeners hear them
+    // the same way every time.
+    sort( entries.begin(), entries.end(),
+          [&]( const auto& a, const auto& b ) { return LoaderOf( *a ).mKind < LoaderOf( *b ).mKind; } );
+    string errors;
+    for ( const Ref<AssetEntryBase>& entry : entries )
     {
-        if ( entry->mState != AssetState::Ready )
-            entry->mError = loadedMaybe.error();
-        return unexpected( loadedMaybe.error() );
+        const RegisteredLoader& loader = LoaderOf( *entry );
+        const auto loadedMaybe = TryReadHere( mRead, loader.mKind, loader.mLoad, entry->mId, entry->mPath );
+        // A load fills the entry only when it succeeds: a failed one leaves
+        // the old version in place, and an entry that never loaded keeps
+        // saying why.
+        if ( not loadedMaybe )
+        {
+            if ( entry->mState != AssetState::Ready )
+                entry->mError = loadedMaybe.error();
+            errors += ( errors.empty() ? "" : "; " ) + loadedMaybe.error();
+            continue;
+        }
+        const bool first = entry->mState == AssetState::Loading;
+        Finish( *entry, loadedMaybe );
+        ++entry->mVersion;
+        Tell( *mListeners, first ? Heard::Loaded : Heard::Changed, *entry );
     }
-    const bool first = entry->mState == AssetState::Loading;
-    Finish( *entry, loadedMaybe );
-    ++entry->mVersion;
-    Tell( *mListeners, first ? Heard::Loaded : Heard::Changed, *entry );
+    if ( not errors.empty() )
+        return unexpected( std::move( errors ) );
     return {};
 }
 

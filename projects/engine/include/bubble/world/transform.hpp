@@ -27,6 +27,15 @@ struct WorldTransform
     mat4 mMatrix{ 1.0f };
 };
 
+// Where an entity hangs from its parent besides its own transform - the
+// joint of an animated model it is attached to: between its parent's world
+// transform and its own. Runtime: the module that attaches it writes it
+// before Phase::Transforms, and takes it away.
+struct ParentOffset
+{
+    mat4 mMatrix{ 1.0f };
+};
+
 mat4 LocalMatrix( const Transform& transform );
 quat RotationOf( const Transform& transform );
 // The angles a Transform turns by for `rotation`: about Y, X, then Z. Looking

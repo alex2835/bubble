@@ -187,10 +187,12 @@ TEST_CASE( "An entry lives as long as a ref to it" )
     {
         const auto a = project.Load( "a.txt" );
         const auto copy = a;
-        // A file asked for as the wrong kind is not listed.
-        const auto wrong = project.Load<NumberAsset>( "a.txt" );
+        // As another kind it is an entry of its own, failed here: nothing
+        // was imported as that kind.
+        const auto other = project.Load<NumberAsset>( "a.txt" );
         REQUIRE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
-        CHECK( project.mAssets.Count() == 1 );
+        CHECK( other.Entry().Error() == "no imported number: no such file" );
+        CHECK( project.mAssets.Count() == 2 );
     }
     CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
     CHECK_FALSE( project.mAssets.TryFind<TextAsset>( aId ) );
@@ -286,20 +288,42 @@ TEST_CASE( "A file that would not load is kept in memory and says the same reaso
     CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "gone.txt" ) ) );
 }
 
-TEST_CASE( "A file already in memory asked for as another kind says which one it is" )
+TEST_CASE( "One source imported as two kinds is two entries, reloaded together" )
 {
+    // A model and its skeleton, say: one id, a file of each kind.
     Project project;
     project.Add( "a.txt", "first" );
+    project.Add( "a.txt", "12", "number" );
     const auto text = project.Load( "a.txt" );
-    const auto asNumber = project.Load<NumberAsset>( "a.txt" );
-    CHECK( asNumber.State() == AssetState::Failed );
-    CHECK( asNumber.Entry().Error() == "a.txt is loaded as another kind of asset" );
-    CHECK( asNumber.Entry().Id() == text.Entry().Id() );
-    // The ref of the kind a person mistyped is not listed: the entry that is
-    // there stays the one and only, and a reload looks at it.
-    CHECK( project.mAssets.Count() == 1 );
-    CHECK_FALSE( project.mAssets.TryFind<NumberAsset>( *AssetPath::TryFrom( "a.txt" ) ) );
+    const auto number = project.Load<NumberAsset>( "a.txt" );
+    CHECK( text.TryGet()->mText == "first" );
+    CHECK( number.TryGet()->mValue == 2 );
+    CHECK( number.Entry().Id() == text.Entry().Id() );
+    CHECK( project.mAssets.Count() == 2 );
+    CHECK( project.mAssets.TryFind<NumberAsset>( *AssetPath::TryFrom( "a.txt" ) ) == number );
     CHECK( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "a.txt" ) ) == text );
+
+    // Imported again: both take their new versions, the listeners hearing
+    // each, in the order of their kinds.
+    vector<string> heard;
+    project.mAssets.OnChanged( [&]( const AssetEntryBase& entry ) {
+        heard.push_back( entry.Type() == typeid( TextAsset ) ? "text" : "number" );
+    } );
+    project.Add( "a.txt", "second" );
+    project.Add( "a.txt", "1234", "number" );
+    REQUIRE( project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) ) );
+    CHECK( text.TryGet()->mText == "second" );
+    CHECK( number.TryGet()->mValue == 4 );
+    CHECK( heard == vector<string>{ "number", "text" } );
+
+    // One that fails keeps its old version and says why; the other loads.
+    project.Add( "a.txt", "broken" );
+    project.Add( "a.txt", "123456", "number" );
+    const auto reloaded = project.mAssets.TryReload( *AssetPath::TryFrom( "a.txt" ) );
+    REQUIRE_FALSE( reloaded );
+    CHECK( reloaded.error() == "cannot read it" );
+    CHECK( text.TryGet()->mText == "second" );
+    CHECK( number.TryGet()->mValue == 6 );
     // A file with nothing in it loads as empty text.
     project.Add( "empty.txt", "" );
     CHECK( project.Load( "empty.txt" ).TryGet()->mText == "" );

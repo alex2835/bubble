@@ -34,7 +34,9 @@ private:
             const auto [entity, parent] = mStack.back();
             mStack.pop_back();
             const auto transformMaybe = scene.TryGet<Transform>( entity );
-            const mat4 matrix = transformMaybe ? parent * LocalMatrix( *transformMaybe ) : parent;
+            const auto offsetMaybe = scene.TryGet<ParentOffset>( entity );
+            const mat4 hung = offsetMaybe ? parent * offsetMaybe->mMatrix : parent;
+            const mat4 matrix = transformMaybe ? hung * LocalMatrix( *transformMaybe ) : hung;
             Set( entity, matrix );
             for ( const Entity child : ChildrenOf( scene, entity ) )
                 mStack.push_back( { child, matrix } );
@@ -82,8 +84,12 @@ mat4 ComputeWorldMatrix( const Scene& scene, Entity entity )
 {
     mat4 matrix( 1.0f );
     for ( Entity at = entity; scene.Alive( at ); at = ParentOf( scene, at ) )
+    {
         if ( const auto transformMaybe = scene.TryGet<Transform>( at ) )
             matrix = LocalMatrix( *transformMaybe ) * matrix;
+        if ( const auto offsetMaybe = scene.TryGet<ParentOffset>( at ) )
+            matrix = offsetMaybe->mMatrix * matrix;
+    }
     return matrix;
 }
 
