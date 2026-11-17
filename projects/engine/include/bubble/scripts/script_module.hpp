@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/assets/prefab_asset.hpp"
 #include "bubble/data/value.hpp"
 #include "bubble/scripts/script_runtime.hpp"
 #include "bubble/scripts/script_saves.hpp"
@@ -25,6 +26,9 @@ struct ScriptInstance
     // What the file requires, and what that requires: loaded before it
     // runs, as require itself never loads.
     vector<AssetRef<ScriptAsset>> mLibraryRefs;
+    // The prefabs its props name, loading as it starts and held while it
+    // runs: what spawn takes ready.
+    vector<AssetRef<PrefabAsset>> mPrefabRefs;
     // Empty until the file is loaded and the instance made and started.
     ScriptInstanceHandle mInstanceHandle;
     // Its file did not load, or its props do not fit the file: logged, and

@@ -192,6 +192,7 @@ private:
         scene.Add<ScriptInstance>( entity, ScriptInstance{ .mAssetRef = assetId ? mAssets.Load<ScriptAsset>( assetId )
                                                                                 : AssetRef<ScriptAsset>(),
                                                            .mLibraryRefs = {},
+                                                           .mPrefabRefs = {},
                                                            .mInstanceHandle = {},
                                                            .mFailed = false } );
     }
@@ -304,9 +305,29 @@ private:
             mRestored.erase( restored );
         }
         self.RawSet( "entity", entity );
+        HoldPrefabs( scene.Get<ScriptInstance>( entity ), self );
         scene.Get<ScriptInstance>( entity ).mInstanceHandle = instanceHandle;
         mInstances[entity] = instanceHandle;
         mRuntime.Call( instanceHandle, Index( ScriptCallback::Start ) );
+    }
+
+    // The prefabs among self's props - one, or a list of them - loading now
+    // so they are in when the script spawns them.
+    void HoldPrefabs( ScriptInstance& runtime, const LuaTable& self )
+    {
+        const auto hold = [&]( const LuaValue& value ) {
+            const auto idMaybe = value.TryAs<AssetId>();
+            const auto pathMaybe = idMaybe and *idMaybe ? mAssets.Catalog().TryPathOf( *idMaybe ) : nullopt;
+            if ( pathMaybe and pathMaybe->View().ends_with( ".prefab" ) )
+                runtime.mPrefabRefs.push_back( mAssets.Load<PrefabAsset>( *idMaybe ) );
+        };
+        for ( const auto& [key, value] : self.Pairs() )
+        {
+            hold( value );
+            if ( value.Is( LuaKind::Table ) )
+                for ( const auto& [index, element] : LuaTable( value ).Pairs() )
+                    hold( element );
+        }
     }
 
     // self as the snapshot had it, copied again: a snapshot restores as

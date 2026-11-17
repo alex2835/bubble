@@ -1,10 +1,13 @@
 #include "world_api.hpp"
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/assets/prefab_asset.hpp"
 #include "bubble/core/asset_path.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/scene/prefab.hpp"
 #include "bubble/scripts/script_values.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
+#include "bubble/world/transform.hpp"
 #include "bubble/world/world.hpp"
 #include <cstring>
 
@@ -259,6 +262,71 @@ void RegisterAsset( LuaState& lua, const AssetRegistry& assets )
     };
 }
 
+// The prefabs a world spawned, each held and parsed once a version.
+struct SpawnedPrefabs
+{
+    struct Kept
+    {
+        AssetRef<PrefabAsset> mAssetRef;
+        u32 mVersion = 0;
+        Ref<const Prefab> mPrefab;
+    };
+    hmap<AssetId, Kept> mKept;
+};
+
+// spawn( prefab, parent?, position? ): an instance of the prefab under
+// `parent` - the root when none -, named after the prefab's file, its root
+// at `position` when one is given. It is in the world at once; its modules
+// - its scripts, its bodies - hear of it at the world's next turn. One not
+// loaded yet loads now where that can be done here and now - not on the web,
+// where it has to be loaded first: a prop of a script is.
+void RegisterSpawn( LuaState& lua, World& world, AssetRegistry& assets )
+{
+    const auto spawned = CreateRef<SpawnedPrefabs>();
+    lua.Globals()["spawn"] = [&world, &assets, spawned]( const AssetId& prefabId, opt<Entity> parentMaybe,
+                                                         opt<vec3> positionMaybe ) {
+        if ( not prefabId )
+            throw LuaError( "spawn: no prefab - an asset() prop the scene has not set" );
+        const string described = assets.Catalog().Describe( prefabId );
+        SpawnedPrefabs::Kept& kept = spawned->mKept[prefabId];
+        if ( not kept.mAssetRef or kept.mAssetRef.State() == AssetState::Failed )
+            kept.mAssetRef = assets.Load<PrefabAsset>( prefabId );
+        if ( kept.mAssetRef.State() == AssetState::Loading )
+            kept.mAssetRef = assets.LoadNow<PrefabAsset>( prefabId );
+        const auto assetMaybe = kept.mAssetRef.TryGet();
+        if ( not assetMaybe )
+            throw LuaError( format( "spawn( {} ): {}", described, kept.mAssetRef.Entry().Error() ) );
+        if ( not kept.mPrefab or kept.mVersion != kept.mAssetRef.Entry().Version() )
+        {
+            auto prefabMaybe = Prefab::TryParse( assetMaybe->mText,
+                                                 FileContext( world.GetApp().GetComponentTypes(), assets.Catalog() ) );
+            if ( not prefabMaybe )
+                throw LuaError( format( "spawn( {} ): {}", described, prefabMaybe.error() ) );
+            kept.mPrefab = CreateRef<const Prefab>( std::move( *prefabMaybe ) );
+            kept.mVersion = kept.mAssetRef.Entry().Version();
+        }
+
+        Scene& scene = world.GetScene();
+        const Entity parent = parentMaybe ? *parentMaybe : scene.Root();
+        if ( not scene.Alive( parent ) or not InTree( scene, parent ) )
+            throw LuaError( format( "spawn( {} ): its parent is gone", described ) );
+        const string path = kept.mAssetRef.Entry().Path().String();
+        const size_t slash = path.rfind( '/' );
+        const string file = path.substr( slash == string::npos ? 0 : slash + 1 );
+        const Text name = Text::TryFrom( file.substr( 0, file.find( '.' ) ) ).value_or( Text() );
+        const Entity root =
+            Instantiate( scene, *kept.mPrefab, prefabId, parent, name, world.GetApp().GetComponentTypes() );
+        if ( positionMaybe )
+        {
+            if ( const auto transformMaybe = scene.TryGet<Transform>( root ) )
+                transformMaybe->mPosition = *positionMaybe;
+            else
+                scene.Add<Transform>( root, Transform{ .mPosition = *positionMaybe } );
+        }
+        return root;
+    };
+}
+
 // The world's Random instead of Luau's own: the same seed plays the same
 // game, and a snapshot takes the numbers to come with it.
 struct ServiceMethod
@@ -377,8 +445,9 @@ void RegisterRandom( LuaState& lua, World& world )
 }
 }
 
-void RegisterWorldApi( LuaState& lua, World& world, const AssetRegistry& assets, const ScriptApi& api )
+void RegisterWorldApi( LuaState& lua, World& world, AssetRegistry& assets, const ScriptApi& api )
 {
+    RegisterSpawn( lua, world, assets );
     RegisterEntity( lua, world, api );
     RegisterColor( lua );
     RegisterAsset( lua, assets );

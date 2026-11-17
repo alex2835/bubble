@@ -170,6 +170,9 @@ string WriteScriptDeclarations( App& app, const ScriptLabels& labels )
            "declare function asset(path: string?): asset\n"
            "declare function entity(): entity\n\n";
 
+    out += "-- An instance of a prefab in the running world, its root at `position` under `parent`.\n"
+           "declare function spawn(prefab: asset, parent: entity?, position: vector?): entity\n\n";
+
     out += "-- What the game remembers between levels, and its save slots.\n"
            "declare progress: { [string]: unknown }\n"
            "declare save: {\n"

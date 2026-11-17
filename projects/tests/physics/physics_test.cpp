@@ -305,3 +305,63 @@ end
     wrong.replace( wrong.find( "body.on_ground" ), 14, "body.on_grond" );
     CHECK_FALSE( importer.mImport( wrong, Json(), *AssetPath::TryFrom( "scripts/hero.luau" ) ) );
 }
+
+TEST_CASE( "A script spawns a hundred crates from a prefab, its own scripts start, and they fall and pile up" )
+{
+    PhysicsFixture f;
+    const AssetId spinner = f.AddScript( "scripts/spinner.luau", "function on_start( self ) record( 'up' ) end" );
+    f.Add( "prefabs/crate.prefab",
+           format( R"({{ "version": 1, "next_id": 1, "root": {{ "id": 0, "components": {{
+                 "transform": {{}}, "box_collider": {{}}, "rigid_body": {{}},
+                 "script": {{ "asset": {{ "asset": "{}" }}, "props": {{}} }} }} }} }})",
+                   spinner.ToString() ),
+           cPrefabKind );
+    const AssetId dropper = f.AddScript( "scripts/dropper.luau", R"(
+local P = props { crate = asset( "prefabs/crate.prefab" ) }
+function on_start( self )
+    for i = 0, 99 do
+        spawn( self.crate, nil, vector.create( ( i % 10 ) * 1.2 - 6, 1 + math.floor( i / 10 ) * 1.2, 0 ) )
+    end
+end
+)" );
+    Scene scene;
+    PhysicsFixture::Ground( scene );
+    const Entity hand = PhysicsFixture::Place( scene, "hand", Transform{} );
+    scene.Add<Script>( hand, Script{ .mAsset = dropper, .mProps = Value( Value::Record{} ) } );
+    World world( f.mApp, std::move( scene ) );
+    f.Steps( world, 240 );
+
+    const vector<Entity> crates = world.GetScene().EntitiesWith<RigidBody>();
+    REQUIRE( crates.size() == 100 );
+    // Named after the prefab's file, unique among their siblings.
+    vector<string> names;
+    for ( const Entity crate : crates )
+        names.push_back( NameOf( world.GetScene(), crate ).String() );
+    CHECK( ranges::count( names, "crate"s ) == 1 );
+    CHECK( ranges::count( names, "crate_100"s ) == 1 );
+    f32 highest = 0;
+    for ( const Entity crate : crates )
+    {
+        CHECK( PhysicsFixture::PositionOf( world, crate ).y > 0.4f );
+        highest = max( highest, PhysicsFixture::PositionOf( world, crate ).y );
+    }
+    // Stacked ten high at most, each on the one below.
+    CHECK( highest < 12.0f );
+    CHECK( ranges::count( f.TakeRecorded(), "up"s ) == 100 );
+}
+
+TEST_CASE( "Spawning what is not a prefab is the script's error, naming it" )
+{
+    PhysicsFixture f;
+    const AssetId script = f.AddScript( "scripts/wrong.luau", R"(
+local P = props { thing = asset( "scripts/wrong.luau" ) }
+function on_start( self ) spawn( self.thing ) end
+)" );
+    Scene scene;
+    const Entity hand = PhysicsFixture::Place( scene, "hand", Transform{} );
+    scene.Add<Script>( hand, Script{ .mAsset = script, .mProps = Value( Value::Record{} ) } );
+    const LogWatch log;
+    World world( f.mApp, std::move( scene ) );
+    f.Steps( world, 5 );
+    CHECK( log.Saw( LogLevel::Error, { "/hand: scripts/wrong.luau:3: spawn( scripts/wrong.luau ):" } ) );
+}

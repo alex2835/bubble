@@ -4,6 +4,7 @@
 // scripts compiled by the importer -, record( text ) in every world's
 // globals, and helpers to place bodies and step.
 #include "bubble/assets/model_primitives.hpp"
+#include "bubble/assets/prefab_asset.hpp"
 #include "bubble/import/import_cache.hpp"
 #include "bubble/import/script_importer.hpp"
 #include "bubble/physics/physics.hpp"
@@ -36,6 +37,7 @@ struct PhysicsFixture
     {
         RegisterScriptLoader( mAssets );
         RegisterModelLoader( mAssets );
+        RegisterPrefabLoader( mAssets );
         mApp.AddModule( TransformModule() );
         mApp.AddModule(
             ScriptModule( mAssets, ScriptModuleOptions{ .mGlobals =

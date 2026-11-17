@@ -2,13 +2,15 @@
 // their stages; for now a scene made here - boxes of a few materials on the
 // ground under the sun, a warm lamp - drawn by the renderer and played by
 // scripts on physics: the red box walks as "move_x" and "move_z" say and
-// jumps, two boxes tumble down, the camera follows, and a pad lights up when
+// jumps and throws crates - a prefab spawned -, two boxes tumble down, the
+// camera follows, and a pad lights up when
 // the box reaches it - remembered in `progress` and written to the
 // "autosave" slot, which the next run reads. Stages 5 to 8 checked by hand. The keyboard, a gamepad and touches drive
 // the actions; the mouse touches too, for a screen without touch. A touch
 // or a click picks what it lands on: its box drawn around it, its path
 // logged. `--frames N` quits after N frames drawn: a run a script can check.
 #include "bubble/assets/model_primitives.hpp"
+#include "bubble/assets/prefab_asset.hpp"
 #include "bubble/assets/shader_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/input/input.hpp"
@@ -50,6 +52,7 @@ ActionMap Controls()
         .Bind( "move_z", topRight )
         .Bind( "move_z", bottomRight, -1.0f );
     map.Bind( "jump", Key::Space ).Bind( "jump", GamepadButton::South );
+    map.Bind( "spawn", Key::E ).Bind( "spawn", GamepadButton::West );
     return map;
 }
 
@@ -129,7 +132,7 @@ fn surface( in: SurfaceInput ) -> SurfaceOutput
 // The red box: walks and jumps as the actions say. The jump is a height and
 // the time to its top, the two things seen on screen; gravity follows.
 constexpr string_view cPlayer = R"luau(
-local P = props { speed = 3, jump_height = 1.2, time_to_apex = 0.35 }
+local P = props { speed = 3, jump_height = 1.2, time_to_apex = 0.35, crate = asset() }
 type Self = typeof( P ) & { entity: entity }
 
 function on_fixed_update( self: Self, dt: number )
@@ -144,6 +147,11 @@ function on_fixed_update( self: Self, dt: number )
         rise = if input.pressed( "jump" ) then gravity * self.time_to_apex else 0
     end
     body.velocity = move * self.speed + vector.create( 0, rise, 0 ) + body.ground_velocity
+    -- A crate from above, tumbling down beside the player.
+    if input.pressed( "spawn" ) then
+        local at = self.entity.transform.position + vector.create( math.random() - 0.5, 3, math.random() - 0.5 )
+        spawn( self.crate, nil, at )
+    end
 end
 )luau";
 
@@ -249,8 +257,17 @@ Scene Level( Project& project )
     scene.Add<CharacterController>(
         player, CharacterController{
                     .mRadius = 0.45f, .mHeight = 1.0f, .mMaxSlope = glm::radians( 45.0f ), .mStepHeight = 0.3f } );
-    scene.Add<Script>( player, Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
-                                       .mProps = Value( Value::Record{} ) } );
+    // What E throws: a crate, as a prefab - the player's prop.
+    const AssetId crate = project.Add( "prefabs/crate.prefab",
+                                       format( R"({{ "version": 1, "next_id": 1, "root": {{ "id": 0, "components": {{
+            "transform": {{ "scale": [ 0.6, 0.6, 0.6 ] }},
+            "model": {{ "asset": {{ "asset": "{}" }}, "materials": [ {{ "asset": "{}" }} ] }},
+            "box_collider": {{}}, "rigid_body": {{}} }} }} }})",
+                                               box.ToString(), gold.ToString() ),
+                                       cPrefabKind );
+    scene.Add<Script>(
+        player, Script{ .mAsset = project.AddScript( "scripts/player.luau", cPlayer ),
+                        .mProps = Value( Value::Record{ ValueField{ Name::Declare( "crate" ), Value( crate ) } } ) } );
     const Entity body = CreateChild( scene, player, Make( "body" ) );
     scene.Add<Transform>( body, boxes[0] );
     scene.Add<Model>( body, Model{ .mAsset = box, .mMaterials = { materials[0] }, .mTint = {} } );
@@ -325,6 +342,7 @@ int main( int argc, char** argv )
     RegisterShaderLoader( assets );
     RegisterTextureLoader( assets );
     RegisterScriptLoader( assets );
+    RegisterPrefabLoader( assets );
     // Saves in the user's folder; without one the game plays on, unsaved.
     Ref<SaveSlots> saves;
     if ( auto folderMaybe = platform.TrySaveFolder( "runner" ) )

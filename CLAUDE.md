@@ -57,7 +57,8 @@ projects/engine/include/bubble/
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, LOD levels sharing them, the box; "BMDL", RegisterModelLoader);
                               MakeBox/MakePlane (models made in code); ShaderAsset (a material's WGSL), MaterialAsset
-                              (.mat JSON: shader or base, double_sided, transparent, params by name)
+                              (.mat JSON: shader or base, double_sided, transparent, params by name); PrefabAsset
+                              (a .prefab's text, parsed where it is used)
     input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
                               snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
@@ -120,7 +121,9 @@ projects/engine/include/bubble/
                               ScriptApi (what a module adds to scripts beyond reflection: component members, globals,
                               callbacks; ScriptCall - a module calling a script's callback through the world's events);
                               src/scripts/world_api (entity, color, asset, each component a Luau type from reflection,
-                              services described as such - debug_draw -, input, math.random on the world's Random),
+                              services described as such - debug_draw -, input, spawn( prefab, parent?, position? )
+                              - the prefab parsed once a version, held -, math.random on the world's Random; prefabs a
+                              script's props name load as it starts),
                               script_values (Value <-> Luau), script_declarations (bubble.d.luau from App's
                               descriptions), script_saves (ScriptProgress, SaveSlots in memory or a folder, the slot
                               format), src/scripts/save_api (save.write/read/info/list)
@@ -147,7 +150,8 @@ projects/import/include/bubble/import/
                               and requires read from the AST; with a ScriptCheck - bubble.d.luau, .luaurc aliases,
                               the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
                               callbacks annotated; TryProjectScriptCheck, TryReadLuaurc), ShaderImporter (.wgsl, the contract checked),
-                              MaterialImporter (.mat checked), TextureImporters (stb_image: png, jpg,
+                              MaterialImporter (.mat checked), PrefabImporter (.prefab kept, checked against the
+                              component types), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; not on the web - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
@@ -167,7 +171,8 @@ projects/editing/include/bubble/editing/
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character
-                              controller - walks by move_x and move_z and jumps, two boxes tumble, the camera follows,
+                              controller - walks by move_x and move_z, jumps, throws crates (a prefab spawned on E),
+                              two boxes tumble, the camera follows,
                               a pad lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
