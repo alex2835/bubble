@@ -85,6 +85,23 @@ if( NOT EMSCRIPTEN )
     endif()
 endif()
 
+# Jolt Physics 5.7.0 - rigid bodies, the character controller, queries; the
+# physics module's alone. Jolt/ as released, less what its hair simulation
+# runs on, which is not used: the GPU compute backends (Compute/DX12, MTL,
+# VK), the HLSL and its CPU wrappers (Shaders/ keeps its headers only).
+# Deterministic across platforms - a replay plays the same - which
+# also wants no fused multiply-add anywhere Jolt's inline code is compiled.
+# The defines are public: Jolt checks that its users were built as it was.
+file( GLOB_RECURSE jolt_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/jolt/Jolt/*.cpp )
+add_library( jolt STATIC ${jolt_sources} )
+target_include_directories( jolt SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/jolt )
+target_compile_definitions( jolt PUBLIC JPH_CROSS_PLATFORM_DETERMINISTIC $<$<CONFIG:Debug>:JPH_ENABLE_ASSERTS> )
+if( MSVC )
+    target_compile_options( jolt PRIVATE /w PUBLIC /clang:-ffp-contract=off )
+else()
+    target_compile_options( jolt PRIVATE -w PUBLIC -ffp-contract=off )
+endif()
+
 # SDL 3.4.20 - windows, input and the frame loop on every platform, the web
 # too; seen only inside bubble/platform. Static, with what the engine uses:
 # video and events, gamepads, haptics and sensors, file dialogs for the

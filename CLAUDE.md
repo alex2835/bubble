@@ -8,6 +8,11 @@ read the section you touch before changing a design, and update the doc when
 a decision changes. It also holds the stage plan: a feature waits for its
 stage, however ready it looks in the old code.
 
+The sandbox - the game stages 7 to 9 are checked against - is a project of
+its own, outside the engine: `E:\projects\bubble_sand_box2`, in the new
+formats. The old one, `E:\projects\bubble_sand_box`, is read only: its
+assets and scripts are copied and rewritten, never converted by code.
+
 ## Build and test
 
 Windows, from PowerShell (vcvars puts VS 18's clang-cl on the path):
