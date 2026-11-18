@@ -44,8 +44,13 @@ void World::Frame( f64 elapsed )
 
     mFrameActions = mInput.mLatchFrame ? mInput.mLatchFrame() : Actions();
     DeliverDataEvents();
+    // What came since the last step - a click the UI took between frames,
+    // an event the last frame's own code emitted - is heard now, paused or
+    // not: a menu works while the game stands.
+    mEvents.Deliver();
     const f32 dt = static_cast<f32>( elapsed );
-    for ( const Phase phase : { Phase::Update, Phase::Animation, Phase::Transforms, Phase::Audio, Phase::Render } )
+    for ( const Phase phase :
+          { Phase::Update, Phase::Animation, Phase::Transforms, Phase::Ui, Phase::Audio, Phase::Render } )
         Run( phase, dt );
 }
 

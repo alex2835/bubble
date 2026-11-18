@@ -142,6 +142,52 @@ foreach( target ozz_runtime ozz_offline )
     endif()
 endforeach()
 
+# Yoga 3.2.1 - flexbox layout for the ui module, behind src/ui alone.
+file( GLOB_RECURSE yoga_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/yoga/yoga/*.cpp )
+add_library( yoga STATIC ${yoga_sources} )
+target_include_directories( yoga SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/yoga )
+if( MSVC )
+    target_compile_options( yoga PRIVATE /w )
+else()
+    target_compile_options( yoga PRIVATE -w )
+endif()
+
+# FreeType 2.15.0 and msdfgen 1.13 - a font's glyphs into a multi-channel
+# signed distance field atlas, by the font importer in the editor and the
+# cook; a runner draws the atlas it made. Not on the web, where neither
+# runs. FreeType with the modules TrueType and OpenType fonts need
+# (freetype/include/freetype/config/ftmodule.h), built as C.
+if( NOT EMSCRIPTEN )
+    set( freetype_dir ${CMAKE_CURRENT_SOURCE_DIR}/freetype )
+    set( freetype_sources )
+    foreach( file ftbase ftbbox ftbitmap ftdebug ftfstype ftgasp ftglyph ftinit ftmm ftstroke ftsynth ftsystem )
+        list( APPEND freetype_sources ${freetype_dir}/src/base/${file}.c )
+    endforeach()
+    foreach( file autofit/autofit cff/cff psaux/psaux psnames/psnames pshinter/pshinter sfnt/sfnt smooth/smooth
+                  truetype/truetype gzip/ftgzip svg/svg )
+        list( APPEND freetype_sources ${freetype_dir}/src/${file}.c )
+    endforeach()
+    add_library( freetype STATIC ${freetype_sources} )
+    target_include_directories( freetype SYSTEM PUBLIC ${freetype_dir}/include )
+    target_compile_definitions( freetype PRIVATE FT2_BUILD_LIBRARY )
+    if( MSVC )
+        target_compile_options( freetype PRIVATE /w )
+    else()
+        target_compile_options( freetype PRIVATE -w )
+    endif()
+
+    file( GLOB msdfgen_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen/core/*.cpp )
+    add_library( msdfgen STATIC ${msdfgen_sources} ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen/ext/import-font.cpp )
+    target_include_directories( msdfgen SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/msdfgen )
+    target_compile_definitions( msdfgen PUBLIC MSDFGEN_PUBLIC= MSDFGEN_USE_CPP11 )
+    target_link_libraries( msdfgen PUBLIC freetype )
+    if( MSVC )
+        target_compile_options( msdfgen PRIVATE /w )
+    else()
+        target_compile_options( msdfgen PRIVATE -w )
+    endif()
+endif()
+
 # SDL 3.4.20 - windows, input and the frame loop on every platform, the web
 # too; seen only inside bubble/platform. Static, with what the engine uses:
 # video and events, gamepads, haptics and sensors, file dialogs for the

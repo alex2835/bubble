@@ -1,0 +1,18 @@
+FreeType 2.15.0
+https://download.savannah.gnu.org/releases/freetype/freetype-2.15.0.tar.xz
+
+Used under the FreeType License (docs/FTL.TXT), which asks for a credit in
+the documentation: THIRD_PARTY_NOTICES.md carries it.
+
+Kept: include/, and of src/ the modules for TrueType and OpenType (CFF)
+fonts - base, autofit, cff, psaux, psnames, pshinter, sfnt, smooth,
+truetype, gzip (WOFF's zlib) and svg (OT-SVG glyphs). Dropped: the other
+drivers (Type 1, CID, PFR, Type 42, Windows FNT, PCF, BDF, HVF), the raster
+and SDF renderers, the cache, bzip2, the validators, tools, builds/, tests
+and the documentation but its licenses.
+
+Patches:
+- include/freetype/config/ftmodule.h: registers the kept modules alone.
+
+deps/CMakeLists.txt builds the kept modules with the default ftoption.h:
+no external zlib, libpng, bzip2, HarfBuzz or Brotli.

@@ -16,3 +16,8 @@ if( TARGET assimp )
     target_link_libraries( bubble_import PRIVATE assimp meshoptimizer ozz_offline )
     target_compile_definitions( bubble_import PUBLIC BUBBLE_IMPORT_MODELS )
 endif()
+# Fonts where FreeType and msdfgen are built: not on the web.
+if( TARGET msdfgen )
+    target_link_libraries( bubble_import PRIVATE msdfgen )
+    target_compile_definitions( bubble_import PUBLIC BUBBLE_IMPORT_FONTS )
+endif()

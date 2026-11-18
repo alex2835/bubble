@@ -22,6 +22,7 @@ static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::abs;
 using std::atan2;
+using std::ceil;
 using std::cos;
 using std::floor;
 using std::isfinite;

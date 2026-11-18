@@ -24,6 +24,7 @@
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
 #include "bubble/types/thread.hpp"
+#include "bubble/ui/ui.hpp"
 #include "bubble/world/transform.hpp"
 #include "bubble/world/world.hpp"
 
@@ -214,6 +215,24 @@ end
 
 // The pad: lit once its target has stood on it - in this run, the last
 // level's (progress) or an earlier run's (the autosave slot).
+// The HUD's button: a crate dropped from above.
+constexpr string_view cDropButton = R"luau(
+local P = props { crate = asset() }
+
+function on_click( self )
+    spawn( self.crate, nil, vector.create( 0, 4, 0 ) )
+end
+)luau";
+
+// The HUD's slider: how loud the game's sounds are.
+constexpr string_view cVolume = R"luau(
+function on_change( self, value: number | boolean )
+    if type( value ) == "number" then
+        audio.set_bus_volume( "sfx", value )
+    end
+end
+)luau";
+
 constexpr string_view cPad = R"luau(
 local P = props { target = entity(), reach = 1.2, chime = asset() }
 type Self = typeof( P ) & { entity: entity }
@@ -342,6 +361,41 @@ Scene Level( Project& project )
     scene.Add<PointLight>( lamp, PointLight{ .mColor = { .mR = 1.0f, .mG = 0.6f, .mB = 0.3f, .mA = 1.0f },
                                              .mIntensity = 15.0f,
                                              .mRange = 8.0f } );
+    // The HUD: a panel in the top left corner with a button that drops a
+    // crate and a slider for the sounds' volume. The arrows stay the
+    // game's.
+    const Entity hud = CreateChild( scene, scene.Root(), Make( "hud" ) );
+    scene.Add<UiCanvas>( hud, UiCanvas{ .mWidth = 960, .mHeight = 540, .mNavigation = false } );
+    const Entity panel = CreateChild( scene, hud, Make( "panel" ) );
+    UiRect panelRect;
+    panelRect.mPosition = Name::Declare( "absolute" );
+    panelRect.mLeft = "16";
+    panelRect.mTop = "16";
+    panelRect.mPadding = 8;
+    panelRect.mGap = 12;
+    panelRect.mDirection = Name::Declare( "row" );
+    panelRect.mAlign = Name::Declare( "center" );
+    scene.Add<UiRect>( panel, panelRect );
+    scene.Add<UiImage>( panel, UiImage{ .mImage = AssetId{}, .mColor = { 0.1f, 0.12f, 0.16f, 0.75f }, .mSlice = 0 } );
+    const Entity drop = CreateChild( scene, panel, Make( "drop" ) );
+    UiRect dropRect;
+    dropRect.mWidth = "40";
+    dropRect.mHeight = "40";
+    scene.Add<UiRect>( drop, dropRect );
+    scene.Add<UiImage>( drop, UiImage{ .mImage = AssetId{}, .mColor = { 0.95f, 0.65f, 0.2f, 1.0f }, .mSlice = 0 } );
+    scene.Add<UiButton>( drop );
+    scene.Add<Script>(
+        drop, Script{ .mAsset = project.AddScript( "scripts/drop_button.luau", cDropButton ),
+                      .mProps = Value( Value::Record{ ValueField{ Name::Declare( "crate" ), Value( crate ) } } ) } );
+    const Entity volume = CreateChild( scene, panel, Make( "volume" ) );
+    UiRect volumeRect;
+    volumeRect.mWidth = "160";
+    volumeRect.mHeight = "12";
+    scene.Add<UiRect>( volume, volumeRect );
+    scene.Add<UiImage>( volume, UiImage{ .mImage = AssetId{}, .mColor = { 0.35f, 0.38f, 0.45f, 1.0f }, .mSlice = 0 } );
+    scene.Add<UiSlider>( volume, UiSlider{ .mValue = 1, .mMin = 0, .mMax = 1 } );
+    scene.Add<Script>( volume, Script{ .mAsset = project.AddScript( "scripts/volume.luau", cVolume ) } );
+
     // Placed each frame by its script, behind the player.
     const Entity camera = CreateChild( scene, scene.Root(), Make( "camera" ) );
     scene.Add<Transform>( camera );
@@ -399,6 +453,7 @@ int main( int argc, char** argv )
     RegisterPrefabLoader( assets );
     RegisterSoundLoader( assets );
     RegisterAnimationLoaders( assets );
+    RegisterFontLoader( assets );
     // The system's sound; with none the game plays on, silent.
     auto deviceMaybe = AudioDevice::TryStart();
     if ( not deviceMaybe )
@@ -420,6 +475,7 @@ int main( int argc, char** argv )
     app.AddModule( PhysicsModule( assets ) );
     app.AddModule( AudioModule( assets, *audio ) );
     app.AddModule( AnimationModule( assets ) );
+    app.AddModule( UiModule( assets ) );
     app.AddModule( RenderModule( assets ) );
     World world( app, Level( project ) );
 
@@ -433,10 +489,16 @@ int main( int argc, char** argv )
                                 .mLatchFrame = [&] { return input.LatchFrame(); } } );
     Entity picked;
     platform.Run( [&]( f64 elapsed ) {
+        // The UI's screen is the window, in the units of its pointer.
+        UiWorld& ui = world.Get<UiWorld>();
+        ui.SetScreen( window.Size() );
         for ( const InputEvent& event : platform.Poll() )
         {
             // A browser plays sound once the page saw a gesture.
             audio->Resume();
+            // What the UI takes the game does not see.
+            if ( ui.Take( event ) )
+                continue;
             input.Handle( event );
             // A touch is a share of the window; the target is its pixels.
             if ( const auto* touch = get_if<TouchDown>( &event ); touch and renderer )
@@ -480,7 +542,8 @@ int main( int argc, char** argv )
             const RenderScene& scene = world.Get<RenderScene>();
             renderer->Draw(
                 view, scene, scene.mCameras.front(),
-                RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() } );
+                RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() },
+                world.Get<UiScene>() );
             surface.Present();
             ++framesDrawn;
         }

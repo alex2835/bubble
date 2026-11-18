@@ -43,9 +43,17 @@ OptRef<const GpuTexture> GpuAssets::TryTexture( const AssetRef<TextureAsset>& te
     } );
 }
 
+OptRef<const GpuTexture> GpuAssets::TryFont( const AssetRef<FontAsset>& fontRef )
+{
+    return TryCopyOf( mFonts, fontRef, [this]( const FontAsset& font, string_view label ) {
+        return GpuTexture( mGpu, font.mAtlas, label );
+    } );
+}
+
 void GpuAssets::Collect()
 {
     erase_if( mModels, [this]( const auto& copy ) { return not mAssets.TryFind<ModelAsset>( copy.first ); } );
     erase_if( mTextures, [this]( const auto& copy ) { return not mAssets.TryFind<TextureAsset>( copy.first ); } );
+    erase_if( mFonts, [this]( const auto& copy ) { return not mAssets.TryFind<FontAsset>( copy.first ); } );
 }
 }

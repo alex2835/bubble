@@ -1,0 +1,9 @@
+msdfgen 1.13
+https://github.com/Chlumsky/msdfgen (tag v1.13)
+
+Kept: core/, msdfgen.h, ext/import-font.{h,cpp} (glyph outlines through
+FreeType) and LICENSE.txt. Dropped: the command line tool (main.cpp), the
+other extensions - PNG saving (libpng), SVG import (tinyxml2), shape
+geometry resolution (Skia) - and msdfgen-ext.h, which includes them all.
+deps/CMakeLists.txt builds it with MSDFGEN_PUBLIC and MSDFGEN_USE_CPP11
+defined, so msdfgen-config.h is not needed.

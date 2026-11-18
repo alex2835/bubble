@@ -25,6 +25,7 @@ enum class Phase : u8
     Update,      // Luau's on_update, the camera
     Animation,
     Transforms, // between the last two steps, by Alpha()
+    Ui,         // the UI laid out, where the transforms put its world canvases
     Audio,
     Render,
 };

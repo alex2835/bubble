@@ -39,7 +39,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 
 ```
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
-                              own CMake: its runtime in the engine, its offline builders in import). wgpu-native
+                              own CMake: its runtime in the engine, its offline builders in import; Yoga in the
+                              engine; FreeType - TrueType and OpenType modules - and msdfgen in import). wgpu-native
                               alone is downloaded at configure time into out/downloads, pinned by version and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
@@ -58,7 +59,8 @@ projects/engine/include/bubble/
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, a skin's joints and weights beside them, LOD levels sharing them,
                               the box; the joints - name, rest, inverse bind -; "BMDL", RegisterModelLoader;
-                              SkinPose: a skinned model's matrices this frame, runtime);
+                              SkinPose: a skinned model's matrices this frame, runtime); FontAsset (an MSDF atlas -
+                              a TextureAsset of data -, metrics, glyphs, kerning; "BFNT", RegisterFontLoader);
                               MakeBox/MakePlane (models made in code); ShaderAsset (a material's WGSL), MaterialAsset
                               (.mat JSON: shader or base, double_sided, transparent, params by name); PrefabAsset
                               (a .prefab's text, parsed where it is used)
@@ -108,7 +110,8 @@ projects/engine/include/bubble/
                               culling, each mesh's LOD by its error in pixels with hysteresis, meshes alike in one
                               instanced call; skinned meshes through their own pipelines - vs_skinned -, each
                               instance's joint matrices in one storage buffer, its pose's or its model's rest; the
-                              debug drawing's lines; materials
+                              debug drawing's lines; a UiScene's world canvases among the surfaces and its screen
+                              canvases over the tonemapped picture, batched by texture; materials
                               built from their bases, shader and textures in src/render/gpu/gpu_materials - the
                               standard one while they load, a magenta placeholder when they fail), RenderView (one
                               place a world is seen from: its targets, LOD hysteresis, Pick/TryPicked - the entity
@@ -151,9 +154,19 @@ projects/engine/include/bubble/
                               script_values (Value <-> Luau), script_declarations (bubble.d.luau from App's
                               descriptions), script_saves (ScriptProgress, SaveSlots in memory or a folder, the slot
                               format), src/scripts/save_api (save.write/read/info/list)
+    ui/                       the game's UI as entities (src/ui alone): ui_canvas (on the screen - its height the
+                              screen's - or in the world), ui_rect (flexbox by Yoga: lengths "auto", "120", "50%",
+                              absolute pinning, direction, justify, align, grow, gap, visible), ui_image (a color or an
+                              image, 9-slice), ui_text (a font's MSDF glyphs, wrapped, aligned; measured for layout),
+                              ui_button, ui_toggle, ui_slider (tints by state; on_click, on_change as ScriptCalls);
+                              UiScene (quads by canvas, a world's service, drawn by the Renderer), UiWorld (a service:
+                              SetScreen, Take - input before the game's actions -, boxes, hover, focus; arrows, Tab and
+                              a gamepad's pad navigate a canvas with navigation); scripts' ui.focus/focused; laid out
+                              in Phase::Ui
     world/                    App (one a process: Jobs, reflection, component types, modules), World (a scene and its
                               modules: data events - added, changed, removed - delivered at the world's turns, the
-                              frame's phases in one list, FixedClock, Services by type, Events queued;
+                              frame's phases in one list, FixedClock, Services by type, Events queued - delivered
+                              after each step's physics and before the frame's phases, a paused world's too -;
                               Snapshot/Restore - runtime built again from the data, a module's own state through
                               Module::TrySnapshot/Restoring/Restored -, WorldInput: the actions a step and a frame
                               see, GetActions), Module (ModuleType::mScripts: its ScriptApi); transform (position,
@@ -163,7 +176,8 @@ projects/engine/include/bubble/
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage - vs_skinned for
                               a skin -, PBR lighting, the shadow; built after a material's own), standard_material,
-                              shadow, pick (each with a skinned vertex stage too), tonemap
+                              shadow, pick (each with a skinned vertex stage too), tonemap, ui (images and MSDF
+                              glyphs)
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
                               files: read, list with stamps, a save replaces the file whole), ImportFile
@@ -178,7 +192,9 @@ projects/import/include/bubble/import/
                               the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
                               callbacks annotated; TryProjectScriptCheck, TryReadLuaurc), ShaderImporter (.wgsl, the contract checked),
                               MaterialImporter (.mat checked), PrefabImporter (.prefab kept, checked against the
-                              component types), AnimationGraphImporter (.anim kept, checked), SoundImporters (wav, flac, mp3: kept, checked by decoding; longer
+                              component types), AnimationGraphImporter (.anim kept, checked), FontImporter (ttf, otf:
+                              FreeType's outlines as msdfgen's fields in one atlas - Latin, Latin-1, Cyrillic and what
+                              "chars" adds -, metrics, kerning; not on the web - BUBBLE_IMPORT_FONTS), SoundImporters (wav, flac, mp3: kept, checked by decoding; longer
                               than 10 s streams, or as the .import's "stream" says), TextureImporters (stb_image: png, jpg,
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; a skin - its bones and every node over them -
@@ -203,13 +219,14 @@ projects/runner/              bubble_runner, on the engine alone (never import o
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character
                               controller - walks by move_x and move_z, jumps with a blip, throws crates (a prefab
-                              spawned on E), two boxes tumble, the camera follows,
+                              spawned on E), two boxes tumble, the camera follows, a HUD - a button dropping a crate,
+                              a slider for the sounds' volume - takes the input over it,
                               a pad chimes and lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
                               logged); animation/skinned_model.hpp (a skinned .glb made in code: two joints, three
-                              clips); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
+                              clips); ui/test_font.hpp (a TrueType font made in code: a few glyphs, a kerning pair); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
                               drawn and read back); render/reference_image.hpp + render/reference/*.png (pictures
                               checked with a rasterizer's tolerance; BUBBLE_UPDATE_REFERENCES=1 writes them anew, a
                               failing one goes beside the tests' binary); deps/ tests deps (luaubind

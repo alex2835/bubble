@@ -4,6 +4,7 @@
 #include "bubble/render/gpu/gpu_buffer.hpp"
 #include "bubble/render/gpu/gpu_texture.hpp"
 #include "bubble/render/render_scene.hpp"
+#include "bubble/ui/ui.hpp"
 
 namespace bubble
 {
@@ -123,7 +124,13 @@ public:
     Renderer( const Renderer& ) = delete;
     Renderer& operator=( const Renderer& ) = delete;
 
-    void Draw( RenderView& view, const RenderScene& scene, const RenderCamera& camera, const RenderTarget& target );
+    // With `uiMaybe`, its world canvases among the surfaces and its screen
+    // canvases over the picture.
+    void Draw( RenderView& view,
+               const RenderScene& scene,
+               const RenderCamera& camera,
+               const RenderTarget& target,
+               OptRef<const UiScene> uiMaybe = nullopt );
 
     GpuAssets& Assets() { return mAssets; }
 
@@ -134,8 +141,18 @@ public:
     // An item whose model has come, as this frame takes it.
     struct Item;
     struct LineVertex;
+    struct UiVertex;
 
 private:
+    // A run of UI quads drawn with one texture: its vertices, and whether
+    // its canvas is in the world.
+    struct UiBatch
+    {
+        u32 mFirst = 0;
+        u32 mCount = 0;
+        WGPUTextureView mTexture = nullptr;
+        bool mWorld = false;
+    };
     struct DrawCall
     {
         const GpuModel& mModel;
@@ -172,6 +189,10 @@ private:
     // bind group is made again then.
     bool Fit( GpuBuffer& buffer, u64 bytes, string_view label, WGPUBufferUsage usage = WGPUBufferUsage_Storage );
     void EncodePick( RenderView& view, WGPUCommandEncoder encoder, ivec2 size );
+    // The UI's vertices and canvases written, its batches made.
+    void PrepareUi( const UiScene& ui, const mat4& viewProjection, ivec2 size );
+    void DrawUi( WGPURenderPassEncoder pass, bool world, WGPURenderPipeline pipeline );
+    WGPURenderPipeline UiScreenFor( WGPUTextureFormat format );
     void MakeBindGroups();
     WGPURenderPipeline TonemapFor( WGPUTextureFormat format );
 
@@ -183,10 +204,25 @@ private:
     GpuShaderHandle mTonemap;
     GpuShaderHandle mLines;
     GpuShaderHandle mPick;
+    GpuShaderHandle mUi;
     GpuBindGroupLayoutHandle mFrameLayout;
     GpuBindGroupLayoutHandle mObjectsLayout;
     GpuBindGroupLayoutHandle mShadowFrameLayout;
     GpuBindGroupLayoutHandle mTonemapLayout;
+    GpuBindGroupLayoutHandle mUiCanvasLayout;
+    GpuBindGroupLayoutHandle mUiImageLayout;
+    GpuRenderPipelineHandle mUiWorldPipeline;
+    hmap<u32, GpuRenderPipelineHandle> mUiScreenPipelines;
+    GpuSamplerHandle mUiSampler;
+    GpuTexture mUiWhite;
+    GpuBuffer mUiCanvases;
+    GpuBuffer mUiVertices;
+    GpuBindGroupHandle mUiCanvasGroup;
+    // This frame's: one for each texture the UI draws with.
+    hmap<WGPUTextureView, GpuBindGroupHandle> mUiImageGroups;
+    vector<UiVertex> mUiVertexData;
+    vector<mat4> mUiCanvasData;
+    vector<UiBatch> mUiBatches;
     // A mesh not skinned, a skinned one.
     array<GpuRenderPipelineHandle, 2> mShadowPipelines;
     GpuRenderPipelineHandle mLinePipeline;

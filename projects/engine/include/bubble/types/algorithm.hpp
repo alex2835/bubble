@@ -18,5 +18,6 @@ using std::min;
 using std::sort;
 using std::stable_partition;
 using std::stable_sort;
+using std::unique;
 using std::upper_bound;
 }

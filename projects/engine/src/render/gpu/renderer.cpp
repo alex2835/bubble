@@ -64,6 +64,18 @@ struct Renderer::LineVertex
 };
 static_assert( sizeof( Renderer::LineVertex ) == 28 );
 
+struct Renderer::UiVertex
+{
+    vec2 mPosition{ 0.0f };
+    vec2 mUv{ 0.0f };
+    vec4 mColor{ 1.0f };
+    u32 mCanvas = 0;
+    u32 mKind = 0;
+    f32 mRange = 0;
+    f32 mPadding = 0;
+};
+static_assert( sizeof( Renderer::UiVertex ) == 48 );
+
 struct RenderView::PickState
 {
     bool mDone = false;
@@ -150,6 +162,26 @@ bool Overlaps( const Frustum& frustum, vec3 min, vec3 max )
     return true;
 }
 
+// How a UI vertex lies: its position, uv, color, canvas, kind and range.
+GpuVertexBufferLayout UiVertexLayout()
+{
+    const auto attribute = []( WGPUVertexFormat format, u64 offset, u32 location ) {
+        WGPUVertexAttribute vertexAttribute = WGPU_VERTEX_ATTRIBUTE_INIT;
+        vertexAttribute.format = format;
+        vertexAttribute.offset = offset;
+        vertexAttribute.shaderLocation = location;
+        return vertexAttribute;
+    };
+    return GpuVertexBufferLayout{ .mStride = 48,
+                                  .mAttributes =
+                                      vector<WGPUVertexAttribute>{ attribute( WGPUVertexFormat_Float32x2, 0, 0 ),
+                                                                   attribute( WGPUVertexFormat_Float32x2, 8, 1 ),
+                                                                   attribute( WGPUVertexFormat_Float32x4, 16, 2 ),
+                                                                   attribute( WGPUVertexFormat_Uint32, 32, 3 ),
+                                                                   attribute( WGPUVertexFormat_Uint32, 36, 4 ),
+                                                                   attribute( WGPUVertexFormat_Float32, 40, 5 ) } };
+}
+
 // The vertex buffers a model's mesh is drawn from: its vertices, and its
 // skin beside them when it is skinned.
 vector<GpuVertexBufferLayout> VertexLayouts( bool skinned )
@@ -181,6 +213,7 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
     mTonemap = CreateShader( gpu, EngineShader( "tonemap.wgsl" ), "tonemap.wgsl" );
     mLines = CreateShader( gpu, EngineShader( "debug_lines.wgsl" ), "debug_lines.wgsl" );
     mPick = CreateShader( gpu, EngineShader( "pick.wgsl" ), "pick.wgsl" );
+    mUi = CreateShader( gpu, EngineShader( "ui.wgsl" ), "ui.wgsl" );
 
     const WGPUShaderStage both = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
     mFrameLayout = CreateLayout( gpu, "frame",
@@ -268,6 +301,43 @@ Renderer::Renderer( Gpu& gpu, AssetRegistry& assets, RendererOptions options )
                                          .mTopology = WGPUPrimitiveTopology_TriangleList,
                                          .mCullMode = doubleSided ? WGPUCullMode_None : WGPUCullMode_Back,
                                          .mBlend = false } );
+
+    // The UI: its canvases' matrices, then each batch's texture.
+    mUiCanvasLayout = CreateLayout( gpu, "ui canvases",
+                                    vector<WGPUBindGroupLayoutEntry>{ BufferEntry(
+                                        0, WGPUShaderStage_Vertex, WGPUBufferBindingType_ReadOnlyStorage ) } );
+    mUiImageLayout =
+        CreateLayout( gpu, "ui image",
+                      vector<WGPUBindGroupLayoutEntry>{ TextureEntry( 0, WGPUTextureSampleType_Float ),
+                                                        SamplerEntry( 1, WGPUSamplerBindingType_Filtering ) } );
+    // In the world among the surfaces: behind what is nearer, hiding nothing.
+    mUiWorldPipeline = CreateRenderPipeline(
+        gpu, GpuPipelineOptions{ .mLabel = "ui in the world",
+                                 .mShader = mUi.Get(),
+                                 .mVertexEntry = "vs_main",
+                                 .mFragmentEntry = "fs_main",
+                                 .mBindGroupLayouts = { mUiCanvasLayout.Get(), mUiImageLayout.Get() },
+                                 .mVertexBuffers = { UiVertexLayout() },
+                                 .mColorFormat = cHdrFormat,
+                                 .mDepth = GpuDepthOptions{ .mFormat = cDepthFormat,
+                                                            .mCompare = WGPUCompareFunction_Greater,
+                                                            .mWrite = false,
+                                                            .mBias = 0,
+                                                            .mBiasSlopeScale = 0 },
+                                 .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                 .mCullMode = WGPUCullMode_None,
+                                 .mBlend = true } );
+    WGPUSamplerDescriptor uiSampler = WGPU_SAMPLER_DESCRIPTOR_INIT;
+    uiSampler.label = ToGpuString( "ui" );
+    uiSampler.magFilter = WGPUFilterMode_Linear;
+    uiSampler.minFilter = WGPUFilterMode_Linear;
+    uiSampler.mipmapFilter = WGPUMipmapFilterMode_Linear;
+    mUiSampler = GpuSamplerHandle( wgpuDeviceCreateSampler( gpu.Device(), &uiSampler ) );
+    mUiWhite = GpuTexture( gpu, GpuTextureOptions{ .mSize = ivec2( 1 ), .mMips = 1, .mLabel = "ui white" } );
+    const array<u8, 4> white{ 255, 255, 255, 255 };
+    mUiWhite.Write( gpu, 0, AsBytes( white ) );
+    Fit( mUiCanvases, sizeof( mat4 ), "ui canvases" );
+    Fit( mUiVertices, sizeof( UiVertex ), "ui vertices", WGPUBufferUsage_Vertex );
 
     WGPUSamplerDescriptor sampler = WGPU_SAMPLER_DESCRIPTOR_INIT;
     sampler.label = ToGpuString( "shadow" );
@@ -404,6 +474,8 @@ void Renderer::MakeBindGroups()
     mObjectsGroup =
         CreateGroup( mGpu, "objects", mObjectsLayout.Get(),
                      vector<WGPUBindGroupEntry>{ BufferBinding( 0, mObjects ), BufferBinding( 1, mSkins ) } );
+    mUiCanvasGroup = CreateGroup( mGpu, "ui canvases", mUiCanvasLayout.Get(),
+                                  vector<WGPUBindGroupEntry>{ BufferBinding( 0, mUiCanvases ) } );
 }
 
 void Renderer::Resize( RenderView& view, ivec2 size )
@@ -423,6 +495,114 @@ void Renderer::Resize( RenderView& view, ivec2 size )
                                                        .mLabel = "depth" } );
     view.mTonemapGroup = CreateGroup( mGpu, "tonemap", mTonemapLayout.Get(),
                                       vector<WGPUBindGroupEntry>{ TextureBinding( 0, view.mHdr.View() ) } );
+}
+
+WGPURenderPipeline Renderer::UiScreenFor( WGPUTextureFormat format )
+{
+    GpuRenderPipelineHandle& pipeline = mUiScreenPipelines[static_cast<u32>( format )];
+    if ( not pipeline )
+        pipeline = CreateRenderPipeline(
+            mGpu, GpuPipelineOptions{ .mLabel = "ui on the screen",
+                                      .mShader = mUi.Get(),
+                                      .mVertexEntry = "vs_main",
+                                      .mFragmentEntry = "fs_main",
+                                      .mBindGroupLayouts = { mUiCanvasLayout.Get(), mUiImageLayout.Get() },
+                                      .mVertexBuffers = { UiVertexLayout() },
+                                      .mColorFormat = format,
+                                      .mDepth = nullopt,
+                                      .mTopology = WGPUPrimitiveTopology_TriangleList,
+                                      .mCullMode = WGPUCullMode_None,
+                                      .mBlend = true } );
+    return pipeline.Get();
+}
+
+void Renderer::PrepareUi( const UiScene& ui, const mat4& viewProjection, ivec2 size )
+{
+    mUiVertexData.clear();
+    mUiCanvasData.clear();
+    mUiBatches.clear();
+    mUiImageGroups.clear();
+    for ( const UiCanvasView& canvas : ui.mCanvases )
+    {
+        if ( canvas.mWorld )
+        {
+            mUiCanvasData.push_back( viewProjection * canvas.mToWorld );
+            continue;
+        }
+        // Its pixels across the target, Y down.
+        mat4 toClip( 1.0f );
+        toClip[0][0] = 2.0f / max( canvas.mSize.x, 1.0f );
+        toClip[1][1] = -2.0f / max( canvas.mSize.y, 1.0f );
+        toClip[3][0] = -1.0f;
+        toClip[3][1] = 1.0f;
+        mUiCanvasData.push_back( toClip );
+    }
+    (void)size;
+    for ( const UiQuad& quad : ui.mQuads )
+    {
+        if ( quad.mCanvas >= ui.mCanvases.size() )
+            continue;
+        WGPUTextureView texture = mUiWhite.View();
+        f32 range = 0;
+        if ( quad.mKind == UiQuadKind::Glyph )
+        {
+            const auto atlasMaybe = mAssets.TryFont( quad.mFont );
+            if ( not atlasMaybe )
+                continue;
+            texture = atlasMaybe->View();
+            range = quad.mFont.TryGet()->mRange;
+        }
+        else if ( quad.mImage )
+        {
+            const auto imageMaybe = mAssets.TryTexture( quad.mImage );
+            if ( not imageMaybe )
+                continue;
+            texture = imageMaybe->View();
+        }
+        const bool world = ui.mCanvases[quad.mCanvas].mWorld;
+        if ( mUiBatches.empty() or mUiBatches.back().mTexture != texture or mUiBatches.back().mWorld != world )
+            mUiBatches.push_back( UiBatch{ .mFirst = static_cast<u32>( mUiVertexData.size() ),
+                                           .mCount = 0,
+                                           .mTexture = texture,
+                                           .mWorld = world } );
+        if ( not mUiImageGroups.contains( texture ) )
+            mUiImageGroups.emplace(
+                texture, CreateGroup( mGpu, "ui image", mUiImageLayout.Get(),
+                                      vector<WGPUBindGroupEntry>{ TextureBinding( 0, texture ),
+                                                                  SamplerBinding( 1, mUiSampler.Get() ) } ) );
+        const auto corner = [&]( f32 x, f32 y ) {
+            return UiVertex{ .mPosition = vec2( x ? quad.mMax.x : quad.mMin.x, y ? quad.mMax.y : quad.mMin.y ),
+                             .mUv = vec2( x ? quad.mUvMax.x : quad.mUvMin.x, y ? quad.mUvMax.y : quad.mUvMin.y ),
+                             .mColor = quad.mColor,
+                             .mCanvas = quad.mCanvas,
+                             .mKind = quad.mKind == UiQuadKind::Glyph ? 1u : 0u,
+                             .mRange = range,
+                             .mPadding = 0 };
+        };
+        for ( const auto& [x, y] : { pair<f32, f32>( 0, 0 ), pair<f32, f32>( 1, 0 ), pair<f32, f32>( 1, 1 ),
+                                     pair<f32, f32>( 0, 0 ), pair<f32, f32>( 1, 1 ), pair<f32, f32>( 0, 1 ) } )
+            mUiVertexData.push_back( corner( x, y ) );
+        mUiBatches.back().mCount += 6;
+    }
+}
+
+void Renderer::DrawUi( WGPURenderPassEncoder pass, bool world, WGPURenderPipeline pipeline )
+{
+    bool bound = false;
+    for ( const UiBatch& batch : mUiBatches )
+    {
+        if ( batch.mWorld != world )
+            continue;
+        if ( not bound )
+        {
+            wgpuRenderPassEncoderSetPipeline( pass, pipeline );
+            wgpuRenderPassEncoderSetBindGroup( pass, 0, mUiCanvasGroup.Get(), 0, nullptr );
+            wgpuRenderPassEncoderSetVertexBuffer( pass, 0, mUiVertices.Get(), 0, WGPU_WHOLE_SIZE );
+            bound = true;
+        }
+        wgpuRenderPassEncoderSetBindGroup( pass, 1, mUiImageGroups.at( batch.mTexture ).Get(), 0, nullptr );
+        wgpuRenderPassEncoderDraw( pass, batch.mCount, 1, batch.mFirst, 0 );
+    }
 }
 
 WGPURenderPipeline Renderer::TonemapFor( WGPUTextureFormat format )
@@ -553,7 +733,8 @@ void Renderer::Order( const vector<DrawCall>& draws, vector<u32>& order, vector<
 void Renderer::Draw( RenderView& view,
                      const RenderScene& scene,
                      const RenderCamera& camera,
-                     const RenderTarget& target )
+                     const RenderTarget& target,
+                     OptRef<const UiScene> uiMaybe )
 {
     BUBBLE_PROFILE_ZONE();
     if ( target.mSize.x <= 0 or target.mSize.y <= 0 )
@@ -672,6 +853,14 @@ void Renderer::Draw( RenderView& view,
     bool grown = Fit( mLights, max<u64>( mLightData.size(), 1 ) * sizeof( LightData ), "lights" );
     grown = Fit( mObjects, max<u64>( mObjectData.size(), 1 ) * sizeof( ObjectData ), "objects" ) or grown;
     grown = Fit( mSkins, max<u64>( mSkinData.size(), 1 ) * sizeof( mat4 ), "skins" ) or grown;
+    mUiBatches.clear();
+    if ( uiMaybe )
+    {
+        PrepareUi( *uiMaybe, frame.mViewProjection, target.mSize );
+        grown = Fit( mUiCanvases, max<u64>( mUiCanvasData.size(), 1 ) * sizeof( mat4 ), "ui canvases" ) or grown;
+        Fit( mUiVertices, max<u64>( mUiVertexData.size(), 1 ) * sizeof( UiVertex ), "ui vertices",
+             WGPUBufferUsage_Vertex );
+    }
     if ( grown )
         MakeBindGroups();
     mFrame.Write( mGpu, 0, AsBytes( frame ) );
@@ -682,6 +871,10 @@ void Renderer::Draw( RenderView& view,
         mObjects.Write( mGpu, 0, AsBytes( mObjectData ) );
     if ( not mSkinData.empty() )
         mSkins.Write( mGpu, 0, AsBytes( mSkinData ) );
+    if ( not mUiCanvasData.empty() and uiMaybe )
+        mUiCanvases.Write( mGpu, 0, AsBytes( mUiCanvasData ) );
+    if ( not mUiVertexData.empty() and uiMaybe )
+        mUiVertices.Write( mGpu, 0, AsBytes( mUiVertexData ) );
 
     const GpuCommandEncoderHandle encoder( wgpuDeviceCreateCommandEncoder( mGpu.Device(), nullptr ) );
     // The calls; with their materials, or - the shadow's - with the
@@ -759,6 +952,7 @@ void Renderer::Draw( RenderView& view,
             wgpuRenderPassEncoderSetVertexBuffer( pass.Get(), 0, mLineVertices.Get(), 0, WGPU_WHOLE_SIZE );
             wgpuRenderPassEncoderDraw( pass.Get(), static_cast<u32>( mLineData.size() ), 1, 0, 0 );
         }
+        DrawUi( pass.Get(), true, mUiWorldPipeline.Get() );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
 
@@ -780,6 +974,8 @@ void Renderer::Draw( RenderView& view,
         wgpuRenderPassEncoderSetPipeline( pass.Get(), TonemapFor( target.mFormat ) );
         wgpuRenderPassEncoderSetBindGroup( pass.Get(), 0, view.mTonemapGroup.Get(), 0, nullptr );
         wgpuRenderPassEncoderDraw( pass.Get(), 3, 1, 0, 0 );
+        // The screen's UI over the picture, in its own colors.
+        DrawUi( pass.Get(), false, UiScreenFor( target.mFormat ) );
         wgpuRenderPassEncoderEnd( pass.Get() );
     }
     mGpu.Submit( encoder );

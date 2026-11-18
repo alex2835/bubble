@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/assets/font_asset.hpp"
 #include "bubble/assets/model_asset.hpp"
 #include "bubble/assets/texture_asset.hpp"
 #include "bubble/render/gpu/gpu_model.hpp"
@@ -23,12 +24,14 @@ public:
     // failed. Good until the next ask after a reload, or Collect.
     OptRef<const GpuModel> TryModel( const AssetRef<ModelAsset>& modelRef );
     OptRef<const GpuTexture> TryTexture( const AssetRef<TextureAsset>& textureRef );
+    // A font's atlas.
+    OptRef<const GpuTexture> TryFont( const AssetRef<FontAsset>& fontRef );
 
     // Lets go of the copies of assets no longer in memory: once a frame, or
     // now and then.
     void Collect();
     // How many copies it keeps.
-    size_t Count() const { return mModels.size() + mTextures.size(); }
+    size_t Count() const { return mModels.size() + mTextures.size() + mFonts.size(); }
 
 private:
     // A copy, and the asset's version it was made of.
@@ -43,5 +46,6 @@ private:
     const AssetRegistry& mAssets;
     hmap<AssetId, Copy<GpuModel>> mModels;
     hmap<AssetId, Copy<GpuTexture>> mTextures;
+    hmap<AssetId, Copy<GpuTexture>> mFonts;
 };
 }

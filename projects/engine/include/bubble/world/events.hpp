@@ -16,9 +16,10 @@ using EventHandle = Handle<struct EventTag>;
 //     events.Subscribe<Collision>( [this]( const Collision& hit ) { ... } );
 //     events.Emit( Collision{ a, b, point } );
 //
-// Emit only queues. The world delivers at its own place in the frame -
-// after physics - so a listener runs where the frame order says, never in
-// the middle of whoever emitted.
+// Emit only queues. The world delivers at its own places - after each
+// step's physics, and before the frame's own phases what came since -, so a
+// listener runs where the frame order says, never in the middle of whoever
+// emitted.
 class Events
 {
 public:

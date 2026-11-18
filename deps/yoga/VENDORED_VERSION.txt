@@ -1,0 +1,7 @@
+Yoga 3.2.1
+https://github.com/facebook/yoga (tag v3.2.1)
+
+The core library alone: yoga/ (its CMakeLists.txt and module map dropped)
+and LICENSE. Dropped: the Java, JavaScript and Swift bindings, the website,
+tests, benchmarks, gentest and the build files of other platforms.
+deps/CMakeLists.txt builds yoga/**/*.cpp.
