@@ -11,6 +11,7 @@ SHA-256) and ships as `wgpu_native.dll` / `libwgpu_native.so`.
 | library | version | license | file |
 | --- | --- | --- | --- |
 | [assimp](https://github.com/assimp/assimp) | 6.0.6 | BSD-3-Clause | `deps/assimp/LICENSE`, and its bundled libraries' own under `deps/assimp/contrib` (editor and cook only) |
+| [Dear ImGui](https://github.com/ocornut/imgui) | 1.92.0 (docking) | MIT | `deps/imgui/LICENSE.txt` (editor only) |
 | [doctest](https://github.com/doctest/doctest) | 2.4.12 | MIT | `deps/doctest/LICENSE.txt` (tests only) |
 | [enkiTS](https://github.com/dougbinks/enkiTS) | 1.12 | Zlib | `deps/enkiTS/License.txt` (not on the web) |
 | [EnTT](https://github.com/skypjack/entt) | 3.16.0 | MIT | `deps/entt/LICENSE` |
@@ -22,6 +23,7 @@ SHA-256) and ships as `wgpu_native.dll` / `libwgpu_native.so`.
 | [miniaudio](https://github.com/mackron/miniaudio) | 0.11.26 | public domain (Unlicense) or MIT-0 | `deps/miniaudio/LICENSE` |
 | [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.13 | MIT | `deps/msdfgen/LICENSE.txt` (editor and cook only) |
 | [ozz-animation](https://github.com/guillaumeblanc/ozz-animation) | 0.17.0 | MIT | `deps/ozz/LICENSE.md` (its runtime in the game; the offline builders in the editor and cook only) |
+| [Roboto](https://github.com/googlefonts/roboto) | Medium, as Dear ImGui 1.92.0 ships it | Apache-2.0 | `deps/roboto/LICENSE.txt` (the editor's font) |
 | [SDL](https://github.com/libsdl-org/SDL) | 3.4.20 | Zlib | `deps/SDL/LICENSE.txt`; its hidapi under BSD-3-Clause (`deps/SDL/src/hidapi/LICENSE-bsd.txt`), its yuv2rgb's `deps/SDL/src/video/yuv2rgb/LICENSE` |
 | [stb_image](https://github.com/nothings/stb) | 2.32 | MIT or public domain | at the end of `deps/stb/stb_image.h` (editor and cook only) |
 | [Tracy](https://github.com/wolfpld/tracy) | 0.14.1 | BSD-3-Clause | `deps/tracy/LICENSE` (profiling builds only) |

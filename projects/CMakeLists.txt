@@ -1,6 +1,7 @@
 add_subdirectory( engine )
 add_subdirectory( import )
 add_subdirectory( editing )
+add_subdirectory( editor )
 add_subdirectory( runner )
 add_subdirectory( play )
 

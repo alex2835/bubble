@@ -1,12 +1,12 @@
 #include "gpu_materials.hpp"
 #include "bubble/core/color.hpp"
 #include "bubble/core/log.hpp"
+#include "bubble/render/gpu/gpu_binding.hpp"
 #include "bubble/render/gpu/gpu_model.hpp"
 #include "bubble/render/gpu/gpu_pipeline.hpp"
 #include "bubble/render/gpu/shaders.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
-#include "gpu_binding.hpp"
 
 namespace bubble
 {

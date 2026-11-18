@@ -17,10 +17,13 @@ using u64 = std::uint64_t;
 // evaluates floats in a wider type.
 using f32 = float;
 using f64 = double;
+// An address as a number: a handle kept where only numbers go.
+using std::uintptr_t;
 
 static_assert( sizeof( f32 ) == 4 and sizeof( f64 ) == 8 );
 
 using std::abs;
+using std::asin;
 using std::atan2;
 using std::ceil;
 using std::cos;

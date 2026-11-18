@@ -5,6 +5,7 @@
 // replay that comes out the same shows the seed is the world's too. A
 // draught, an event, cools everything.
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/scene/prefab_link.hpp"
 #include "bubble/scene/scene_file.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/world/world.hpp"
@@ -408,4 +409,79 @@ TEST_CASE( "A snapshot is taken and restored between frames, never from inside o
     } );
     world.GetScene().Add<Warmth>( f.Stove( world ) );
     world.Frame( 0 );
+}
+
+TEST_CASE( "A world over a scene it does not own builds on it, hears it, and leaves it its data when it goes" )
+{
+    Fixture f;
+    Scene scene = f.Level( 2 );
+    const Entity stove = *TryResolve( scene, EntityPath{ Make( "/stove" ) } );
+    scene.Add<PrefabInstance>( stove );
+    {
+        const Scope<World> world = World::Over( f.mApp, scene );
+        CHECK( &world->GetScene() == &scene );
+        CHECK( scene.Get<HeaterRuntime>( stove ).mPower == 2.0f );
+        f.SetPower( *world, 5 );
+        world->Frame( 0 );
+        CHECK( scene.Get<HeaterRuntime>( stove ).mPower == 5.0f );
+    }
+    // The runtime went with the world; the data, the engine's bookkeeping
+    // and the entity stay as they were.
+    CHECK( not scene.Has<HeaterRuntime>( stove ) );
+    CHECK( scene.Get<Heater>( stove ).mPower == 5.0f );
+    CHECK( scene.Has<Warmth>( stove ) );
+    CHECK( scene.Has<PrefabInstance>( stove ) );
+    CHECK( NameOf( scene, stove ).View() == "stove" );
+
+    // No one hears the scene now: changes go by, and a new world over it
+    // builds what it finds.
+    const ComponentTypes& componentTypes = f.mApp.GetComponentTypes();
+    REQUIRE( componentTypes.TrySetField( scene, stove, *componentTypes.TryFind( "heater"_n ),
+                                         *FieldPath::TryParse( "power" ), MetaAny( 3.0f ) ) );
+    const Entity spark = CreateChild( scene, scene.Root(), Make( "spark" ) );
+    scene.Add<Heater>( spark, 1.0f );
+    const Scope<World> again = World::Over( f.mApp, scene );
+    CHECK( again->Get<Heating>().Builds() == 2 );
+    CHECK( scene.Get<HeaterRuntime>( stove ).mPower == 3.0f );
+}
+
+namespace
+{
+// Seen in an editing world: what shows the warmth there is.
+struct Glow
+{
+    f32 mDegrees = 0;
+};
+
+ModuleType ShowingType()
+{
+    return ModuleType{
+        .mName = "showing",
+        .mDescribe = []( Reflection&, ComponentTypes& ) {},
+        .mCreate = []( World& world ) -> Scope<Module> {
+            world.OnAdded<Warmth>( [&world]( Entity entity ) {
+                world.GetScene().Add<Glow>( entity, world.GetScene().Get<Warmth>( entity ).mDegrees );
+            } );
+            return CreateScope<Module>();
+        },
+        .mInEditor = true,
+    };
+}
+}
+
+TEST_CASE( "An editing world has the modules that show a scene alone, and never steps" )
+{
+    Fixture f;
+    f.mApp.AddModule( ShowingType() );
+    Scene scene = f.Level();
+    const Entity stove = *TryResolve( scene, EntityPath{ Make( "/stove" ) } );
+    World world( f.mApp, std::move( scene ), WorldOptions{ .mEditing = true } );
+    CHECK( world.Editing() );
+    CHECK( world.GetScene().Has<Glow>( stove ) );
+    CHECK( not world.GetScene().Has<HeaterRuntime>( stove ) );
+
+    world.Frame( 1.0 );
+    CHECK( world.Steps() == 0 );
+    CHECK( world.GetScene().Get<Warmth>( stove ).mDegrees == 0.0f );
+    CHECK_THROWS_WITH_AS( world.Step(), "World::Step: an editing world never steps", logic_error );
 }

@@ -56,6 +56,16 @@ void Window::SetCursorLocked( bool locked ) const
     SDL_SetWindowRelativeMouseMode( mWindow, locked );
 }
 
+void Window::SetTextInput( bool on ) const
+{
+    if ( on == SDL_TextInputActive( mWindow ) )
+        return;
+    if ( on )
+        SDL_StartTextInput( mWindow );
+    else
+        SDL_StopTextInput( mWindow );
+}
+
 NativeWindow Window::Native() const
 {
     [[maybe_unused]] const SDL_PropertiesID properties = SDL_GetWindowProperties( mWindow );

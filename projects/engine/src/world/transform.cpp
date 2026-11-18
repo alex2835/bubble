@@ -112,6 +112,7 @@ ModuleType TransformModule()
                 componentTypes.Add<Transform>();
             },
         .mCreate = []( World& world ) -> Scope<Module> { return CreateScope<Transforms>( world ); },
+        .mInEditor = true,
     };
 }
 }

@@ -874,6 +874,7 @@ ModuleType AnimationModule( AssetRegistry& assets )
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Animation>( world, assets ); },
         .mScripts = &ScriptsOfAnimation,
+        .mInEditor = true,
     };
 }
 }

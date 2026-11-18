@@ -1,0 +1,5 @@
+Roboto Medium, as Dear ImGui 1.92.0 ships it in misc/fonts (Apache-2.0)
+https://github.com/googlefonts/roboto
+
+The editor's own font, built into it (cmake/embed_file.cmake): Latin,
+Cyrillic and Greek. LICENSE.txt is the Apache License 2.0 it comes under.

@@ -1,0 +1,8 @@
+Dear ImGui 1.92.0, docking branch
+https://github.com/ocornut/imgui (tag v1.92.0-docking)
+
+The core alone: imgui*.cpp/.h, imconfig.h as released, imstb_*.h,
+misc/cpp/imgui_stdlib (InputText on std::string) and LICENSE.txt. Dropped:
+backends/ - the editor has its own, on bubble's platform and GPU
+(projects/editor) -, examples, docs, misc/fonts and the rest of misc.
+Copied from the old engine's deps (bubble0.7), the same release.

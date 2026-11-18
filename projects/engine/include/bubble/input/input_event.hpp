@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/input/controls.hpp"
 #include "bubble/types/math.hpp"
+#include "bubble/types/string.hpp"
 #include "bubble/types/variant.hpp"
 
 namespace bubble
@@ -25,6 +26,15 @@ struct KeyUp
 {
     Key mKey = Key::Unknown;
     friend bool operator==( const KeyUp&, const KeyUp& ) = default;
+};
+
+// Text typed, in UTF-8: a character, or what an input method composed.
+// Comes beside the keys, and only while the window takes text
+// (Window::SetTextInput).
+struct TextInput
+{
+    string mText;
+    friend bool operator==( const TextInput&, const TextInput& ) = default;
 };
 
 struct MouseMove
@@ -120,6 +130,7 @@ struct GamepadAxisMove
 
 using InputEvent = variant<KeyDown,
                            KeyUp,
+                           TextInput,
                            MouseMove,
                            MouseDown,
                            MouseUp,

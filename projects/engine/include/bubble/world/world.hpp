@@ -38,6 +38,10 @@ struct WorldOptions
     // Where GetRandom() - and, later, Luau's math.random - start from: the
     // same seed and the same input play the same game.
     u64 mSeed = 0;
+    // The editor's world of a document: made with the modules that show a
+    // scene as it is alone (ModuleType::mInEditor), and it never steps -
+    // logic, physics and sound wait for Play.
+    bool mEditing = false;
 };
 
 // Where a world's input comes from - Input's latches, a replay's record:
@@ -95,6 +99,12 @@ public:
     // App's modules for it, in order. They hear of every component the scene
     // has before the constructor returns.
     World( App& app, Scene scene, WorldOptions options = {} );
+    // Over a scene it does not own - a document's, in the editor - which
+    // outlives it: the modules hear the scene's changes as data events, and
+    // when the world goes it takes away what they built - every component
+    // App's types do not name - and stops listening, leaving the scene's data
+    // as it found it.
+    static Scope<World> Over( App& app, Scene& scene, WorldOptions options = {} );
     ~World();
     World( const World& ) = delete;
     World& operator=( const World& ) = delete;
@@ -115,12 +125,14 @@ public:
     // time makes due, then the frame's own phases. Negative or NaN time is a
     // logic_error.
     void Frame( f64 elapsed );
-    // One fixed step now, paused or not: the editor's "step" button.
+    // One fixed step now, paused or not: the editor's "step" button. In an
+    // editing world it is a logic_error.
     void Step();
     // Paused, a frame runs its own phases but no fixed steps: logic and
     // physics stand, and a menu still works.
     void SetPaused( bool paused ) { mPaused = paused; }
     bool Paused() const { return mPaused; }
+    bool Editing() const { return mEditing; }
 
     // The world between two frames, copied. The data events waiting are
     // delivered first - the world's next turn would deliver them before
@@ -189,6 +201,11 @@ public:
     void AddStep( Phase phase, function<void( f32 dt )> step );
 
 private:
+    struct Borrowed
+    {
+    };
+    World( Borrowed, App& app, Scene& scene, WorldOptions options );
+
     enum class DataEventKind : u8
     {
         Added,
@@ -233,6 +250,7 @@ private:
     {
         function<bool( const Scene&, Entity )> mHas;
         function<vector<Entity>( const Scene& )> mAll;
+        function<void( Scene&, ComponentListener& )> mStopListening;
         Scope<ComponentWatch> mWatch;
         vector<function<void( Entity )>> mAdded;
         vector<function<void( Entity )>> mRemoved;
@@ -253,14 +271,18 @@ private:
             return found->second;
         Hooks& hooks = AddHooks(
             component, []( const Scene& scene, Entity entity ) { return scene.Has<T>( entity ); },
-            []( const Scene& scene ) { return scene.EntitiesWith<T>(); } );
+            []( const Scene& scene ) { return scene.EntitiesWith<T>(); },
+            []( Scene& scene, ComponentListener& watch ) { scene.StopListening<T>( watch ); } );
         mScene.Listen<T>( *hooks.mWatch );
         return hooks;
     }
 
     Hooks& AddHooks( Name component,
                      function<bool( const Scene&, Entity )> has,
-                     function<vector<Entity>( const Scene& )> all );
+                     function<vector<Entity>( const Scene& )> all,
+                     function<void( Scene&, ComponentListener& )> stopListening );
+    // What both constructors do once the scene is there.
+    void Start();
     void Queue( DataEventKind kind, Name component, Entity entity, Name field = {} );
     void DeliverDataEvents();
     void Run( Phase phase, f32 dt );
@@ -272,7 +294,10 @@ private:
     AssetId mLevel = {};
     FixedClock mClock;
     Random mRandom;
-    Scene mScene;
+    // Its own scene; empty for one over a scene it does not own.
+    opt<Scene> mOwnedScene;
+    Scene& mScene;
+    bool mEditing = false;
     Events mEvents;
     Services mServices;
     // Node-based: a Hooks stays where it is while others are added.

@@ -1017,6 +1017,7 @@ ModuleType UiModule( AssetRegistry& assets )
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Ui>( world, assets ); },
         .mScripts = &ScriptsOfUi,
+        .mInEditor = true,
     };
 }
 }

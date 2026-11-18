@@ -1,5 +1,6 @@
 #include "bubble/scene/scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
@@ -57,6 +58,14 @@ void Scene::DestroyWithSubtree( Entity entity )
 void Scene::NotifyFieldChanged( Entity entity, Name component, Name field )
 {
     mFieldChanged.publish( entity, component, field );
+}
+
+void Scene::RemoveComponentsExcept( span<const entt::id_type> kept )
+{
+    const entt::id_type tree = entt::type_hash<Hierarchy>::value();
+    for ( auto [id, storage] : mRegistry.storage() )
+        if ( id != tree and ranges::find( kept, id ) == kept.end() )
+            storage.clear();
 }
 
 bool Scene::Alive( Entity entity ) const

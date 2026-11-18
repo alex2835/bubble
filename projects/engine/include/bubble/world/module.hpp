@@ -63,5 +63,9 @@ struct ModuleType
     // reflected fields: see ScriptApi. Asked for each world's scripts, and
     // for bubble.d.luau.
     function<void( ScriptApi& )> mScripts = {};
+    // Made in the editor's worlds of documents too (WorldOptions::mEditing):
+    // a module that shows the scene as it is - transforms, rendering, the
+    // UI's layout, a pose. The rest - scripts, physics, sound - wait for Play.
+    bool mInEditor = false;
 };
 }

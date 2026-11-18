@@ -71,6 +71,9 @@ public:
     // still coming - a camera the mouse turns. A browser holds it only after
     // a click on the page.
     void SetCursorLocked( bool locked ) const;
+    // Taking text: TextInput events come as keys are typed - and a phone
+    // shows its keyboard - until it is switched off.
+    void SetTextInput( bool on ) const;
     NativeWindow Native() const;
 
 private:

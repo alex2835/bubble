@@ -139,7 +139,7 @@ public:
     }
 
     // `listener` hears components of this type come, get replaced and go,
-    // for as long as the scene lives.
+    // for as long as the scene lives or until StopListening.
     template <typename Component>
     void Listen( ComponentListener& listener )
     {
@@ -149,11 +149,32 @@ public:
         storage.on_destroy().template connect<&Scene::Destroyed>( listener );
     }
 
-    // `listener` hears fields set, for as long as the scene lives.
+    template <typename Component>
+    void StopListening( ComponentListener& listener )
+    {
+        auto& storage = mRegistry.storage<Component>();
+        storage.on_construct().template disconnect<&Scene::Constructed>( listener );
+        storage.on_update().template disconnect<&Scene::Updated>( listener );
+        storage.on_destroy().template disconnect<&Scene::Destroyed>( listener );
+    }
+
+    // `listener` hears fields set, for as long as the scene lives or until
+    // StopListeningToFields.
     void ListenToFields( FieldListener& listener )
     {
         entt::sink{ mFieldChanged }.connect<&FieldListener::FieldChanged>( listener );
     }
+
+    void StopListeningToFields( FieldListener& listener )
+    {
+        entt::sink{ mFieldChanged }.disconnect<&FieldListener::FieldChanged>( listener );
+    }
+
+    // Every component goes but those of the types `kept` names - by the id
+    // EnTT keeps a type's components under, entt::type_hash - and the tree's
+    // own: what a world over a scene it does not own leaves behind, its
+    // modules' runtime gone. The entities stay, under their numbers.
+    void RemoveComponentsExcept( span<const entt::id_type> kept );
     // For code that set a field of a component itself: its listeners hear it.
     void NotifyFieldChanged( Entity entity, Name component, Name field );
 

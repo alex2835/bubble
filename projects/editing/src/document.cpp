@@ -32,4 +32,9 @@ OptRef<const AssetPath> Document::TryPath() const
 {
     return mPathMaybe ? OptRef<const AssetPath>( *mPathMaybe ) : nullopt;
 }
+
+OptRef<DocumentView> Document::TryView()
+{
+    return mView ? OptRef<DocumentView>( *mView ) : nullopt;
+}
 }

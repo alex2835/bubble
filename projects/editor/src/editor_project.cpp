@@ -1,0 +1,136 @@
+#include "bubble/editor/editor_project.hpp"
+#include "bubble/core/log.hpp"
+#include "bubble/core/utf8.hpp"
+#include "bubble/import/project_setup.hpp"
+#include "bubble/import/script_importer.hpp"
+#include "bubble/scene/engine_file.hpp"
+#include "bubble/scripts/script_declarations.hpp"
+
+namespace bubble
+{
+namespace
+{
+// What a refresh said, a line each.
+void Report( const ProjectRefresh& refresh )
+{
+    for ( const string& warning : refresh.mWarnings )
+        LogWarning( "{}", warning );
+    for ( const string& error : refresh.mErrors )
+        LogError( "{}", error );
+    for ( const auto& [path, assetId] : refresh.mOrphans )
+        LogWarning( "{}: an .import whose source is gone", path.View() );
+}
+}
+
+expected<Scope<EditorProject>, string> EditorProject::TryOpen( ProjectFiles files,
+                                                               AssetRegistry::ReadImported read,
+                                                               AudioDevice& audio )
+{
+    const auto textMaybe = files.TryRead( *AssetPath::TryFrom( cProjectFile ) );
+    if ( not textMaybe )
+        return unexpected( format( "{}: {}", cProjectFile, textMaybe.error() ) );
+    auto settingsMaybe = TryReadProjectSettings( *textMaybe );
+    if ( not settingsMaybe )
+        return unexpected( format( "{}:{}", cProjectFile, settingsMaybe.error() ) );
+    Scope<EditorProject> project(
+        new EditorProject( std::move( files ), std::move( read ), std::move( *settingsMaybe ) ) );
+    if ( auto startedMaybe = project->TryStart( audio ); not startedMaybe )
+        return unexpected( startedMaybe.error() );
+    return project;
+}
+
+expected<Scope<EditorProject>, string> EditorProject::TryOpen( const OsPath& root, AudioDevice& audio )
+{
+    return TryOpen( ProjectFiles::FromDirectory( root ), AssetRegistry::FromDirectory( root ), audio );
+}
+
+EditorProject::EditorProject( ProjectFiles files, AssetRegistry::ReadImported read, ProjectSettings settings )
+    : mSettings( std::move( settings ) ),
+      mProject( files, Importers(), cEngineFileExtensions ),
+      mAssets( mProject.GetCatalog(), std::move( read ), mApp.GetJobs() ),
+      mWorkspace( mApp.GetComponentTypes(), files, mProject.GetCatalog() )
+{
+}
+
+EditorProject::~EditorProject() = default;
+
+expected<void, string> EditorProject::TryStart( AudioDevice& audio )
+{
+    hmap<string, string> aliases;
+    if ( const auto luaurcMaybe = mProject.GetFiles().TryRead( *AssetPath::TryFrom( ".luaurc" ) ) )
+    {
+        auto readMaybe = TryReadLuaurc( *luaurcMaybe );
+        if ( not readMaybe )
+            return unexpected( format( ".luaurc: {}", readMaybe.error() ) );
+        aliases = std::move( *readMaybe );
+    }
+    const string game = mSettings.mName.empty() ? "bubble" : mSettings.mName;
+    AddEngineModules( mApp, mAssets, audio,
+                      ScriptModuleOptions{ .mGlobals = {},
+                                           .mAliases = aliases,
+                                           .mTimeLimit = 1.0,
+                                           .mProgress = CreateRef<ScriptProgress>(),
+                                           .mSaves = nullptr,
+                                           .mGameVersion = game } );
+
+    // Scripts are checked against the engine's declarations with the
+    // project's actions, which go under .bubble too, for a language server.
+    vector<string> actions;
+    for ( const Action& action : mSettings.mActions.List() )
+        actions.push_back( action.mName.ToString() );
+    auto checkMaybe =
+        TryProjectScriptCheck( mApp, mProject.GetFiles(), mProject.GetCatalog(), ScriptLabels{ .mActions = actions } );
+    if ( not checkMaybe )
+        return unexpected( checkMaybe.error() );
+    const AssetPath declarationsPath = *AssetPath::TryFrom( ".bubble/bubble.d.luau" );
+    if ( mProject.GetFiles().TryRead( declarationsPath ).value_or( string() ) != checkMaybe->mDeclarations )
+        if ( auto writtenMaybe = mProject.GetFiles().TryWrite( declarationsPath, checkMaybe->mDeclarations );
+             not writtenMaybe )
+            LogWarning( "{}: {}", declarationsPath.View(), writtenMaybe.error() );
+    AddEngineImporters( mProject, mApp, std::move( *checkMaybe ) );
+    RegisterEngineLoaders( mAssets );
+    AddBuiltinOperators( mOperators );
+
+    const auto refreshMaybe = mProject.TryRefresh();
+    if ( not refreshMaybe )
+        return unexpected( refreshMaybe.error() );
+    Report( *refreshMaybe );
+    return {};
+}
+
+void EditorProject::Refresh()
+{
+    const auto refreshMaybe = mProject.TryRefresh();
+    if ( not refreshMaybe )
+    {
+        LogError( "{}", refreshMaybe.error() );
+        return;
+    }
+    Report( *refreshMaybe );
+    for ( const AssetPath& path : refreshMaybe->mImported )
+        if ( auto reloadedMaybe = mAssets.TryReload( path ); not reloadedMaybe )
+            LogError( "{}", reloadedMaybe.error() );
+}
+
+expected<void, string> EditorProject::TryOpenStartLevel()
+{
+    const auto levelIdMaybe = mSettings.TryStartLevel( mProject.GetCatalog() );
+    if ( not levelIdMaybe )
+        return unexpected( format( "{}: start_level: no such level in the project", cProjectFile ) );
+    const auto pathMaybe = mProject.GetCatalog().TryPathOf( *levelIdMaybe );
+    if ( not pathMaybe )
+        return unexpected( format( "{}: start_level: no such level in the project", cProjectFile ) );
+    return mOperators.TryRun( mWorkspace, "document.open",
+                              Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = pathMaybe->String() } } ) );
+}
+
+bool EditorProject::Run( string_view id, const Json& args )
+{
+    if ( auto ranMaybe = mOperators.TryRun( mWorkspace, id, args ); not ranMaybe )
+    {
+        LogError( "{}", ranMaybe.error() );
+        return false;
+    }
+    return true;
+}
+}

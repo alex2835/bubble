@@ -6,10 +6,29 @@
 #include "bubble/types/function.hpp"
 #include "bubble/types/pointer.hpp"
 
+struct SDL_Cursor;
 struct SDL_Gamepad;
 
 namespace bubble
 {
+// The mouse pointer's shapes, as the system draws them.
+enum class Cursor : u8
+{
+    Arrow,
+    // Over text that can be typed in.
+    Text,
+    Hand,
+    Move,
+    ResizeNS,
+    ResizeEW,
+    ResizeNESW,
+    ResizeNWSE,
+    NotAllowed,
+    // None at all, the mouse still moving it.
+    Hidden,
+};
+constexpr u32 cCursors = static_cast<u32>( Cursor::Hidden ) + 1;
+
 struct PlatformOptions
 {
     // SDL's video driver by name, the system's own when empty. Tests take
@@ -47,6 +66,12 @@ public:
     // The last window was closed, or the system asked the game to end.
     bool QuitRequested() const { return mQuitRequested; }
 
+    // The pointer over the windows from now on.
+    void SetCursor( Cursor cursor );
+    // The system's clipboard as text: empty when it holds none.
+    string ClipboardText() const;
+    void SetClipboardText( const string& text );
+
     // Calls `frame` with the seconds since the call before - 0 the first
     // time - until it returns false: a loop on the desktop, the browser's
     // animation frames on the web. There Run never returns, and what is on
@@ -59,6 +84,9 @@ private:
     vector<InputEvent> mEvents;
     // Opened as they come, by SDL's id: closed when they go, or with SDL.
     hmap<u32, SDL_Gamepad*> mGamepads;
+    // The system's, made as they are first shown and freed with SDL.
+    array<SDL_Cursor*, cCursors> mCursors{};
+    Cursor mCursor = Cursor::Arrow;
     bool mQuitRequested = false;
 };
 }

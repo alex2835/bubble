@@ -6,26 +6,14 @@
 // quits after N frames, --screenshot writes the last one as a PNG, and
 // --import-only imports and quits: .import files are written for the sources
 // that had none.
-#include "bubble/animation/animation.hpp"
-#include "bubble/animation/animation_assets.hpp"
-#include "bubble/assets/material_asset.hpp"
-#include "bubble/assets/prefab_asset.hpp"
-#include "bubble/assets/shader_asset.hpp"
 #include "bubble/audio/audio.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
 #include "bubble/data/png.hpp"
-#include "bubble/import/animation_graph_importer.hpp"
-#include "bubble/import/font_importer.hpp"
-#include "bubble/import/material_importers.hpp"
-#include "bubble/import/model_importer.hpp"
-#include "bubble/import/prefab_importer.hpp"
 #include "bubble/import/project_assets.hpp"
+#include "bubble/import/project_setup.hpp"
 #include "bubble/import/script_importer.hpp"
-#include "bubble/import/sound_importers.hpp"
-#include "bubble/import/texture_importer.hpp"
 #include "bubble/input/input.hpp"
-#include "bubble/physics/physics.hpp"
 #include "bubble/platform/platform.hpp"
 #include "bubble/render/gpu/gpu.hpp"
 #include "bubble/render/gpu/renderer.hpp"
@@ -33,13 +21,11 @@
 #include "bubble/scene/prefab.hpp"
 #include "bubble/scene/scene_file.hpp"
 #include "bubble/scripts/script_declarations.hpp"
-#include "bubble/scripts/script_module.hpp"
 #include "bubble/types/stream.hpp"
 #include "bubble/types/thread.hpp"
 #include "bubble/ui/ui.hpp"
 #include "bubble/world/game.hpp"
 #include "bubble/world/project.hpp"
-#include "bubble/world/transform.hpp"
 #include "bubble/world/world.hpp"
 
 using namespace bubble;
@@ -190,19 +176,13 @@ int main( int argc, char** argv )
     if ( const auto luaurcMaybe = project.GetFiles().TryRead( *AssetPath::TryFrom( ".luaurc" ) ) )
         if ( auto readMaybe = TryReadLuaurc( *luaurcMaybe ) )
             aliases = std::move( *readMaybe );
-    app.AddModule( TransformModule() );
-    app.AddModule( ScriptModule( assets, ScriptModuleOptions{ .mGlobals = {},
-                                                              .mAliases = aliases,
-                                                              .mTimeLimit = 1.0,
-                                                              .mProgress = CreateRef<ScriptProgress>(),
-                                                              .mSaves = saves,
-                                                              .mGameVersion = game } ) );
-    app.AddModule( PhysicsModule( assets ) );
-    app.AddModule( AudioModule( assets, *audio ) );
-    app.AddModule( AnimationModule( assets ) );
-    app.AddModule( UiModule( assets ) );
-    app.AddModule( RenderModule( assets ) );
-    app.AddModule( GameModule() );
+    AddEngineModules( app, assets, *audio,
+                      ScriptModuleOptions{ .mGlobals = {},
+                                           .mAliases = aliases,
+                                           .mTimeLimit = 1.0,
+                                           .mProgress = CreateRef<ScriptProgress>(),
+                                           .mSaves = saves,
+                                           .mGameVersion = game } );
 
     // Scripts are checked strictly against the engine's declarations with the
     // project's actions.
@@ -220,16 +200,7 @@ int main( int argc, char** argv )
          project.GetFiles().TryRead( declarationsPath ).value_or( string() ) != declarations )
         if ( auto writtenMaybe = project.GetFiles().TryWrite( declarationsPath, declarations ); not writtenMaybe )
             LogWarning( "{}: {}", declarationsPath.View(), writtenMaybe.error() );
-    for ( vector<Importer> group : { TextureImporters(), ModelImporters(), SoundImporters() } )
-        for ( Importer& importer : group )
-            project.AddImporter( std::move( importer ) );
-    project.AddImporter( ShaderImporter() );
-    project.AddImporter( MaterialImporter() );
-    project.AddImporter( PrefabImporter( app.GetComponentTypes(), project.GetCatalog() ) );
-    project.AddImporter( ScriptImporter( std::move( *scriptCheckMaybe ) ) );
-    project.AddImporter( AnimationGraphImporter() );
-    project.AddImporter( FontImporter( ".ttf" ) );
-    project.AddImporter( FontImporter( ".otf" ) );
+    AddEngineImporters( project, app, std::move( *scriptCheckMaybe ) );
     const auto refreshMaybe = project.TryRefresh();
     if ( not refreshMaybe )
     {
@@ -242,15 +213,7 @@ int main( int argc, char** argv )
     if ( arguments.mImportOnly )
         return refreshMaybe->mErrors.empty() ? 0 : 1;
 
-    RegisterModelLoader( assets );
-    RegisterMaterialLoader( assets );
-    RegisterShaderLoader( assets );
-    RegisterTextureLoader( assets );
-    RegisterScriptLoader( assets );
-    RegisterPrefabLoader( assets );
-    RegisterSoundLoader( assets );
-    RegisterAnimationLoaders( assets );
-    RegisterFontLoader( assets );
+    RegisterEngineLoaders( assets );
 
     const auto levelIdMaybe = settings.TryStartLevel( project.GetCatalog() );
     if ( not levelIdMaybe )

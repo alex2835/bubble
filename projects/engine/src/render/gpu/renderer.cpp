@@ -1,11 +1,11 @@
 #include "bubble/render/gpu/renderer.hpp"
 #include "bubble/core/profile.hpp"
 #include "bubble/render/gpu/gpu.hpp"
+#include "bubble/render/gpu/gpu_binding.hpp"
 #include "bubble/render/gpu/gpu_pipeline.hpp"
 #include "bubble/render/gpu/shaders.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
-#include "gpu_binding.hpp"
 #include "gpu_materials.hpp"
 #include <glm/ext/matrix_clip_space.hpp>
 

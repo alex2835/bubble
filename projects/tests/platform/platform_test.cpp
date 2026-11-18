@@ -126,6 +126,31 @@ TEST_CASE( "SDL's keys, mouse and touches come out as the engine's events" )
     CHECK_FALSE( platform->QuitRequested() );
 }
 
+TEST_CASE( "Text typed comes as UTF-8 while the window takes text, and the clipboard holds text" )
+{
+    const Scope<Platform> platform = StartDummy();
+    auto windowMaybe = platform->TryOpenWindow( WindowOptions{ .mTitle = "text", .mSize = { 64, 64 } } );
+    REQUIRE_MESSAGE( windowMaybe, windowMaybe.error() );
+    windowMaybe->SetTextInput( true );
+    SDL_Event text{};
+    text.type = SDL_EVENT_TEXT_INPUT;
+    text.text.text = "ёж";
+    Push( text );
+    // An empty one says nothing.
+    text.text.text = "";
+    Push( text );
+    CHECK( Polled( *platform ) == vector<InputEvent>{ TextInput{ .mText = "ёж" } } );
+    windowMaybe->SetTextInput( false );
+
+    platform->SetClipboardText( "привет" );
+    CHECK( platform->ClipboardText() == "привет" );
+    // A shape set twice, and hidden, is no error.
+    platform->SetCursor( Cursor::Text );
+    platform->SetCursor( Cursor::Text );
+    platform->SetCursor( Cursor::Hidden );
+    platform->SetCursor( Cursor::Arrow );
+}
+
 TEST_CASE( "Gamepad buttons and axes come out scaled, the extra buttons left out" )
 {
     const Scope<Platform> platform = StartDummy();

@@ -1,6 +1,5 @@
-// Bind group layouts and bind groups, an entry at a time: what the renderer
-// and the materials build theirs with. The engine's own; not a header of
-// its interface.
+// Bind group layouts and bind groups, an entry at a time: what the renderer,
+// the materials and the editor's ImGui build theirs with.
 #pragma once
 #include "bubble/render/gpu/gpu.hpp"
 #include "bubble/render/gpu/gpu_buffer.hpp"

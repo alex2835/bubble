@@ -172,6 +172,7 @@ ModuleType RenderModule( AssetRegistry& assets )
                 componentTypes.Add<Model>();
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Render>( world, assets ); },
+        .mInEditor = true,
     };
 }
 }

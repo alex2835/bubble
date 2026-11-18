@@ -40,8 +40,10 @@ out\build\windows-debug\bin\bubble_tests.exe
 ```
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
                               own CMake: its runtime in the engine, its offline builders in import; Yoga in the
-                              engine; FreeType - TrueType and OpenType modules - and msdfgen in import). wgpu-native
-                              alone is downloaded at configure time into out/downloads, pinned by version and SHA-256
+                              engine; FreeType - TrueType and OpenType modules - and msdfgen in import; Dear ImGui's
+                              core - docking, no backends - and Roboto, the font built into it, in the editor).
+                              wgpu-native alone is downloaded at configure time into out/downloads, pinned by version
+                              and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
 deps/wgsl_reflect/            our own reflection of WGSL source: structs laid out for uniforms, bindings, functions,
                               the comment on a line; the standard library only
@@ -95,13 +97,15 @@ projects/engine/include/bubble/
                               Phase::Physics on one thread, what moved written into transforms, contacts as
                               ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
                               velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
-    platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents, gamepads opened as
-                              they come, QuitRequested, Run - a loop, or the browser's frames), Window (the cursor
-                              held for a camera: SetCursorLocked)
+    platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents - TextInput among
+                              them -, gamepads opened as they come, QuitRequested, Run - a loop, or the browser's
+                              frames, SetCursor - the pointer's shape -, the clipboard's text), Window (the cursor
+                              held for a camera: SetCursorLocked; SetTextInput)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
                               for tests; Check/TryCheckNow - validation errors caught, WGSL's with their lines;
-                              Submit, Clear, TryReadRgba8), GpuSurface (the window's swap chain, sRGB views,
+                              Submit, Clear, TryReadRgba8), gpu_binding (bind group layouts and groups an entry at a
+                              time), GpuSurface (the window's swap chain, sRGB views,
                               Resize/TryAcquire/Present), GpuHandle (WGPU objects owned; aliases ...Handle),
                               GpuBuffer, GpuTexture (a texture and its view; from a TextureAsset with its mips),
                               CreateShader/CreateRenderPipeline, GpuModel (a ModelAsset's meshes in one vertex and
@@ -173,7 +177,10 @@ projects/engine/include/bubble/
                               after each step's physics and before the frame's phases, a paused world's too -;
                               Snapshot/Restore - runtime built again from the data, a module's own state through
                               Module::TrySnapshot/Restoring/Restored -, WorldInput: the actions a step and a frame
-                              see, GetActions), Module (ModuleType::mScripts: its ScriptApi); transform (position,
+                              see, GetActions; World::Over - a world over a scene it does not own, a document's: it
+                              leaves the scene its data when it goes -; WorldOptions::mEditing - the modules with
+                              ModuleType::mInEditor alone, never a step), Module (ModuleType::mScripts: its
+                              ScriptApi); transform (position,
                               rotation in radians - Y, X, Z -, scale; AnglesOf, ComputeWorldMatrix) and
                               TransformModule: WorldTransform each frame, through an entity's ParentOffset (a joint
                               it hangs on) when it has one; ProjectSettings (project.bubble: name, start level,
@@ -210,10 +217,13 @@ projects/import/include/bubble/import/
                               - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
                               in step: TryRefresh polls the stamps, scans and imports what changed - a prefab, its id
-                              inside, with no .import -, says what the registry reloads)
+                              inside, with no .import -, says what the registry reloads); project_setup (what
+                              bubble_play and the editor set up alike: AddEngineModules, AddEngineImporters,
+                              RegisterEngineLoaders)
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and import, never included by them: Document (a scene, its
-                              History with nested groups, dirty by position, its Selection), Command, the edits
+                              History with nested groups, dirty by position, its Selection, the editor's view of it -
+                              a DocumentView, gone before its scene), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
                               paste/duplicate; Workspace (open documents, the active one, the catalog it adds the
                               files it writes to, prefabs by id) and Operators - the
@@ -222,6 +232,17 @@ projects/editing/include/bubble/editing/
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
+projects/editor/              bubble_editor, on editing and Dear ImGui, never included by the rest: ImGui's backends
+                              of our own (ImGuiInput - the platform's events in, the pointer, text input and the
+                              clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
+                              and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
+                              (a project open: settings, App with every module, the registry, its sources kept
+                              imported, the Workspace and Operators), DocumentWorld (a document's editing world over
+                              its scene, its view: WorldOf), EditorCamera, Viewport (the active document's world in a
+                              picture the panel's size, the camera on the mouse), Editor (the dock space, the menu,
+                              the viewport, the log; operators alone change anything). main.cpp is bubble_editor
+                              <project folder> [--frames N] [--screenshot file.png], the desktop alone; its layout in
+                              the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character
@@ -237,7 +258,7 @@ projects/play/                bubble_play <folder> [--frames N] [--screenshot fi
                               again as they change, the scripts checked against .bubble/bubble.d.luau (written there
                               for a language server too), the Game service's cursor and quit; the sandbox is played
                               with it
-projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
+projects/tests/               doctest; folders follow the engine's, import/, editing/ and editor/; log_watch.hpp (what was
                               logged); animation/skinned_model.hpp (a skinned .glb made in code: two joints, three
                               clips); ui/test_font.hpp (a TrueType font made in code: a few glyphs, a kerning pair); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames
                               drawn and read back); render/reference_image.hpp + render/reference/*.png (pictures

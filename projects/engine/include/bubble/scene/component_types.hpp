@@ -38,6 +38,9 @@ public:
         // and AddComponents.
         function<entt::any( const Scene& )> mCopyAll;
         function<void( Scene&, const entt::any& copies )> mAddAll;
+        // The id EnTT keeps the type's components under: what a world over a
+        // scene it does not own keeps when it goes (Scene::RemoveComponentsExcept).
+        entt::id_type mStorage = 0;
     };
 
     // With the engine's own internal types: PrefabInstance, PrefabLink.
@@ -97,6 +100,7 @@ private:
         type.mRemove = []( Scene& scene, Entity entity ) { scene.Remove<T>( entity ); };
         type.mCopyAll = &CopyComponents<T>;
         type.mAddAll = &AddComponents<T>;
+        type.mStorage = entt::type_hash<T>::value();
         return type;
     }
 

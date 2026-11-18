@@ -152,6 +152,22 @@ else()
     target_compile_options( yoga PRIVATE -w )
 endif()
 
+# Dear ImGui 1.92.0 (docking) - the editor's panels, on backends of its own
+# (projects/editor): bubble's events in, bubble's GPU out, so ImGui sees
+# neither SDL nor WebGPU. With imgui_stdlib, InputText on a std::string.
+# Obsolete names off, so a release that drops them changes nothing.
+set( imgui_dir ${CMAKE_CURRENT_SOURCE_DIR}/imgui )
+add_library( imgui STATIC ${imgui_dir}/imgui.cpp ${imgui_dir}/imgui_demo.cpp ${imgui_dir}/imgui_draw.cpp
+                          ${imgui_dir}/imgui_tables.cpp ${imgui_dir}/imgui_widgets.cpp
+                          ${imgui_dir}/misc/cpp/imgui_stdlib.cpp )
+target_include_directories( imgui SYSTEM PUBLIC ${imgui_dir} ${imgui_dir}/misc/cpp )
+target_compile_definitions( imgui PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS )
+if( MSVC )
+    target_compile_options( imgui PRIVATE /w )
+else()
+    target_compile_options( imgui PRIVATE -w )
+endif()
+
 # FreeType 2.15.0 and msdfgen 1.13 - a font's glyphs into a multi-channel
 # signed distance field atlas, by the font importer in the editor and the
 # cook; a runner draws the atlas it made. Not on the web, where neither

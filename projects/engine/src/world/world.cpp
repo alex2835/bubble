@@ -8,11 +8,34 @@ World::World( App& app, Scene scene, WorldOptions options )
       mLevel( options.mLevel ),
       mClock( options.mStepsPerSecond ),
       mRandom( options.mSeed ),
-      mScene( std::move( scene ) )
+      mOwnedScene( std::move( scene ) ),
+      mScene( *mOwnedScene ),
+      mEditing( options.mEditing )
+{
+    Start();
+}
+
+Scope<World> World::Over( App& app, Scene& scene, WorldOptions options )
+{
+    return Scope<World>( new World( Borrowed{}, app, scene, options ) );
+}
+
+World::World( Borrowed, App& app, Scene& scene, WorldOptions options )
+    : mApp( app ),
+      mLevel( options.mLevel ),
+      mClock( options.mStepsPerSecond ),
+      mRandom( options.mSeed ),
+      mScene( scene ),
+      mEditing( options.mEditing )
+{
+    Start();
+}
+
+void World::Start()
 {
     mScene.ListenToFields( mFieldWatch );
-    for ( const ModuleType& type : app.Modules() )
-        if ( type.mCreate )
+    for ( const ModuleType& type : mApp.Modules() )
+        if ( type.mCreate and ( type.mInEditor or not mEditing ) )
             mModules.push_back( type.mCreate( *this ) );
 
     // Every component there is, once: whatever a module did to the scene
@@ -28,9 +51,22 @@ World::~World()
 {
     // The scene's runtime components go first, while the modules that built
     // them are there to let go of what they hold.
+    if ( mOwnedScene )
     {
-        const Scene gone = std::move( mScene );
+        const Scene gone = std::move( *mOwnedScene );
+        return;
     }
+    // A scene that stays: it hears no more of this world, and keeps its data
+    // and the engine's bookkeeping alone.
+    for ( auto& [component, hooks] : mHooks )
+        hooks.mStopListening( mScene, *hooks.mWatch );
+    mScene.StopListeningToFields( mFieldWatch );
+    const ComponentTypes& types = mApp.GetComponentTypes();
+    vector<entt::id_type> kept;
+    for ( const span<const ComponentTypes::Type> group : { types.All(), types.Internal() } )
+        for ( const ComponentTypes::Type& type : group )
+            kept.push_back( type.mStorage );
+    mScene.RemoveComponentsExcept( kept );
 }
 
 void World::Frame( f64 elapsed )
@@ -38,7 +74,7 @@ void World::Frame( f64 elapsed )
     BUBBLE_PROFILE_ZONE();
     if ( not( elapsed >= 0 ) )
         throw logic_error( format( "World::Frame( {} ): time goes forward", elapsed ) );
-    const u32 due = mPaused ? 0 : mClock.Advance( elapsed );
+    const u32 due = mPaused or mEditing ? 0 : mClock.Advance( elapsed );
     for ( u32 i = 0; i < due; ++i )
         Step();
 
@@ -57,6 +93,8 @@ void World::Frame( f64 elapsed )
 void World::Step()
 {
     BUBBLE_PROFILE_ZONE();
+    if ( mEditing )
+        throw logic_error( "World::Step: an editing world never steps" );
     const f32 dt = mClock.Dt();
     mStepActions = mInput.mLatchStep ? mInput.mLatchStep() : Actions();
     mInStep = true;
@@ -128,11 +166,13 @@ void World::Run( Phase phase, f32 dt )
 
 World::Hooks& World::AddHooks( Name component,
                                function<bool( const Scene&, Entity )> has,
-                               function<vector<Entity>( const Scene& )> all )
+                               function<vector<Entity>( const Scene& )> all,
+                               function<void( Scene&, ComponentListener& )> stopListening )
 {
     Hooks& hooks = mHooks[component];
     hooks.mHas = std::move( has );
     hooks.mAll = std::move( all );
+    hooks.mStopListening = std::move( stopListening );
     hooks.mWatch = CreateScope<ComponentWatch>( *this, component );
     mHookOrder.push_back( component );
     return hooks;

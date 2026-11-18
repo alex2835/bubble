@@ -3,6 +3,7 @@
 #include "bubble/editing/history.hpp"
 #include "bubble/editing/selection.hpp"
 #include "bubble/scene/component_types.hpp"
+#include "bubble/types/pointer.hpp"
 
 namespace bubble
 {
@@ -13,6 +14,15 @@ struct PrefabNodes
 {
     hmap<Entity, u32> mIds;
     u32 mNextId = 1;
+};
+
+// What the editor builds over a document - the world that shows its scene -
+// kept with it and gone before its scene: a document closed by an operator
+// takes its view along.
+class DocumentView
+{
+public:
+    virtual ~DocumentView() = default;
 };
 
 // What is open in the editor and saved to a file: a level's or a prefab's
@@ -58,6 +68,10 @@ public:
     // The scene as it is now stays, the steps go; dirty or not as before.
     void ForgetHistory();
 
+    // The editor's view of it: nothing until the editor shows it.
+    OptRef<DocumentView> TryView();
+    void SetView( Scope<DocumentView> view ) { mView = std::move( view ); }
+
 private:
     const ComponentTypes& mComponentTypes;
     Scene mScene;
@@ -66,5 +80,7 @@ private:
     u64 mSavedAt = 0;
     opt<AssetPath> mPathMaybe;
     opt<PrefabNodes> mPrefabNodesMaybe;
+    // Last, so it goes first: it holds the scene.
+    Scope<DocumentView> mView;
 };
 }

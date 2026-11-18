@@ -102,6 +102,9 @@ Platform::~Platform()
 {
     for ( const auto& [id, gamepad] : mGamepads )
         SDL_CloseGamepad( gamepad );
+    for ( SDL_Cursor* cursor : mCursors )
+        if ( cursor != nullptr )
+            SDL_DestroyCursor( cursor );
     SDL_Quit();
 }
 
@@ -146,6 +149,10 @@ span<const InputEvent> Platform::Poll()
                     else
                         mEvents.push_back( KeyUp{ .mKey = *keyMaybe } );
                 }
+                break;
+            case SDL_EVENT_TEXT_INPUT:
+                if ( event.text.text != nullptr and event.text.text[0] != 0 )
+                    mEvents.push_back( TextInput{ .mText = event.text.text } );
                 break;
             case SDL_EVENT_MOUSE_MOTION:
                 mEvents.push_back( MouseMove{ .mPosition = vec2( event.motion.x, event.motion.y ),
@@ -224,6 +231,46 @@ span<const InputEvent> Platform::Poll()
         }
     }
     return mEvents;
+}
+
+void Platform::SetCursor( Cursor cursor )
+{
+    if ( cursor == mCursor )
+        return;
+    mCursor = cursor;
+    if ( cursor == Cursor::Hidden )
+    {
+        SDL_HideCursor();
+        return;
+    }
+    static constexpr array<SDL_SystemCursor, cCursors - 1> cShapes{
+        SDL_SYSTEM_CURSOR_DEFAULT,     SDL_SYSTEM_CURSOR_TEXT,        SDL_SYSTEM_CURSOR_POINTER,
+        SDL_SYSTEM_CURSOR_MOVE,        SDL_SYSTEM_CURSOR_NS_RESIZE,   SDL_SYSTEM_CURSOR_EW_RESIZE,
+        SDL_SYSTEM_CURSOR_NESW_RESIZE, SDL_SYSTEM_CURSOR_NWSE_RESIZE, SDL_SYSTEM_CURSOR_NOT_ALLOWED,
+    };
+    const u32 at = static_cast<u32>( cursor );
+    if ( mCursors[at] == nullptr )
+        mCursors[at] = SDL_CreateSystemCursor( cShapes[at] );
+    // A system with no such shape keeps the one it shows.
+    if ( mCursors[at] != nullptr )
+        SDL_SetCursor( mCursors[at] );
+    SDL_ShowCursor();
+}
+
+string Platform::ClipboardText() const
+{
+    char* text = SDL_GetClipboardText();
+    if ( text == nullptr )
+        return {};
+    string copy( text );
+    SDL_free( text );
+    return copy;
+}
+
+void Platform::SetClipboardText( const string& text )
+{
+    if ( not SDL_SetClipboardText( text.c_str() ) )
+        LogWarning( "The clipboard would not take the text: {}", SDL_GetError() );
 }
 
 void Platform::Run( function<bool( f64 elapsed )> frame )
