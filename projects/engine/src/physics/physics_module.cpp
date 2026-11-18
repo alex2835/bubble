@@ -1051,7 +1051,8 @@ ModuleType PhysicsModule( AssetRegistry& assets )
                 reflection.Type<CapsuleCollider>( "capsule_collider" )
                     .Field<&CapsuleCollider::mRadius>( "radius" )
                     .Field<&CapsuleCollider::mHeight>( "height" );
-                reflection.Type<MeshCollider>( "mesh_collider" ).Field<&MeshCollider::mModel>( "model" );
+                reflection.Type<MeshCollider>( "mesh_collider" )
+                    .Field<&MeshCollider::mModel>( "model", { .mAssetKind = cModelKind.data() } );
                 reflection.Type<RigidBody>( "rigid_body" )
                     .Field<&RigidBody::mMass>( "mass" )
                     .Field<&RigidBody::mFriction>( "friction", { .mMin = 0, .mMax = 1, .mFlags = FieldInfo::Slider } )

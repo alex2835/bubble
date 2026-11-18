@@ -41,7 +41,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
                               own CMake: its runtime in the engine, its offline builders in import; Yoga in the
                               engine; FreeType - TrueType and OpenType modules - and msdfgen in import; Dear ImGui's
-                              core - docking, no backends - and Roboto, the font built into it, in the editor).
+                              core - docking, no backends -, ImGuizmo and Roboto, the font built into it, in the
+                              editor).
                               wgpu-native alone is downloaded at configure time into out/downloads, pinned by version
                               and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
@@ -145,7 +146,8 @@ projects/engine/include/bubble/
                               <-> Json (plain by type, tagged for Any; an asset is { "asset": id, "path": path },
                               found by the path when the id is not); EncodePng (RGBA8 as a PNG, stored blocks: a
                               screenshot, a reference picture)
-    reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
+    reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo (range, flags, tooltip, the
+                              asset kind a field takes), Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble; Entity, Color, AssetId cross as Luau types),
                               ScriptAsset (bytecode, props read from the AST, requires resolved; TryResolveRequire),
@@ -239,10 +241,20 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               (a project open: settings, App with every module, the registry, its sources kept
                               imported, the Workspace and Operators), DocumentWorld (a document's editing world over
                               its scene, its view: WorldOf), EditorCamera, Viewport (the active document's world in a
-                              picture the panel's size, the camera on the mouse), ScenePanel (the tree: clicks with
+                              picture the panel's size, the camera on the mouse - F frames the selection -, a click
+                              picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
+                              gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
+                              group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
+                              the world's debug lines; Decompose), ScenePanel (the tree: clicks with
                               ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
-                              they ask; operators run after the rows are walked), Editor (the dock space, the menu,
-                              a tab a document, the scene, the viewport, the log; operators alone change anything). main.cpp is bubble_editor
+                              they ask; operators run after the rows are walked; an entity made active elsewhere is
+                              shown), Inspector (the active entity: its name, its components' fields as Values by
+                              kind - FieldInfo's angle, slider, colour, mAssetKind for the asset picker -, an entity
+                              field taking a row dropped from the tree, a script's props from its file - set ones
+                              apart -, add, remove, revert to and apply to the prefab; every edit property.set, a
+                              drag one history group however many frames - Settle closes it -; TryWhere for tests),
+                              Editor (the dock space, the menu, a tab a document, the scene, the viewport, the
+                              inspector, the log; operators alone change anything). main.cpp is bubble_editor
                               <project folder> [--frames N] [--screenshot file.png], the desktop alone; its layout in
                               the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in

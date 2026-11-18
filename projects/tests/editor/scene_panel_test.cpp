@@ -330,3 +330,13 @@ TEST_CASE( "The panel moves what is dragged onto a row into it" )
     CHECK( PathOf( ui.GetScene(), *TryResolve( ui.GetScene(), EntityPath{ Make( "/a/c" ) } ) ).mPath.String() ==
            "/a/c" );
 }
+
+TEST_CASE( "An entity made active elsewhere opens the rows over it" )
+{
+    Ui ui;
+    REQUIRE( ui.mProject->Run( "selection.set", *Json::TryParse( R"({ "entities": [ "/a/one" ] })" ) ) );
+    ui.Frame();
+    // Rows now: a, one, b, c.
+    ui.Click( 2 );
+    CHECK( ui.Selected() == vector<string>{ "/b" } );
+}

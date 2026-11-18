@@ -866,7 +866,7 @@ ModuleType AnimationModule( AssetRegistry& assets )
         .mDescribe =
             []( Reflection& reflection, ComponentTypes& componentTypes ) {
                 reflection.Type<Animator>( "animator" )
-                    .Field<&Animator::mGraph>( "graph" )
+                    .Field<&Animator::mGraph>( "graph", { .mAssetKind = cAnimationGraphKind.data() } )
                     .Field<&Animator::mSpeed>( "speed" );
                 reflection.Type<BoneAttachment>( "bone_attachment" ).Field<&BoneAttachment::mBone>( "bone" );
                 componentTypes.Add<Animator>();

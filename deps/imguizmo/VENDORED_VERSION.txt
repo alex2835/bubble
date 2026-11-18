@@ -1,0 +1,8 @@
+ImGuizmo 1.89 WIP (2024)
+https://github.com/CedricGuillemet/ImGuizmo
+
+ImGuizmo.cpp, ImGuizmo.h and LICENSE alone: the gizmo the editor's viewport
+moves, turns and scales entities with. Copied from the old engine's deps
+(bubble0.7) as it was first added there, before its one local change.
+Dropped: GraphEditor, ImCurveEdit, ImGradient, ImSequencer, ImZoomSlider,
+the example and the build files.

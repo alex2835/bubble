@@ -5,6 +5,7 @@
 #include "bubble/import/script_importer.hpp"
 #include "bubble/scene/engine_file.hpp"
 #include "bubble/scripts/script_declarations.hpp"
+#include "bubble/types/algorithm.hpp"
 
 namespace bubble
 {
@@ -122,6 +123,27 @@ expected<void, string> EditorProject::TryOpenStartLevel()
         return unexpected( format( "{}: start_level: no such level in the project", cProjectFile ) );
     return mOperators.TryRun( mWorkspace, "document.open",
                               Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = pathMaybe->String() } } ) );
+}
+
+bool EditorProject::Makes( const AssetPath& path, string_view kind ) const
+{
+    const string_view text = path.View();
+    const size_t dot = text.rfind( '.' );
+    if ( dot == string_view::npos )
+        return false;
+    const auto importerMaybe = mProject.GetImporters().TryFind( text.substr( dot ) );
+    return importerMaybe and ( importerMaybe->mKind == kind or
+                               ranges::find( importerMaybe->mMoreKinds, kind ) != importerMaybe->mMoreKinds.end() );
+}
+
+bool EditorProject::Run( string_view id, const Value::Record& args )
+{
+    if ( auto ranMaybe = mOperators.TryRun( mWorkspace, id, args ); not ranMaybe )
+    {
+        LogError( "{}", ranMaybe.error() );
+        return false;
+    }
+    return true;
 }
 
 bool EditorProject::Run( string_view id, const Json& args )

@@ -154,8 +154,8 @@ ModuleType RenderModule( AssetRegistry& assets )
                     .Field<&SpotLight::mInnerAngle>( "inner_angle", angle )
                     .Field<&SpotLight::mOuterAngle>( "outer_angle", angle );
                 reflection.Type<Model>( "model" )
-                    .Field<&Model::mAsset>( "asset" )
-                    .Field<&Model::mMaterials>( "materials" )
+                    .Field<&Model::mAsset>( "asset", { .mAssetKind = cModelKind.data() } )
+                    .Field<&Model::mMaterials>( "materials", { .mAssetKind = cMaterialKind.data() } )
                     .Field<&Model::mTint>( "tint", color );
                 // Scripts draw too: debug_draw.line( from, to, color ).
                 reflection.Type<DebugDraw>( "debug_draw" )

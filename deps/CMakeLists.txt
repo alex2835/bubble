@@ -168,6 +168,17 @@ else()
     target_compile_options( imgui PRIVATE -w )
 endif()
 
+# ImGuizmo 1.89 WIP - the editor's gizmo: move, turn and scale in the
+# viewport, on Dear ImGui.
+add_library( imguizmo STATIC ${CMAKE_CURRENT_SOURCE_DIR}/imguizmo/ImGuizmo.cpp )
+target_include_directories( imguizmo SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/imguizmo )
+target_link_libraries( imguizmo PUBLIC imgui )
+if( MSVC )
+    target_compile_options( imguizmo PRIVATE /w )
+else()
+    target_compile_options( imguizmo PRIVATE -w )
+endif()
+
 # FreeType 2.15.0 and msdfgen 1.13 - a font's glyphs into a multi-channel
 # signed distance field atlas, by the font importer in the editor and the
 # cook; a runner draws the atlas it made. Not on the web, where neither

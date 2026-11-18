@@ -5,6 +5,10 @@
 
 namespace bubble
 {
+// What the scene panel's rows carry when dragged: their entities, as
+// numbers - an entity field takes one dropped on it.
+constexpr const char* cEntitiesPayload = "bubble.entities";
+
 // An operator and its arguments: what a gesture in a panel asks for.
 struct OperatorCall
 {
@@ -40,7 +44,8 @@ opt<OperatorCall> TryDropCall( const Scene& scene, span<const Entity> dragged, E
 // and shift as a file manager has them -, renaming in place (F2), moving by
 // dragging, a menu of what the operators do to entities, and their keys
 // while it has the focus. Instances of prefabs stand out; a double click on
-// one opens its prefab.
+// one opens its prefab. An entity made active elsewhere - the viewport, an
+// operator - is shown: the rows over it open, the list scrolled to it.
 class ScenePanel
 {
 public:
@@ -71,6 +76,9 @@ private:
     // it may be the start of a drag of them all.
     Entity mPressed = Entity::Null;
     Entity mRenaming = Entity::Null;
+    // The active entity as last shown, and one to show.
+    Entity mActive = Entity::Null;
+    Entity mReveal = Entity::Null;
     string mNewName;
     bool mRenameStarted = false;
 };

@@ -4,6 +4,9 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+// After ImGui's own header, which it takes as given.
+#include <ImGuizmo.h>
+
 namespace bubble
 {
 namespace
@@ -29,7 +32,8 @@ ImVec4 ColorOf( LogLevel level )
 Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer )
     : mProject( project ),
       mScene( project ),
-      mViewport( gpu, renderer )
+      mInspector( project ),
+      mViewport( project, gpu, renderer )
 {
 }
 
@@ -59,15 +63,19 @@ OptRef<World> Editor::TryActiveWorld()
 
 void Editor::Frame( f64 elapsed )
 {
+    mInspector.Settle();
+    ImGuizmo::BeginFrame();
     mSinceRefresh += elapsed;
     if ( mSinceRefresh >= cRefreshEvery )
     {
         mSinceRefresh = 0;
         mProject.Refresh();
     }
-    // The world gathers what it shows: models, lights, the transforms
-    // between them.
-    if ( const auto worldMaybe = TryActiveWorld() )
+    // The world gathers what it shows - models, lights, the transforms
+    // between them - and what the viewport draws over the selection.
+    const auto worldMaybe = TryActiveWorld();
+    mViewport.Prepare( mProject.GetWorkspace().TryActive(), worldMaybe );
+    if ( worldMaybe )
         worldMaybe->Frame( elapsed );
 
     Shortcuts();
@@ -79,6 +87,9 @@ void Editor::Frame( f64 elapsed )
     if ( ImGui::Begin( "Scene" ) )
         mScene.Show();
     ImGui::End();
+    if ( ImGui::Begin( "Inspector" ) )
+        mInspector.Show();
+    ImGui::End();
     ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
     const bool viewport = ImGui::Begin( "Viewport" );
     ImGui::PopStyleVar();
@@ -86,7 +97,7 @@ void Editor::Frame( f64 elapsed )
     {
         DocumentTabs();
         UnsavedChanges();
-        mViewport.Show();
+        mViewport.Show( mProject.GetWorkspace().TryActive() );
     }
     ImGui::End();
     LogPanel();
@@ -114,7 +125,9 @@ void Editor::Layout( u32 dockSpace )
     ImGuiID centre = dockSpace;
     const ImGuiID bottom = ImGui::DockBuilderSplitNode( centre, ImGuiDir_Down, 0.22f, nullptr, &centre );
     const ImGuiID left = ImGui::DockBuilderSplitNode( centre, ImGuiDir_Left, 0.2f, nullptr, &centre );
+    const ImGuiID right = ImGui::DockBuilderSplitNode( centre, ImGuiDir_Right, 0.28f, nullptr, &centre );
     ImGui::DockBuilderDockWindow( "Scene", left );
+    ImGui::DockBuilderDockWindow( "Inspector", right );
     ImGui::DockBuilderDockWindow( "Viewport", centre );
     ImGui::DockBuilderDockWindow( "Log", bottom );
     ImGui::DockBuilderFinish( dockSpace );
@@ -153,8 +166,9 @@ void Editor::Menu()
 void Editor::Shortcuts()
 {
     // Wherever the focus is, but a field that takes text keeps its own
-    // Ctrl+Z; saving works from anywhere.
-    const bool typing = ImGui::GetIO().WantTextInput;
+    // Ctrl+Z, and a drag under way - one step that is not over - takes none;
+    // saving works from anywhere.
+    const bool typing = ImGui::GetIO().WantTextInput or ImGui::IsAnyItemActive();
     const auto key = [&]( ImGuiKeyChord chord, string_view op, bool always = false ) {
         if ( ( always or not typing ) and ImGui::IsKeyChordPressed( chord ) and
              mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )

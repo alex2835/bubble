@@ -40,11 +40,16 @@ public:
     App& GetApp() { return mApp; }
     AssetRegistry& GetAssets() { return mAssets; }
     const ProjectFiles& GetFiles() const { return mProject.GetFiles(); }
+    const AssetCatalog& GetCatalog() const { return mProject.GetCatalog(); }
+    // Whether the source at `path` imports as `kind` - its importer's own
+    // kind, or one it makes beside: a model's skeleton.
+    bool Makes( const AssetPath& path, string_view kind ) const;
     Workspace& GetWorkspace() { return mWorkspace; }
     const Operators& GetOperators() const { return mOperators; }
     // Runs an operator on the workspace; its error is logged, as a menu or a
     // key that ran it has no one else to tell.
     bool Run( string_view id, const Json& args = Json() );
+    bool Run( string_view id, const Value::Record& args );
 
 private:
     EditorProject( ProjectFiles files, AssetRegistry::ReadImported read, ProjectSettings settings );

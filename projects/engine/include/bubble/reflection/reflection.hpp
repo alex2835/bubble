@@ -64,6 +64,9 @@ struct FieldInfo
     // Whether to show the field, given its owner - a spot light's cone and
     // not a directional one's. Null is always.
     bool ( *mVisible )( const MetaAny& owner ) = nullptr;
+    // An asset's kind - "model", "material", as its importer makes it - for
+    // the editor's picker: an AssetId, or a list of them; none is any.
+    const char* mAssetKind = nullptr;
 
     bool Has( Flags flag ) const { return ( mFlags & flag ) != 0; }
 };

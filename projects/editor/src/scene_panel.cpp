@@ -9,7 +9,6 @@ namespace bubble
 {
 namespace
 {
-constexpr const char* cPayload = "bubble.entities";
 // A drop in the top or the bottom quarter of a row lands beside it.
 constexpr f32 cBeside = 0.25f;
 
@@ -142,12 +141,18 @@ void ScenePanel::Show()
     if ( not scene.Alive( mRenaming ) )
         mRenaming = Entity::Null;
     Keys( document );
+    if ( const Entity active = document.GetSelection().Active(); active != mActive )
+    {
+        mActive = active;
+        mReveal = active;
+    }
 
     mShown.clear();
     const vector<Entity> top( ChildrenOf( scene, scene.Root() ).begin(), ChildrenOf( scene, scene.Root() ).end() );
     for ( const Entity entity : top )
         Row( document, entity );
     mRows = mShown;
+    mReveal = Entity::Null;
 
     // Below them: a click selects nothing, a drop goes to the end of the
     // root, the menu makes and pastes there.
@@ -199,10 +204,14 @@ void ScenePanel::Row( Document& document, Entity entity )
     if ( colorMaybe )
         ImGui::PushStyleColor( ImGuiCol_Text, *colorMaybe );
     const string name = NameOf( scene, entity ).String();
+    if ( mReveal != Entity::Null and IsAncestor( scene, entity, mReveal ) )
+        ImGui::SetNextItemOpen( true );
     const bool open = renaming ? ImGui::TreeNodeEx( "node", flags, "%s", "" )
                                : ImGui::TreeNodeEx( "node", flags, "%s", name.c_str() );
     if ( colorMaybe )
         ImGui::PopStyleColor();
+    if ( entity == mReveal and not ImGui::IsItemVisible() )
+        ImGui::SetScrollHereY( 0.5f );
 
     if ( not renaming and ImGui::IsItemClicked( ImGuiMouseButton_Left ) and not ImGui::IsItemToggledOpen() )
     {
@@ -231,7 +240,7 @@ void ScenePanel::Row( Document& document, Entity entity )
                 Run( "selection.set", EntitiesJson( scene, mDragged ) );
         }
         mPressed = Entity::Null;
-        ImGui::SetDragDropPayload( cPayload, nullptr, 0 );
+        ImGui::SetDragDropPayload( cEntitiesPayload, mDragged.data(), mDragged.size() * sizeof( Entity ) );
         if ( mDragged.size() == 1 )
             ImGui::TextUnformatted( NameOf( scene, mDragged.front() ).String().c_str() );
         else
@@ -324,7 +333,7 @@ void ScenePanel::DropOn( Document& document, Entity entity, bool open )
         return;
     const Scene& scene = document.GetScene();
     const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(
-        cPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect );
+        cEntitiesPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect );
     if ( payload != nullptr )
     {
         const ImVec2 low = ImGui::GetItemRectMin();

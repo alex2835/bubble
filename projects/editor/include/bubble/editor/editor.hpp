@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/core/log.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/editor/inspector.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/viewport.hpp"
 
@@ -8,7 +9,7 @@ namespace bubble
 {
 // The editor's window as ImGui draws it, over a project: the dock space, the
 // menu, the panels - the scene's tree, the viewport with a tab a document,
-// the log. The panels show the active document, and act on it through
+// the inspector, the log. The panels show the active document, and act on it through
 // operators alone; a tab picked makes its document the active one.
 class Editor
 {
@@ -51,6 +52,7 @@ private:
 
     EditorProject& mProject;
     ScenePanel mScene;
+    Inspector mInspector;
     Viewport mViewport;
     // The active document's tab as last shown: a document made active by an
     // operator gets its tab picked.

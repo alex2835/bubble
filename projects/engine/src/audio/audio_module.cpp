@@ -484,7 +484,7 @@ ModuleType AudioModule( AssetRegistry& assets, AudioDevice& device )
         .mDescribe =
             []( Reflection& reflection, ComponentTypes& componentTypes ) {
                 reflection.Type<AudioSource>( "audio_source" )
-                    .Field<&AudioSource::mSound>( "sound" )
+                    .Field<&AudioSource::mSound>( "sound", { .mAssetKind = cSoundKind.data() } )
                     .Field<&AudioSource::mBus>( "bus" )
                     .Field<&AudioSource::mVolume>( "volume", { .mMin = 0, .mMax = 2, .mFlags = FieldInfo::Slider } )
                     .Field<&AudioSource::mPitch>( "pitch" )

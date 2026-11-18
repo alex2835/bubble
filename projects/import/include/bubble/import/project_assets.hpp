@@ -51,7 +51,9 @@ public:
     // The same object for as long as this lives - the registry and the
     // workspace hold it - with the entries a refresh finds.
     AssetCatalog& GetCatalog() { return mCatalog; }
+    const AssetCatalog& GetCatalog() const { return mCatalog; }
     const ProjectFiles& GetFiles() const { return mFiles; }
+    const Importers& GetImporters() const { return mImporters; }
 
 private:
     ProjectFiles mFiles;

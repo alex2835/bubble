@@ -19,7 +19,7 @@ add_custom_command( OUTPUT ${BUBBLE_EDITOR_FONT}
 add_library( bubble_editor STATIC ${BUBBLE_EDITOR_SOURCES} ${BUBBLE_EDITOR_HEADERS} ${BUBBLE_EDITOR_FONT} )
 target_include_directories( bubble_editor PUBLIC include )
 bubble_target_warnings( bubble_editor )
-target_link_libraries( bubble_editor PUBLIC bubble_editing imgui )
+target_link_libraries( bubble_editor PUBLIC bubble_editing imgui PRIVATE imguizmo )
 
 # bubble_editor <project folder>: the desktop alone for now.
 if( NOT EMSCRIPTEN )

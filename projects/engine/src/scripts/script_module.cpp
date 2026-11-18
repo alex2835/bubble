@@ -435,7 +435,9 @@ ModuleType ScriptModule( AssetRegistry& assets, ScriptModuleOptions options )
         .mName = "scripts",
         .mDescribe =
             []( Reflection& reflection, ComponentTypes& componentTypes ) {
-                reflection.Type<Script>( "script" ).Field<&Script::mAsset>( "asset" ).Field<&Script::mProps>( "props" );
+                reflection.Type<Script>( "script" )
+                    .Field<&Script::mAsset>( "asset", { .mAssetKind = cScriptKind.data() } )
+                    .Field<&Script::mProps>( "props" );
                 componentTypes.Add<Script>();
             },
         .mCreate = [&assets, options = std::move( options )]( World& world ) -> Scope<Module> {
