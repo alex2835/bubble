@@ -431,6 +431,30 @@ end
     CHECK( glm::length( vec3( ( *animation.TryJoint( walker, "lower" ) )[3] ) ) < 1e-3f );
 }
 
+TEST_CASE( "A Z-up rig's root turn comes out about the model's up, and its lean stays in the clip" )
+{
+    AnimationFixture f;
+    const AssetId model = f.ImportModel( "models/turner.glb", SkinnedGlb( true ), R"({ "root_motion": "lower" })" );
+    const AssetId graph = f.Graph(
+        "anims/turn.anim", R"({ "states": { "turn": { "clip": "turn", "root_motion": true, "loop": false } } })" );
+    Scene scene;
+    const Entity turner = AnimationFixture::Animated( scene, model, graph );
+    World world( f.mApp, std::move( scene ) );
+    f.Settle( world );
+    f.Steps( world, 30 );
+    AnimationWorld& animation = world.Get<AnimationWorld>();
+    // Halfway, about the up at nearly a quarter turn a second - the keys are
+    // eased between as quaternions, not as angles.
+    CHECK( animation.RootMotion( turner ).mTurn == doctest::Approx( glm::radians( 90.0f ) ).epsilon( 0.1 ) );
+
+    // Ended, it leans toward the model's +Z as the clip leans it - not turned
+    // aside, and not tipped over by a turn taken for a roll.
+    f.Steps( world, 40 );
+    const vec3 upper( ( *animation.TryJoint( turner, "upper" ) )[3] );
+    CHECK( glm::length( upper - vec3( 0.0f, 0.8660254f, 0.5f ) ) < 0.01f );
+    CHECK( animation.RootMotion( turner ).mTurn == doctest::Approx( 0.0f ) );
+}
+
 TEST_CASE( "What animation gives scripts is declared, and a typed script using it passes the strict check" )
 {
     AnimationFixture f;

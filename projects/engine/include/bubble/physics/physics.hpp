@@ -57,13 +57,18 @@ struct RigidBody
 // moved by the velocity its script sets each step - gravity and jumps
 // included, the controller adds none. It keeps to the ground, climbs steps
 // up to `mStepHeight` and slopes up to `mMaxSlope`; riding a platform is
-// adding the ground's velocity to its own.
+// adding the ground's velocity to its own. Its weight - `mass` kilograms
+// under the world's gravity - presses on a body it stands on; 0 presses on
+// nothing. Jolt holds about ten to one between masses touching, and a body
+// far lighter shakes under the character until it seems to stand on nothing
+// a step in four: hence 10, not a person's 70, beside bodies' 1.
 struct CharacterController
 {
     f32 mRadius = 0.4f;
     f32 mHeight = 1.8f;
     f32 mMaxSlope = 0.7853982f;
     f32 mStepHeight = 0.35f;
+    f32 mMass = 10.0f;
 };
 
 // What a ray met first.

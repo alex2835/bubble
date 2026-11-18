@@ -90,7 +90,8 @@ projects/engine/include/bubble/
                               audio.play_sound/play_sound_at/set_bus_volume and audio_source:play()/stop()
     physics/                  PhysicsModule on Jolt (src/physics alone): box, sphere, capsule and mesh colliders,
                               rigid_body (dynamic, or kinematic: moved by its transform), character_controller
-                              (CharacterVirtual: a velocity set each step, ground, steps, slopes); stepped in
+                              (CharacterVirtual: a velocity set each step, ground, steps, slopes, its weight on what
+                              it stands on - mass, 10 by default, Jolt holding about 10:1 -); stepped in
                               Phase::Physics on one thread, what moved written into transforms, contacts as
                               ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
                               velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
@@ -204,7 +205,8 @@ projects/import/include/bubble/import/
                               tga, bmp -> RGBA8, mips averaged as light), ModelImporters (assimp: glb, gltf, fbx,
                               obj; meshoptimizer's ordering and LODs; a skin - its bones and every node over them -
                               as the model's joints and ozz's skeleton and clips beside it, a mesh with no bones on
-                              the joint over it, root motion out of the clips as "root_motion" says; not on the web
+                              the joint over it, root motion out of the clips as "root_motion" says - our own, the turn
+                              about the model's up by swing-twist, whichever way the file stands up -; not on the web
                               - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
                               in step: TryRefresh polls the stamps, scans and imports what changed - a prefab, its id

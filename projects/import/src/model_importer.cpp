@@ -14,7 +14,6 @@
 #include <meshoptimizer.h>
 #include <ozz/animation/offline/animation_builder.h>
 #include <ozz/animation/offline/animation_optimizer.h>
-#include <ozz/animation/offline/motion_extractor.h>
 #include <ozz/animation/offline/raw_animation.h>
 #include <ozz/animation/offline/raw_skeleton.h>
 #include <ozz/animation/offline/raw_track.h>
@@ -449,12 +448,13 @@ void DropHeldScale( RawAnimation& raw, const ozz::animation::Skeleton& skeleton 
 }
 
 // How a rig's root motion comes out of its clips: its joint's travel across
-// the ground and its turn about the up axis, put in tracks of their own -
-// in the model's space, though the joint's own are in its parent's, which
-// may stand another way up (a Z-up file turned Y-up above it).
+// the ground and its turn about the model's up, from where it rests, put in
+// tracks of their own in the model's space - though the joint's keys are in
+// its parent's, which may stand another way up (a Z-up file turned Y-up
+// above it).
 struct RootMotion
 {
-    ozz::animation::offline::MotionExtractor mExtractor;
+    i32 mJoint = 0;
     quat mParentTurn{ 1.0f, 0.0f, 0.0f, 0.0f };
     vec3 mParentScale{ 1.0f };
 };
@@ -471,7 +471,7 @@ expected<RootMotion, string> TryRootMotion( const Rig& rig, string_view jointNam
             format( "settings.root_motion: no joint {} in its skeleton (joints: {})", jointName, names ) );
     }
     RootMotion motion;
-    motion.mExtractor.root_joint = found->second;
+    motion.mJoint = found->second;
     const i16 parent = rig.mSkeleton->joint_parents()[found->second];
     if ( parent != ozz::animation::Skeleton::kNoParent )
     {
@@ -482,34 +482,76 @@ expected<RootMotion, string> TryRootMotion( const Rig& rig, string_view jointNam
             glm::quat_cast( mat3( vec3( rest[0] ) / motion.mParentScale.x, vec3( rest[1] ) / motion.mParentScale.y,
                                   vec3( rest[2] ) / motion.mParentScale.z ) ) );
     }
-    // The parent's axis nearest the model's up is the one height and yaw are
-    // about: the other two are the ground.
-    const vec3 up = glm::abs( glm::inverse( motion.mParentTurn ) * vec3( 0.0f, 1.0f, 0.0f ) );
-    const i32 axis = up.x > up.y and up.x > up.z ? 0 : ( up.z > up.y ? 2 : 1 );
-    using Reference = ozz::animation::offline::MotionExtractor::Reference;
-    motion.mExtractor.position_settings = { axis != 0, axis != 1, axis != 2, Reference::kSkeleton, true, false };
-    motion.mExtractor.rotation_settings = { axis == 0, axis == 1, axis == 2, Reference::kSkeleton, true, false };
     return motion;
 }
 
-// The extracted tracks in the model's space, as archives.
-pair<string, string> RootTracks( ozz::animation::offline::RawFloat3Track translation,
-                                 ozz::animation::offline::RawQuaternionTrack rotation,
-                                 const RootMotion& motion )
+// The part of `turn` about the unit vector `axis`: what is left when the
+// swing that tips the axis is taken off. Projected, not read as Euler angles,
+// which take a turn about a Z-up file's up for a roll and, with any lean,
+// leave part of the turn in and tip the rest over.
+quat TwistAbout( const quat& turn, vec3 axis )
 {
-    for ( auto& key : translation.keyframes )
+    const vec3 along = glm::dot( vec3( turn.x, turn.y, turn.z ), axis ) * axis;
+    const quat twist( turn.w, along.x, along.y, along.z );
+    const f32 length = glm::length( twist );
+    // A half turn about an axis across the up has no twist to speak of.
+    return length < 1e-6f ? quat( 1.0f, 0.0f, 0.0f, 0.0f ) : twist / length;
+}
+
+ozz::math::Float3 ToOzz( vec3 v )
+{
+    return { v.x, v.y, v.z };
+}
+
+ozz::math::Quaternion ToOzz( const quat& q )
+{
+    return { q.x, q.y, q.z, q.w };
+}
+
+// Takes the root's travel and turn out of the clip, which then plays on the
+// spot, and gives them as archived tracks: the travel, then the turn.
+pair<string, string> ExtractRoot( RawAnimation& raw,
+                                  const ozz::animation::Skeleton& skeleton,
+                                  const RootMotion& motion )
+{
+    RawAnimation::JointTrack& track = raw.tracks[static_cast<size_t>( motion.mJoint )];
+    const ozz::math::Transform rest = ozz::animation::GetJointRestPoseLocalSpace( skeleton, motion.mJoint );
+    const vec3 restAt( rest.translation.x, rest.translation.y, rest.translation.z );
+    const quat restTurn( rest.rotation.w, rest.rotation.x, rest.rotation.y, rest.rotation.z );
+    const quat toModel = motion.mParentTurn;
+    const quat fromModel = glm::inverse( toModel );
+    const vec3 up = fromModel * vec3( 0.0f, 1.0f, 0.0f );
+    using Interpolation = ozz::animation::offline::RawTrackInterpolation;
+
+    ozz::animation::offline::RawFloat3Track travels;
+    for ( auto& key : track.translations )
     {
-        const vec3 moved = motion.mParentTurn * ( vec3( key.value.x, key.value.y, key.value.z ) * motion.mParentScale );
-        key.value = ozz::math::Float3( moved.x, moved.y, moved.z );
+        const vec3 at( key.value.x, key.value.y, key.value.z );
+        // Across the ground in the model's space - the parent's turn and
+        // scale on it -, then back in the parent's to take it off.
+        vec3 travel = toModel * ( ( at - restAt ) * motion.mParentScale );
+        travel.y = 0.0f;
+        travels.keyframes.push_back( { Interpolation::kLinear, key.time / raw.duration, ToOzz( travel ) } );
+        key.value = ToOzz( at - ( fromModel * travel ) / motion.mParentScale );
     }
-    for ( auto& key : rotation.keyframes )
+    ozz::animation::offline::RawQuaternionTrack turns;
+    quat before( 1.0f, 0.0f, 0.0f, 0.0f );
+    for ( auto& key : track.rotations )
     {
-        const quat turned = motion.mParentTurn * quat( key.value.w, key.value.x, key.value.y, key.value.z ) *
-                            glm::inverse( motion.mParentTurn );
-        key.value = ozz::math::Quaternion( turned.x, turned.y, turned.z, turned.w );
+        const quat turned( key.value.w, key.value.x, key.value.y, key.value.z );
+        quat twist = TwistAbout( turned * glm::inverse( restTurn ), up );
+        // On the side of the key before, so they are eased between the short
+        // way round.
+        if ( glm::dot( twist, before ) < 0.0f )
+            twist = -twist;
+        before = twist;
+        turns.keyframes.push_back(
+            { Interpolation::kLinear, key.time / raw.duration, ToOzz( toModel * twist * fromModel ) } );
+        // Taken off on the parent's side: what stays is the lean and the rest.
+        key.value = ToOzz( glm::inverse( twist ) * turned );
     }
     const ozz::animation::offline::TrackBuilder build;
-    return { ArchiveOf( *build( translation ) ), ArchiveOf( *build( rotation ) ) };
+    return { ArchiveOf( *build( travels ) ), ArchiveOf( *build( turns ) ) };
 }
 
 expected<ImportedClip, string> TryImportClip( const aiAnimation& animation,
@@ -561,16 +603,7 @@ expected<ImportedClip, string> TryImportClip( const aiAnimation& animation,
     // The root's travel out of the clip, which plays on the spot.
     pair<string, string> rootTracks;
     if ( rootMaybe )
-    {
-        ozz::animation::offline::RawFloat3Track translation;
-        ozz::animation::offline::RawQuaternionTrack rotation;
-        RawAnimation baked;
-        if ( not rootMaybe->mExtractor( raw, skeleton, &translation, &rotation, &baked ) )
-            return unexpected( format( "its clip {}: its root motion would not come out", raw.name.c_str() ) );
-        rootTracks = RootTracks( std::move( translation ), std::move( rotation ), *rootMaybe );
-        baked.name = raw.name;
-        raw = std::move( baked );
-    }
+        rootTracks = ExtractRoot( raw, skeleton, *rootMaybe );
 
     // Keys the interpolation gives back anyway go - a millimetre at the
     // joint, ozz's default -: glTF's exporters key every frame.
@@ -718,7 +751,7 @@ vector<Importer> ModelImporters()
         importers.push_back( Importer{ .mExtension = string( extension ),
                                        .mKind = string( cModelKind ),
                                        .mMoreKinds = { string( cSkeletonKind ), string( cClipsKind ) },
-                                       .mVersion = 2,
+                                       .mVersion = 3,
                                        .mImport = &TryImportModel } );
     return importers;
 }

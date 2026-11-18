@@ -283,7 +283,7 @@ public:
         Watch<RigidBody>( { "mass"_n, "friction"_n, "restitution"_n, "linear_damping"_n, "angular_damping"_n,
                             "gravity_scale"_n, "kinematic"_n },
                           rebuild );
-        Watch<CharacterController>( { "radius"_n, "height"_n, "max_slope"_n, "step_height"_n }, rebuild );
+        Watch<CharacterController>( { "radius"_n, "height"_n, "max_slope"_n, "step_height"_n, "mass"_n }, rebuild );
         world.OnAdded<Transform>( rebuild );
         world.OnRemoved<Transform>( rebuild );
         world.OnChanged<Transform>( "scale"_n, rebuild );
@@ -749,6 +749,7 @@ private:
         JPH::CharacterVirtualSettings settings;
         settings.mShape = shapeMaybe->Get();
         settings.mMaxSlopeAngle = controller.mMaxSlope;
+        settings.mMass = controller.mMass;
         settings.mUp = JPH::Vec3::sAxisY();
         // What touches its lower round end is ground; the side, wall.
         settings.mSupportingVolume = JPH::Plane( JPH::Vec3::sAxisY(), -controller.mRadius );
@@ -1065,7 +1066,8 @@ ModuleType PhysicsModule( AssetRegistry& assets )
                     .Field<&CharacterController::mHeight>( "height" )
                     .Field<&CharacterController::mMaxSlope>( "max_slope",
                                                              { .mMin = 0, .mMax = 90, .mFlags = FieldInfo::Angle } )
-                    .Field<&CharacterController::mStepHeight>( "step_height" );
+                    .Field<&CharacterController::mStepHeight>( "step_height" )
+                    .Field<&CharacterController::mMass>( "mass" );
                 componentTypes.Add<BoxCollider>();
                 componentTypes.Add<SphereCollider>();
                 componentTypes.Add<CapsuleCollider>();

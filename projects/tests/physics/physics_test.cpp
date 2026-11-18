@@ -94,6 +94,28 @@ TEST_CASE( "A character walks where its velocity says, keeps to the ground and c
     CHECK_FALSE( physics.TryCharacter( step ) );
 }
 
+TEST_CASE( "A character presses on the body it stands on by its weight, and with no mass on nothing" )
+{
+    const auto pressed = []( f32 mass ) {
+        PhysicsFixture f;
+        Scene scene;
+        // Afloat: nothing holds it up, and nothing pulls it down but the
+        // character on it.
+        const Entity raft = PhysicsFixture::Crate( scene, "raft", vec3( 0.0f, 0.5f, 0.0f ) );
+        scene.Get<RigidBody>( raft ).mGravityScale = 0;
+        const Entity hero = PhysicsFixture::Place( scene, "hero", Transform{ .mPosition = { 0.0f, 1.0f, 0.0f } } );
+        scene.Add<CharacterController>( hero, CharacterController{ .mMass = mass } );
+        World world( f.mApp, std::move( scene ) );
+        f.Steps( world, 2 );
+        return world.Get<PhysicsWorld>().TryVelocity( raft )->y;
+    };
+    // A step's weight - 10 by gravity by a 60th of a second - on the raft's
+    // mass of 1; then the raft sinks away from it.
+    CHECK( pressed( 10.0f ) == doctest::Approx( -10.0f * 9.81f / 60.0f ).epsilon( 0.02 ) );
+    CHECK( pressed( 0.0f ) == doctest::Approx( 0.0f ) );
+    CHECK( CharacterController{}.mMass == 10.0f );
+}
+
 TEST_CASE( "A ray finds the first body it meets; an overlap, every body touching a sphere" )
 {
     PhysicsFixture f;
