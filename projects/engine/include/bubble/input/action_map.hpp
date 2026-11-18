@@ -18,8 +18,10 @@ struct TouchArea
     friend bool operator==( const TouchArea&, const TouchArea& ) = default;
 };
 
-// What can drive an action.
-using ActionInput = variant<Key, MouseButton, GamepadButton, GamepadAxis, TouchArea>;
+// What can drive an action. A mouse axis gives how far the mouse went since
+// the step or the frame before - times the binding's scale, never clamped:
+// a camera turns by it, where a stick's value is a rate.
+using ActionInput = variant<Key, MouseButton, GamepadButton, GamepadAxis, TouchArea, MouseAxis>;
 
 struct ActionBinding
 {

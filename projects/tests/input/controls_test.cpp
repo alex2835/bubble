@@ -35,4 +35,17 @@ TEST_CASE( "Mouse and gamepad controls have snake_case names" )
     CHECK( GamepadButtonName( GamepadButton::South ) == "south" );
     CHECK( GamepadButtonName( GamepadButton::DpadRight ) == "dpad_right" );
     CHECK( GamepadAxisName( GamepadAxis::RightTrigger ) == "right_trigger" );
+    CHECK( MouseAxisName( MouseAxis::Wheel ) == "wheel" );
+}
+
+TEST_CASE( "Mouse and gamepad controls are found by their names, and an unknown name is nothing" )
+{
+    CHECK( TryMouseButtonFromName( "x2" ) == MouseButton::X2 );
+    CHECK( TryMouseAxisFromName( "y" ) == MouseAxis::Y );
+    CHECK( TryGamepadButtonFromName( "dpad_right" ) == GamepadButton::DpadRight );
+    CHECK( TryGamepadAxisFromName( "left_trigger" ) == GamepadAxis::LeftTrigger );
+    CHECK( TryMouseButtonFromName( "Left" ) == nullopt );
+    CHECK( TryMouseAxisFromName( "z" ) == nullopt );
+    CHECK( TryGamepadButtonFromName( "a" ) == nullopt );
+    CHECK( TryGamepadAxisFromName( "" ) == nullopt );
 }

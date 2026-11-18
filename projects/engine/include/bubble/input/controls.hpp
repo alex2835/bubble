@@ -129,6 +129,16 @@ enum class MouseButton : u8
 };
 constexpr u32 cMouseButtons = 5;
 
+// How far the mouse went: across and down in the window's units, the wheel
+// in notches - up positive.
+enum class MouseAxis : u8
+{
+    X,
+    Y,
+    Wheel,
+};
+constexpr u32 cMouseAxes = 3;
+
 // Named by where the button is, as on every pad: south is A on an Xbox
 // pad and the cross on a PlayStation one.
 enum class GamepadButton : u8
@@ -171,6 +181,11 @@ opt<Key> TryKeyFromCode( u32 code );
 opt<Key> TryKeyFromName( string_view name );
 
 string_view MouseButtonName( MouseButton button );
+string_view MouseAxisName( MouseAxis axis );
 string_view GamepadButtonName( GamepadButton button );
 string_view GamepadAxisName( GamepadAxis axis );
+opt<MouseButton> TryMouseButtonFromName( string_view name );
+opt<MouseAxis> TryMouseAxisFromName( string_view name );
+opt<GamepadButton> TryGamepadButtonFromName( string_view name );
+opt<GamepadAxis> TryGamepadAxisFromName( string_view name );
 }

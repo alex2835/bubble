@@ -122,6 +122,18 @@ static_assert( static_cast<u32>( Key::RightSuper ) + 1 == cKeySlots );
 
 constexpr array<string_view, cMouseButtons> cMouseButtonNames = { "left", "middle", "right", "x1", "x2" };
 
+constexpr array<string_view, cMouseAxes> cMouseAxisNames = { "x", "y", "wheel" };
+
+// The value of an enum by its name, its names in its order.
+template <typename Enum, size_t N>
+opt<Enum> TryFromName( const array<string_view, N>& names, string_view name )
+{
+    for ( size_t at = 0; at < N; ++at )
+        if ( names[at] == name )
+            return static_cast<Enum>( at );
+    return nullopt;
+}
+
 constexpr array<string_view, cGamepadButtons> cGamepadButtonNames = {
     "south",       "east",          "west",           "north",   "back",      "guide",     "start",      "left_stick",
     "right_stick", "left_shoulder", "right_shoulder", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
@@ -158,6 +170,31 @@ opt<Key> TryKeyFromName( string_view name )
 string_view MouseButtonName( MouseButton button )
 {
     return cMouseButtonNames.at( static_cast<size_t>( button ) );
+}
+
+string_view MouseAxisName( MouseAxis axis )
+{
+    return cMouseAxisNames.at( static_cast<size_t>( axis ) );
+}
+
+opt<MouseButton> TryMouseButtonFromName( string_view name )
+{
+    return TryFromName<MouseButton>( cMouseButtonNames, name );
+}
+
+opt<MouseAxis> TryMouseAxisFromName( string_view name )
+{
+    return TryFromName<MouseAxis>( cMouseAxisNames, name );
+}
+
+opt<GamepadButton> TryGamepadButtonFromName( string_view name )
+{
+    return TryFromName<GamepadButton>( cGamepadButtonNames, name );
+}
+
+opt<GamepadAxis> TryGamepadAxisFromName( string_view name )
+{
+    return TryFromName<GamepadAxis>( cGamepadAxisNames, name );
 }
 
 string_view GamepadButtonName( GamepadButton button )

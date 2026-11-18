@@ -44,6 +44,9 @@ public:
     // as the cache needs. Failing to list or scan the project is the error;
     // a source that will not import is a line in mErrors.
     expected<ProjectRefresh, string> TryRefresh();
+    // One more, before the first refresh: an importer that needs the
+    // catalog - prefabs, scripts - is made after the catalog is.
+    void AddImporter( Importer importer ) { mImporters.Add( std::move( importer ) ); }
 
     // The same object for as long as this lives - the registry and the
     // workspace hold it - with the entries a refresh finds.

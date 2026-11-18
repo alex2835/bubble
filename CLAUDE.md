@@ -78,8 +78,9 @@ projects/engine/include/bubble/
     input/                    controls (Key by USB HID usage - SDL's scancodes -, mouse and gamepad buttons, axes; their
                               snake_case names), InputEvent (the engine's own: keys, mouse, touches as shares of the
                               window, gamepads), ActionMap (actions by name bound to keys, buttons, axes with a scale,
-                              touch areas), Input (the devices' state -> actions; LatchStep/LatchFrame each see a press
-                              once, at any frame rate)
+                              touch areas, the mouse's x, y and wheel - how far it went since the last latch, a
+                              camera's turn -), Input (the devices' state -> actions; LatchStep/LatchFrame each see a
+                              press once, at any frame rate)
     audio/                    on miniaudio (src/audio alone): AudioDevice (one a process: the mix, buses music, sfx,
                               ui, voice under master, their volumes; Offline for tests, read with ReadFrames;
                               Resume after a browser's gesture), SoundAsset (decoded whole, or streamed from its file
@@ -94,7 +95,8 @@ projects/engine/include/bubble/
                               ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
                               velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents, gamepads opened as
-                              they come, QuitRequested, Run - a loop, or the browser's frames), Window
+                              they come, QuitRequested, Run - a loop, or the browser's frames), Window (the cursor
+                              held for a camera: SetCursorLocked)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
                               for tests; Check/TryCheckNow - validation errors caught, WGSL's with their lines;
@@ -136,7 +138,8 @@ projects/engine/include/bubble/
     data/                     Value (what a file keeps for a prop), ValueType, Check; Json (our own small
                               parser and writer), BinaryWriter/Reader (little-endian, for imported assets), Value
                               <-> Json (plain by type, tagged for Any; an asset is { "asset": id, "path": path },
-                              found by the path when the id is not)
+                              found by the path when the id is not); EncodePng (RGBA8 as a PNG, stored blocks: a
+                              screenshot, a reference picture)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo, Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble; Entity, Color, AssetId cross as Luau types),
@@ -172,7 +175,9 @@ projects/engine/include/bubble/
                               see, GetActions), Module (ModuleType::mScripts: its ScriptApi); transform (position,
                               rotation in radians - Y, X, Z -, scale; AnglesOf, ComputeWorldMatrix) and
                               TransformModule: WorldTransform each frame, through an entity's ParentOffset (a joint
-                              it hangs on) when it has one
+                              it hangs on) when it has one; ProjectSettings (project.bubble: name, start level,
+                              actions; TryReadProjectSettings); Game (a service: what scripts ask of whatever runs
+                              the world - game.pause/paused, lock_cursor/cursor_locked, quit -, GameModule)
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage - vs_skinned for
                               a skin -, PBR lighting, the shadow; built after a material's own), standard_material,
@@ -202,8 +207,8 @@ projects/import/include/bubble/import/
                               the joint over it, root motion out of the clips as "root_motion" says; not on the web
                               - BUBBLE_IMPORT_MODELS);
                               ProjectAssets (the editor's project kept
-                              in step: TryRefresh polls the stamps, scans and imports what changed, says what the
-                              registry reloads)
+                              in step: TryRefresh polls the stamps, scans and imports what changed - a prefab, its id
+                              inside, with no .import -, says what the registry reloads)
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and import, never included by them: Document (a scene, its
                               History with nested groups, dirty by position, its Selection), Command, the edits
@@ -224,6 +229,12 @@ projects/runner/              bubble_runner, on the engine alone (never import o
                               a pad chimes and lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
+projects/play/                bubble_play <folder> [--frames N] [--screenshot file.png] [--import-only], on the engine
+                              and import, the desktop alone: a project played from its folder - project.bubble's
+                              start level and actions, its sources imported into .bubble/imported as it starts and
+                              again as they change, the scripts checked against .bubble/bubble.d.luau (written there
+                              for a language server too), the Game service's cursor and quit; the sandbox is played
+                              with it
 projects/tests/               doctest; folders follow the engine's, import/ and editing/; log_watch.hpp (what was
                               logged); animation/skinned_model.hpp (a skinned .glb made in code: two joints, three
                               clips); ui/test_font.hpp (a TrueType font made in code: a few glyphs, a kerning pair); render/render_fixture.hpp (a project in memory, the GPU, the renderer, frames

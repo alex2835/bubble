@@ -95,7 +95,7 @@ private:
 
     f32 ValueOf( const ActionInput& input ) const;
     void Update();
-    Actions Latch( Edges& edges );
+    Actions Latch( Edges& edges, vec3& motion );
 
     Ref<const ActionMap> mMap;
     array<bool, cKeySlots> mKeys{};
@@ -107,5 +107,8 @@ private:
     vector<bool> mDown;
     Edges mStepEdges;
     Edges mFrameEdges;
+    // How far the mouse went since each latch last took it: x, y, wheel.
+    vec3 mStepMotion{ 0.0f };
+    vec3 mFrameMotion{ 0.0f };
 };
 }

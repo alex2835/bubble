@@ -3,6 +3,7 @@
 #include "bubble/import/import_cache.hpp"
 #include "bubble/import/import_file.hpp"
 #include "bubble/import/project_scan.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 
 namespace bubble
@@ -52,7 +53,13 @@ expected<ProjectRefresh, string> ProjectAssets::TryRefresh()
         const auto importerMaybe = mImporters.TryFind( path.Extension() );
         if ( not importerMaybe or not( changed( path ) or changed( ImportFileOf( path ) ) ) )
             continue;
-        const auto outcomeMaybe = TryImportSource( mFiles, *importerMaybe, path, *mCatalog.TryIdOf( path ) );
+        // An engine file - a prefab - keeps its id inside and has no .import,
+        // so no settings either.
+        const AssetId assetId = *mCatalog.TryIdOf( path );
+        const bool engineFile = ranges::find( mEngineExtensions, path.Extension() ) != mEngineExtensions.end();
+        const auto outcomeMaybe = engineFile
+                                      ? TryImportAsset( mFiles, *importerMaybe, path, assetId, Json( Json::Object() ) )
+                                      : TryImportSource( mFiles, *importerMaybe, path, assetId );
         if ( not outcomeMaybe )
             refresh.mErrors.push_back( outcomeMaybe.error() );
         else if ( *outcomeMaybe == ImportOutcome::Imported )

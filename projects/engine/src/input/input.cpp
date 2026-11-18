@@ -80,8 +80,20 @@ void Input::Handle( const InputEvent& event )
         mGamepads[buttonUp->mGamepad].mButtons.at( static_cast<u32>( buttonUp->mButton ) ) = false;
     else if ( const auto* axis = get_if<GamepadAxisMove>( &event ) )
         mGamepads[axis->mGamepad].mAxes.at( static_cast<u32>( axis->mAxis ) ) = axis->mValue;
-    // A move or the wheel drives no action: a touch holds the areas it
-    // started in.
+    // Motion piles up until a latch takes it; a touch's move drives nothing,
+    // holding the areas it started in.
+    else if ( const auto* move = get_if<MouseMove>( &event ) )
+    {
+        mStepMotion += vec3( move->mDelta, 0.0f );
+        mFrameMotion += vec3( move->mDelta, 0.0f );
+        return;
+    }
+    else if ( const auto* wheel = get_if<MouseWheel>( &event ) )
+    {
+        mStepMotion.z += wheel->mDelta.y;
+        mFrameMotion.z += wheel->mDelta.y;
+        return;
+    }
     else
         return;
     Update();
@@ -89,12 +101,12 @@ void Input::Handle( const InputEvent& event )
 
 Actions Input::LatchStep()
 {
-    return Latch( mStepEdges );
+    return Latch( mStepEdges, mStepMotion );
 }
 
 Actions Input::LatchFrame()
 {
-    return Latch( mFrameEdges );
+    return Latch( mFrameEdges, mFrameMotion );
 }
 
 f32 Input::ValueOf( const ActionInput& input ) const
@@ -122,6 +134,9 @@ f32 Input::ValueOf( const ActionInput& input ) const
         }
         return PastDeadZone( furthest );
     }
+    // Motion is added as a latch takes it.
+    if ( holds_alternative<MouseAxis>( input ) )
+        return 0.0f;
     const TouchArea& area = get<TouchArea>( input );
     for ( const auto& [finger, start] : mTouches )
         if ( Inside( area, start ) )
@@ -147,17 +162,24 @@ void Input::Update()
     }
 }
 
-Actions Input::Latch( Edges& edges )
+Actions Input::Latch( Edges& edges, vec3& motion )
 {
+    const span<const Action> actions = mMap->List();
     vector<ActionState> states( mValues.size() );
     for ( size_t i = 0; i < states.size(); ++i )
     {
-        states[i] = ActionState{
-            .mValue = mValues[i], .mDown = mDown[i], .mPressed = edges.mPressed[i], .mReleased = edges.mReleased[i]
-        };
+        f32 moved = 0.0f;
+        for ( const ActionBinding& binding : actions[i].mBindings )
+            if ( const auto* axis = get_if<MouseAxis>( &binding.mInput ) )
+                moved += motion[static_cast<i32>( *axis )] * binding.mScale;
+        states[i] = ActionState{ .mValue = mValues[i] + moved,
+                                 .mDown = mDown[i],
+                                 .mPressed = edges.mPressed[i],
+                                 .mReleased = edges.mReleased[i] };
         edges.mPressed[i] = false;
         edges.mReleased[i] = false;
     }
+    motion = vec3( 0.0f );
     return Actions( mMap, std::move( states ) );
 }
 }

@@ -51,6 +51,11 @@ void Window::SetTitle( const string& title )
     SDL_SetWindowTitle( mWindow, title.c_str() );
 }
 
+void Window::SetCursorLocked( bool locked ) const
+{
+    SDL_SetWindowRelativeMouseMode( mWindow, locked );
+}
+
 NativeWindow Window::Native() const
 {
     [[maybe_unused]] const SDL_PropertiesID properties = SDL_GetWindowProperties( mWindow );

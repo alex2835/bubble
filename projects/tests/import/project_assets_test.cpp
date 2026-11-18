@@ -64,6 +64,14 @@ struct Project
     {
         Importers importers;
         importers.Add( Suffixing() );
+        importers.Add( Importer{
+            .mExtension = ".prefab",
+            .mKind = "text",
+            .mVersion = 1,
+            .mImport = []( string_view source, const Json&, const AssetPath& ) -> expected<string, string> {
+                return string( source );
+            },
+        } );
         importers.Add( ScriptImporter() );
         return ProjectAssets( ProjectFiles::InMemory( files ), std::move( importers ), cEngineFileExtensions );
     }
@@ -100,6 +108,19 @@ TEST_CASE( "The first look imports every source, and the next ones do nothing un
     CHECK( broken.mImported.empty() );
     REQUIRE( broken.mErrors.size() == 1 );
     CHECK( broken.mErrors[0].starts_with( "scripts/door.luau:1:" ) );
+}
+
+TEST_CASE( "A prefab, its id inside, is imported with no .import beside it" )
+{
+    Project project( { { "props/door.prefab", R"({ "version": 1, "next_id": 1, "root": { "id": 0 } })" } } );
+    const ProjectRefresh first = project.Refresh();
+    CHECK( first.mErrors.empty() );
+    CHECK( first.mImported == vector<AssetPath>{ Path( "props/door.prefab" ) } );
+    CHECK_FALSE( project.mFiles.contains( "props/door.prefab.import" ) );
+    const AssetRef<Note> held = project.mAssets.LoadNow<Note>( Path( "props/door.prefab" ) );
+    REQUIRE( held.Ready() );
+    // The scan gave it its id, inside.
+    CHECK( held.TryGet()->mText.find( "\"asset\"" ) != string::npos );
 }
 
 TEST_CASE( "Settings changed in an .import import the source again, and its holders get the new version" )

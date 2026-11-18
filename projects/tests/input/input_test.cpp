@@ -111,6 +111,30 @@ TEST_CASE( "Opposite keys cancel, and a stick drives an axis past its dead zone"
     CHECK( unplugged.Axis( "move_x"_n ) == doctest::Approx( -0.25f ) );
 }
 
+TEST_CASE( "The mouse drives an axis by how far it went since the last latch, the steps' and the frames' apart" )
+{
+    ActionMap map;
+    map.Bind( "look_x", MouseAxis::X, 0.5f ).Bind( "look_x", Key::Right ).Bind( "zoom", MouseAxis::Wheel, -1.0f );
+    Input input( map );
+    input.Handle( MouseMove{ .mPosition = { 10.0f, 0.0f }, .mDelta = { 10.0f, 3.0f } } );
+    input.Handle( MouseMove{ .mPosition = { 14.0f, 0.0f }, .mDelta = { 4.0f, -1.0f } } );
+    input.Handle( MouseWheel{ .mDelta = { 0.0f, 2.0f } } );
+    // Never clamped: a camera turns by it.
+    const Actions step = input.LatchStep();
+    CHECK( step.Axis( "look_x"_n ) == 7.0f );
+    CHECK( step.Axis( "zoom"_n ) == -2.0f );
+    // Taken by the step, and still there for the frame.
+    CHECK( input.LatchStep().Axis( "look_x"_n ) == 0.0f );
+    CHECK( input.LatchFrame().Axis( "look_x"_n ) == 7.0f );
+    CHECK( input.LatchFrame().Axis( "look_x"_n ) == 0.0f );
+
+    // On top of what the action's other bindings hold.
+    input.Handle( KeyDown{ .mKey = Key::Right, .mRepeat = false } );
+    input.Handle( MouseMove{ .mPosition = { 12.0f, 0.0f }, .mDelta = { -2.0f, 0.0f } } );
+    CHECK( input.LatchStep().Axis( "look_x"_n ) == 0.0f );
+    CHECK( input.LatchStep().Axis( "look_x"_n ) == 1.0f );
+}
+
 TEST_CASE( "A touch holds the action of the area it started in until the finger lifts" )
 {
     Input input( Controls() );

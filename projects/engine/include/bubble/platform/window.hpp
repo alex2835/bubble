@@ -67,6 +67,10 @@ public:
     // Windows' settings - and its density - a Retina screen - together.
     f32 Scale() const;
     void SetTitle( const string& title );
+    // Held: the cursor hidden and kept in the window, the mouse's moves
+    // still coming - a camera the mouse turns. A browser holds it only after
+    // a click on the page.
+    void SetCursorLocked( bool locked ) const;
     NativeWindow Native() const;
 
 private:
