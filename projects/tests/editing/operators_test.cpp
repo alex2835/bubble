@@ -278,6 +278,11 @@ TEST_CASE( "Selecting, undoing and copying change no document and are no step" )
     CHECK( f.GetSelection().All() == vector<Entity>{ f.mLamp, f.mProps } );
     f.Run( "selection.add", R"({ "entities": [ "/props/chair" ] })" );
     CHECK( f.GetSelection().Active() == f.mChair );
+    // A click with ctrl held: the one picked goes, one not picked comes.
+    f.Run( "selection.toggle", R"({ "entities": [ "/props/chair" ] })" );
+    CHECK( f.GetSelection().All() == vector<Entity>{ f.mLamp, f.mProps } );
+    f.Run( "selection.toggle", R"({ "entities": [ "/props/chair" ] })" );
+    CHECK( f.GetSelection().Active() == f.mChair );
     f.Run( "edit.copy" );
     CHECK( f.mWorkspace.GetClipboard().All().size() == 2 );
     f.Run( "selection.clear" );

@@ -1,13 +1,15 @@
 #pragma once
 #include "bubble/core/log.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/viewport.hpp"
 
 namespace bubble
 {
 // The editor's window as ImGui draws it, over a project: the dock space, the
-// menu, the panels - the viewport, the log. The panels show the active
-// document, and act on it through operators alone.
+// menu, the panels - the scene's tree, the viewport with a tab a document,
+// the log. The panels show the active document, and act on it through
+// operators alone; a tab picked makes its document the active one.
 class Editor
 {
 public:
@@ -42,11 +44,17 @@ private:
     void MenuItem( const char* label, const char* keys, string_view op );
     void Shortcuts();
     void LogPanel();
+    void DocumentTabs();
+    void UnsavedChanges();
     // The active document's world, made the first time it is shown.
     OptRef<World> TryActiveWorld();
 
     EditorProject& mProject;
+    ScenePanel mScene;
     Viewport mViewport;
+    // The active document's tab as last shown: a document made active by an
+    // operator gets its tab picked.
+    string mActiveTab;
     vector<LogEntry> mLog;
     u64 mLogNext = 0;
     f64 mSinceRefresh = 0;

@@ -239,8 +239,10 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               (a project open: settings, App with every module, the registry, its sources kept
                               imported, the Workspace and Operators), DocumentWorld (a document's editing world over
                               its scene, its view: WorldOf), EditorCamera, Viewport (the active document's world in a
-                              picture the panel's size, the camera on the mouse), Editor (the dock space, the menu,
-                              the viewport, the log; operators alone change anything). main.cpp is bubble_editor
+                              picture the panel's size, the camera on the mouse), ScenePanel (the tree: clicks with
+                              ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
+                              they ask; operators run after the rows are walked), Editor (the dock space, the menu,
+                              a tab a document, the scene, the viewport, the log; operators alone change anything). main.cpp is bubble_editor
                               <project folder> [--frames N] [--screenshot file.png], the desktop alone; its layout in
                               the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in

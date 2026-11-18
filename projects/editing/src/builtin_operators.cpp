@@ -337,7 +337,16 @@ Result RunClose( Workspace& workspace, const OperatorArgs& args )
     return {};
 }
 
-Result RunSelect( Workspace& workspace, const OperatorArgs& args, bool add )
+// How a selection operator takes its entities: in place of what was
+// selected, besides it, or each one flipped - a click with ctrl held.
+enum class Pick : u8
+{
+    Set,
+    Add,
+    Toggle,
+};
+
+Result RunSelect( Workspace& workspace, const OperatorArgs& args, Pick pick )
 {
     const auto documentMaybe = workspace.TryActive();
     if ( not documentMaybe )
@@ -353,10 +362,13 @@ Result RunSelect( Workspace& workspace, const OperatorArgs& args, bool add )
             return unexpected( std::move( entityMaybe.error() ) );
         entities.push_back( *entityMaybe );
     }
-    if ( not add )
+    if ( pick == Pick::Set )
         selection.Clear();
     for ( const Entity entity : entities )
-        selection.Add( entity );
+        if ( pick == Pick::Toggle )
+            selection.Toggle( entity );
+        else
+            selection.Add( entity );
     return {};
 }
 }
@@ -505,7 +517,7 @@ void AddBuiltinOperators( Operators& operators )
                              .mEdits = false,
                              .mTryPoll = {},
                              .mTryRun = []( Workspace& workspace, const OperatorArgs& args ) {
-                                 return RunSelect( workspace, args, false );
+                                 return RunSelect( workspace, args, Pick::Set );
                              } } );
     operators.Add( Operator{ .mId = "selection.add",
                              .mLabel = "Add to Selection",
@@ -513,7 +525,15 @@ void AddBuiltinOperators( Operators& operators )
                              .mEdits = false,
                              .mTryPoll = {},
                              .mTryRun = []( Workspace& workspace, const OperatorArgs& args ) {
-                                 return RunSelect( workspace, args, true );
+                                 return RunSelect( workspace, args, Pick::Add );
+                             } } );
+    operators.Add( Operator{ .mId = "selection.toggle",
+                             .mLabel = "Toggle Selection",
+                             .mArgs = { Entities( cRequired ) },
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = []( Workspace& workspace, const OperatorArgs& args ) {
+                                 return RunSelect( workspace, args, Pick::Toggle );
                              } } );
     operators.Add( Operator{ .mId = "selection.clear",
                              .mLabel = "Clear Selection",

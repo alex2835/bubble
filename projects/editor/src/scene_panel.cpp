@@ -1,0 +1,388 @@
+#include "bubble/editor/scene_panel.hpp"
+#include "bubble/scene/hierarchy.hpp"
+#include "bubble/scene/prefab_link.hpp"
+#include "bubble/types/algorithm.hpp"
+#include <imgui.h>
+#include <imgui_stdlib.h>
+
+namespace bubble
+{
+namespace
+{
+constexpr const char* cPayload = "bubble.entities";
+// A drop in the top or the bottom quarter of a row lands beside it.
+constexpr f32 cBeside = 0.25f;
+
+Json::Member PathMember( const Scene& scene, string key, Entity entity )
+{
+    return Json::Member{ .mKey = std::move( key ), .mValue = Json( PathOf( scene, entity ).mPath.String() ) };
+}
+
+Json::Member EntitiesMember( const Scene& scene, span<const Entity> entities )
+{
+    Json::Array paths;
+    for ( const Entity entity : entities )
+        paths.push_back( Json( PathOf( scene, entity ).mPath.String() ) );
+    return Json::Member{ .mKey = "entities", .mValue = Json( std::move( paths ) ) };
+}
+
+Json EntitiesJson( const Scene& scene, span<const Entity> entities )
+{
+    return Json( Json::Object{ EntitiesMember( scene, entities ) } );
+}
+
+Json EntityJson( const Scene& scene, string key, Entity entity )
+{
+    return Json( Json::Object{ PathMember( scene, std::move( key ), entity ) } );
+}
+
+// Instances of prefabs in blue, as the editors people know have them; the
+// nodes inside one lighter.
+opt<ImVec4> ColorOf( const Scene& scene, Entity entity )
+{
+    if ( scene.Has<PrefabInstance>( entity ) )
+        return ImVec4( 0.45f, 0.7f, 1.0f, 1.0f );
+    if ( scene.Has<PrefabLink>( entity ) )
+        return ImVec4( 0.65f, 0.8f, 1.0f, 1.0f );
+    return nullopt;
+}
+}
+
+OperatorCall ClickCall( const Scene& scene,
+                        const Selection& selection,
+                        span<const Entity> rows,
+                        Entity entity,
+                        bool ctrl,
+                        bool shift )
+{
+    if ( ctrl )
+        return OperatorCall{ .mId = "selection.toggle", .mArgs = EntitiesJson( scene, vector<Entity>{ entity } ) };
+    const Entity anchor = selection.Active();
+    const auto from = ranges::find( rows, anchor );
+    const auto to = ranges::find( rows, entity );
+    if ( shift and anchor != Entity::Null and from != rows.end() and to != rows.end() )
+    {
+        // From the active one to the one clicked, which is active then.
+        vector<Entity> range;
+        if ( from <= to )
+            range.assign( from, to + 1 );
+        else
+        {
+            range.assign( to, from + 1 );
+            ranges::reverse( range );
+        }
+        return OperatorCall{ .mId = "selection.set", .mArgs = EntitiesJson( scene, range ) };
+    }
+    return OperatorCall{ .mId = "selection.set", .mArgs = EntitiesJson( scene, vector<Entity>{ entity } ) };
+}
+
+opt<OperatorCall> TryDropCall( const Scene& scene, span<const Entity> dragged, Entity target, DropPlace place )
+{
+    if ( dragged.empty() )
+        return nullopt;
+    for ( const Entity entity : dragged )
+        if ( entity == target or IsAncestor( scene, entity, target ) )
+            return nullopt;
+    Json::Object members{ EntitiesMember( scene, dragged ) };
+    if ( place == DropPlace::Into or target == scene.Root() )
+    {
+        members.push_back( PathMember( scene, "parent", target ) );
+        return OperatorCall{ .mId = "entity.move", .mArgs = Json( std::move( members ) ) };
+    }
+    // The index counts the children that stay: the dragged ones are taken
+    // out first.
+    const Entity parent = ParentOf( scene, target );
+    size_t index = 0;
+    for ( const Entity child : ChildrenOf( scene, parent ) )
+    {
+        if ( child == target )
+            break;
+        if ( ranges::find( dragged, child ) == dragged.end() )
+            ++index;
+    }
+    if ( place == DropPlace::After )
+        ++index;
+    members.push_back( PathMember( scene, "parent", parent ) );
+    // Operators count places from 1.
+    members.push_back( Json::Member{ .mKey = "index", .mValue = Json( static_cast<f64>( index + 1 ) ) } );
+    return OperatorCall{ .mId = "entity.move", .mArgs = Json( std::move( members ) ) };
+}
+
+ScenePanel::ScenePanel( EditorProject& project ) : mProject( project )
+{
+}
+
+void ScenePanel::Run( string_view op, const Json& args )
+{
+    mPending.push_back( OperatorCall{ .mId = string( op ), .mArgs = args } );
+}
+
+void ScenePanel::MenuItem( const char* label, const char* keys, string_view op, const Json& args )
+{
+    const auto pollMaybe = mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op, args );
+    if ( ImGui::MenuItem( label, keys, false, pollMaybe.has_value() ) )
+        Run( op, args );
+    if ( not pollMaybe and ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
+        ImGui::SetTooltip( "%s", pollMaybe.error().c_str() );
+}
+
+void ScenePanel::Show()
+{
+    const auto documentMaybe = mProject.GetWorkspace().TryActive();
+    if ( not documentMaybe )
+    {
+        ImGui::TextDisabled( "No document is open" );
+        return;
+    }
+    Document& document = *documentMaybe;
+    const Scene& scene = document.GetScene();
+    if ( ImGui::GetDragDropPayload() == nullptr )
+        mDragged.clear();
+    // A row renamed may be gone: undone, deleted from elsewhere.
+    if ( not scene.Alive( mRenaming ) )
+        mRenaming = Entity::Null;
+    Keys( document );
+
+    mShown.clear();
+    const vector<Entity> top( ChildrenOf( scene, scene.Root() ).begin(), ChildrenOf( scene, scene.Root() ).end() );
+    for ( const Entity entity : top )
+        Row( document, entity );
+    mRows = mShown;
+
+    // Below them: a click selects nothing, a drop goes to the end of the
+    // root, the menu makes and pastes there.
+    const ImVec2 rest = ImGui::GetContentRegionAvail();
+    ImGui::InvisibleButton( "below", ImVec2( max( rest.x, 1.0f ), max( rest.y, ImGui::GetFrameHeight() ) ) );
+    if ( ImGui::IsItemClicked( ImGuiMouseButton_Left ) )
+        Run( "selection.clear" );
+    DropOn( document, scene.Root(), false );
+    if ( ImGui::BeginPopupContextItem( "below menu" ) )
+    {
+        MenuItem( "Create Entity", nullptr, "entity.create", EntityJson( scene, "parent", scene.Root() ) );
+        MenuItem( "Paste", "Ctrl+V", "edit.paste", EntityJson( scene, "parent", scene.Root() ) );
+        ImGui::EndPopup();
+    }
+
+    // A press on a selected row that came up with no drag: that row alone.
+    if ( mPressed != Entity::Null and ImGui::IsMouseReleased( ImGuiMouseButton_Left ) )
+    {
+        if ( mDragged.empty() and scene.Alive( mPressed ) )
+            Run( "selection.set", EntitiesJson( scene, vector<Entity>{ mPressed } ) );
+        mPressed = Entity::Null;
+    }
+
+    const vector<OperatorCall> pending = std::move( mPending );
+    mPending.clear();
+    for ( const OperatorCall& call : pending )
+        if ( not mProject.Run( call.mId, call.mArgs ) )
+            break;
+}
+
+void ScenePanel::Row( Document& document, Entity entity )
+{
+    const Scene& scene = document.GetScene();
+    const Selection& selection = document.GetSelection();
+    mShown.push_back( entity );
+    const vector<Entity> children( ChildrenOf( scene, entity ).begin(), ChildrenOf( scene, entity ).end() );
+
+    const bool renaming = mRenaming == entity;
+    // Renamed, the row is as wide as its arrow, and the field follows.
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+    if ( not renaming )
+        flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
+    if ( children.empty() )
+        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    if ( selection.Has( entity ) )
+        flags |= ImGuiTreeNodeFlags_Selected;
+    ImGui::PushID( static_cast<int>( static_cast<u32>( entity ) ) );
+    const auto colorMaybe = ColorOf( scene, entity );
+    if ( colorMaybe )
+        ImGui::PushStyleColor( ImGuiCol_Text, *colorMaybe );
+    const string name = NameOf( scene, entity ).String();
+    const bool open = renaming ? ImGui::TreeNodeEx( "node", flags, "%s", "" )
+                               : ImGui::TreeNodeEx( "node", flags, "%s", name.c_str() );
+    if ( colorMaybe )
+        ImGui::PopStyleColor();
+
+    if ( not renaming and ImGui::IsItemClicked( ImGuiMouseButton_Left ) and not ImGui::IsItemToggledOpen() )
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        // One of several selected may be the start of dragging them all.
+        if ( selection.Has( entity ) and not io.KeyCtrl and not io.KeyShift )
+            mPressed = entity;
+        else
+        {
+            const OperatorCall call = ClickCall( scene, selection, mRows, entity, io.KeyCtrl, io.KeyShift );
+            Run( call.mId, call.mArgs );
+        }
+    }
+    if ( ImGui::IsItemHovered() and ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) )
+        if ( const auto instanceMaybe = scene.TryGet<PrefabInstance>( entity ) )
+            if ( const auto pathMaybe = mProject.GetWorkspace().GetAssets().TryPathOf( instanceMaybe->mPrefab ) )
+                Run( "document.open",
+                     Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( pathMaybe->String() ) } } ) );
+
+    if ( not renaming and ImGui::BeginDragDropSource() )
+    {
+        if ( mDragged.empty() )
+        {
+            mDragged = selection.Has( entity ) ? selection.TopLevel() : vector<Entity>{ entity };
+            if ( not selection.Has( entity ) )
+                Run( "selection.set", EntitiesJson( scene, mDragged ) );
+        }
+        mPressed = Entity::Null;
+        ImGui::SetDragDropPayload( cPayload, nullptr, 0 );
+        if ( mDragged.size() == 1 )
+            ImGui::TextUnformatted( NameOf( scene, mDragged.front() ).String().c_str() );
+        else
+            ImGui::Text( "%zu entities", mDragged.size() );
+        ImGui::EndDragDropSource();
+    }
+    DropOn( document, entity, open and not children.empty() );
+
+    if ( ImGui::BeginPopupContextItem( "menu" ) )
+    {
+        if ( ImGui::IsWindowAppearing() and not selection.Has( entity ) )
+            Run( "selection.set", EntitiesJson( scene, vector<Entity>{ entity } ) );
+        RowMenu( document, entity );
+        ImGui::EndPopup();
+    }
+    if ( renaming )
+    {
+        ImGui::SameLine();
+        Rename( document, entity );
+    }
+
+    if ( open and not children.empty() )
+    {
+        for ( const Entity child : children )
+            Row( document, child );
+        ImGui::TreePop();
+    }
+    ImGui::PopID();
+}
+
+void ScenePanel::RowMenu( Document& document, Entity entity )
+{
+    const Scene& scene = document.GetScene();
+    MenuItem( "Create Child", nullptr, "entity.create", EntityJson( scene, "parent", entity ) );
+    if ( ImGui::MenuItem( "Rename", "F2" ) )
+    {
+        mRenaming = entity;
+        mNewName = NameOf( scene, entity ).String();
+        mRenameStarted = true;
+    }
+    MenuItem( "Duplicate", "Ctrl+D", "entity.duplicate" );
+    MenuItem( "Delete", "Del", "entity.destroy" );
+    ImGui::Separator();
+    MenuItem( "Copy", "Ctrl+C", "edit.copy" );
+    MenuItem( "Cut", "Ctrl+X", "edit.cut" );
+    MenuItem( "Paste", "Ctrl+V", "edit.paste" );
+    ImGui::Separator();
+    MenuItem( "Group", "Ctrl+G", "entity.group" );
+    MenuItem( "Ungroup", nullptr, "entity.ungroup", EntityJson( scene, "entity", entity ) );
+    if ( const auto instanceMaybe = scene.TryGet<PrefabInstance>( entity ) )
+    {
+        ImGui::Separator();
+        if ( const auto pathMaybe = mProject.GetWorkspace().GetAssets().TryPathOf( instanceMaybe->mPrefab ) )
+            MenuItem( "Open Prefab", nullptr, "document.open",
+                      Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( pathMaybe->String() ) } } ) );
+        MenuItem( "Unpack Prefab", nullptr, "prefab.unpack", EntityJson( scene, "entity", entity ) );
+    }
+}
+
+void ScenePanel::Rename( Document& document, Entity entity )
+{
+    const Scene& scene = document.GetScene();
+    if ( mRenameStarted )
+    {
+        ImGui::SetKeyboardFocusHere();
+        mRenameStarted = false;
+    }
+    ImGui::SetNextItemWidth( -1.0f );
+    const bool entered =
+        ImGui::InputText( "name", &mNewName, ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll );
+    if ( ImGui::IsKeyPressed( ImGuiKey_Escape ) )
+    {
+        mRenaming = Entity::Null;
+        return;
+    }
+    if ( entered or ImGui::IsItemDeactivated() )
+    {
+        if ( mNewName != NameOf( scene, entity ).View() )
+        {
+            Run( "entity.rename", Json( Json::Object{ PathMember( scene, "entity", entity ),
+                                                      Json::Member{ .mKey = "name", .mValue = Json( mNewName ) } } ) );
+        }
+        mRenaming = Entity::Null;
+    }
+}
+
+void ScenePanel::DropOn( Document& document, Entity entity, bool open )
+{
+    if ( not ImGui::BeginDragDropTarget() )
+        return;
+    const Scene& scene = document.GetScene();
+    const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(
+        cPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect );
+    if ( payload != nullptr )
+    {
+        const ImVec2 low = ImGui::GetItemRectMin();
+        const ImVec2 high = ImGui::GetItemRectMax();
+        DropPlace place = DropPlace::Into;
+        if ( entity != scene.Root() )
+        {
+            const f32 at = ( ImGui::GetMousePos().y - low.y ) / max( high.y - low.y, 1.0f );
+            place = at < cBeside ? DropPlace::Before : at > 1.0f - cBeside ? DropPlace::After : DropPlace::Into;
+        }
+        Entity target = entity;
+        // Below an open node is where its first child is.
+        if ( place == DropPlace::After and open )
+        {
+            target = ChildrenOf( scene, entity ).front();
+            place = DropPlace::Before;
+        }
+        if ( const auto callMaybe = TryDropCall( scene, mDragged, target, place ) )
+        {
+            ImDrawList& draw = *ImGui::GetWindowDrawList();
+            const ImU32 color = ImGui::GetColorU32( ImGuiCol_DragDropTarget );
+            if ( place == DropPlace::Into )
+                draw.AddRect( low, high, color, 0.0f, 0, 2.0f );
+            else
+            {
+                const f32 y = place == DropPlace::Before and target == entity ? low.y : high.y;
+                draw.AddLine( ImVec2( low.x, y ), ImVec2( high.x, y ), color, 2.0f );
+            }
+            if ( payload->IsDelivery() )
+                Run( callMaybe->mId, callMaybe->mArgs );
+        }
+    }
+    ImGui::EndDragDropTarget();
+}
+
+void ScenePanel::Keys( Document& document )
+{
+    // The panel's keys while it has the focus and no field takes them.
+    if ( mRenaming != Entity::Null or not ImGui::IsWindowFocused( ImGuiFocusedFlags_RootAndChildWindows ) or
+         ImGui::GetIO().WantTextInput )
+        return;
+    const Scene& scene = document.GetScene();
+    const auto key = [&]( ImGuiKeyChord chord, string_view op ) {
+        if ( ImGui::IsKeyChordPressed( chord ) and mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )
+            Run( op );
+    };
+    key( ImGuiKey_Delete, "entity.destroy" );
+    key( ImGuiMod_Ctrl | ImGuiKey_D, "entity.duplicate" );
+    key( ImGuiMod_Ctrl | ImGuiKey_G, "entity.group" );
+    key( ImGuiMod_Ctrl | ImGuiKey_C, "edit.copy" );
+    key( ImGuiMod_Ctrl | ImGuiKey_X, "edit.cut" );
+    key( ImGuiMod_Ctrl | ImGuiKey_V, "edit.paste" );
+    const Entity active = document.GetSelection().Active();
+    if ( ImGui::IsKeyChordPressed( ImGuiKey_F2 ) and active != Entity::Null )
+    {
+        mRenaming = active;
+        mNewName = NameOf( scene, active ).String();
+        mRenameStarted = true;
+    }
+}
+}

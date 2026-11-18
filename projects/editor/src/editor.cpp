@@ -26,7 +26,10 @@ ImVec4 ColorOf( LogLevel level )
 }
 }
 
-Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer ) : mProject( project ), mViewport( gpu, renderer )
+Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer )
+    : mProject( project ),
+      mScene( project ),
+      mViewport( gpu, renderer )
 {
 }
 
@@ -73,11 +76,19 @@ void Editor::Frame( f64 elapsed )
     Menu();
     ImGui::DockSpaceOverViewport( dockSpace, ImGui::GetMainViewport() );
 
-    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
-    if ( ImGui::Begin( "Viewport" ) )
-        mViewport.Show();
+    if ( ImGui::Begin( "Scene" ) )
+        mScene.Show();
     ImGui::End();
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
+    const bool viewport = ImGui::Begin( "Viewport" );
     ImGui::PopStyleVar();
+    if ( viewport )
+    {
+        DocumentTabs();
+        UnsavedChanges();
+        mViewport.Show();
+    }
+    ImGui::End();
     LogPanel();
 }
 
@@ -102,6 +113,8 @@ void Editor::Layout( u32 dockSpace )
     ImGui::DockBuilderSetNodeSize( dockSpace, viewport.WorkSize );
     ImGuiID centre = dockSpace;
     const ImGuiID bottom = ImGui::DockBuilderSplitNode( centre, ImGuiDir_Down, 0.22f, nullptr, &centre );
+    const ImGuiID left = ImGui::DockBuilderSplitNode( centre, ImGuiDir_Left, 0.2f, nullptr, &centre );
+    ImGui::DockBuilderDockWindow( "Scene", left );
     ImGui::DockBuilderDockWindow( "Viewport", centre );
     ImGui::DockBuilderDockWindow( "Log", bottom );
     ImGui::DockBuilderFinish( dockSpace );
@@ -139,17 +152,112 @@ void Editor::Menu()
 
 void Editor::Shortcuts()
 {
-    // Global, after whatever has the focus: a text field keeps its own
-    // Ctrl+Z.
-    const auto key = [&]( ImGuiKeyChord chord, string_view op ) {
-        if ( ImGui::Shortcut( chord, ImGuiInputFlags_RouteGlobal ) and
+    // Wherever the focus is, but a field that takes text keeps its own
+    // Ctrl+Z; saving works from anywhere.
+    const bool typing = ImGui::GetIO().WantTextInput;
+    const auto key = [&]( ImGuiKeyChord chord, string_view op, bool always = false ) {
+        if ( ( always or not typing ) and ImGui::IsKeyChordPressed( chord ) and
              mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )
             mProject.Run( op );
     };
-    key( ImGuiMod_Ctrl | ImGuiKey_S, "document.save" );
+    key( ImGuiMod_Ctrl | ImGuiKey_S, "document.save", true );
     key( ImGuiMod_Ctrl | ImGuiKey_Z, "edit.undo" );
     key( ImGuiMod_Ctrl | ImGuiKey_Y, "edit.redo" );
     key( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, "edit.redo" );
+}
+
+namespace
+{
+// A document's tab by the document, whatever its title says.
+string TabId( const Document& document )
+{
+    return format( "###document{}", static_cast<const void*>( &document ) );
+}
+
+string TitleOf( const Document& document )
+{
+    const auto pathMaybe = document.TryPath();
+    if ( not pathMaybe )
+        return "untitled";
+    const string_view path = pathMaybe->View();
+    return string( path.substr( path.rfind( '/' ) + 1 ) );
+}
+}
+
+void Editor::DocumentTabs()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    const auto activeMaybe = workspace.TryActive();
+    const string activeTab = activeMaybe ? TabId( *activeMaybe ) : string();
+    const bool changed = activeTab != mActiveTab;
+    mActiveTab = activeTab;
+    if ( not ImGui::BeginTabBar( "documents", ImGuiTabBarFlags_Reorderable ) )
+        return;
+    // What the tabs ask is done after them: both change the order of the
+    // workspace's documents.
+    opt<size_t> picked;
+    opt<size_t> closed;
+    const span<const Scope<Document>> documents = workspace.All();
+    for ( size_t at = 0; at < documents.size(); ++at )
+    {
+        const Document& document = *documents[at];
+        const string tab = TabId( document );
+        ImGuiTabItemFlags flags = document.IsDirty() ? ImGuiTabItemFlags_UnsavedDocument : 0;
+        if ( changed and tab == activeTab )
+            flags |= ImGuiTabItemFlags_SetSelected;
+        bool open = true;
+        if ( ImGui::BeginTabItem( ( TitleOf( document ) + tab ).c_str(), &open, flags ) )
+        {
+            if ( not changed and tab != activeTab )
+                picked = at;
+            ImGui::EndTabItem();
+        }
+        if ( not open )
+            closed = at;
+    }
+    ImGui::EndTabBar();
+    if ( picked )
+        workspace.Activate( *workspace.All()[*picked] );
+    if ( closed )
+    {
+        Document& document = *workspace.All()[*closed];
+        workspace.Activate( document );
+        if ( document.IsDirty() )
+            ImGui::OpenPopup( "Unsaved changes" );
+        else
+            mProject.Run( "document.close" );
+    }
+}
+
+void Editor::UnsavedChanges()
+{
+    if ( not ImGui::BeginPopupModal( "Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
+        return;
+    const auto activeMaybe = mProject.GetWorkspace().TryActive();
+    if ( not activeMaybe )
+    {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return;
+    }
+    ImGui::Text( "%s has changes that are not saved.", TitleOf( *activeMaybe ).c_str() );
+    if ( ImGui::Button( "Save" ) )
+    {
+        if ( mProject.Run( "document.save" ) )
+            mProject.Run( "document.close" );
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button( "Don't Save" ) )
+    {
+        mProject.Run( "document.close",
+                      Json( Json::Object{ Json::Member{ .mKey = "discard", .mValue = Json( true ) } } ) );
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button( "Cancel" ) )
+        ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
 }
 
 void Editor::LogPanel()
