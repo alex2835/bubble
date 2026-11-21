@@ -654,6 +654,33 @@ void Inspector::ImportSetting( const string& path, const struct ImportSetting& s
     Shown( "import." + setting.mName );
 }
 
+bool Inspector::ClipField( const char* id, string& clip )
+{
+    if ( not ImGui::BeginCombo( id, clip.empty() ? "choose a clip" : clip.c_str() ) )
+        return false;
+    bool chosen = false;
+    // The project's models' clips; one typed, for a model not imported yet.
+    const vector<string> names = mProject.ClipNames();
+    if ( names.empty() )
+        ImGui::TextDisabled( "No model of the project has clips" );
+    for ( const string& name : names )
+        if ( ImGui::Selectable( name.c_str(), name == clip ) and name != clip )
+        {
+            clip = name;
+            chosen = true;
+        }
+    ImGui::SetNextItemWidth( ImGui::GetFontSize() * 10.0f );
+    if ( ImGui::InputTextWithHint( "##typed", "or type one", &mTypedClip, ImGuiInputTextFlags_EnterReturnsTrue ) and
+         not mTypedClip.empty() )
+    {
+        clip = exchange( mTypedClip, string() );
+        chosen = true;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndCombo();
+    return chosen;
+}
+
 void Inspector::RowLabel( const char* label )
 {
     ImGui::TableNextRow();
@@ -716,7 +743,31 @@ void Inspector::GraphParameters( const Json& data )
         {
             const string path = "parameters." + member.mKey;
             ImGui::PushID( path.c_str() );
-            RowLabel( member.mKey.c_str() );
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted( member.mKey.c_str() );
+            // Renamed from its menu, wherever the graph reads it.
+            if ( ImGui::BeginPopupContextItem( "rename" ) )
+            {
+                if ( ImGui::IsWindowAppearing() )
+                {
+                    mParameterName = member.mKey;
+                    ImGui::SetKeyboardFocusHere();
+                }
+                ImGui::SetNextItemWidth( ImGui::GetFontSize() * 10.0f );
+                if ( ImGui::InputText( "##name", &mParameterName, ImGuiInputTextFlags_EnterReturnsTrue ) )
+                {
+                    Run( "graph.rename_parameter",
+                         Args( { ValueField{ .mName = "parameter"_n, .mValue = TextValue( member.mKey ) },
+                                 ValueField{ .mName = "name"_n, .mValue = TextValue( mParameterName ) } } ) );
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::TextDisabled( "Enter renames it, in every condition too" );
+                ImGui::EndPopup();
+            }
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth( -1.0f );
             constexpr array<const char*, 3> cKinds{ "number", "bool", "trigger" };
             const int kind = member.mValue.TryAs<f64>() ? 0 : member.mValue.TryAs<bool>() ? 1 : 2;
             ImGui::SetNextItemWidth( ImGui::GetFontSize() * 5.0f );
@@ -832,7 +883,7 @@ void Inspector::GraphState( const Json& data, const string& name, GraphView& vie
     {
         RowLabel( "Clip" );
         string clip = *clipMaybe;
-        const bool changed = ImGui::InputTextWithHint( "##clip", "as the model names it", &clip );
+        const bool changed = ClipField( "##clip", clip );
         if ( changed )
             DataSet( base + ".clip", TextValue( clip ) );
         Shown( base + ".clip" );
@@ -863,7 +914,7 @@ void Inspector::GraphState( const Json& data, const string& name, GraphView& vie
             string clip = ( *pointMaybe )[0].TryAs<string>() ? *( *pointMaybe )[0].TryAs<string>() : string();
             f32 value = ( *pointMaybe )[1].TryAs<f64>() ? static_cast<f32>( *( *pointMaybe )[1].TryAs<f64>() ) : 0.0f;
             ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x * 0.55f );
-            bool changed = ImGui::InputTextWithHint( "##clip", "clip", &clip );
+            bool changed = ClipField( "##clip", clip );
             if ( changed )
                 DataSet( point + "[1]", TextValue( clip ) );
             Shown( point + "[1]" );

@@ -1,4 +1,5 @@
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/animation/animation_assets.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
 #include "bubble/editor/play_session.hpp"
@@ -157,6 +158,24 @@ string_view EditorProject::KindOf( const AssetPath& path ) const
         return {};
     const auto importerMaybe = mProject.GetImporters().TryFind( text.substr( dot ) );
     return importerMaybe ? string_view( importerMaybe->mKind ) : string_view();
+}
+
+vector<string> EditorProject::ClipNames() const
+{
+    vector<string> names;
+    for ( const AssetPath& path : GetCatalog().Paths() )
+    {
+        if ( not Makes( path, cClipsKind ) )
+            continue;
+        const auto idMaybe = GetCatalog().TryIdOf( path );
+        if ( not idMaybe )
+            continue;
+        if ( const auto bytesMaybe = GetFiles().TryRead( ImportedPath( *idMaybe, cClipsKind ) ) )
+            for ( string& name : bubble::ClipNames( *bytesMaybe ) )
+                if ( not ranges::contains( names, name ) )
+                    names.push_back( std::move( name ) );
+    }
+    return names;
 }
 
 OptRef<PlaySession> EditorProject::TryPlaying()

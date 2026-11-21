@@ -115,6 +115,8 @@ private:
     // entity and how many are selected.
     tuple<const void*, Entity, size_t> DocumentKey();
     void ImportSettings( const string& path );
+    // A clip's name, chosen among the project's models' clips or typed.
+    bool ClipField( const char* id, string& clip );
     // What the active entity, a node of a prefab's instance, has otherwise
     // than its prefab: fields set, components added.
     void PrefabOverrides( Document& document, Entity entity );
@@ -132,6 +134,8 @@ private:
     string mStateName;
     string mStateNamed;
     string mNewParameter;
+    string mTypedClip;
+    string mParameterName;
     // The widget an edit's step is open for: 0 when none is.
     u32 mHeld = 0;
     string mName;

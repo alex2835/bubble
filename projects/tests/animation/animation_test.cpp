@@ -492,3 +492,12 @@ end
     CHECK_FALSE( importer.mImport( wrong, Json(), *AssetPath::TryFrom( "scripts/hero.luau" ) ) );
 }
 #endif
+
+TEST_CASE( "A clips asset's names read without its clips: what the editor offers a state" )
+{
+    const string bytes = WriteClipsAsset( { ImportedClip{ .mName = "walk", .mDuration = 1, .mAnimation = "" },
+                                            ImportedClip{ .mName = "run", .mDuration = 0.5f, .mAnimation = "" } } );
+    CHECK( ClipNames( bytes ) == vector<string>{ "walk", "run" } );
+    CHECK( ClipNames( "junk" ).empty() );
+    CHECK( ClipNames( bytes.substr( 0, bytes.size() - 1 ) ).empty() );
+}

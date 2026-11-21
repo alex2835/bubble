@@ -223,6 +223,8 @@ TEST_CASE( "While a game plays, the canvas lights the state an animator of its g
 })" } } );
     ui.mShown = &ui.Data();
     CHECK( ui.View().LiveState().empty() );
+    // What a state may play: the clips the project's models have.
+    CHECK( ui.mProject->ClipNames() == vector<string>{ "bend", "lean", "walk" } );
     REQUIRE( ui.mProject->Run( "document.open", *Json::TryParse( R"({ "path": "main.scene" })" ) ) );
     REQUIRE( ui.mProject->Run( "play.start" ) );
     PlaySession& play = *ui.mProject->TryPlaying();

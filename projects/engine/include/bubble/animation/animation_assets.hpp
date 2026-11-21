@@ -34,6 +34,10 @@ string WriteSkeletonAsset( string_view skeletonArchive );
 // its root's two tracks.
 string WriteClipsAsset( const vector<ImportedClip>& clips );
 
+// The clips' names in a clips asset's bytes, in their order: what the
+// editor offers a state to play. None when the bytes do not read.
+vector<string> ClipNames( string_view bytes );
+
 // Teaches the registry skeletons, clips and animation graphs: <id>.skeleton,
 // <id>.clips, <id>.animation_graph.
 void RegisterAnimationLoaders( AssetRegistry& registry );

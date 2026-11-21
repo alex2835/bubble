@@ -184,3 +184,35 @@ TEST_CASE( "The graph's operators wait for an animation graph" )
     REQUIRE( f.Run( "document.new" ) );
     CHECK( f.Why( "graph.add_state", "null" ) == "no animation graph is active: open a .anim" );
 }
+
+TEST_CASE( "A parameter renamed is renamed where it stands and wherever the graph reads it, one step" )
+{
+    Fixture f;
+    REQUIRE( f.Run( "data.set", R"({ "path": "parameters.speed", "value": 0 })" ) );
+    REQUIRE( f.Run( "data.set", R"({ "path": "states.fall.speed", "value": "speed" })" ) );
+    REQUIRE( f.Run( "data.set",
+                    R"({ "path": "states.land.blend", "value": { "param": "speed", "points": [ [ "a", 0 ] ] } })" ) );
+    REQUIRE( f.Run( "data.set", R"({ "path": "transitions[3].when", "value": [ "speed > 1", "!grounded" ] })" ) );
+
+    REQUIRE( f.Run( "graph.rename_parameter", R"({ "parameter": "grounded", "name": "on_ground" })" ) );
+    CHECK( f.At( "parameters" ) == R"({"on_ground":true,"speed":0})" );
+    CHECK( f.At( "transitions[1].when" ) == R"("!on_ground")" );
+    CHECK( f.At( "transitions[2].when" ) == R"("on_ground")" );
+    CHECK( f.At( "transitions[3].when" ) == R"(["speed>1","!on_ground"])" );
+
+    REQUIRE( f.Run( "graph.rename_parameter", R"({ "parameter": "speed", "name": "pace" })" ) );
+    CHECK( f.At( "states.fall.speed" ) == R"("pace")" );
+    CHECK( f.At( "states.land.blend.param" ) == R"("pace")" );
+    CHECK( f.At( "transitions[3].when" ) == R"(["pace>1","!on_ground"])" );
+    CHECK( f.States() == vector<string>{ "idle", "fall", "land" } );
+
+    REQUIRE( f.Run( "edit.undo" ) );
+    CHECK( f.At( "states.fall.speed" ) == R"("speed")" );
+    CHECK( f.Why( "graph.rename_parameter", R"({ "parameter": "jump", "name": "hop" })" ) ==
+           "parameter: no parameter jump (parameters: on_ground, speed)" );
+    CHECK( f.Why( "graph.rename_parameter", R"({ "parameter": "speed", "name": "on_ground" })" ) ==
+           "name: there is a parameter on_ground already" );
+    CHECK( f.Why( "graph.rename_parameter", R"({ "parameter": "speed", "name": "Fast" })" ) ==
+           "name: 'Fast' is not a parameter's name: a name is snake_case - a lowercase letter, then lowercase "
+           "letters, digits and _" );
+}

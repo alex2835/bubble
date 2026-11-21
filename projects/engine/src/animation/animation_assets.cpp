@@ -122,6 +122,27 @@ string ClipsAsset::Names() const
     return names.empty() ? "none" : names;
 }
 
+vector<string> ClipNames( string_view bytes )
+{
+    BinaryReader reader( bytes );
+    if ( bytes.empty() or not TryHeader( reader, cClipsMagic, "clips" ) )
+        return {};
+    const auto countMaybe = reader.TryU32();
+    if ( not countMaybe )
+        return {};
+    vector<string> names;
+    for ( u32 c = 0; c < *countMaybe; ++c )
+    {
+        const auto nameMaybe = reader.TryText();
+        // The rest of it: its length, its archive, its root's two tracks.
+        if ( not nameMaybe or not reader.TryF32() or not reader.TryText() or not reader.TryText() or
+             not reader.TryText() )
+            return {};
+        names.emplace_back( *nameMaybe );
+    }
+    return names;
+}
+
 string WriteSkeletonAsset( string_view skeletonArchive )
 {
     BinaryWriter out;

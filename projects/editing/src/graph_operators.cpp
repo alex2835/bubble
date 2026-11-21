@@ -1,6 +1,6 @@
 // The active animation graph as its editor changes it: states added, renamed
 // and taken out with everything that names them, transitions drawn between
-// them, where each is drawn. Each operator is one step of the graph's
+// them, where each is drawn, a parameter renamed wherever it is read. Each operator is one step of the graph's
 // document, its changes taken back together when one of them fails.
 #include "bubble/core/name.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -223,6 +223,90 @@ Result RunRenameState( Workspace& workspace, const OperatorArgs& args )
     } );
 }
 
+// A condition as the graph reads it - "name", "!name", "name <op> value" -
+// with its parameter renamed when it is `from`.
+string ConditionRenamed( const string& condition, string_view from, string_view to )
+{
+    const size_t start = condition.starts_with( '!' ) ? 1 : 0;
+    const size_t end = min( condition.find( ' ', start ), condition.size() );
+    if ( string_view( condition ).substr( start, end - start ) != from )
+        return condition;
+    return condition.substr( 0, start ) + string( to ) + condition.substr( end );
+}
+
+Result RunRenameParameter( Workspace& workspace, const OperatorArgs& args )
+{
+    DataDocument& document = Graph( workspace );
+    const string parameter = args.TryGet<Text>( "parameter"_n )->String();
+    const string name = args.TryGet<Text>( "name"_n )->String();
+    const auto parametersMaybe = TryObjectAt( document, "parameters" );
+    const auto has = [&]( string_view key ) {
+        return parametersMaybe and
+               ranges::any_of( *parametersMaybe, [&]( const Json::Member& member ) { return member.mKey == key; } );
+    };
+    if ( not has( parameter ) )
+    {
+        string names;
+        if ( parametersMaybe )
+            for ( const Json::Member& member : *parametersMaybe )
+                names += ( names.empty() ? "" : ", " ) + member.mKey;
+        return unexpected(
+            format( "parameter: no parameter {} (parameters: {})", parameter, names.empty() ? "none" : names ) );
+    }
+    if ( name == parameter )
+        return {};
+    if ( not detail::NameValid( name ) )
+        return unexpected( format( "name: '{}' is not a parameter's name: a name is snake_case - a lowercase letter, "
+                                   "then lowercase letters, digits and _",
+                                   name ) );
+    if ( has( name ) )
+        return unexpected( format( "name: there is a parameter {} already", name ) );
+    return Step( document, format( "Rename Parameter {} to {}", parameter, name ), [&]() -> Result {
+        if ( auto setMaybe =
+                 document.TrySet( PathOf( "parameters" ), Renamed( *parametersMaybe, parameter, name ), "" );
+             not setMaybe )
+            return setMaybe;
+        // Each transition's conditions, one or a list.
+        const size_t count = TryTransitions( document ) ? TryTransitions( document )->size() : 0;
+        for ( size_t at = 0; at < count; ++at )
+        {
+            const auto whenMaybe = ( *TryTransitions( document ) )[at].TryFind( "when" );
+            if ( not whenMaybe )
+                continue;
+            Json when = *whenMaybe;
+            if ( const auto textMaybe = when.TryAs<string>() )
+                when = Json( ConditionRenamed( *textMaybe, parameter, name ) );
+            else if ( const auto listMaybe = when.TryAs<Json::Array>() )
+                for ( Json& condition : *listMaybe )
+                    if ( const auto textMaybe = condition.TryAs<string>() )
+                        condition = Json( ConditionRenamed( *textMaybe, parameter, name ) );
+            if ( when.Write() != whenMaybe->Write() )
+                if ( auto setMaybe = document.TrySet( PathOf( format( "transitions[{}].when", at + 1 ) ), when, "" );
+                     not setMaybe )
+                    return setMaybe;
+        }
+        // A blend along it, a speed it sets.
+        if ( const auto statesMaybe = TryObjectAt( document, "states" ) )
+            for ( const Json::Member& state : Json::Object( *statesMaybe ) )
+            {
+                const auto blendMaybe = state.mValue.TryFind( "blend" );
+                if ( const auto paramMaybe = blendMaybe ? blendMaybe->TryFind( "param" ) : nullopt;
+                     paramMaybe and paramMaybe->TryAs<string>() and *paramMaybe->TryAs<string>() == parameter )
+                    if ( auto setMaybe = document.TrySet( PathOf( format( "states.{}.blend.param", state.mKey ) ),
+                                                          Json( name ), "" );
+                         not setMaybe )
+                        return setMaybe;
+                if ( const auto speedMaybe = state.mValue.TryFind( "speed" );
+                     speedMaybe and speedMaybe->TryAs<string>() and *speedMaybe->TryAs<string>() == parameter )
+                    if ( auto setMaybe =
+                             document.TrySet( PathOf( format( "states.{}.speed", state.mKey ) ), Json( name ), "" );
+                         not setMaybe )
+                        return setMaybe;
+            }
+        return {};
+    } );
+}
+
 Result RunAddTransition( Workspace& workspace, const OperatorArgs& args )
 {
     DataDocument& document = Graph( workspace );
@@ -295,6 +379,10 @@ void AddGraphOperators( Operators& operators )
     operators.Add( GraphOperator(
         "graph.rename_state", "Rename State",
         { Arg( "state", ValueKind::Text, cRequired ), Arg( "name", ValueKind::Text, cRequired ) }, RunRenameState ) );
+    operators.Add(
+        GraphOperator( "graph.rename_parameter", "Rename Parameter",
+                       { Arg( "parameter", ValueKind::Text, cRequired ), Arg( "name", ValueKind::Text, cRequired ) },
+                       RunRenameParameter ) );
     operators.Add( GraphOperator(
         "graph.add_transition", "Add Transition",
         { Arg( "from", ValueKind::Text, cRequired ), Arg( "to", ValueKind::Text, cRequired ) }, RunAddTransition ) );

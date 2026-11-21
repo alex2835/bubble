@@ -75,7 +75,8 @@ projects/engine/include/bubble/
                               stepped as plain data), animation_assets (the skeleton and clips a model's importer
                               writes beside it under its id; RegisterAnimationLoaders), AnimationModule: animator
                               (graph, speed) - the graph stepped each fixed step in Phase::Physics, its events
-                              ScriptCalls to on_animation_event; poses sampled each frame between the last two steps
+                              ScriptCalls to on_animation_event; ClipNames - a clips asset's names, for the editor -;
+                              poses sampled each frame between the last two steps
                               on Jobs' pool, transitions eased by inertialization, written as the model's SkinPose -,
                               bone_attachment (an entity hung on a joint of its parent's pose: ParentOffset);
                               AnimationWorld (a service: set, trigger, state, joints, root motion); scripts'
@@ -241,7 +242,8 @@ projects/editing/include/bubble/editing/
                               .import -); DataDocument (a .mat or .anim
                               open as its JSON with a history of its own, active instead of any scene - what is
                               taken out comes back in its place -; data.set, data.remove in data_operators.cpp;
-                              graph.add_state, remove_state, rename_state - what names it follows -, add_transition,
+                              graph.add_state, remove_state, rename_state - what names it follows -,
+                              rename_parameter - its conditions, blends and speeds too -, add_transition,
                               remove_transition, place in graph_operators.cpp; saved, undone, closed as a scene's
                               are); prefab
                               documents (.prefab, node ids
@@ -253,7 +255,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
                               (a project open: settings, App with every module - saves into memory -, the
-                              registry, its sources kept imported, the Workspace and Operators; TryImporterOf; the
+                              registry, its sources kept imported, the Workspace and Operators; TryImporterOf;
+                              ClipNames - its models' clips -; the
                               game playing - play.start, stop, pause, step -, TryPlaying), PlaySession (Play: the
                               scene shown copied into a document of its own - Document::IsPlayed: never saved,
                               closed by play.stop - with every module's world over it, the project's actions from
