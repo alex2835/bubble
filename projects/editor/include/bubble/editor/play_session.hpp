@@ -9,7 +9,7 @@ namespace bubble
 class EditorProject;
 class DocumentWorld;
 
-// A game played from a scene's document, as bubble_play plays a level: the
+// A game played from a scene's document, as bubble_runner plays a level: the
 // scene copied into a document of its own - open in the workspace, active,
 // shown, the tree's and the inspector's, edits to it lost with it - and a
 // world of every module over the copy, stepped each frame, the project's

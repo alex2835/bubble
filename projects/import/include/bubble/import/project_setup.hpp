@@ -5,7 +5,7 @@
 #include "bubble/scripts/script_module.hpp"
 #include "bubble/world/app.hpp"
 
-// What the tools that open a project's folder - bubble_play, the editor - set
+// What the tools that open a project's folder - bubble_runner, the editor - set
 // up alike, so the two never differ in what a project is.
 namespace bubble
 {

@@ -868,7 +868,7 @@ void Viewport::Draw( World& world, const EditorCamera& camera )
     RenderScene& scene = world.Get<RenderScene>();
     if ( mPlayed )
     {
-        // Through the game's first camera, as bubble_play shows it; the
+        // Through the game's first camera, as bubble_runner shows it; the
         // editor's while it has none.
         mRenderer.Draw(
             mView, scene, scene.mCameras.empty() ? camera.ToRenderCamera() : scene.mCameras.front(),

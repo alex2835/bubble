@@ -4,7 +4,7 @@
 namespace bubble
 {
 // Models made in code rather than imported: what the editor offers to add,
-// what tests and the runner draw. One mesh, its full level alone; faces
+// what tests and the demo draw. One mesh, its full level alone; faces
 // turn counter-clockwise seen from outside, as imported ones do.
 
 // A box `size` across, centred on the origin; each face flat, its uvs over

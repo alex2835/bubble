@@ -227,7 +227,7 @@ projects/import/include/bubble/import/
                               ProjectAssets (the editor's project kept
                               in step: TryRefresh polls the stamps, scans and imports what changed - a prefab, its id
                               inside, with no .import -, says what the registry reloads); project_setup (what
-                              bubble_play and the editor set up alike: AddEngineModules, AddEngineImporters,
+                              bubble_runner and the editor set up alike: AddEngineModules, AddEngineImporters,
                               RegisterEngineLoaders)
 projects/editing/include/bubble/editing/
                               bubble_editing, on the engine and import, never included by them: Document (a scene, its
@@ -322,8 +322,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot
                               file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini
-projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
-                              code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
+projects/demo/                bubble_demo, on the engine alone (never import or editing) - the web's build too -: a
+                              scene made in code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character
                               controller - walks by move_x and move_z, jumps with a blip, throws crates (a prefab
                               spawned on E), two boxes tumble, the camera follows, a HUD - a button dropping a crate,
@@ -331,8 +331,8 @@ projects/runner/              bubble_runner, on the engine alone (never import o
                               a pad chimes and lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
-projects/play/                bubble_play <folder> [--frames N] [--screenshot file.png] [--import-only], on the engine
-                              and import, the desktop alone: a project played from its folder - project.bubble's
+projects/runner/              bubble_runner <folder> [--frames N] [--screenshot file.png] [--import-only], on the
+                              engine and import, the desktop alone: a project's game run from its folder - project.bubble's
                               start level and actions, its sources imported into .bubble/imported as it starts and
                               again as they change, the scripts checked against .bubble/bubble.d.luau (written there
                               for a language server too), the Game service's cursor and quit; the sandbox is played

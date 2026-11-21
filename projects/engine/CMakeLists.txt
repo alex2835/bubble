@@ -17,7 +17,7 @@ add_library( bubble_engine STATIC ${BUBBLE_ENGINE_SOURCES} ${BUBBLE_ENGINE_HEADE
 target_include_directories( bubble_engine PUBLIC include )
 bubble_target_warnings( bubble_engine )
 # Luau through luaubind: the VM, native code generation, and the compiler for
-# the editor and tests - a runner that never calls CompileScript links none of it.
+# the editor and tests - a game that never calls CompileScript links none of it.
 target_link_libraries( bubble_engine PUBLIC luaubind )
 # The scene is an EnTT registry, and its component templates live in its header.
 target_link_libraries( bubble_engine PUBLIC entt )

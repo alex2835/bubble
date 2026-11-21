@@ -21,7 +21,7 @@ struct ListedFile
 };
 
 // The project's files as the editor and the importer read and write them: a
-// folder on disk, or files in memory for a test. The runner never writes the
+// folder on disk, or files in memory for a test. A game shipped never writes the
 // project, so this is not the engine's.
 class ProjectFiles
 {
