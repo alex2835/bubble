@@ -135,35 +135,40 @@ void Editor::Frame( f64 elapsed )
     // between them - and what the viewport draws over the selection; each
     // material's preview its sphere.
     Workspace& workspace = mProject.GetWorkspace();
-    const auto shownMaybe = TryShownWorld();
-    mViewport.Prepare( workspace.TryShownScene(), shownMaybe ? OptRef<World>( shownMaybe->Get() ) : OptRef<World>() );
-    const auto playMaybe = mProject.TryPlaying();
-    if ( shownMaybe )
     {
-        // A game shown has its frame below, not an editing world's. Its UI
-        // laid out for the picture, as last shown.
-        if ( not playMaybe or &playMaybe->View() != &*shownMaybe )
+        // Looked up for this part alone: a key, the menu or a tab below may
+        // stop the game, and its document and world go with it.
+        const auto shownMaybe = TryShownWorld();
+        mViewport.Prepare( workspace.TryShownScene(),
+                           shownMaybe ? OptRef<World>( shownMaybe->Get() ) : OptRef<World>() );
+        const auto playMaybe = mProject.TryPlaying();
+        if ( shownMaybe )
         {
-            const vec2 size = glm::max( mViewport.Size(), vec2( 1.0f ) );
-            shownMaybe->Get().Get<UiWorld>().SetScreen(
-                ivec2( static_cast<i32>( size.x ), static_cast<i32>( size.y ) ) );
-            shownMaybe->Get().Frame( elapsed );
+            // A game shown has its frame below, not an editing world's. Its
+            // UI laid out for the picture, as last shown.
+            if ( not playMaybe or &playMaybe->View() != &*shownMaybe )
+            {
+                const vec2 size = glm::max( mViewport.Size(), vec2( 1.0f ) );
+                shownMaybe->Get().Get<UiWorld>().SetScreen(
+                    ivec2( static_cast<i32>( size.x ), static_cast<i32>( size.y ) ) );
+                shownMaybe->Get().Frame( elapsed );
+            }
+            shownMaybe->Gathered();
         }
-        shownMaybe->Gathered();
-    }
-    if ( playMaybe )
-    {
-        playMaybe->Frame( elapsed );
-        // Begun: the game has the input at once.
-        if ( not mWasPlaying )
-            mReleased = false;
+        if ( playMaybe )
+        {
+            playMaybe->Frame( elapsed );
+            // Begun: the game has the input at once.
+            if ( not mWasPlaying )
+                mReleased = false;
+        }
+        mWasPlaying = static_cast<bool>( playMaybe );
     }
     // A click anywhere but on the game takes its input back; on it, gives it
     // again (below, in the viewport).
     if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left ) or ImGui::IsMouseClicked( ImGuiMouseButton_Right ) or
          ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
         mReleased = true;
-    mWasPlaying = static_cast<bool>( playMaybe );
     for ( const Scope<DataDocument>& document : workspace.AllData() )
         if ( IsMaterial( *document ) )
         {
@@ -191,6 +196,10 @@ void Editor::Frame( f64 elapsed )
     if ( viewport )
     {
         DocumentTabs();
+        // As they are now: Stop - Ctrl+P, the menu, the game's tab closed -
+        // may have taken the game's document and world away since the top.
+        const auto shownMaybe = TryShownWorld();
+        const auto playMaybe = mProject.TryPlaying();
         if ( shownMaybe )
         {
             if ( playMaybe and ClickedInWindow() )
