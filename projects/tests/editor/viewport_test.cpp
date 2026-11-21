@@ -350,12 +350,28 @@ TEST_CASE( "A click on the scene's UI over the picture picks the element there" 
 })" );
     for ( int frame = 0; frame < 5; ++frame )
         view.Frame();
-    view.MoveTo( ImVec2( 60, 150 ) );
+    // Laid out in the canvas's 720 pixels high, shown in the picture's 240:
+    // a third of its size, from (20, 120) to (100, 180) there.
+    view.MoveTo( ImVec2( 20, 50 ) );
     view.Button( true );
     view.Button( false );
     view.Frame();
     const Entity panel = *TryResolve( view.GetScene(), EntityPath{ Make( "/hud/panel" ) } );
     CHECK( view.GetDocument().GetSelection().Active() == panel );
+
+    // Selected, it is dragged by its left and top, in the canvas's pixels,
+    // one step.
+    view.MoveTo( ImVec2( 20, 50 ) );
+    view.Button( true );
+    for ( int step = 1; step <= 5; ++step )
+        view.MoveTo( ImVec2( 20 + 6.0f * static_cast<f32>( step ), 50 + 2.0f * static_cast<f32>( step ) ) );
+    view.Button( false );
+    view.Frame();
+    const UiRect& rect = view.GetScene().Get<UiRect>( panel );
+    CHECK( rect.mLeft == "110" );
+    CHECK( rect.mTop == "150" );
+    REQUIRE( view.mProject->Run( "edit.undo" ) );
+    CHECK( view.GetScene().Get<UiRect>( panel ).mLeft == "20" );
 }
 
 TEST_CASE( "A rectangle drawn over the viewport's picture selects what is in it" )

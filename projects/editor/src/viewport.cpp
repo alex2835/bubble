@@ -357,8 +357,13 @@ void Viewport::Helpers( Document& document, World& world )
                 canvas = ParentOf( scene, canvas );
             if ( canvas == Entity::Null or scene.Get<UiCanvas>( canvas ).mWorld )
                 continue;
+            // Laid out in the canvas's pixels, its height the picture's.
+            const f32 toPicture = mSize.y / max( scene.Get<UiCanvas>( canvas ).mHeight, 1.0f );
             if ( const auto boxMaybe = ui.TryBox( entity ) )
-                mUiBoxes.emplace_back( entity, pair<vec2, vec2>( boxMaybe->mMin, boxMaybe->mMax ) );
+                mUiBoxes.push_back( UiBoxShown{ .mEntity = entity,
+                                                .mMin = boxMaybe->mMin * toPicture,
+                                                .mMax = boxMaybe->mMax * toPicture,
+                                                .mToCanvas = 1.0f / toPicture } );
         }
     }
 
@@ -518,9 +523,35 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     // later; a preview has nothing to pick.
     if ( documentMaybe and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
     {
-        mPressedAt = vec2( io.MousePos.x, io.MousePos.y );
-        mPickToggles = io.KeyCtrl;
+        // A selected element of the UI placed by left and top is dragged
+        // there, one step; anything else is a click or a rectangle.
+        const auto boxMaybe = mUiShown ? TryUiAt( vec2( io.MousePos.x, io.MousePos.y ) - mCorner ) : nullopt;
+        const auto rectMaybe = boxMaybe ? documentMaybe->GetScene().TryGet<UiRect>( boxMaybe->mEntity ) : nullopt;
+        f32 left = 0;
+        f32 top = 0;
+        const auto number = []( const string& text, f32& into ) {
+            return not text.empty() and
+                   from_chars( text.data(), text.data() + text.size(), into ).ptr == text.data() + text.size();
+        };
+        if ( rectMaybe and ranges::contains( documentMaybe->GetSelection().All(), boxMaybe->mEntity ) and
+             rectMaybe->mPosition == "absolute"_n and number( rectMaybe->mLeft, left ) and
+             number( rectMaybe->mTop, top ) )
+        {
+            documentMaybe->GetHistory().BeginGroup( "Move UI" );
+            mUiDragMaybe = UiDragging{ .mEntity = boxMaybe->mEntity,
+                                       .mFrom = vec2( io.MousePos.x, io.MousePos.y ),
+                                       .mLeft = left,
+                                       .mTop = top,
+                                       .mToCanvas = boxMaybe->mToCanvas };
+        }
+        else
+        {
+            mPressedAt = vec2( io.MousePos.x, io.MousePos.y );
+            mPickToggles = io.KeyCtrl;
+        }
     }
+    if ( documentMaybe )
+        UiDrag( *documentMaybe );
     if ( mPressedAt and ImGui::IsMouseDown( ImGuiMouseButton_Left ) and
          glm::length( vec2( io.MousePos.x, io.MousePos.y ) - *mPressedAt ) >= cClickSlop )
     {
@@ -535,9 +566,8 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
         if ( glm::length( at - *mPressedAt ) < cClickSlop )
         {
             // The UI over the picture first; what is drawn behind it else.
-            if ( const Entity element = mUiShown ? UiAt( at - mCorner ) : Entity::Null;
-                 element != Entity::Null and documentMaybe )
-                Picked( *documentMaybe, element );
+            if ( const auto boxMaybe = mUiShown ? TryUiAt( at - mCorner ) : nullopt; boxMaybe and documentMaybe )
+                Picked( *documentMaybe, boxMaybe->mEntity );
             else
                 mView.Pick( ivec2( static_cast<i32>( ( at.x - corner.x ) * scale.x ),
                                    static_cast<i32>( ( at.y - corner.y ) * scale.y ) ) );
@@ -551,10 +581,10 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     mUiShown = mUi and documentMaybe;
     // The selected UI elements outlined where they lie.
     if ( mUiShown )
-        for ( const auto& [entity, box] : mUiBoxes )
-            if ( ranges::contains( documentMaybe->GetSelection().All(), entity ) )
-                ImGui::GetWindowDrawList()->AddRect( ImVec2( corner.x + box.first.x, corner.y + box.first.y ),
-                                                     ImVec2( corner.x + box.second.x, corner.y + box.second.y ),
+        for ( const UiBoxShown& box : mUiBoxes )
+            if ( ranges::contains( documentMaybe->GetSelection().All(), box.mEntity ) )
+                ImGui::GetWindowDrawList()->AddRect( ImVec2( corner.x + box.mMin.x, corner.y + box.mMin.y ),
+                                                     ImVec2( corner.x + box.mMax.x, corner.y + box.mMax.y ),
                                                      IM_COL32( 255, 160, 40, 255 ), 0.0f, 0, 2.0f );
     if ( documentMaybe )
     {
@@ -718,23 +748,50 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
     }
 }
 
-Entity Viewport::UiAt( vec2 at ) const
+OptRef<const Viewport::UiBoxShown> Viewport::TryUiAt( vec2 at ) const
 {
     // The smallest box around the point: the innermost element there.
-    Entity found = Entity::Null;
+    OptRef<const UiBoxShown> found;
     f32 area = numeric_limits<f32>::max();
-    for ( const auto& [entity, box] : mUiBoxes )
+    for ( const UiBoxShown& box : mUiBoxes )
     {
-        if ( at.x < box.first.x or at.y < box.first.y or at.x > box.second.x or at.y > box.second.y )
+        if ( at.x < box.mMin.x or at.y < box.mMin.y or at.x > box.mMax.x or at.y > box.mMax.y )
             continue;
-        const vec2 size = box.second - box.first;
+        const vec2 size = box.mMax - box.mMin;
         if ( size.x * size.y < area )
         {
             area = size.x * size.y;
-            found = entity;
+            found = box;
         }
     }
     return found;
+}
+
+void Viewport::UiDrag( Document& document )
+{
+    const ImGuiIO& io = ImGui::GetIO();
+    if ( not mUiDragMaybe )
+        return;
+    const Scene& scene = document.GetScene();
+    if ( not ImGui::IsMouseDown( ImGuiMouseButton_Left ) or not scene.Alive( mUiDragMaybe->mEntity ) )
+    {
+        if ( document.GetHistory().InGroup() )
+            document.GetHistory().EndGroup();
+        mUiDragMaybe.reset();
+        return;
+    }
+    // In the canvas's pixels, whole ones, as a person writes them.
+    const vec2 moved = ( vec2( io.MousePos.x, io.MousePos.y ) - mUiDragMaybe->mFrom ) * mUiDragMaybe->mToCanvas;
+    const auto set = [&]( const char* path, f32 value ) {
+        Value::Record args = EntitiesArgs( scene, mUiDragMaybe->mEntity );
+        args.push_back( ValueField{ .mName = "component"_n, .mValue = Value( "ui_rect"_n ) } );
+        args.push_back( ValueField{ .mName = "path"_n, .mValue = Value( *Text::TryFrom( path ) ) } );
+        args.push_back(
+            ValueField{ .mName = "value"_n, .mValue = Value( *Text::TryFrom( format( "{:.0f}", value ) ) ) } );
+        mProject.Run( "property.set", args );
+    };
+    set( "left", mUiDragMaybe->mLeft + moved.x );
+    set( "top", mUiDragMaybe->mTop + moved.y );
 }
 
 void Viewport::Rectangle( Document& document, const EditorCamera& editorCamera, vec2 from, vec2 to )

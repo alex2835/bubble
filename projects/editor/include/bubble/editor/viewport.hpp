@@ -65,7 +65,8 @@ vector<DebugLine> FloorGrid( const EditorCamera& camera );
 // brings it closer, F frames the selection -; a click picks what is drawn
 // there - an instance of a prefab first, a part of it at the second click,
 // ctrl flipping it in the selection; an element of the scene's UI before
-// what is behind it -, a rectangle drawn selects what is in it; the gizmo moves, turns or scales the active entity and
+// what is behind it, one selected and placed by left and top dragged -, a
+// rectangle drawn selects what is in it; the gizmo moves, turns or scales the active entity and
 // the rest selected with it (W, E, R; X its axes or the world's; ctrl snaps), each drag one step; a prefab or a model
 // dropped from the assets panel stands on the ground under the mouse. What is selected shows its box, its colliders, a
 // light its reach, a camera its view; the scene's UI over the picture, laid
@@ -101,6 +102,21 @@ public:
     vec2 Size() const { return mSize; }
 
 private:
+    struct UiBoxShown
+    {
+        Entity mEntity;
+        vec2 mMin{ 0.0f };
+        vec2 mMax{ 0.0f };
+        f32 mToCanvas = 1;
+    };
+    struct UiDragging
+    {
+        Entity mEntity;
+        vec2 mFrom{ 0.0f };
+        f32 mLeft = 0;
+        f32 mTop = 0;
+        f32 mToCanvas = 1;
+    };
     void Tools();
     void Keys( Document& document, EditorCamera& camera );
     void Gizmo( Document& document, const EditorCamera& camera, vec2 corner, vec2 size );
@@ -108,7 +124,9 @@ private:
     // What a rectangle over the picture took, selected - added with ctrl.
     void Rectangle( Document& document, const EditorCamera& camera, vec2 from, vec2 to );
     // The innermost UI element at a point of the picture.
-    Entity UiAt( vec2 at ) const;
+    OptRef<const UiBoxShown> TryUiAt( vec2 at ) const;
+    // A drag of an element going on: its left and top set, one step.
+    void UiDrag( Document& document );
     void Helpers( Document& document, World& world );
     // Each light and camera of the scene marked where it stands; not a
     // camera at `eye`, looked through.
@@ -148,8 +166,12 @@ private:
     // what F frames; all of them, what a rectangle takes.
     vector<pair<Entity, pair<vec3, vec3>>> mBoxes;
     vector<pair<Entity, pair<vec3, vec3>>> mAllBoxes;
-    // The screen UI's elements as last laid out over the picture: a click
+    // The screen UI's elements as last laid out over the picture, in its
+    // units, and how many of their canvas's pixels one of them is: a click
     // on one picks it before what is drawn behind.
-    vector<pair<Entity, pair<vec2, vec2>>> mUiBoxes;
+    vector<UiBoxShown> mUiBoxes;
+    // A selected element dragged by its left and top: where the mouse and
+    // they started.
+    opt<UiDragging> mUiDragMaybe;
 };
 }
