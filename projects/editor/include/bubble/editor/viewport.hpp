@@ -30,6 +30,11 @@ struct Decomposed
 };
 Decomposed Decompose( const mat4& matrix );
 
+// A turn's angles - radians, Y, X, Z, as a transform keeps them - nearest
+// `previous`: of the two triples that make it, each angle a whole turn
+// either way, the one a person sees go on from where it was, not jump.
+vec3 AnglesNear( const quat& rotation, vec3 previous );
+
 // What a gizmo's drag of the active entity, from `before` to `after` in the
 // world, does to each of `selected` with a transform - the topmost of them,
 // as what is under one goes with it -: moved and turned with it about the

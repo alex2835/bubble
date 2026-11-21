@@ -149,6 +149,21 @@ TEST_CASE( "The rest selected go with the active one the gizmo drags: moved, tur
     CHECK( near( scaled[1].second.mPosition, vec3( 2, 0, 0 ) ) );
 }
 
+TEST_CASE( "A turn the gizmo made is written in the angles nearest the ones it had" )
+{
+    const auto turnOf = []( vec3 angles ) { return RotationOf( Transform{ .mRotation = angles } ); };
+    const auto near = []( vec3 got, vec3 wanted ) { return glm::length( got - wanted ) < 1e-3f; };
+    // Past half a turn about Y it goes on, rather than jump to the other
+    // side.
+    CHECK( near( AnglesNear( turnOf( vec3( 0, 3.2f, 0 ) ), vec3( 0, 3.0f, 0 ) ), vec3( 0, 3.2f, 0 ) ) );
+    // Tipped over past straight up about X: the same, not a flip of Y and Z.
+    CHECK( near( AnglesNear( turnOf( vec3( 2.5f, 0, 0 ) ), vec3( 2.4f, 0, 0 ) ), vec3( 2.5f, 0, 0 ) ) );
+    CHECK( near( AnglesNear( turnOf( vec3( 0.1f, 0.2f, 0.3f ) ), vec3( 0 ) ), vec3( 0.1f, 0.2f, 0.3f ) ) );
+    // Whichever it picks, it is the same turn.
+    const quat turn = turnOf( vec3( 2.0f, -1.0f, 0.5f ) );
+    CHECK( abs( glm::dot( turnOf( AnglesNear( turn, vec3( 6.0f, 0, 0 ) ) ), turn ) ) == doctest::Approx( 1.0f ) );
+}
+
 TEST_CASE( "A rectangle over the picture takes what it covers there" )
 {
     // Seen straight: the world's x and y from -1 to 1 across a picture of

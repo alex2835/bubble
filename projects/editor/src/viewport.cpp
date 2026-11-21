@@ -108,6 +108,26 @@ Entity PickTarget( const Scene& scene, const Selection& selection, Entity picked
     return inside ? picked : root;
 }
 
+vec3 AnglesNear( const quat& rotation, vec3 previous )
+{
+    constexpr f32 cTurn = glm::two_pi<f32>();
+    const vec3 angles = AnglesOf( rotation );
+    // The same turn by Y, X, Z the other way over.
+    const vec3 other( glm::pi<f32>() - angles.x, angles.y + glm::pi<f32>(), angles.z + glm::pi<f32>() );
+    const auto near = [&]( vec3 triple ) {
+        for ( int axis = 0; axis < 3; ++axis )
+            triple[axis] -= cTurn * glm::round( ( triple[axis] - previous[axis] ) / cTurn );
+        return triple;
+    };
+    const vec3 first = near( angles );
+    const vec3 second = near( other );
+    const auto distance = [&]( vec3 triple ) {
+        const vec3 apart = glm::abs( triple - previous );
+        return apart.x + apart.y + apart.z;
+    };
+    return distance( second ) < distance( first ) ? second : first;
+}
+
 vector<pair<Entity, Decomposed>> MovedTogether( const Scene& scene,
                                                 span<const Entity> selected,
                                                 Entity active,
@@ -759,7 +779,7 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
                 // About the active one: the others go round it.
                 if ( entity != active )
                     set( "position", Value( local.mPosition ) );
-                set( "rotation", Value( AnglesOf( local.mRotation ) ) );
+                set( "rotation", Value( AnglesNear( local.mRotation, scene.Get<Transform>( entity ).mRotation ) ) );
                 break;
             case GizmoTool::Scale: set( "scale", Value( local.mScale ) ); break;
         }
