@@ -343,6 +343,25 @@ void Viewport::Helpers( Document& document, World& world )
         mBoxes.emplace_back( item.mEntity, BoundsOf( item.mWorld, modelMaybe->mMin, modelMaybe->mMax ) );
     }
 
+    // The screen UI's elements where they were laid out over the picture.
+    mUiBoxes.clear();
+    if ( mUi )
+    {
+        const UiWorld& ui = world.Get<UiWorld>();
+        for ( const Entity entity : scene.EntitiesWith<UiRect>() )
+        {
+            if ( not InTree( scene, entity ) )
+                continue;
+            Entity canvas = entity;
+            while ( canvas != Entity::Null and not scene.Has<UiCanvas>( canvas ) )
+                canvas = ParentOf( scene, canvas );
+            if ( canvas == Entity::Null or scene.Get<UiCanvas>( canvas ).mWorld )
+                continue;
+            if ( const auto boxMaybe = ui.TryBox( entity ) )
+                mUiBoxes.emplace_back( entity, pair<vec2, vec2>( boxMaybe->mMin, boxMaybe->mMax ) );
+        }
+    }
+
     // Every light and camera, selected or not, marked where it is - they
     // have no model to be seen by -; not in a game, which shows itself.
     if ( not document.IsPlayed() )
@@ -514,8 +533,15 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     {
         const vec2 at( io.MousePos.x, io.MousePos.y );
         if ( glm::length( at - *mPressedAt ) < cClickSlop )
-            mView.Pick( ivec2( static_cast<i32>( ( at.x - corner.x ) * scale.x ),
-                               static_cast<i32>( ( at.y - corner.y ) * scale.y ) ) );
+        {
+            // The UI over the picture first; what is drawn behind it else.
+            if ( const Entity element = mUiShown ? UiAt( at - mCorner ) : Entity::Null;
+                 element != Entity::Null and documentMaybe )
+                Picked( *documentMaybe, element );
+            else
+                mView.Pick( ivec2( static_cast<i32>( ( at.x - corner.x ) * scale.x ),
+                                   static_cast<i32>( ( at.y - corner.y ) * scale.y ) ) );
+        }
         else if ( documentMaybe )
             Rectangle( *documentMaybe, camera, *mPressedAt - mCorner, at - mCorner );
         mPressedAt.reset();
@@ -523,6 +549,13 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
 
     mGridShown = mGrid and documentMaybe;
     mUiShown = mUi and documentMaybe;
+    // The selected UI elements outlined where they lie.
+    if ( mUiShown )
+        for ( const auto& [entity, box] : mUiBoxes )
+            if ( ranges::contains( documentMaybe->GetSelection().All(), entity ) )
+                ImGui::GetWindowDrawList()->AddRect( ImVec2( corner.x + box.first.x, corner.y + box.first.y ),
+                                                     ImVec2( corner.x + box.second.x, corner.y + box.second.y ),
+                                                     IM_COL32( 255, 160, 40, 255 ), 0.0f, 0, 2.0f );
     if ( documentMaybe )
     {
         // The tools over the picture's corner, the last widgets of the panel.
@@ -683,6 +716,25 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
             case GizmoTool::Scale: set( "scale", Value( local.mScale ) ); break;
         }
     }
+}
+
+Entity Viewport::UiAt( vec2 at ) const
+{
+    // The smallest box around the point: the innermost element there.
+    Entity found = Entity::Null;
+    f32 area = numeric_limits<f32>::max();
+    for ( const auto& [entity, box] : mUiBoxes )
+    {
+        if ( at.x < box.first.x or at.y < box.first.y or at.x > box.second.x or at.y > box.second.y )
+            continue;
+        const vec2 size = box.second - box.first;
+        if ( size.x * size.y < area )
+        {
+            area = size.x * size.y;
+            found = entity;
+        }
+    }
+    return found;
 }
 
 void Viewport::Rectangle( Document& document, const EditorCamera& editorCamera, vec2 from, vec2 to )

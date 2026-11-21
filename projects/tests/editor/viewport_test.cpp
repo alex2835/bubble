@@ -10,6 +10,7 @@
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/ui/ui.hpp"
 #include "bubble/world/transform.hpp"
 #include "render/gpu_helpers.hpp"
 #include <doctest.h>
@@ -221,8 +222,10 @@ struct View
     ImGuiContextScope mContext;
     Scope<Viewport> mViewport;
 
-    View()
+    // `level` instead of the cube's alone.
+    explicit View( string_view level = cLevel )
     {
+        mFiles["main.scene"] = string( level );
         const ProjectFiles files = ProjectFiles::InMemory( mFiles );
         auto projectMaybe =
             EditorProject::TryOpen( files, AssetRegistry::AtOnce( [files]( const AssetId& assetId, string_view kind ) {
@@ -257,6 +260,8 @@ struct View
         DocumentWorld& shown = ViewOf( mProject->GetApp(), GetDocument() );
         World& world = shown.Get();
         mViewport->Prepare( GetDocument(), world );
+        // Its UI laid out for the picture, as the editor lays it.
+        world.Get<UiWorld>().SetScreen( ivec2( static_cast<i32>( cSize.x ), static_cast<i32>( cSize.y ) ) );
         world.Frame( 1.0 / 60 );
         shown.Gathered();
         ImGui::GetIO().DeltaTime = 1.0f / 60;
@@ -332,6 +337,25 @@ TEST_CASE( "A click on the viewport's picture picks what is drawn there; the giz
     REQUIRE( view.mProject->Run( "edit.undo" ) );
     CHECK( glm::length( view.GetScene().Get<Transform>( view.Cube() ).mPosition ) < 1e-5f );
     CHECK( not view.GetDocument().IsDirty() );
+}
+
+TEST_CASE( "A click on the scene's UI over the picture picks the element there" )
+{
+    View view( R"({
+  "version": 1,
+  "root": { "children": [ { "name": "hud", "components": { "ui_canvas": {} }, "children": [
+    { "name": "panel", "components": {
+      "ui_rect": { "position": "absolute", "left": "20", "top": "120", "width": "80", "height": "60" },
+      "ui_image": { "color": [ 1, 0, 0, 1 ] } } } ] } ] }
+})" );
+    for ( int frame = 0; frame < 5; ++frame )
+        view.Frame();
+    view.MoveTo( ImVec2( 60, 150 ) );
+    view.Button( true );
+    view.Button( false );
+    view.Frame();
+    const Entity panel = *TryResolve( view.GetScene(), EntityPath{ Make( "/hud/panel" ) } );
+    CHECK( view.GetDocument().GetSelection().Active() == panel );
 }
 
 TEST_CASE( "A rectangle drawn over the viewport's picture selects what is in it" )

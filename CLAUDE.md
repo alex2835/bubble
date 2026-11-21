@@ -275,7 +275,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
                               inspector; the state a game plays lit - LiveState -), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
-                              picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, a
+                              picks through RenderView::Pick - PickTarget: a prefab's instance whole first; the
+                              screen UI's element there before it, outlined when selected -, a
                               rectangle drawn selects what it covers - InRectangle -, the gizmo on ImGuizmo moves,
                               turns and scales the active entity and the rest selected with it - MovedTogether; W,
                               E, R, X; one history group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as

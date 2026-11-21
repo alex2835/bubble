@@ -64,11 +64,10 @@ vector<DebugLine> FloorGrid( const EditorCamera& camera );
 // camera - the right button turns it, the middle one slides it, the wheel
 // brings it closer, F frames the selection -; a click picks what is drawn
 // there - an instance of a prefab first, a part of it at the second click,
-// ctrl flipping it in the selection -, a rectangle drawn selects what is in
-// it; the gizmo moves, turns or scales the active entity and the rest
-// selected with it (W, E, R; X its axes or the world's; ctrl snaps), each
-// drag one step; a prefab or a model dropped from the assets panel stands on the
-// ground under the mouse. What is selected shows its box, its colliders, a
+// ctrl flipping it in the selection; an element of the scene's UI before
+// what is behind it -, a rectangle drawn selects what is in it; the gizmo moves, turns or scales the active entity and
+// the rest selected with it (W, E, R; X its axes or the world's; ctrl snaps), each drag one step; a prefab or a model
+// dropped from the assets panel stands on the ground under the mouse. What is selected shows its box, its colliders, a
 // light its reach, a camera its view; the scene's UI over the picture, laid
 // out for its size (UI). A game played is shown through its
 // own camera with its UI over it, and only looked at: the mouse and the
@@ -108,6 +107,8 @@ private:
     void Picked( Document& document, Entity entity );
     // What a rectangle over the picture took, selected - added with ctrl.
     void Rectangle( Document& document, const EditorCamera& camera, vec2 from, vec2 to );
+    // The innermost UI element at a point of the picture.
+    Entity UiAt( vec2 at ) const;
     void Helpers( Document& document, World& world );
     // Each light and camera of the scene marked where it stands; not a
     // camera at `eye`, looked through.
@@ -147,5 +148,8 @@ private:
     // what F frames; all of them, what a rectangle takes.
     vector<pair<Entity, pair<vec3, vec3>>> mBoxes;
     vector<pair<Entity, pair<vec3, vec3>>> mAllBoxes;
+    // The screen UI's elements as last laid out over the picture: a click
+    // on one picks it before what is drawn behind.
+    vector<pair<Entity, pair<vec2, vec2>>> mUiBoxes;
 };
 }
