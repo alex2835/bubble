@@ -443,6 +443,13 @@ void Inspector::MaterialParamRow( const MaterialAsset& material,
 void Inspector::NameRow( Document& document, Entity entity )
 {
     const Scene& scene = document.GetScene();
+    // A prefab's root is named by its file.
+    if ( entity == scene.Root() )
+    {
+        ImGui::TextUnformatted( RootLabel( document ).c_str() );
+        ImGui::TextDisabled( "the prefab's root" );
+        return;
+    }
     // Taken from the entity unless it is being typed: a rename is one step,
     // when the field is left.
     const ImGuiID field = ImGui::GetID( "##name" );

@@ -246,7 +246,9 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
                               (a project open: settings, App with every module, the registry, its sources kept
                               imported, the Workspace and Operators), DocumentWorld (a document's editing world over
-                              its scene and the camera on it, its view: ViewOf, WorldOf), MaterialPreview (a
+                              its scene and the camera on it, its view: ViewOf, WorldOf; Gathered - the camera placed
+                              once, at a level's camera or around what the scene shows, a prefab with no light lit
+                              by EditorSun, never in its scene -), MaterialPreview (a
                               material document's view: a sphere wearing it as the document has it, saved or not,
                               in a world of its own; its bases and its shader's parameters followed as they load -
                               TryLayout -, why it does not read), EditorCamera, Viewport (the active document's world in a
@@ -254,7 +256,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
                               gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
                               group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
-                              the world's debug lines; Decompose), ScenePanel (the tree: clicks with
+                              the world's debug lines; the floor's grid - FloorGrid, faded far off -; Decompose),
+                              ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
                               ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is
                               shown), Inspector (the active entity: its name, its components' fields as Values by

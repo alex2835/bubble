@@ -27,6 +27,10 @@ OperatorCall ClickCall( const Scene& scene,
                         bool ctrl,
                         bool shift );
 
+// What a prefab's root is called in the tree and the inspector: its file's
+// name, its root having none of its own.
+string RootLabel( const Document& document );
+
 // Where a drop lands on a row: above it, into it as its last child, below
 // it.
 enum class DropPlace : u8

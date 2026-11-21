@@ -127,6 +127,17 @@ void ScenePanel::MenuItem( const char* label, const char* keys, string_view op, 
         ImGui::SetTooltip( "%s", pollMaybe.error().c_str() );
 }
 
+string RootLabel( const Document& document )
+{
+    const auto pathMaybe = document.TryPath();
+    if ( not pathMaybe )
+        return "prefab";
+    string_view name = pathMaybe->View().substr( pathMaybe->View().rfind( '/' ) + 1 );
+    if ( const size_t dot = name.rfind( '.' ); dot != string_view::npos )
+        name = name.substr( 0, dot );
+    return string( name );
+}
+
 void ScenePanel::Show()
 {
     const auto documentMaybe = mProject.GetWorkspace().TryActive();
@@ -152,9 +163,16 @@ void ScenePanel::Show()
     }
 
     mShown.clear();
-    const vector<Entity> top( ChildrenOf( scene, scene.Root() ).begin(), ChildrenOf( scene, scene.Root() ).end() );
-    for ( const Entity entity : top )
-        Row( document, entity );
+    // A prefab's root is its own node, with components of its own: a row of
+    // its own, the others under it. A level's root is the level itself.
+    if ( document.TryPrefabNodes() )
+        Row( document, scene.Root() );
+    else
+    {
+        const vector<Entity> top( ChildrenOf( scene, scene.Root() ).begin(), ChildrenOf( scene, scene.Root() ).end() );
+        for ( const Entity entity : top )
+            Row( document, entity );
+    }
     mRows = mShown;
     mReveal = Entity::Null;
 
@@ -201,8 +219,11 @@ void ScenePanel::Row( Document& document, Entity entity )
     const vector<Entity> children( ChildrenOf( scene, entity ).begin(), ChildrenOf( scene, entity ).end() );
 
     const bool renaming = mRenaming == entity;
+    const bool root = entity == scene.Root();
     // Renamed, the row is as wide as its arrow, and the field follows.
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+    if ( root )
+        flags |= ImGuiTreeNodeFlags_DefaultOpen;
     if ( not renaming )
         flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
     if ( children.empty() )
@@ -213,7 +234,7 @@ void ScenePanel::Row( Document& document, Entity entity )
     const auto colorMaybe = ColorOf( scene, entity );
     if ( colorMaybe )
         ImGui::PushStyleColor( ImGuiCol_Text, *colorMaybe );
-    const string name = NameOf( scene, entity ).String();
+    const string name = root ? RootLabel( document ) : NameOf( scene, entity ).String();
     if ( mReveal != Entity::Null and IsAncestor( scene, entity, mReveal ) )
         ImGui::SetNextItemOpen( true );
     const bool open = renaming ? ImGui::TreeNodeEx( "node", flags, "%s", "" )
@@ -241,7 +262,7 @@ void ScenePanel::Row( Document& document, Entity entity )
                 Run( "document.open",
                      Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( pathMaybe->String() ) } } ) );
 
-    if ( not renaming and ImGui::BeginDragDropSource() )
+    if ( not renaming and not root and ImGui::BeginDragDropSource() )
     {
         if ( mDragged.empty() )
         {
@@ -285,6 +306,12 @@ void ScenePanel::RowMenu( Document& document, Entity entity )
 {
     const Scene& scene = document.GetScene();
     MenuItem( "Create Child", nullptr, "entity.create", EntityJson( scene, "parent", entity ) );
+    // A prefab's root stays where it is, as it is called.
+    if ( entity == scene.Root() )
+    {
+        MenuItem( "Paste", "Ctrl+V", "edit.paste", EntityJson( scene, "parent", entity ) );
+        return;
+    }
     if ( ImGui::MenuItem( "Rename", "F2" ) )
     {
         mRenaming = entity;
@@ -401,7 +428,7 @@ void ScenePanel::Keys( Document& document )
     key( ImGuiMod_Ctrl | ImGuiKey_X, "edit.cut" );
     key( ImGuiMod_Ctrl | ImGuiKey_V, "edit.paste" );
     const Entity active = document.GetSelection().Active();
-    if ( ImGui::IsKeyChordPressed( ImGuiKey_F2 ) and active != Entity::Null )
+    if ( ImGui::IsKeyChordPressed( ImGuiKey_F2 ) and active != Entity::Null and active != scene.Root() )
     {
         mRenaming = active;
         mNewName = NameOf( scene, active ).String();

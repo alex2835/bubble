@@ -119,7 +119,7 @@ void Editor::Frame( f64 elapsed )
     {
         viewMaybe->mWorld.Frame( elapsed );
         if ( viewMaybe->mSceneMaybe )
-            viewMaybe->mSceneMaybe->PlaceCamera( viewMaybe->mWorld.Get<RenderScene>() );
+            viewMaybe->mSceneMaybe->Gathered();
     }
 
     Shortcuts();

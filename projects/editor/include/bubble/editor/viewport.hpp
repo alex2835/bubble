@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/editor/editor_camera.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/render/debug_draw.hpp"
 #include "bubble/render/gpu/renderer.hpp"
 #include "bubble/types/matrix.hpp"
 #include "bubble/world/world.hpp"
@@ -28,6 +29,12 @@ enum class GizmoTool : u8
     Turn,
     Scale,
 };
+
+// The floor's grid under `camera`: on y = 0 around its focus, a line every
+// step - the power of ten that makes its distance a few dozen steps across -,
+// a brighter one every ten steps, the X axis red and the Z axis blue; in
+// pieces that fade out fifty steps from the focus.
+vector<DebugLine> FloorGrid( const EditorCamera& camera );
 
 // The panel that shows the active document's world through the editor's
 // camera: a picture the panel's size in pixels. The mouse over it drives the
@@ -83,6 +90,9 @@ private:
     GpuTexture mPicture;
     GizmoTool mTool = GizmoTool::Move;
     bool mLocal = false;
+    // The floor's grid: asked for, and drawn - a scene's document is shown.
+    bool mGrid = true;
+    bool mGridShown = false;
     // A drag of the gizmo under way: one step of the document's history.
     bool mGizmoHeld = false;
     // A press of the left button on the picture, where: a pick if it comes

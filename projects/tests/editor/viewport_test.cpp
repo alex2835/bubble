@@ -9,6 +9,7 @@
 #include "bubble/render/render_scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/world/transform.hpp"
 #include "render/gpu_helpers.hpp"
 #include <doctest.h>
@@ -62,6 +63,58 @@ TEST_CASE( "The gizmo's matrix comes apart into the position, turn and scale it 
 
     // A mirror is a negative scale.
     CHECK( Decompose( glm::scale( mat4( 1.0f ), vec3( -1, 1, 1 ) ) ).mScale.x == doctest::Approx( -1.0f ) );
+}
+
+TEST_CASE( "The floor's grid is around the camera's focus, its step a power of ten by the camera's distance" )
+{
+    EditorCamera camera;
+    camera.mFocus = vec3( 3.4f, 2.0f, -7.6f );
+    camera.mDistance = 12.0f;
+    const vector<DebugLine> lines = FloorGrid( camera );
+    REQUIRE_FALSE( lines.empty() );
+    for ( const DebugLine& line : lines )
+    {
+        CHECK( ( line.mFrom.y == 0.0f and line.mTo.y == 0.0f ) );
+        CHECK( ( line.mColor.mA > 0.0f and line.mColor.mA <= 1.0f ) );
+    }
+    // Where the lines along Z stand, a step apart, around x = 3.
+    const auto standing = [&]( const vector<DebugLine>& grid ) {
+        vector<f32> xs;
+        for ( const DebugLine& line : grid )
+            if ( line.mFrom.x == line.mTo.x and not ranges::contains( xs, line.mFrom.x ) )
+                xs.push_back( line.mFrom.x );
+        ranges::sort( xs );
+        return xs;
+    };
+    const vector<f32> xs = standing( lines );
+    REQUIRE( xs.size() > 2 );
+    CHECK( xs[1] - xs[0] == doctest::Approx( 1.0f ) );
+    CHECK( ( xs.front() < 3.0f and xs.back() > 3.0f ) );
+    // The Z axis at x = 0 is blue, whole by the focus and faded far off.
+    const auto onAxis = [&]( f32 z ) {
+        return *ranges::find_if( lines, [&]( const DebugLine& line ) {
+            return line.mFrom.x == 0.0f and line.mTo.x == 0.0f and line.mFrom.z <= z and line.mTo.z >= z;
+        } );
+    };
+    CHECK( onAxis( -7.0f ).mColor.mB > onAxis( -7.0f ).mColor.mR );
+    CHECK( onAxis( -7.0f ).mColor.mA == doctest::Approx( 1.0f ) );
+    CHECK( onAxis( 30.0f ).mColor.mA < 0.5f );
+    // Along X at z = -10, a tenth line, brighter than its neighbour at -9.
+    const auto along = [&]( f32 z ) {
+        return *ranges::find_if( lines, [&]( const DebugLine& line ) {
+            return line.mFrom.z == doctest::Approx( z ) and line.mTo.z == doctest::Approx( z ) and
+                   line.mFrom.x <= 3.0f and line.mTo.x >= 3.0f;
+        } );
+    };
+    CHECK( along( -10.0f ).mColor.mR > along( -9.0f ).mColor.mR );
+    CHECK( along( 0.0f ).mColor.mR > along( 0.0f ).mColor.mB );
+
+    camera.mDistance = 1.8f;
+    const vector<f32> close = standing( FloorGrid( camera ) );
+    CHECK( close[1] - close[0] == doctest::Approx( 0.1f ) );
+    camera.mDistance = 120.0f;
+    const vector<f32> far = standing( FloorGrid( camera ) );
+    CHECK( far[1] - far[0] == doctest::Approx( 10.0f ) );
 }
 
 #if defined( BUBBLE_IMPORT_MODELS ) and not defined( __EMSCRIPTEN__ )
@@ -156,7 +209,7 @@ struct View
         World& world = shown.Get();
         mViewport->Prepare( GetDocument(), world );
         world.Frame( 1.0 / 60 );
-        shown.PlaceCamera( world.Get<RenderScene>() );
+        shown.Gathered();
         ImGui::GetIO().DeltaTime = 1.0f / 60;
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();

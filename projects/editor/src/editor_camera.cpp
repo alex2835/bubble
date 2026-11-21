@@ -51,6 +51,27 @@ void EditorCamera::LookFrom( const mat4& camera, f32 distance )
     mFocus = position + forward * distance;
 }
 
+void EditorCamera::Frame( vec3 low, vec3 high )
+{
+    const f32 radius = max( glm::length( high - low ) * 0.5f, 0.5f );
+    mFocus = ( low + high ) * 0.5f;
+    mDistance = radius / sin( mFov * 0.5f ) * 1.1f;
+}
+
+pair<vec3, vec3> BoundsOf( const mat4& world, vec3 low, vec3 high )
+{
+    vec3 worldLow( numeric_limits<f32>::max() );
+    vec3 worldHigh( -numeric_limits<f32>::max() );
+    for ( int corner = 0; corner < 8; ++corner )
+    {
+        const vec3 local( corner & 1 ? high.x : low.x, corner & 2 ? high.y : low.y, corner & 4 ? high.z : low.z );
+        const vec3 at( world * vec4( local, 1.0f ) );
+        worldLow = glm::min( worldLow, at );
+        worldHigh = glm::max( worldHigh, at );
+    }
+    return pair<vec3, vec3>( worldLow, worldHigh );
+}
+
 vec3 EditorCamera::Position() const
 {
     return mFocus + TurnOf( *this ) * vec3( 0.0f, 0.0f, mDistance );

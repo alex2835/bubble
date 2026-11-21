@@ -170,9 +170,17 @@ constexpr string_view cLevel = R"({
   "root": { "children": [ { "name": "a", "children": [ { "name": "one" } ] }, { "name": "b" }, { "name": "c" } ] }
 })";
 
+constexpr string_view cDoor = R"({
+  "version": 1,
+  "next_id": 2,
+  "root": { "id": 0, "components": { "transform": {} }, "children": [ { "id": 1, "name": "leaf" } ] }
+})";
+
 struct Ui
 {
-    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) }, { "main.scene", string( cLevel ) } };
+    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
+                                 { "main.scene", string( cLevel ) },
+                                 { "door.prefab", string( cDoor ) } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
     ImGuiContextScope mContext;
@@ -339,4 +347,23 @@ TEST_CASE( "An entity made active elsewhere opens the rows over it" )
     // Rows now: a, one, b, c.
     ui.Click( 2 );
     CHECK( ui.Selected() == vector<string>{ "/b" } );
+}
+
+TEST_CASE( "A prefab's root is a row of its own, named by its file, its nodes under it; it is not renamed" )
+{
+    Ui ui;
+    REQUIRE( ui.mProject->Run( "document.open", *Json::TryParse( R"({ "path": "door.prefab" })" ) ) );
+    ui.Frame();
+    // Rows: door (open), leaf.
+    ui.Click( 1 );
+    CHECK( ui.Selected() == vector<string>{ "/leaf" } );
+    ui.Click( 0 );
+    CHECK( ui.Selected() == vector<string>{ "/" } );
+    ui.Press( ImGuiKey_F2 );
+    ImGui::GetIO().AddInputCharactersUTF8( "gate" );
+    ui.Frame();
+    ui.Press( ImGuiKey_Enter );
+    CHECK( ui.Top() == vector<string>{ "leaf" } );
+    CHECK_FALSE( ui.GetDocument().IsDirty() );
+    CHECK( RootLabel( ui.GetDocument() ) == "door" );
 }

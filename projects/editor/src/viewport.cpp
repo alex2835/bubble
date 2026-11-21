@@ -103,6 +103,53 @@ Entity PickTarget( const Scene& scene, const Selection& selection, Entity picked
     return inside ? picked : root;
 }
 
+vector<DebugLine> FloorGrid( const EditorCamera& camera )
+{
+    constexpr int cHalf = 50;
+    constexpr int cPieces = 20;
+    constexpr Color cMinor{ .mR = 0.3f, .mG = 0.3f, .mB = 0.3f, .mA = 1.0f };
+    constexpr Color cMajor{ .mR = 0.45f, .mG = 0.45f, .mB = 0.45f, .mA = 1.0f };
+    constexpr Color cAxisX{ .mR = 0.75f, .mG = 0.3f, .mB = 0.3f, .mA = 1.0f };
+    constexpr Color cAxisZ{ .mR = 0.3f, .mG = 0.4f, .mB = 0.8f, .mA = 1.0f };
+    const f32 step = pow( 10.0f, floor( log10( max( camera.mDistance, 1e-3f ) / 5.0f ) ) );
+    const vec2 centre( round( camera.mFocus.x / step ) * step, round( camera.mFocus.z / step ) * step );
+    const f32 reach = step * static_cast<f32>( cHalf );
+    const vec2 focus( camera.mFocus.x, camera.mFocus.z );
+    // A line at `at` along the other axis: the axis itself, every tenth, or
+    // any other.
+    const auto colorOf = [&]( f32 at, const Color& axis ) {
+        if ( abs( at ) < step * 0.5f )
+            return axis;
+        const f32 tens = at / ( step * 10.0f );
+        return abs( tens - round( tens ) ) < 1e-3f ? cMajor : cMinor;
+    };
+    // Each line in pieces, fainter the farther from the focus, gone at the
+    // reach: the far lines would flicker as they crowd to the horizon, and
+    // the grid would end in an edge.
+    vector<DebugLine> lines;
+    const auto add = [&]( vec3 from, vec3 to, Color color ) {
+        for ( int piece = 0; piece < cPieces; ++piece )
+        {
+            const vec3 start = glm::mix( from, to, static_cast<f32>( piece ) / cPieces );
+            const vec3 end = glm::mix( from, to, static_cast<f32>( piece + 1 ) / cPieces );
+            const vec3 middle = ( start + end ) * 0.5f;
+            const f32 away = glm::length( vec2( middle.x, middle.z ) - focus ) / reach;
+            color.mA = 1.0f - glm::smoothstep( 0.2f, 1.0f, away );
+            if ( color.mA > 0.0f )
+                lines.push_back( DebugLine{ .mFrom = start, .mTo = end, .mColor = color } );
+        }
+    };
+    for ( int line = -cHalf; line <= cHalf; ++line )
+    {
+        const f32 x = centre.x + static_cast<f32>( line ) * step;
+        const f32 z = centre.y + static_cast<f32>( line ) * step;
+        // Along Z at x, the Z axis at x = 0; along X at z, the X axis.
+        add( vec3( x, 0.0f, centre.y - reach ), vec3( x, 0.0f, centre.y + reach ), colorOf( x, cAxisZ ) );
+        add( vec3( centre.x - reach, 0.0f, z ), vec3( centre.x + reach, 0.0f, z ), colorOf( z, cAxisX ) );
+    }
+    return lines;
+}
+
 Viewport::Viewport( EditorProject& project, Gpu& gpu, Renderer& renderer )
     : mProject( project ),
       mGpu( gpu ),
@@ -160,18 +207,7 @@ void Viewport::Helpers( Document& document, World& world )
         if ( not shown )
             continue;
         draw.Box( item.mWorld, modelMaybe->mMin, modelMaybe->mMax, cSelected );
-        vec3 low( numeric_limits<f32>::max() );
-        vec3 high( -numeric_limits<f32>::max() );
-        for ( int corner = 0; corner < 8; ++corner )
-        {
-            const vec3 local( corner & 1 ? modelMaybe->mMax.x : modelMaybe->mMin.x,
-                              corner & 2 ? modelMaybe->mMax.y : modelMaybe->mMin.y,
-                              corner & 4 ? modelMaybe->mMax.z : modelMaybe->mMin.z );
-            const vec3 at( item.mWorld * vec4( local, 1.0f ) );
-            low = glm::min( low, at );
-            high = glm::max( high, at );
-        }
-        mBoxes.emplace_back( item.mEntity, pair<vec3, vec3>( low, high ) );
+        mBoxes.emplace_back( item.mEntity, BoundsOf( item.mWorld, modelMaybe->mMin, modelMaybe->mMax ) );
     }
 
     const f32 aspect = mPicture ? static_cast<f32>( mPicture.Size().x ) / static_cast<f32>( mPicture.Size().y ) : 1.0f;
@@ -316,6 +352,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
         mPressedAt.reset();
     }
 
+    mGridShown = mGrid and documentMaybe;
     if ( documentMaybe )
     {
         // The tools over the picture's corner, the last widgets of the panel.
@@ -361,6 +398,15 @@ void Viewport::Tools()
         mLocal = not mLocal;
     if ( ImGui::IsItemHovered() )
         ImGui::SetTooltip( "X: the entity's own axes or the world's" );
+    ImGui::SameLine();
+    if ( mGrid )
+        ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
+    if ( ImGui::SmallButton( "Grid" ) )
+        mGrid = not mGrid;
+    if ( mGrid )
+        ImGui::PopStyleColor();
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "The floor's grid" );
 }
 
 void Viewport::Keys( Document& document, EditorCamera& camera )
@@ -397,9 +443,7 @@ void Viewport::Frame( Document& document, EditorCamera& camera )
     }
     if ( mBoxes.empty() )
         low = high = vec3( WorldOf( scene, active )[3] );
-    const f32 radius = max( glm::length( high - low ) * 0.5f, 0.5f );
-    camera.mFocus = ( low + high ) * 0.5f;
-    camera.mDistance = radius / sin( camera.mFov * 0.5f ) * 1.1f;
+    camera.Frame( low, high );
 }
 
 void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2 corner, vec2 size )
@@ -456,7 +500,11 @@ void Viewport::Draw( World& world, const EditorCamera& camera )
 {
     if ( not mPicture )
         return;
-    mRenderer.Draw( mView, world.Get<RenderScene>(), camera.ToRenderCamera(),
+    RenderScene& scene = world.Get<RenderScene>();
+    // Among the lines the world gathered, which it gathers anew next frame.
+    if ( mGridShown )
+        ranges::copy( FloorGrid( camera ), back_inserter( scene.mLines ) );
+    mRenderer.Draw( mView, scene, camera.ToRenderCamera(),
                     RenderTarget{ .mView = mPicture.View(), .mSize = mPicture.Size(), .mFormat = mPicture.Format() } );
 }
 }

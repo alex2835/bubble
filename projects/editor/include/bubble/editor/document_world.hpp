@@ -17,15 +17,25 @@ public:
     DocumentWorld( App& app, Document& document );
     World& Get() { return *mWorld; }
     EditorCamera& Camera() { return mCamera; }
-    // The first time the world has gathered its scene: the camera where
-    // the scene's first camera is, if it has one.
-    void PlaceCamera( const RenderScene& scene );
+    // Each frame, once the world has gathered what it shows and before it
+    // is drawn. The camera is placed the first time - where a level's first
+    // camera is, or around what the scene shows once its models have come -,
+    // and a prefab with no light of its own is lit by the editor's sun,
+    // which the scene never holds.
+    void Gathered();
 
 private:
+    Document& mDocument;
     Scope<World> mWorld;
     EditorCamera mCamera;
     bool mPlaced = false;
+    // Frames waited for models to come before the camera is placed.
+    u32 mWaited = 0;
 };
+
+// What lights a prefab that has no light: from above, over the left
+// shoulder of a camera looking down -Z.
+RenderLight EditorSun();
 
 // The document's world, made the first time it is asked for.
 DocumentWorld& ViewOf( App& app, Document& document );

@@ -28,9 +28,16 @@ struct EditorCamera
     // Where a camera of the scene is - its matrix to the world - looking as
     // it looks, at a point `distance` ahead of it.
     void LookFrom( const mat4& camera, f32 distance );
+    // Turned as it is, backed off until the box from `low` to `high` fits
+    // the view, its middle the focus.
+    void Frame( vec3 low, vec3 high );
 
     // Where the camera is, and as the renderer takes it.
     vec3 Position() const;
     RenderCamera ToRenderCamera() const;
 };
+
+// The box along the world's axes around a model's box from `low` to `high`
+// as `world` places it.
+pair<vec3, vec3> BoundsOf( const mat4& world, vec3 low, vec3 high );
 }
