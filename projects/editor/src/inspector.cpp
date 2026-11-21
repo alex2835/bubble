@@ -8,6 +8,8 @@
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/import/import_file.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/scene/prefab.hpp"
+#include "bubble/scene/prefab_link.hpp"
 #include "bubble/scripts/script_module.hpp"
 #include "bubble/types/algorithm.hpp"
 #include <glm/trigonometric.hpp>
@@ -201,6 +203,55 @@ void Inspector::Hold( bool changed )
     }
 }
 
+void Inspector::PrefabOverrides( Document& document, Entity entity )
+{
+    mOverridden.clear();
+    mAddedComponents.clear();
+    const Scene& scene = document.GetScene();
+    const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
+    if ( not linkMaybe or not scene.Alive( linkMaybe->mInstance ) or
+         not scene.Has<PrefabInstance>( linkMaybe->mInstance ) )
+        return;
+    Workspace& workspace = mProject.GetWorkspace();
+    const auto prefabMaybe = workspace.TryPrefab( scene.Get<PrefabInstance>( linkMaybe->mInstance ).mPrefab );
+    if ( not prefabMaybe )
+        return;
+    // As a level file would keep the instance: by node, what is set and
+    // what is added.
+    const auto overridesMaybe =
+        TryInstanceOverrides( scene, linkMaybe->mInstance, **prefabMaybe, workspace.GetFileContext() );
+    if ( not overridesMaybe )
+        return;
+    const string node = format( "{}", linkMaybe->mNode );
+    for ( const Json::Member& member : *overridesMaybe )
+    {
+        const auto nodesMaybe = member.mValue.TryAs<Json::Object>();
+        if ( not nodesMaybe )
+            continue;
+        const auto found = ranges::find( *nodesMaybe, node, &Json::Member::mKey );
+        if ( found == nodesMaybe->end() or not found->mValue.TryAs<Json::Object>() )
+            continue;
+        hset<string>& into = member.mKey == "set" ? mOverridden : mAddedComponents;
+        if ( member.mKey != "set" and member.mKey != "add_components" )
+            continue;
+        for ( const Json::Member& field : *found->mValue.TryAs<Json::Object>() )
+            into.insert( field.mKey );
+    }
+}
+
+bool Inspector::Overridden( Name component, const string& path ) const
+{
+    const string name = component.ToString();
+    if ( mAddedComponents.contains( name ) )
+        return true;
+    const string field = name + "." + path;
+    // Set itself, or a part of it - a struct's field, a list's element.
+    return ranges::any_of( mOverridden, [&]( const string& set ) {
+        return set == field or
+               ( set.starts_with( field ) and ( set[field.size()] == '.' or set[field.size()] == '[' ) );
+    } );
+}
+
 tuple<const void*, Entity, size_t> Inspector::DocumentKey()
 {
     Workspace& workspace = mProject.GetWorkspace();
@@ -220,6 +271,7 @@ void Inspector::Inspect( string path )
 void Inspector::Show()
 {
     mWhere.clear();
+    mMarked.clear();
     if ( not mInspected.empty() and DocumentKey() == mInspectedOver )
     {
         ImportSettings( mInspected );
@@ -250,6 +302,7 @@ void Inspector::Show()
         ImGui::TextDisabled( "Nothing is selected" );
         return;
     }
+    PrefabOverrides( document, entity );
     NameRow( document, entity );
     if ( const size_t count = selection.All().size(); count > 1 )
         ImGui::TextDisabled( "%zu selected: an edit goes to each that has the field", count );
@@ -1169,7 +1222,7 @@ void Inspector::ReflectedFields( const Scene& scene, Name component, const MetaA
                         Row{ .mLabel = FieldLabel( name.ToString() ),
                              .mPath = path,
                              .mComponent = component,
-                             .mSet = false,
+                             .mSet = Overridden( component, path ),
                              .mProp = false },
                         *valueOfMaybe, *typeMaybe, info ) )
             Set( component, path, std::move( *valueOfMaybe ) );
@@ -1422,7 +1475,27 @@ bool Inspector::Leaf( const Scene& scene, const Row& row, Value& value, ValueKin
         case ValueKind::Name:
         {
             string text = value.TryAs<Name>()->ToString();
-            if ( ImGui::InputText( id.c_str(), &text ) )
+            // Among the names it takes, when it says; any name else.
+            if ( info.mChoices != nullptr )
+            {
+                if ( ImGui::BeginCombo( id.c_str(), text.c_str() ) )
+                {
+                    for ( string_view rest = info.mChoices; not rest.empty(); )
+                    {
+                        const size_t comma = rest.find( ',' );
+                        const string choice( rest.substr( 0, comma ) );
+                        rest = comma == string_view::npos ? string_view() : rest.substr( comma + 1 );
+                        if ( ImGui::Selectable( choice.c_str(), choice == text ) and choice != text )
+                            if ( const auto nameMaybe = Name::TryFrom( choice ) )
+                            {
+                                value = Value( *nameMaybe );
+                                changed = true;
+                            }
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+            else if ( ImGui::InputText( id.c_str(), &text ) )
                 if ( const auto nameMaybe = Name::TryFrom( text ) )
                 {
                     value = Value( *nameMaybe );
@@ -1447,6 +1520,8 @@ bool Inspector::Leaf( const Scene& scene, const Row& row, Value& value, ValueKin
         default: ImGui::TextDisabled( "%s", value.Describe().c_str() ); break;
     }
     Shown( format( "{}.{}", row.mComponent.ToString(), path ) );
+    if ( row.mSet )
+        mMarked.insert( format( "{}.{}", row.mComponent.ToString(), path ) );
     Hold( changed );
     return changed;
 }

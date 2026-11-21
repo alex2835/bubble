@@ -67,6 +67,9 @@ struct FieldInfo
     // An asset's kind - "model", "material", as its importer makes it - for
     // the editor's picker: an AssetId, or a list of them; none is any.
     const char* mAssetKind = nullptr;
+    // The names a Name field takes, a comma between: "column,row", for the
+    // editor to offer; none is any name.
+    const char* mChoices = nullptr;
 
     bool Has( Flags flag ) const { return ( mFlags & flag ) != 0; }
 };

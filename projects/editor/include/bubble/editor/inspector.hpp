@@ -22,7 +22,8 @@ Value DefaultOf( const ValueType& type );
 // kind, an entity's path or a row dropped from the tree - and a script's
 // props as its file declares them, the ones set in the scene told apart.
 // Components are added and removed from it, and reverted to or applied to
-// their prefab. Every edit is property.set on what is selected; a drag or a
+// their prefab; on a prefab's instance, what differs from the prefab is told
+// apart, as a script's props set in the scene are. Every edit is property.set on what is selected; a drag or a
 // text typed across frames is one step.
 //
 // A material's document shows its base or its shader, its flags and its
@@ -55,6 +56,9 @@ public:
     // a material's "base", "double_sided", "params.roughness"; a file's
     // "import.srgb".
     opt<vec2> TryWhere( string_view field ) const;
+    // Whether a field was last shown told apart: a prop the scene sets, a
+    // field an instance has otherwise than its prefab.
+    bool Marked( string_view field ) const { return mMarked.contains( string( field ) ); }
 
 private:
     // A field's row as it is shown: its label, its path in the component,
@@ -111,6 +115,10 @@ private:
     // entity and how many are selected.
     tuple<const void*, Entity, size_t> DocumentKey();
     void ImportSettings( const string& path );
+    // What the active entity, a node of a prefab's instance, has otherwise
+    // than its prefab: fields set, components added.
+    void PrefabOverrides( Document& document, Entity entity );
+    bool Overridden( Name component, const string& path ) const;
     void ImportSetting( const string& path, const struct ImportSetting& setting, OptRef<const Json> ownMaybe );
 
     EditorProject& mProject;
@@ -131,8 +139,14 @@ private:
     string mFilter;
     // A prop asked to go back to its file's default.
     Name mReset;
-    // Where each field's widget was drawn, by component and path.
+    // Where each field's widget was drawn, by component and path; those
+    // told apart.
     hmap<string, vec2> mWhere;
+    hset<string> mMarked;
+    // The active entity's overrides of its prefab: "light.brightness", and
+    // components it has that the prefab's node does not.
+    hset<string> mOverridden;
+    hset<string> mAddedComponents;
     // The scripts shown, loaded for their props.
     hmap<AssetId, AssetRef<ScriptAsset>> mScripts;
 };

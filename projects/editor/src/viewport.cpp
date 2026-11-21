@@ -27,6 +27,9 @@ constexpr Color cSelected{ .mR = 1.0f, .mG = 0.6f, .mB = 0.1f, .mA = 1.0f };
 constexpr Color cCollider{ .mR = 0.35f, .mG = 1.0f, .mB = 0.45f, .mA = 1.0f };
 constexpr Color cLight{ .mR = 1.0f, .mG = 0.9f, .mB = 0.4f, .mA = 1.0f };
 constexpr Color cCamera{ .mR = 0.85f, .mG = 0.85f, .mB = 0.85f, .mA = 1.0f };
+// What marks a light or a camera that is not selected, and how large.
+constexpr Color cIcon{ .mR = 0.75f, .mG = 0.7f, .mB = 0.45f, .mA = 1.0f };
+constexpr f32 cIconSize = 0.2f;
 // A press that came up nearer than this, in the window's units, is a click.
 constexpr f32 cClickSlop = 4.0f;
 constexpr int cCircleSegments = 24;
@@ -193,6 +196,50 @@ void Viewport::Picked( Document& document, Entity entity )
                   EntitiesArgs( scene, PickTarget( scene, selection, entity ) ) );
 }
 
+void Viewport::Icons( const Scene& scene, DebugDraw& draw, vec3 eye )
+{
+    const auto axes = [&]( Entity entity ) {
+        const mat4 matrix = WorldOf( scene, entity );
+        return tuple<vec3, vec3, vec3, vec3>( vec3( matrix[3] ), glm::normalize( vec3( matrix[0] ) ),
+                                              glm::normalize( vec3( matrix[1] ) ),
+                                              glm::normalize( -vec3( matrix[2] ) ) );
+    };
+    // A light: a star of three crossed lines, a sun's with its arrow.
+    const auto star = [&]( Entity entity, bool arrow ) {
+        if ( not InTree( scene, entity ) )
+            return;
+        const auto [position, x, y, forward] = axes( entity );
+        for ( const vec3 axis : { x, y, forward } )
+            draw.Line( position - axis * cIconSize, position + axis * cIconSize, cIcon );
+        if ( arrow )
+            draw.Line( position, position + forward * cIconSize * 3.0f, cIcon );
+    };
+    for ( const Entity entity : scene.EntitiesWith<DirectionalLight>() )
+        star( entity, true );
+    for ( const Entity entity : scene.EntitiesWith<PointLight>() )
+        star( entity, false );
+    for ( const Entity entity : scene.EntitiesWith<SpotLight>() )
+        star( entity, true );
+    // A camera: a small pyramid looking where it looks.
+    for ( const Entity entity : scene.EntitiesWith<Camera>() )
+    {
+        if ( not InTree( scene, entity ) )
+            continue;
+        const auto [position, x, y, forward] = axes( entity );
+        // Looked through - the view started where it is -, it would fill it.
+        if ( glm::length( position - eye ) < cIconSize * 4.0f )
+            continue;
+        const vec3 centre = position + forward * cIconSize * 2.0f;
+        const array<vec3, 4> corners{ centre + ( -x - y ) * cIconSize, centre + ( x - y ) * cIconSize,
+                                      centre + ( x + y ) * cIconSize, centre + ( -x + y ) * cIconSize };
+        for ( size_t at = 0; at < 4; ++at )
+        {
+            draw.Line( position, corners[at], cIcon );
+            draw.Line( corners[at], corners[( at + 1 ) % 4], cIcon );
+        }
+    }
+}
+
 void Viewport::Helpers( Document& document, World& world )
 {
     const Scene& scene = document.GetScene();
@@ -214,6 +261,11 @@ void Viewport::Helpers( Document& document, World& world )
         draw.Box( item.mWorld, modelMaybe->mMin, modelMaybe->mMax, cSelected );
         mBoxes.emplace_back( item.mEntity, BoundsOf( item.mWorld, modelMaybe->mMin, modelMaybe->mMax ) );
     }
+
+    // Every light and camera, selected or not, marked where it is - they
+    // have no model to be seen by -; not in a game, which shows itself.
+    if ( not document.IsPlayed() )
+        Icons( scene, draw, mEye );
 
     const f32 aspect = mPicture ? static_cast<f32>( mPicture.Size().x ) / static_cast<f32>( mPicture.Size().y ) : 1.0f;
     for ( const Entity entity : selected )
@@ -293,6 +345,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     // document again once it is turned to: a click, a drop, a key.
     if ( documentMaybe and ClickedInWindow() )
         mProject.GetWorkspace().Activate( *documentMaybe );
+    mEye = camera.Position();
     const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
     const ivec2 pixels( static_cast<i32>( area.x * scale.x + 0.5f ), static_cast<i32>( area.y * scale.y + 0.5f ) );
     if ( not mPicture or mPicture.Size() != pixels )
@@ -378,6 +431,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     }
 
     mGridShown = mGrid and documentMaybe;
+    mUiShown = mUi and documentMaybe;
     if ( documentMaybe )
     {
         // The tools over the picture's corner, the last widgets of the panel.
@@ -424,14 +478,20 @@ void Viewport::Tools()
     if ( ImGui::IsItemHovered() )
         ImGui::SetTooltip( "X: the entity's own axes or the world's" );
     ImGui::SameLine();
-    if ( mGrid )
-        ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
-    if ( ImGui::SmallButton( "Grid" ) )
-        mGrid = not mGrid;
-    if ( mGrid )
-        ImGui::PopStyleColor();
-    if ( ImGui::IsItemHovered() )
-        ImGui::SetTooltip( "The floor's grid" );
+    const auto toggle = [&]( const char* label, bool& on, const char* tip ) {
+        const bool was = on;
+        if ( was )
+            ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
+        if ( ImGui::SmallButton( label ) )
+            on = not on;
+        if ( was )
+            ImGui::PopStyleColor();
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "%s", tip );
+    };
+    toggle( "Grid", mGrid, "The floor's grid" );
+    ImGui::SameLine();
+    toggle( "UI", mUi, "The scene's UI: its screen canvases over the picture, as the game shows them" );
 }
 
 void Viewport::Keys( Document& document, EditorCamera& camera )
@@ -543,6 +603,7 @@ void Viewport::Draw( World& world, const EditorCamera& camera )
     if ( mGridShown )
         ranges::copy( FloorGrid( camera ), back_inserter( scene.mLines ) );
     mRenderer.Draw( mView, scene, camera.ToRenderCamera(),
-                    RenderTarget{ .mView = mPicture.View(), .mSize = mPicture.Size(), .mFormat = mPicture.Format() } );
+                    RenderTarget{ .mView = mPicture.View(), .mSize = mPicture.Size(), .mFormat = mPicture.Format() },
+                    mUiShown ? OptRef<const UiScene>( world.Get<UiScene>() ) : nullopt );
 }
 }

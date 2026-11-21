@@ -45,7 +45,8 @@ vector<DebugLine> FloorGrid( const EditorCamera& camera );
 // active entity (W, E, R; X its axes or the world's; ctrl snaps), each drag
 // one step; a prefab or a model dropped from the assets panel stands on the
 // ground under the mouse. What is selected shows its box, its colliders, a
-// light its reach, a camera its view. A game played is shown through its
+// light its reach, a camera its view; the scene's UI over the picture, laid
+// out for its size (UI). A game played is shown through its
 // own camera with its UI over it, and only looked at: the mouse and the
 // keys are the game's.
 class Viewport
@@ -82,6 +83,9 @@ private:
     void Gizmo( Document& document, const EditorCamera& camera, vec2 corner, vec2 size );
     void Picked( Document& document, Entity entity );
     void Helpers( Document& document, World& world );
+    // Each light and camera of the scene marked where it stands; not a
+    // camera at `eye`, looked through.
+    static void Icons( const Scene& scene, DebugDraw& draw, vec3 eye );
     // The camera turned to the selection's box, near enough to fill the view.
     void Frame( Document& document, EditorCamera& camera );
     // Where the ground - the plane y = 0 - is under `mouse`, in the window's
@@ -98,10 +102,15 @@ private:
     // The floor's grid: asked for, and drawn - a scene's document is shown.
     bool mGrid = true;
     bool mGridShown = false;
+    // The scene's UI the same way: its canvases laid out for the picture.
+    bool mUi = true;
+    bool mUiShown = false;
     // A game played is shown: through its camera, its UI over it.
     bool mPlayed = false;
     vec2 mCorner{ 0.0f };
     vec2 mSize{ 0.0f };
+    // Where the camera was when last shown.
+    vec3 mEye{ 0.0f };
     // A drag of the gizmo under way: one step of the document's history.
     bool mGizmoHeld = false;
     // A press of the left button on the picture, where: a pick if it comes

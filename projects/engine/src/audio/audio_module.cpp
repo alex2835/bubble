@@ -485,7 +485,7 @@ ModuleType AudioModule( AssetRegistry& assets, AudioDevice& device )
             []( Reflection& reflection, ComponentTypes& componentTypes ) {
                 reflection.Type<AudioSource>( "audio_source" )
                     .Field<&AudioSource::mSound>( "sound", { .mAssetKind = cSoundKind.data() } )
-                    .Field<&AudioSource::mBus>( "bus" )
+                    .Field<&AudioSource::mBus>( "bus", { .mChoices = "music,sfx,ui,voice" } )
                     .Field<&AudioSource::mVolume>( "volume", { .mMin = 0, .mMax = 2, .mFlags = FieldInfo::Slider } )
                     .Field<&AudioSource::mPitch>( "pitch" )
                     .Field<&AudioSource::mLoop>( "loop" )

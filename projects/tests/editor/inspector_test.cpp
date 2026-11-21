@@ -9,6 +9,7 @@
 #include "bubble/render/render_scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
+#include "bubble/ui/ui.hpp"
 #include <doctest.h>
 #include <imgui_internal.h>
 
@@ -31,7 +32,11 @@ constexpr string_view cLevel = R"({
           "script": { "asset": { "asset": "5c0a1e5c0a1e5c0a1e5c0a1e5c0a1e5c", "path": "glow.luau" } }
         }
       },
-      { "name": "sun", "components": { "directional_light": { "shadows": true } } }
+      { "name": "sun", "components": { "directional_light": { "shadows": true } } },
+      { "name": "caption", "components": { "ui_text": { "text": "hello" } } },
+      { "name": "lantern",
+        "prefab": { "asset": "1a7e1a7e1a7e1a7e1a7e1a7e1a7e1a7e", "path": "lantern.prefab" },
+        "set": { "0": { "point_light.intensity": 9 } } }
     ]
   }
 })";
@@ -55,7 +60,13 @@ struct Ui
     hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
                                  { "main.scene", string( cLevel ) },
                                  { "glow.luau", string( cScript ) },
-                                 { "glow.luau.import", string( cScriptImport ) } };
+                                 { "glow.luau.import", string( cScriptImport ) },
+                                 { "lantern.prefab", R"({
+  "version": 1,
+  "asset": "1a7e1a7e1a7e1a7e1a7e1a7e1a7e1a7e",
+  "next_id": 1,
+  "root": { "id": 0, "components": { "transform": {}, "point_light": { "intensity": 2, "range": 4 } } }
+})" } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
     ImGuiContextScope mContext;
@@ -211,4 +222,45 @@ TEST_CASE( "A script's props come from its file; one edited is set in the scene,
     CHECK( *set[0].mValue.TryAs<f64>() > 40.0 );
     REQUIRE( ui.mProject->Run( "edit.undo" ) );
     CHECK( ui.GetScene().Get<Script>( ui.At( "/lamp" ) ).mProps.TryAs<Value::Record>()->empty() );
+}
+
+TEST_CASE( "On a prefab's instance the inspector tells apart the fields it has otherwise than its prefab" )
+{
+    Ui ui;
+    ui.Select( "/lantern" );
+    REQUIRE( ui.mInspector->TryWhere( "point_light.intensity" ) );
+    CHECK( ui.mInspector->Marked( "point_light.intensity" ) );
+    CHECK_FALSE( ui.mInspector->Marked( "point_light.range" ) );
+    CHECK_FALSE( ui.mInspector->Marked( "transform.position" ) );
+
+    // Set back to the prefab's, it follows the prefab again.
+    REQUIRE( ui.mProject->Run(
+        "property.set",
+        *Json::TryParse(
+            R"({ "entities": [ "/lantern" ], "component": "point_light", "path": "intensity", "value": 2 })" ) ) );
+    ui.Frame();
+    CHECK_FALSE( ui.mInspector->Marked( "point_light.intensity" ) );
+    // A plain entity has no prefab to differ from.
+    ui.Select( "/lamp" );
+    CHECK_FALSE( ui.mInspector->Marked( "point_light.intensity" ) );
+}
+
+TEST_CASE( "A name field that says the names it takes offers them" )
+{
+    Ui ui;
+    ui.Select( "/caption" );
+    const vec2 align = ui.Where( "ui_text.align" );
+    ui.MoveTo( align );
+    ui.Button( true );
+    ui.Button( false );
+    ui.Frame();
+    // The list opens under the field: start, center, end.
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const f32 line = ImGui::GetTextLineHeightWithSpacing();
+    const f32 top = align.y + ImGui::GetFrameHeight() * 0.5f + style.WindowPadding.y;
+    ui.MoveTo( vec2( align.x, top + line * 1.5f ) );
+    ui.Button( true );
+    ui.Button( false );
+    ui.Frame();
+    CHECK( ui.GetScene().Get<UiText>( ui.At( "/caption" ) ).mAlign == "center"_n );
 }

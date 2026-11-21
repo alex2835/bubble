@@ -150,7 +150,7 @@ projects/engine/include/bubble/
                               found by the path when the id is not); EncodePng (RGBA8 as a PNG, stored blocks: a
                               screenshot, a reference picture)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo (range, flags, tooltip, the
-                              asset kind a field takes), Get/Set/Call by name,
+                              asset kind a field takes, the names a Name field takes), Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble; Entity, Color, AssetId cross as Luau types),
                               ScriptAsset (bytecode, props read from the AST, requires resolved; TryResolveRequire),
@@ -274,13 +274,16 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
                               gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
                               group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
-                              the world's debug lines; the floor's grid - FloorGrid, faded far off -; a game played
+                              the world's debug lines; every light and camera marked - Icons -; the scene's UI over
+                              the picture, laid out for it; the floor's grid - FloorGrid, faded far off -; a game played
                               shown through its camera with its UI, only looked at; Decompose),
                               ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
                               ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is
                               shown), Inspector (the active entity: its name, its components' fields as Values by
-                              kind - FieldInfo's angle, slider, colour, mAssetKind for the asset picker -, an entity
+                              kind - FieldInfo's angle, slider, colour, mAssetKind for the asset picker, mChoices for
+                              a name's list -, what an instance has otherwise than its prefab told apart - Marked -,
+                              an entity
                               field taking a row dropped from the tree, a script's props from its file - set ones
                               apart -, add, remove, revert to and apply to the prefab; every edit property.set, a
                               drag one history group however many frames - Settle closes it -; a material's base or

@@ -5,6 +5,7 @@
 #include "bubble/editor/panel.hpp"
 #include "bubble/editor/play_session.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/ui/ui.hpp"
 #include "bubble/world/game.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -122,9 +123,15 @@ void Editor::Frame( f64 elapsed )
     const auto playMaybe = mProject.TryPlaying();
     if ( shownMaybe )
     {
-        // A game shown has its frame below, not an editing world's.
+        // A game shown has its frame below, not an editing world's. Its UI
+        // laid out for the picture, as last shown.
         if ( not playMaybe or &playMaybe->View() != &*shownMaybe )
+        {
+            const vec2 size = glm::max( mViewport.Size(), vec2( 1.0f ) );
+            shownMaybe->Get().Get<UiWorld>().SetScreen(
+                ivec2( static_cast<i32>( size.x ), static_cast<i32>( size.y ) ) );
             shownMaybe->Get().Frame( elapsed );
+        }
         shownMaybe->Gathered();
     }
     if ( playMaybe )
