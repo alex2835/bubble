@@ -269,7 +269,22 @@ Importer FontImporter( string_view extension )
                          if ( not fontMaybe )
                              return unexpected( std::move( fontMaybe.error() ) );
                          return ImportedAsset( std::move( *fontMaybe ) );
-                     } };
+                     },
+                     .mSettings = {
+                         ImportSetting{ .mName = "size",
+                                        .mType = ValueType::Of( ValueKind::Number ),
+                                        .mDefault = Value( 48.0 ),
+                                        .mTooltip = "A glyph's height in the atlas, from 8 to 256 pixels: sharper "
+                                                    "corners when larger" },
+                         ImportSetting{ .mName = "range",
+                                        .mType = ValueType::Of( ValueKind::Number ),
+                                        .mDefault = Value( 4.0 ),
+                                        .mTooltip = "How far from an edge the atlas knows it, from 1 to 32 pixels: "
+                                                    "room for outlines and glow" },
+                         ImportSetting{ .mName = "chars",
+                                        .mType = ValueType::Of( ValueKind::Text ),
+                                        .mDefault = Value( *Text::TryFrom( "" ) ),
+                                        .mTooltip = "Characters beyond Latin, Latin-1 and Cyrillic, as text" } } };
 }
 }
 #endif

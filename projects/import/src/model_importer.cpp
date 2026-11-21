@@ -748,11 +748,27 @@ vector<Importer> ModelImporters()
 {
     vector<Importer> importers;
     for ( const string_view extension : { ".glb", ".gltf", ".fbx", ".obj" } )
-        importers.push_back( Importer{ .mExtension = string( extension ),
-                                       .mKind = string( cModelKind ),
-                                       .mMoreKinds = { string( cSkeletonKind ), string( cClipsKind ) },
-                                       .mVersion = 3,
-                                       .mImport = &TryImportModel } );
+        importers.push_back( Importer{
+            .mExtension = string( extension ),
+            .mKind = string( cModelKind ),
+            .mMoreKinds = { string( cSkeletonKind ), string( cClipsKind ) },
+            .mVersion = 3,
+            .mImport = &TryImportModel,
+            .mSettings = {
+                ImportSetting{ .mName = "scale",
+                               .mType = ValueType::Of( ValueKind::Number ),
+                               .mDefault = Value( 1.0 ),
+                               .mTooltip = "How large it is in the game, as a share of the file's size" },
+                ImportSetting{ .mName = "lods",
+                               .mType = ValueType::ListOf( ValueType::Of( ValueKind::Number ) ),
+                               .mDefault = Value( Value::List{ Value( 0.5 ), Value( 0.25 ) } ),
+                               .mTooltip = "Simpler copies for what is far away, each a share of the triangles, "
+                                           "between 0 and 1" },
+                ImportSetting{ .mName = "root_motion",
+                               .mType = ValueType::Of( ValueKind::Text ),
+                               .mDefault = Value( *Text::TryFrom( "" ) ),
+                               .mTooltip = "The joint whose travel across the ground comes out of the clips, "
+                                           "for a state's root motion to move the entity by" } } } );
     return importers;
 }
 }

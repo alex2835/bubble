@@ -34,6 +34,11 @@ vector<Importer> SoundImporters()
                 }
                 return WriteSoundAsset( source, stream );
             },
+            .mSettings = { ImportSetting{ .mName = "stream",
+                                          .mType = ValueType::Of( ValueKind::Bool ),
+                                          .mDefault = nullopt,
+                                          .mTooltip = "Read from the file as it plays instead of decoded whole: less "
+                                                      "memory for music. Unset, a sound longer than 10 s streams" } },
         } );
     return importers;
 }

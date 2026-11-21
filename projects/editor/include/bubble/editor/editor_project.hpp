@@ -44,6 +44,9 @@ public:
     // Whether the source at `path` imports as `kind` - its importer's own
     // kind, or one it makes beside: a model's skeleton.
     bool Makes( const AssetPath& path, string_view kind ) const;
+    // The importer of the source at `path`; nothing for a file no importer
+    // takes.
+    OptRef<const Importer> TryImporterOf( const AssetPath& path ) const;
     // What the file at `path` is: its importer's kind - "model", "script" -,
     // "level" for a level, nothing for a file no importer takes.
     string_view KindOf( const AssetPath& path ) const;

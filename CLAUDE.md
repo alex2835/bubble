@@ -203,7 +203,9 @@ projects/import/include/bubble/import/
                               and from inside levels and prefabs, new ones written, a copy re-ided, orphans listed);
                               Importer
                               (source + settings -> the engine's format; mMoreKinds: what else it makes under the
-                              same id, written every time, empty when the source has none), the import cache (TryImportAsset,
+                              same id, written every time, empty when the source has none; mSettings: what its
+                              .import may set - ImportSetting: name, type, default or the source deciding, tooltip
+                              - for the editor), the import cache (TryImportAsset,
                               ImportProject: again when the source's hash, the settings' or the importer's version
                               changes), ScriptImporter (.luau -> ScriptAsset: compiled, props
                               and requires read from the AST; with a ScriptCheck - bubble.d.luau, .luaurc aliases,
@@ -231,10 +233,12 @@ projects/editing/include/bubble/editing/
                               a DocumentView, gone before its scene), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
                               paste/duplicate; Workspace (open documents, the active one, the catalog it adds the
-                              files it writes to - following files moved and removed -, prefabs by id) and Operators -
+                              files it writes to - following files moved and removed -, prefabs by id; the scene
+                              shown beside a data document, TryShownScene) and Operators -
                               the only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
                               builtin_operators.cpp, prefab_operators.cpp, asset_operators.cpp - asset.create from
-                              a kind's template, rename with its .import, delete -); DataDocument (a .mat or .anim
+                              a kind's template, rename with its .import, delete, set_import - a setting of its
+                              .import -); DataDocument (a .mat or .anim
                               open as its JSON with a history of its own, active instead of any scene - what is
                               taken out comes back in its place -; data.set, data.remove in data_operators.cpp;
                               graph.add_state, remove_state, rename_state - what names it follows -, add_transition,
@@ -249,13 +253,15 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
                               (a project open: settings, App with every module, the registry, its sources kept
-                              imported, the Workspace and Operators), DocumentWorld (a document's editing world over
+                              imported, the Workspace and Operators; TryImporterOf), DocumentWorld (a document's editing world over
                               its scene and the camera on it, its view: ViewOf, WorldOf; Gathered - the camera placed
                               once, at a level's camera or around what the scene shows, a prefab with no light lit
                               by EditorSun, never in its scene -), MaterialPreview (a
                               material document's view: a sphere wearing it as the document has it, saved or not,
                               in a world of its own; its bases and its shader's parameters followed as they load -
-                              TryLayout -, why it does not read), GraphView (an animation graph's view: imgui-node-
+                              TryLayout -, why it does not read), WorldPicture (a world drawn into a panel, only
+                              looked at: a material window's preview), ClickedInWindow (panel.hpp: a panel turned
+                              to makes its document the active one), GraphView (an animation graph's view: imgui-node-
                               editor's canvas, states as nodes where editor.states keeps them, transitions as links,
                               the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
                               inspector), EditorCamera, Viewport (the active document's world in a
@@ -274,15 +280,19 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               drag one history group however many frames - Settle closes it -; a material's base or
                               shader, flags and its shader's parameters - own, its base's or the default; data.set -;
                               a graph's entry, parameters and the state or transition selected on its canvas;
-                              TryWhere for tests),
+                              a file picked in the assets panel - Inspect: its kind, its error, its importer's
+                              settings, asset.set_import -, until the documents' selection changes; TryWhere for
+                              tests),
                               AssetsPanel (the project's folders and files - kinds, import errors -, a file dragged
                               out as cAssetPayload to a field, the tree or the viewport, a level or prefab opened at a
-                              double click, anything else handed to the system; new assets from templates, rename,
-                              delete; TryPlaceAsset: a prefab or a model into the scene, one step), Editor (the dock
-                              space, the menu - New Level, Save As -, a tab a document - data documents too -, the
-                              scene, the viewport - the active document's world, a material's preview or a graph's
-                              canvas -, the
-                              inspector, the assets, the log; operators alone change anything). main.cpp is
+                              double click - a material or a graph too -, anything else handed to the system;
+                              TakePicked - the file a click picked, for the inspector -; new assets from templates,
+                              rename, delete; TryPlaceAsset: a prefab or a model into the scene, one step), Editor
+                              (the dock space, the menu - New Level, Save As -, the scene's tree and the viewport
+                              with a tab a level or a prefab - the scene active last, Workspace::TryShownScene -, a
+                              window of its own for each material - its preview - and graph - its canvas -, docked
+                              beside the viewport the first time; the inspector, undo and save follow the document
+                              turned to last; the assets, the log; operators alone change anything). main.cpp is
                               bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in

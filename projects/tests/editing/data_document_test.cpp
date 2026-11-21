@@ -101,6 +101,24 @@ TEST_CASE( "A material opens as a data document, active instead of any scene, it
            "data.set: version.major: version is not an object" );
 }
 
+TEST_CASE( "The scene active last is still the one shown while a data document is active" )
+{
+    Fixture f;
+    DataDocument& stone = f.Data();
+    CHECK( not f.mWorkspace.TryShownScene() );
+    Document& level = f.mWorkspace.Open();
+    CHECK( &*f.mWorkspace.TryShownScene() == &level );
+    f.mWorkspace.Activate( stone );
+    CHECK( not f.mWorkspace.TryActive() );
+    CHECK( &*f.mWorkspace.TryShownScene() == &level );
+    Document& other = f.mWorkspace.Open();
+    f.mWorkspace.Activate( level );
+    f.mWorkspace.Activate( stone );
+    CHECK( &*f.mWorkspace.TryShownScene() == &level );
+    f.mWorkspace.Close( level );
+    CHECK( &*f.mWorkspace.TryShownScene() == &other );
+}
+
 TEST_CASE( "A value set again and again in a group is one step, from the first value to the last" )
 {
     Fixture f;

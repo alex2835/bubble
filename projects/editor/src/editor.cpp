@@ -2,6 +2,8 @@
 #include "bubble/editor/editor_font.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
+#include "bubble/editor/panel.hpp"
+#include "bubble/types/algorithm.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_stdlib.h>
@@ -33,6 +35,8 @@ ImVec4 ColorOf( LogLevel level )
 
 Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<void( const OsPath& )> open )
     : mProject( project ),
+      mGpu( gpu ),
+      mRenderer( renderer ),
       mScene( project ),
       mInspector( project ),
       mAssets( project, std::move( open ) ),
@@ -67,25 +71,21 @@ bool IsMaterial( const DataDocument& document )
 {
     return document.GetPath().View().ends_with( ".mat" );
 }
+
+// A data document's window by its file: where it was docked is kept with
+// the layout from one time to the next.
+string WindowName( const DataDocument& document )
+{
+    return format( "{}###asset {}", FileNameOf( document.GetPath().View() ), document.GetPath().View() );
+}
 }
 
-opt<Editor::ActiveView> Editor::TryActiveView()
+OptRef<DocumentWorld> Editor::TryShownWorld()
 {
-    Workspace& workspace = mProject.GetWorkspace();
-    if ( const auto activeMaybe = workspace.TryActive() )
-    {
-        DocumentWorld& view = ViewOf( mProject.GetApp(), *activeMaybe );
-        return ActiveView{ .mWorld = view.Get(),
-                           .mCamera = view.Camera(),
-                           .mSceneMaybe = OptRef<DocumentWorld>( view ) };
-    }
-    if ( const auto dataMaybe = workspace.TryActiveData(); dataMaybe and IsMaterial( *dataMaybe ) )
-    {
-        MaterialPreview& preview = PreviewOf( mProject, *dataMaybe );
-        preview.Refresh( *dataMaybe );
-        return ActiveView{ .mWorld = preview.Get(), .mCamera = preview.Camera(), .mSceneMaybe = nullopt };
-    }
-    return nullopt;
+    const auto sceneMaybe = mProject.GetWorkspace().TryShownScene();
+    if ( not sceneMaybe )
+        return nullopt;
+    return ViewOf( mProject.GetApp(), *sceneMaybe );
 }
 
 opt<string> Editor::TryActiveTitle()
@@ -112,20 +112,28 @@ void Editor::Frame( f64 elapsed )
         mProject.Refresh();
     }
     // The world gathers what it shows - models, lights, the transforms
-    // between them - and what the viewport draws over the selection.
-    const auto viewMaybe = TryActiveView();
-    mViewport.Prepare( mProject.GetWorkspace().TryActive(),
-                       viewMaybe ? OptRef<World>( viewMaybe->mWorld ) : OptRef<World>() );
-    if ( viewMaybe )
+    // between them - and what the viewport draws over the selection; each
+    // material's preview its sphere.
+    Workspace& workspace = mProject.GetWorkspace();
+    const auto shownMaybe = TryShownWorld();
+    mViewport.Prepare( workspace.TryShownScene(), shownMaybe ? OptRef<World>( shownMaybe->Get() ) : OptRef<World>() );
+    if ( shownMaybe )
     {
-        viewMaybe->mWorld.Frame( elapsed );
-        if ( viewMaybe->mSceneMaybe )
-            viewMaybe->mSceneMaybe->Gathered();
+        shownMaybe->Get().Frame( elapsed );
+        shownMaybe->Gathered();
     }
+    for ( const Scope<DataDocument>& document : workspace.AllData() )
+        if ( IsMaterial( *document ) )
+        {
+            MaterialPreview& preview = PreviewOf( mProject, *document );
+            preview.Refresh( *document );
+            preview.Get().Frame( elapsed );
+        }
 
     Shortcuts();
     const ImGuiID dockSpace = ImHashStr( "bubble editor" );
     Layout( dockSpace );
+    DockAssetWindows();
     Menu();
     ImGui::DockSpaceOverViewport( dockSpace, ImGui::GetMainViewport() );
 
@@ -141,25 +149,41 @@ void Editor::Frame( f64 elapsed )
     if ( viewport )
     {
         DocumentTabs();
-        UnsavedChanges();
-        SaveAs();
-        if ( viewMaybe )
-            mViewport.Show( mProject.GetWorkspace().TryActive(), viewMaybe->mCamera );
-        else if ( const auto dataMaybe = mProject.GetWorkspace().TryActiveData() )
-            GraphViewOf( mProject, *dataMaybe ).Show( *dataMaybe );
+        if ( shownMaybe )
+            mViewport.Show( workspace.TryShownScene(), shownMaybe->Camera() );
+        else
+            ImGui::TextDisabled( "No level or prefab is open" );
     }
     ImGui::End();
+    AssetWindows();
     LogPanel();
     // After the log: a window made last is the tab shown, the first time.
     if ( ImGui::Begin( "Assets" ) )
         mAssets.Show();
     ImGui::End();
+    // A file picked there is the inspector's next frame.
+    if ( auto pickedMaybe = mAssets.TakePicked() )
+        mInspector.Inspect( std::move( *pickedMaybe ) );
+    UnsavedChanges();
+    SaveAs();
+    const auto dataMaybe = workspace.TryActiveData();
+    const auto activeMaybe = workspace.TryActive();
+    // A window held back is brought forward when it first shows.
+    if ( dataMaybe )
+        mLastActive = mHeld.contains( WindowName( *dataMaybe ) ) ? nullptr : static_cast<const void*>( &*dataMaybe );
+    else
+        mLastActive = activeMaybe ? static_cast<const void*>( &*activeMaybe ) : nullptr;
 }
 
 void Editor::Draw()
 {
-    if ( const auto viewMaybe = TryActiveView() )
-        mViewport.Draw( viewMaybe->mWorld, viewMaybe->mCamera );
+    if ( const auto shownMaybe = TryShownWorld() )
+        mViewport.Draw( shownMaybe->Get(), shownMaybe->Camera() );
+    for ( DataDocument* document : mPictured )
+    {
+        MaterialPreview& preview = PreviewOf( mProject, *document );
+        mPictures.at( document )->Draw( preview.Get(), preview.Camera() );
+    }
 }
 
 void Editor::Layout( u32 dockSpace )
@@ -247,24 +271,22 @@ string TabId( const void* document )
     return format( "###document{}", document );
 }
 
-// A tab as the bar shows it: scenes' documents and data documents alike.
+// A level's or a prefab's tab as the bar shows it.
 struct Tab
 {
     string mId;
     string mTitle;
     bool mDirty = false;
-    function<void()> mActivate;
+    Document& mDocument;
 };
+
 }
 
 void Editor::DocumentTabs()
 {
     Workspace& workspace = mProject.GetWorkspace();
-    string activeTab;
-    if ( const auto dataMaybe = workspace.TryActiveData() )
-        activeTab = TabId( &*dataMaybe );
-    else if ( const auto activeMaybe = workspace.TryActive() )
-        activeTab = TabId( &*activeMaybe );
+    const auto shownMaybe = workspace.TryShownScene();
+    const string activeTab = shownMaybe ? TabId( &*shownMaybe ) : string();
     const bool changed = activeTab != mActiveTab;
     mActiveTab = activeTab;
     vector<Tab> tabs;
@@ -274,13 +296,8 @@ void Editor::DocumentTabs()
         tabs.push_back( Tab{ .mId = TabId( document.get() ),
                              .mTitle = pathMaybe ? FileNameOf( pathMaybe->View() ) : "untitled"s,
                              .mDirty = document->IsDirty(),
-                             .mActivate = [&workspace, &open = *document] { workspace.Activate( open ); } } );
+                             .mDocument = *document } );
     }
-    for ( const Scope<DataDocument>& document : workspace.AllData() )
-        tabs.push_back( Tab{ .mId = TabId( document.get() ),
-                             .mTitle = FileNameOf( document->GetPath().View() ),
-                             .mDirty = document->IsDirty(),
-                             .mActivate = [&workspace, &open = *document] { workspace.Activate( open ); } } );
     if ( not ImGui::BeginTabBar( "documents", ImGuiTabBarFlags_Reorderable ) )
         return;
     // What the tabs ask is done after them: both change the order of the
@@ -305,12 +322,123 @@ void Editor::DocumentTabs()
     }
     ImGui::EndTabBar();
     if ( picked )
-        tabs[*picked].mActivate();
+        workspace.Activate( tabs[*picked].mDocument );
     if ( closed )
     {
-        tabs[*closed].mActivate();
+        workspace.Activate( tabs[*closed].mDocument );
         if ( tabs[*closed].mDirty )
-            ImGui::OpenPopup( "Unsaved changes" );
+            mAskUnsaved = true;
+        else
+            mProject.Run( "document.close" );
+    }
+}
+
+void Editor::DockAssetWindows()
+{
+    mHeld.clear();
+    const ImGuiWindow* viewport = ImGui::FindWindowByName( "Viewport" );
+    const bool docked =
+        viewport != nullptr and viewport->DockId != 0 and ImGui::DockBuilderGetNode( viewport->DockId ) != nullptr;
+    const auto placeOf = []( const string& name ) -> opt<ImGuiID> {
+        if ( const ImGuiWindow* window = ImGui::FindWindowByName( name.c_str() ) )
+            return window->DockId;
+        if ( const ImGuiWindowSettings* settings = ImGui::FindWindowSettingsByID( ImHashStr( name.c_str() ) ) )
+            return settings->DockId;
+        return nullopt;
+    };
+    ImGuiID assetNode = 0;
+    for ( const Scope<DataDocument>& document : mProject.GetWorkspace().AllData() )
+    {
+        const string name = WindowName( *document );
+        // Where the user left it: floating, or docked somewhere still there.
+        if ( const auto placeMaybe = placeOf( name );
+             placeMaybe and ( *placeMaybe == 0 or ImGui::DockBuilderGetNode( *placeMaybe ) != nullptr ) )
+            continue;
+        // The viewport not there yet - the first frame -, the window waits
+        // for it; a viewport floating, the window floats too.
+        if ( viewport == nullptr )
+        {
+            mHeld.insert( name );
+            continue;
+        }
+        if ( not docked )
+            continue;
+        // With the other asset windows - shown, or docked a moment ago -;
+        // the first one splits the viewport's right off for them.
+        if ( assetNode == 0 )
+            for ( const Scope<DataDocument>& other : mProject.GetWorkspace().AllData() )
+                if ( const auto placeMaybe = placeOf( WindowName( *other ) ); other != document and placeMaybe and
+                                                                              *placeMaybe != 0 and
+                                                                              ImGui::DockBuilderGetNode( *placeMaybe ) )
+                    assetNode = *placeMaybe;
+        if ( assetNode == 0 )
+        {
+            // A share of the viewport's node, kept as the asset node's own
+            // size - the viewport's, the dock space's middle, takes the rest.
+            // The first frames lay the dock space out after this: the node's
+            // size is its parent's then, the size it asked for is right.
+            const ImGuiDockNode& node = *ImGui::DockBuilderGetNode( viewport->DockId );
+            const ImVec2 size( node.SizeRef.x > 0 ? min( node.Size.x, node.SizeRef.x ) : node.Size.x,
+                               node.SizeRef.y > 0 ? min( node.Size.y, node.SizeRef.y ) : node.Size.y );
+            assetNode = ImGui::DockBuilderSplitNode( viewport->DockId, ImGuiDir_Right, 0.45f, nullptr, nullptr );
+            ImGui::DockBuilderSetNodeSize( assetNode, ImVec2( size.x * 0.45f, size.y ) );
+        }
+        ImGui::DockBuilderDockWindow( name.c_str(), assetNode );
+    }
+}
+
+void Editor::AssetWindows()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    // Pictures of materials no longer open go.
+    erase_if( mPictures, [&]( const auto& entry ) {
+        return ranges::none_of( workspace.AllData(),
+                                [&]( const Scope<DataDocument>& open ) { return open.get() == entry.first; } );
+    } );
+    mPictured.clear();
+    const auto activeMaybe = workspace.TryActiveData();
+    // Drawn in the order they were opened, the active one last: the list's.
+    vector<DataDocument*> documents;
+    for ( const Scope<DataDocument>& document : workspace.AllData() )
+        documents.push_back( document.get() );
+    DataDocument* closed = nullptr;
+    for ( DataDocument* document : documents )
+    {
+        if ( mHeld.contains( WindowName( *document ) ) )
+            continue;
+        // Made active by an operator - opened, picked from a list -, its
+        // window comes forward.
+        if ( activeMaybe and &*activeMaybe == document and mLastActive != document )
+            ImGui::SetNextWindowFocus();
+        bool open = true;
+        ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
+        const bool shown = ImGui::Begin( WindowName( *document ).c_str(), &open,
+                                         document->IsDirty() ? ImGuiWindowFlags_UnsavedDocument : 0 );
+        ImGui::PopStyleVar();
+        if ( shown )
+        {
+            if ( IsMaterial( *document ) )
+            {
+                if ( ClickedInWindow() )
+                    workspace.Activate( *document );
+                Scope<WorldPicture>& picture = mPictures[document];
+                if ( not picture )
+                    picture = CreateScope<WorldPicture>( mGpu, mRenderer );
+                picture->Show( PreviewOf( mProject, *document ).Camera() );
+                mPictured.push_back( document );
+            }
+            else
+                GraphViewOf( mProject, *document ).Show( *document );
+        }
+        ImGui::End();
+        if ( not open )
+            closed = document;
+    }
+    if ( closed != nullptr )
+    {
+        workspace.Activate( *closed );
+        if ( closed->IsDirty() )
+            mAskUnsaved = true;
         else
             mProject.Run( "document.close" );
     }
@@ -364,6 +492,11 @@ void Editor::SaveAs()
 
 void Editor::UnsavedChanges()
 {
+    if ( mAskUnsaved )
+    {
+        mAskUnsaved = false;
+        ImGui::OpenPopup( "Unsaved changes" );
+    }
     if ( not ImGui::BeginPopupModal( "Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
         return;
     const auto titleMaybe = TryActiveTitle();

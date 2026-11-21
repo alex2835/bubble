@@ -3,10 +3,12 @@
 // onto the inspector's field, a prefab placed - in ImGui with no window and
 // no GPU, the mouse and the keys as its events.
 #include "bubble/audio/audio.hpp"
+#include "bubble/data/png.hpp"
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/inspector.hpp"
+#include "bubble/import/import_file.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/scripts/script_module.hpp"
@@ -61,7 +63,9 @@ struct Ui
                                  { "glow.luau.import", string( cGlowImport ) },
                                  { "tool.luau", string( cScript ) },
                                  { "tool.luau.import", string( cToolImport ) },
-                                 { "door.prefab", string( cDoor ) } };
+                                 { "door.prefab", string( cDoor ) },
+                                 { "hero.anim", R"({ "entry": "idle", "states": { "idle": {} } })" },
+                                 { "sky.png", EncodePng( array<u8, 4>{ 90, 160, 255, 255 }, ivec2( 1, 1 ) ) } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
     ImGuiContextScope mContext;
@@ -101,6 +105,8 @@ struct Ui
         ImGui::Begin( "Assets" );
         mAssets->Show();
         ImGui::End();
+        if ( auto pickedMaybe = mAssets->TakePicked() )
+            mInspector->Inspect( std::move( *pickedMaybe ) );
         ImGui::SetNextWindowPos( ImVec2( 450, 0 ) );
         ImGui::SetNextWindowSize( ImVec2( 450, 600 ) );
         ImGui::Begin( "Inspector" );
@@ -142,21 +148,36 @@ struct Ui
         ImGui::GetIO().AddKeyEvent( key, false );
         Frame();
     }
+
+    void DoubleClick( vec2 at )
+    {
+        MoveTo( at );
+        for ( int click = 0; click < 2; ++click )
+        {
+            Button( true );
+            Button( false );
+        }
+    }
 };
 }
 
 TEST_CASE( "The assets panel opens a level at a double click, and hands a script to the system" )
 {
     Ui ui;
-    ui.MoveTo( ui.Row( "cave.scene" ) );
-    for ( int click = 0; click < 2; ++click )
-    {
-        ui.Button( true );
-        ui.Button( false );
-    }
+    ui.DoubleClick( ui.Row( "cave.scene" ) );
     CHECK( ui.GetDocument().TryPath()->View() == "cave.scene" );
+    ui.DoubleClick( ui.Row( "glow.luau" ) );
     // A project in memory has no folder for the system to open things in.
     CHECK( ui.mOpened.empty() );
+}
+
+TEST_CASE( "The assets panel opens an animation graph at a double click as a document of its own" )
+{
+    Ui ui;
+    ui.DoubleClick( ui.Row( "hero.anim" ) );
+    const auto dataMaybe = ui.mProject->GetWorkspace().TryActiveData();
+    REQUIRE( dataMaybe );
+    CHECK( dataMaybe->GetPath().View() == "hero.anim" );
 }
 
 TEST_CASE( "The assets panel renames a file in place with F2, its .import going along" )
@@ -217,4 +238,26 @@ TEST_CASE( "A prefab placed in a scene is its instance where it was put, one ste
                .error() == "glow.luau: a prefab or a model goes into a scene, not this" );
     CHECK( scene.Count() == before );
     CHECK( not document.IsDirty() );
+}
+
+TEST_CASE( "A file picked in the assets panel shows how it imports; a setting changed is written to its .import" )
+{
+    Ui ui;
+    ui.Click( ui.Row( "sky.png" ) );
+    ui.Frame();
+    const auto srgbMaybe = ui.mInspector->TryWhere( "import.srgb" );
+    REQUIRE( srgbMaybe );
+    CHECK( ui.mInspector->TryWhere( "import.mips" ) );
+    ui.Click( *srgbMaybe );
+    const auto fileMaybe = TryParseImportFile( ui.mFiles.at( "sky.png.import" ) );
+    REQUIRE( fileMaybe );
+    const auto srgbSetMaybe = fileMaybe->mSettings.TryFind( "srgb" );
+    REQUIRE( srgbSetMaybe );
+    REQUIRE( srgbSetMaybe->TryAs<bool>() );
+    CHECK_FALSE( *srgbSetMaybe->TryAs<bool>() );
+
+    // The documents' selection changed, the inspector shows it again.
+    REQUIRE( ui.mProject->Run( "selection.set", *Json::TryParse( R"({ "entities": [ "/lamp" ] })" ) ) );
+    ui.Frame();
+    CHECK( not ui.mInspector->TryWhere( "import.srgb" ) );
 }

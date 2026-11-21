@@ -43,9 +43,11 @@ Json::Member Member( string key, string value )
     return Json::Member{ .mKey = std::move( key ), .mValue = Json( std::move( value ) ) };
 }
 
+// What document.open takes: a scene, or a material's or a graph's data.
 bool IsDocument( string_view path )
 {
-    return path.ends_with( ".scene" ) or path.ends_with( ".prefab" );
+    return path.ends_with( ".scene" ) or path.ends_with( ".prefab" ) or path.ends_with( ".mat" ) or
+           path.ends_with( ".anim" );
 }
 }
 
@@ -147,6 +149,11 @@ opt<vec2> AssetsPanel::TryWhere( string_view path ) const
 {
     const auto found = mWhere.find( string( path ) );
     return found != mWhere.end() ? opt<vec2>( found->second ) : nullopt;
+}
+
+opt<string> AssetsPanel::TakePicked()
+{
+    return exchange( mPickedMaybe, nullopt );
 }
 
 void AssetsPanel::Show()
@@ -260,7 +267,10 @@ void AssetsPanel::FileRow( const string& path )
             ImGui::PushStyleColor( ImGuiCol_Text, cBroken );
         if ( ImGui::Selectable( NameOf( path ).c_str(), mSelected == path,
                                 ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick ) )
+        {
             mSelected = path;
+            mPickedMaybe = path;
+        }
         if ( errorMaybe )
             ImGui::PopStyleColor();
         const ImVec2 low = ImGui::GetItemRectMin();

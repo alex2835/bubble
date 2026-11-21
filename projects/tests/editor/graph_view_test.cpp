@@ -33,11 +33,15 @@ constexpr ImVec2 cCanvas{ 800, 600 };
 
 struct Ui
 {
-    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) }, { "hero.anim", string( cGraph ) } };
+    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
+                                 { "hero.anim", string( cGraph ) },
+                                 { "other.anim", string( cGraph ) } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
     ImGuiContextScope mContext;
     Scope<Inspector> mInspector;
+    // The graph whose window is drawn: the active one when none is named.
+    DataDocument* mShown = nullptr;
 
     Ui()
     {
@@ -59,7 +63,8 @@ struct Ui
     }
 
     DataDocument& Data() { return *mProject->GetWorkspace().TryActiveData(); }
-    GraphView& View() { return GraphViewOf( *mProject, Data() ); }
+    DataDocument& Shown() { return mShown != nullptr ? *mShown : Data(); }
+    GraphView& View() { return GraphViewOf( *mProject, Shown() ); }
 
     void Frame()
     {
@@ -70,7 +75,7 @@ struct Ui
         ImGui::SetNextWindowPos( ImVec2( 0, 0 ) );
         ImGui::SetNextWindowSize( cCanvas );
         ImGui::Begin( "Viewport", nullptr, ImGuiWindowFlags_NoDecoration );
-        View().Show( Data() );
+        View().Show( Shown() );
         ImGui::End();
         ImGui::SetNextWindowPos( ImVec2( cCanvas.x, 0 ) );
         ImGui::SetNextWindowSize( ImVec2( 400, cCanvas.y ) );
@@ -159,6 +164,20 @@ TEST_CASE( "The graph's canvas draws each state where the document keeps it; a n
     ui.Frame();
     CHECK( ui.At( "editor.states.fall" ) == "[200,0]" );
     CHECK( at( "fall" ) == vec2( 200, 0 ) );
+}
+
+TEST_CASE( "A click on a graph's canvas makes its document the active one, the inspector's" )
+{
+    Ui ui;
+    ui.mShown = &ui.Data();
+    REQUIRE( ui.mProject->Run( "document.open", *Json::TryParse( R"({ "path": "other.anim" })" ) ) );
+    CHECK( ui.Data().GetPath().View() == "other.anim" );
+    ui.Frame();
+    ui.Frame();
+    ui.Click( ui.OnScreen( "fall" ) );
+    CHECK( ui.Data().GetPath().View() == "hero.anim" );
+    CHECK( ui.View().SelectedState() == "fall" );
+    CHECK( ui.mInspector->TryWhere( "states.fall.loop" ) );
 }
 
 TEST_CASE( "A state clicked on the canvas is the inspector's to edit; Delete takes it out with its transitions" )

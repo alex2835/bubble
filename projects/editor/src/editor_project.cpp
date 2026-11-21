@@ -155,6 +155,15 @@ string_view EditorProject::KindOf( const AssetPath& path ) const
     return importerMaybe ? string_view( importerMaybe->mKind ) : string_view();
 }
 
+OptRef<const Importer> EditorProject::TryImporterOf( const AssetPath& path ) const
+{
+    const string_view text = path.View();
+    const size_t dot = text.rfind( '.' );
+    if ( dot == string_view::npos )
+        return nullopt;
+    return mProject.GetImporters().TryFind( text.substr( dot ) );
+}
+
 bool EditorProject::Makes( const AssetPath& path, string_view kind ) const
 {
     const string_view text = path.View();

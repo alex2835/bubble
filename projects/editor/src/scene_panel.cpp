@@ -1,6 +1,7 @@
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/panel.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -140,15 +141,18 @@ string RootLabel( const Document& document )
 
 void ScenePanel::Show()
 {
-    const auto documentMaybe = mProject.GetWorkspace().TryActive();
+    Workspace& workspace = mProject.GetWorkspace();
+    // The scene shown beside a data document's window: turned to, it is the
+    // active document again.
+    const auto documentMaybe = workspace.TryShownScene();
     if ( not documentMaybe )
     {
-        const auto dataMaybe = mProject.GetWorkspace().TryActiveData();
-        ImGui::TextDisabled( "%s", dataMaybe ? format( "{} has no scene", dataMaybe->GetPath().View() ).c_str()
-                                             : "No document is open" );
+        ImGui::TextDisabled( "No level or prefab is open" );
         return;
     }
     Document& document = *documentMaybe;
+    if ( ClickedInWindow() )
+        workspace.Activate( document );
     const Scene& scene = document.GetScene();
     if ( ImGui::GetDragDropPayload() == nullptr )
         mDragged.clear();
@@ -200,6 +204,10 @@ void ScenePanel::Show()
 
     const vector<OperatorCall> pending = std::move( mPending );
     mPending.clear();
+    // What the tree asks is of its own document, whichever is active: a drop
+    // from the assets comes with no click here.
+    if ( not pending.empty() or mPlaceMaybe )
+        workspace.Activate( document );
     for ( const OperatorCall& call : pending )
         if ( not mProject.Run( call.mId, call.mArgs ) )
             break;

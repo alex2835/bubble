@@ -1,9 +1,12 @@
 #include "bubble/editor/inspector.hpp"
 #include "bubble/animation/animation_graph.hpp"
+#include "bubble/core/log.hpp"
+#include "bubble/data/value_json.hpp"
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/scene_panel.hpp"
+#include "bubble/import/import_file.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -198,9 +201,31 @@ void Inspector::Hold( bool changed )
     }
 }
 
+tuple<const void*, Entity, size_t> Inspector::DocumentKey()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+        return { &*dataMaybe, Entity::Null, 0 };
+    if ( const auto documentMaybe = workspace.TryActive() )
+        return { &*documentMaybe, documentMaybe->GetSelection().Active(), documentMaybe->GetSelection().All().size() };
+    return { nullptr, Entity::Null, 0 };
+}
+
+void Inspector::Inspect( string path )
+{
+    mInspected = std::move( path );
+    mInspectedOver = DocumentKey();
+}
+
 void Inspector::Show()
 {
     mWhere.clear();
+    if ( not mInspected.empty() and DocumentKey() == mInspectedOver )
+    {
+        ImportSettings( mInspected );
+        return;
+    }
+    mInspected.clear();
     if ( const auto dataMaybe = mProject.GetWorkspace().TryActiveData() )
     {
         if ( dataMaybe->GetPath().View().ends_with( ".mat" ) )
@@ -418,6 +443,162 @@ bool TableOfFields( const char* id )
     ImGui::TableSetupColumn( "value", ImGuiTableColumnFlags_WidthStretch, 0.6f );
     return true;
 }
+}
+
+void Inspector::ImportSettings( const string& path )
+{
+    const auto assetMaybe = AssetPath::TryFrom( path );
+    if ( not assetMaybe )
+        return;
+    ImGui::TextUnformatted( path.c_str() );
+    if ( const string_view kind = mProject.KindOf( *assetMaybe ); not kind.empty() )
+        ImGui::TextDisabled( "%.*s", static_cast<int>( kind.size() ), kind.data() );
+    if ( const auto errorMaybe = mProject.TryErrorOf( *assetMaybe ) )
+    {
+        ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.0f, 0.45f, 0.4f, 1.0f ) );
+        ImGui::TextWrapped( "%s", errorMaybe->c_str() );
+        ImGui::PopStyleColor();
+    }
+    const auto importerMaybe = mProject.TryImporterOf( *assetMaybe );
+    if ( not importerMaybe or importerMaybe->mSettings.empty() )
+    {
+        ImGui::TextDisabled( importerMaybe ? "Nothing to set on how it imports" : "Not an asset" );
+        return;
+    }
+    ImGui::SeparatorText( "Import" );
+    const auto textMaybe = mProject.GetFiles().TryRead( ImportFileOf( *assetMaybe ) );
+    const auto fileMaybe = textMaybe ? TryParseImportFile( *textMaybe ) : unexpected( "no .import yet"s );
+    if ( not fileMaybe )
+    {
+        ImGui::TextDisabled( "%s", fileMaybe.error().c_str() );
+        return;
+    }
+    if ( not TableOfFields( "import" ) )
+        return;
+    for ( const struct ImportSetting& setting : importerMaybe->mSettings )
+        ImportSetting( path, setting, fileMaybe->mSettings.TryFind( setting.mName ) );
+    ImGui::EndTable();
+    RunPending();
+}
+
+void Inspector::ImportSetting( const string& path, const struct ImportSetting& setting, OptRef<const Json> ownMaybe )
+{
+    const string id = "##import." + setting.mName;
+    const auto set = [&]( Value value ) {
+        Run( "asset.set_import", Args( { ValueField{ .mName = "path"_n, .mValue = TextValue( path ) },
+                                         ValueField{ .mName = "setting"_n, .mValue = TextValue( setting.mName ) },
+                                         ValueField{ .mName = "value"_n, .mValue = std::move( value ) } } ) );
+    };
+    const auto reset = [&] {
+        Run( "asset.set_import", Args( { ValueField{ .mName = "path"_n, .mValue = TextValue( path ) },
+                                         ValueField{ .mName = "setting"_n, .mValue = TextValue( setting.mName ) } } ) );
+    };
+    // The .import's own value, read as the setting's type; one that does not
+    // read shows as the default, the importer saying why it is wrong.
+    opt<Value> ownValueMaybe;
+    if ( ownMaybe )
+        if ( auto readMaybe = TryValueFromJson( *ownMaybe, setting.mType, setting.mName, mProject.GetCatalog() ) )
+            ownValueMaybe = std::move( *readMaybe );
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    if ( ownMaybe )
+        ImGui::PushStyleColor( ImGuiCol_Text, cSet );
+    ImGui::TextUnformatted( FieldLabel( setting.mName ).c_str() );
+    if ( ownMaybe )
+        ImGui::PopStyleColor();
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "%s", setting.mTooltip.c_str() );
+    if ( ownMaybe and ImGui::BeginPopupContextItem( ( "menu" + id ).c_str() ) )
+    {
+        if ( ImGui::MenuItem( "Back to the importer's default" ) )
+            reset();
+        ImGui::EndPopup();
+    }
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth( -1.0f );
+    const opt<Value> shownMaybe = ownValueMaybe ? ownValueMaybe : setting.mDefault;
+    if ( not shownMaybe )
+    {
+        // No default: the source decides; a choice sets it either way.
+        int choice = 0;
+        if ( ImGui::Combo( id.c_str(), &choice, "decided by the file\0on\0off\0" ) and choice != 0 )
+            set( Value( choice == 1 ) );
+    }
+    else
+        switch ( setting.mType.mKind )
+        {
+            case ValueKind::Bool:
+            {
+                bool on = *shownMaybe->TryAs<bool>();
+                if ( not setting.mDefault )
+                {
+                    int choice = on ? 1 : 2;
+                    if ( ImGui::Combo( id.c_str(), &choice, "decided by the file\0on\0off\0" ) )
+                    {
+                        if ( choice == 0 )
+                            reset();
+                        else
+                            set( Value( choice == 1 ) );
+                    }
+                }
+                else if ( ImGui::Checkbox( id.c_str(), &on ) )
+                    set( Value( on ) );
+                break;
+            }
+            case ValueKind::Number:
+            {
+                f64 number = *shownMaybe->TryAs<f64>();
+                ImGui::InputDouble( id.c_str(), &number, 0.0, 0.0, "%g" );
+                if ( ImGui::IsItemDeactivatedAfterEdit() )
+                    set( Value( number ) );
+                break;
+            }
+            case ValueKind::Text:
+            {
+                string text = shownMaybe->TryAs<Text>()->String();
+                ImGui::InputText( id.c_str(), &text );
+                if ( ImGui::IsItemDeactivatedAfterEdit() )
+                    if ( auto textMaybe = Text::TryFrom( text ) )
+                        set( Value( std::move( *textMaybe ) ) );
+                break;
+            }
+            case ValueKind::List:
+            {
+                // Numbers, as a person writes them: "0.5, 0.25".
+                string text;
+                for ( const Value& element : *shownMaybe->TryAs<Value::List>() )
+                    if ( const auto numberMaybe = element.TryAs<f64>() )
+                        text += format( "{}{}", text.empty() ? "" : ", ", *numberMaybe );
+                ImGui::InputText( id.c_str(), &text );
+                if ( ImGui::IsItemDeactivatedAfterEdit() )
+                {
+                    Value::List numbers;
+                    string_view rest = text;
+                    while ( not rest.empty() )
+                    {
+                        const size_t comma = rest.find( ',' );
+                        string part( rest.substr( 0, comma ) );
+                        rest = comma == string_view::npos ? string_view() : rest.substr( comma + 1 );
+                        erase_if( part, []( char c ) { return c == ' '; } );
+                        if ( part.empty() )
+                            continue;
+                        char* end = nullptr;
+                        const f64 number = strtod( part.c_str(), &end );
+                        if ( end != part.c_str() + part.size() )
+                        {
+                            LogError( "{}: {} is not a number", setting.mName, part );
+                            return;
+                        }
+                        numbers.push_back( Value( number ) );
+                    }
+                    set( Value( std::move( numbers ) ) );
+                }
+                break;
+            }
+            default: ImGui::TextDisabled( "%s", shownMaybe->Describe().c_str() ); break;
+        }
+    Shown( "import." + setting.mName );
 }
 
 void Inspector::RowLabel( const char* label )

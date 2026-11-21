@@ -109,10 +109,20 @@ vector<Importer> TextureImporters()
 {
     vector<Importer> importers;
     for ( const string_view extension : { ".png", ".jpg", ".jpeg", ".tga", ".bmp" } )
-        importers.push_back( Importer{ .mExtension = string( extension ),
-                                       .mKind = string( cTextureKind ),
-                                       .mVersion = 1,
-                                       .mImport = &TryImportTexture } );
+        importers.push_back( Importer{
+            .mExtension = string( extension ),
+            .mKind = string( cTextureKind ),
+            .mVersion = 1,
+            .mImport = &TryImportTexture,
+            .mSettings = { ImportSetting{ .mName = "srgb",
+                                          .mType = ValueType::Of( ValueKind::Bool ),
+                                          .mDefault = Value( true ),
+                                          .mTooltip = "Colours, as a picture has them; off for data - normals, "
+                                                      "roughness - read as they are" },
+                           ImportSetting{ .mName = "mips",
+                                          .mType = ValueType::Of( ValueKind::Bool ),
+                                          .mDefault = Value( true ),
+                                          .mTooltip = "Smaller copies for what is far away: no shimmer, faster" } } } );
     return importers;
 }
 }

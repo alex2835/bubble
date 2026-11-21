@@ -36,6 +36,11 @@ public:
     // The scene document active - nothing while a data document is.
     OptRef<Document> TryActive();
     OptRef<const Document> TryActive() const;
+    // The scene document active last, a data document active since or not:
+    // the one the editor's tree and viewport show beside a data document's
+    // own window.
+    OptRef<Document> TryShownScene();
+    OptRef<const Document> TryShownScene() const;
     // The open document saved to `path`.
     OptRef<Document> TryFind( const AssetPath& path );
 

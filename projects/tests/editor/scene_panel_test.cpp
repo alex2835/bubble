@@ -180,7 +180,8 @@ struct Ui
 {
     hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
                                  { "main.scene", string( cLevel ) },
-                                 { "door.prefab", string( cDoor ) } };
+                                 { "door.prefab", string( cDoor ) },
+                                 { "stone.mat", R"({ "version": 1, "params": {} })" } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
     ImGuiContextScope mContext;
@@ -296,6 +297,19 @@ TEST_CASE( "The panel selects by clicks, ctrl adding; a click on one of several 
     ImGui::GetIO().AddMouseButtonEvent( 0, false );
     ui.Frame();
     CHECK( ui.Selected().empty() );
+}
+
+TEST_CASE( "Beside a data document's window the panel shows the scene, a click making it the active one again" )
+{
+    Ui ui;
+    REQUIRE( ui.mProject->Run( "document.open", *Json::TryParse( R"({ "path": "stone.mat" })" ) ) );
+    Workspace& workspace = ui.mProject->GetWorkspace();
+    REQUIRE( workspace.TryActiveData() );
+    ui.Frame();
+    ui.Click( 1 );
+    REQUIRE( workspace.TryActive() );
+    CHECK( not workspace.TryActiveData() );
+    CHECK( ui.Selected() == vector<string>{ "/b" } );
 }
 
 TEST_CASE( "The panel renames in place with F2, deletes with Del, and both undo as one step each" )

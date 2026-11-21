@@ -2,12 +2,21 @@
 // template, a file renamed with its .import - the catalog and an open
 // document following -, a file deleted unless it is open.
 #include "bubble/editing/operators.hpp"
+#include "bubble/import/import_file.hpp"
 #include <doctest.h>
 
 using namespace bubble;
 
 namespace
 {
+// JSON as text with no spaces or line breaks.
+string Compact( const Json& json )
+{
+    string text = json.Write();
+    erase_if( text, []( char c ) { return c == ' ' or c == '\n'; } );
+    return text;
+}
+
 struct Fixture
 {
     hmap<string, string> mFiles{
@@ -84,4 +93,28 @@ TEST_CASE( "asset.delete takes a file and its .import, but not one open as a doc
     REQUIRE( f.Run( "document.open", R"({ "path": "cave.scene" })" ) );
     CHECK( f.Run( "asset.delete", R"({ "path": "cave.scene" })" ).error() ==
            "asset.delete: cave.scene is open: close it first" );
+}
+
+TEST_CASE( "asset.set_import sets a setting in the .import, or takes it out for the importer's default" )
+{
+    Fixture f;
+    REQUIRE( f.Run( "asset.set_import", R"({ "path": "models/crate.glb", "setting": "scale", "value": 2 })" ) );
+    auto fileMaybe = TryParseImportFile( f.mFiles.at( "models/crate.glb.import" ) );
+    REQUIRE( fileMaybe );
+    CHECK( fileMaybe->mId == f.mCrate );
+    CHECK( Compact( fileMaybe->mSettings ) == R"({"scale":2})" );
+
+    REQUIRE(
+        f.Run( "asset.set_import", R"({ "path": "models/crate.glb", "setting": "lods", "value": [ 0.5, 0.2 ] })" ) );
+    REQUIRE( f.Run( "asset.set_import", R"({ "path": "models/crate.glb", "setting": "scale", "value": 3 })" ) );
+    fileMaybe = TryParseImportFile( f.mFiles.at( "models/crate.glb.import" ) );
+    CHECK( Compact( fileMaybe->mSettings ) == R"({"scale":3,"lods":[0.5,0.2]})" );
+
+    REQUIRE( f.Run( "asset.set_import", R"({ "path": "models/crate.glb", "setting": "scale" })" ) );
+    fileMaybe = TryParseImportFile( f.mFiles.at( "models/crate.glb.import" ) );
+    CHECK( Compact( fileMaybe->mSettings ) == R"({"lods":[0.5,0.2]})" );
+
+    f.mFiles["sounds/new.wav"] = "wav";
+    CHECK( f.Run( "asset.set_import", R"({ "path": "sounds/new.wav", "setting": "stream", "value": true })" ).error() ==
+           "asset.set_import: sounds/new.wav has no .import yet: the project's next look writes one" );
 }

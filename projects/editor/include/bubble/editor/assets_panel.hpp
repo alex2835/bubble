@@ -37,6 +37,8 @@ public:
     // Where a file's row was drawn last, its middle in ImGui's units: for
     // tests.
     opt<vec2> TryWhere( string_view path ) const;
+    // The file a click picked since the last ask: what the inspector shows.
+    opt<string> TakePicked();
 
 private:
     void List();
@@ -60,6 +62,7 @@ private:
     f64 mListedAt = -1;
     string mFolder;
     string mSelected;
+    opt<string> mPickedMaybe;
     string mRenaming;
     string mNewName;
     bool mRenameStarted = false;

@@ -6,15 +6,18 @@
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/viewport.hpp"
+#include "bubble/editor/world_picture.hpp"
 
 namespace bubble
 {
 // The editor's window as ImGui draws it, over a project: the dock space, the
-// menu, the panels - the scene's tree, the viewport with a tab a document,
-// the inspector, the project's assets, the log. The panels show the active
-// document - a level or a prefab, a material, an animation graph -, and act
-// on it through operators alone; a tab picked makes its document the active
-// one.
+// menu, the panels - the scene's tree, the viewport with a tab a level or a
+// prefab, the inspector, the project's assets, the log -, and a window of
+// its own for each material and animation graph open, docked beside the
+// viewport the first time. The tree and the viewport show the scene active
+// last; the inspector, undo and save the active document - the one turned
+// to last, by a click in its window or a tab picked. Operators alone change
+// anything.
 class Editor
 {
 public:
@@ -51,34 +54,46 @@ private:
     void Shortcuts();
     void LogPanel();
     void DocumentTabs();
+    // A window a data document: a graph's canvas, a material's preview.
+    void AssetWindows();
+    // Before the dock space: a data document's window shown for the first
+    // time - or whose place went with the last window in it - docked beside
+    // the viewport, with the other ones.
+    void DockAssetWindows();
     void UnsavedChanges();
     // The active document saved to a path asked for: "Save As", and a save
     // of one that has no file yet.
     void SaveAs();
     void Save();
-    // What the viewport shows: the active document's world - a scene's own,
-    // a material's preview - and the camera on it; nothing for a document
-    // that has no world, an animation graph's.
-    struct ActiveView
-    {
-        World& mWorld;
-        EditorCamera& mCamera;
-        OptRef<DocumentWorld> mSceneMaybe;
-    };
-    opt<ActiveView> TryActiveView();
-    // The active document's name as its tab shows it, scene or data.
+    // The world of the scene shown - the one active last -, and the camera
+    // on it.
+    OptRef<DocumentWorld> TryShownWorld();
+    // The active document's name as its tab or window shows it.
     opt<string> TryActiveTitle();
 
     EditorProject& mProject;
+    Gpu& mGpu;
+    Renderer& mRenderer;
     ScenePanel mScene;
     Inspector mInspector;
     AssetsPanel mAssets;
     Viewport mViewport;
-    // The active document's tab as last shown: a document made active by an
+    // The shown scene's tab as last drawn: a scene made active by an
     // operator gets its tab picked.
     string mActiveTab;
+    // The active document as of the last frame: a data document made active
+    // by an operator gets its window brought forward.
+    const void* mLastActive = nullptr;
+    // Each material window's picture, by its document; the ones shown this
+    // frame, drawn after the widgets.
+    hmap<const DataDocument*, Scope<WorldPicture>> mPictures;
+    vector<DataDocument*> mPictured;
+    // Data documents' windows not shown this frame: waiting for the viewport
+    // to be docked beside.
+    hset<string> mHeld;
     string mSaveAsPath;
     bool mAskSaveAs = false;
+    bool mAskUnsaved = false;
     vector<LogEntry> mLog;
     u64 mLogNext = 0;
     f64 mSinceRefresh = 0;

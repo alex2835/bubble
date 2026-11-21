@@ -2,6 +2,7 @@
 #include "bubble/core/log.hpp"
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/imgui_backend.hpp"
+#include "bubble/editor/panel.hpp"
 #include "bubble/physics/physics.hpp"
 #include "bubble/render/debug_draw.hpp"
 #include "bubble/render/render_scene.hpp"
@@ -176,6 +177,9 @@ void Viewport::Prepare( OptRef<Document> documentMaybe, OptRef<World> worldMaybe
 
 void Viewport::Picked( Document& document, Entity entity )
 {
+    // The pick is of this document, whatever was made active while the GPU
+    // answered.
+    mProject.GetWorkspace().Activate( document );
     const Scene& scene = document.GetScene();
     const Selection& selection = document.GetSelection();
     if ( entity == Entity::Null or not scene.Alive( entity ) or not InTree( scene, entity ) )
@@ -284,6 +288,10 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     const ImVec2 area = ImGui::GetContentRegionAvail();
     if ( area.x < 1 or area.y < 1 )
         return;
+    // Shown beside a data document's window, the scene is the active
+    // document again once it is turned to: a click, a drop, a key.
+    if ( documentMaybe and ClickedInWindow() )
+        mProject.GetWorkspace().Activate( *documentMaybe );
     const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
     const ivec2 pixels( static_cast<i32>( area.x * scale.x + 0.5f ), static_cast<i32>( area.y * scale.y + 0.5f ) );
     if ( not mPicture or mPicture.Size() != pixels )
@@ -319,6 +327,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
             {
                 const vec3 ground = GroundAt( camera, vec2( ImGui::GetIO().MousePos.x, ImGui::GetIO().MousePos.y ),
                                               vec2( corner.x, corner.y ), vec2( area.x, area.y ) );
+                mProject.GetWorkspace().Activate( *documentMaybe );
                 if ( auto placedMaybe =
                          TryPlaceAsset( mProject, *pathMaybe, EntityPath{ *Text::TryFrom( "/" ) }, ground );
                      not placedMaybe )
@@ -423,9 +432,12 @@ void Viewport::Keys( Document& document, EditorCamera& camera )
         mLocal = not mLocal;
     if ( ImGui::IsKeyPressed( ImGuiKey_F, false ) )
         Frame( document, camera );
-    if ( ImGui::IsKeyPressed( ImGuiKey_Delete, false ) and
-         mProject.GetOperators().TryPoll( mProject.GetWorkspace(), "entity.destroy" ) )
-        mProject.Run( "entity.destroy" );
+    if ( ImGui::IsKeyPressed( ImGuiKey_Delete, false ) )
+    {
+        mProject.GetWorkspace().Activate( document );
+        if ( mProject.GetOperators().TryPoll( mProject.GetWorkspace(), "entity.destroy" ) )
+            mProject.Run( "entity.destroy" );
+    }
 }
 
 void Viewport::Frame( Document& document, EditorCamera& camera )

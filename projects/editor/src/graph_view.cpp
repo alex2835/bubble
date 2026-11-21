@@ -1,4 +1,5 @@
 #include "bubble/editor/graph_view.hpp"
+#include "bubble/editor/panel.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/matrix.hpp"
 #include <imgui.h>
@@ -177,6 +178,10 @@ void GraphView::Run( string_view op, Value::Record args )
 
 void GraphView::Show( DataDocument& document )
 {
+    // In a window of its own beside the scene: turned to, its document is
+    // the active one, the inspector's.
+    if ( ClickedInWindow() )
+        mProject.GetWorkspace().Activate( document );
     const Json& data = document.GetData();
     const OptRef<const Json> editorMaybe = TryMember( data, "editor" );
     const auto placeOf = [&]( string_view key ) {
@@ -470,6 +475,8 @@ void GraphView::RunPending( DataDocument& document )
     mPendingStep.clear();
     if ( pending.empty() )
         return;
+    // The graph.* operators work on the active data document: this one.
+    mProject.GetWorkspace().Activate( document );
     const vector<string> before = StateNames( document.GetData() );
     const bool grouped = not step.empty() and pending.size() > 1;
     if ( grouped )

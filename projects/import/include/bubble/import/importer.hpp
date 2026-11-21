@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/core/asset_path.hpp"
 #include "bubble/data/json.hpp"
+#include "bubble/data/value.hpp"
 #include "bubble/types/containers.hpp"
 #include "bubble/types/function.hpp"
 #include "bubble/types/number.hpp"
@@ -18,6 +19,19 @@ struct ImportedAsset
     string mBytes;
     // A kind of Importer::mMoreKinds the source has none of is left out.
     hmap<string, string> mMore;
+};
+
+// A setting a source's .import may hold, as the editor shows it: "srgb",
+// "lods".
+struct ImportSetting
+{
+    string mName;
+    ValueType mType;
+    // What the importer takes when the .import does not say; nothing when
+    // the source decides - a sound streams when it is long.
+    opt<Value> mDefault;
+    // What it does, in a sentence.
+    string mTooltip;
 };
 
 // A source file and its settings into the engine's format: a .luau into
@@ -41,6 +55,8 @@ struct Importer
     // first: "scripts/player.luau:3: Expected ...".
     function<expected<ImportedAsset, string>( string_view source, const Json& settings, const AssetPath& path )>
         mImport;
+    // What its settings are, for the editor; the importer reads them itself.
+    vector<ImportSetting> mSettings = {};
 };
 
 // The importers a project has, one an extension.

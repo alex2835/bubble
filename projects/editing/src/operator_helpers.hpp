@@ -5,6 +5,10 @@
 // entities they act on.
 namespace bubble
 {
+// A value as a file keeps it, plain: a number, a text, [x, y, z], a color's
+// four numbers, an asset's id and path, an entity's path.
+Json PlainJson( const Value& value, const AssetCatalog& assets );
+
 // An argument's name, declared: a bad one is a logic_error.
 Name Declare( string_view name );
 OperatorArg Arg( string_view name, ValueKind kind, bool required = false );

@@ -32,6 +32,11 @@ Value DefaultOf( const ValueType& type );
 // its parameters and what is selected on its canvas - a state: its name,
 // what it plays, loop, speed, root motion; a transition: its conditions,
 // exit time, duration, interrupt -, renamed through graph.rename_state.
+//
+// A file picked in the assets panel shows instead, until the active document
+// or its selection changes: its kind, why it does not import, and how it
+// imports - each setting its importer declares, the .import's own told apart
+// from the importer's default -, set through asset.set_import.
 class Inspector
 {
 public:
@@ -42,9 +47,13 @@ public:
     void Settle();
     // Its widgets, inside an ImGui window.
     void Show();
+    // The file at `path` shown from now on, until the active document or its
+    // selection changes.
+    void Inspect( string path );
     // Where a field's widget was drawn last, its middle in ImGui's units:
     // "name" for the entity's name, "point_light.intensity", "script.props.speed";
-    // a material's "base", "double_sided", "params.roughness".
+    // a material's "base", "double_sided", "params.roughness"; a file's
+    // "import.srgb".
     opt<vec2> TryWhere( string_view field ) const;
 
 private:
@@ -98,8 +107,17 @@ private:
     // What the widgets asked, run after them: one step, when a step is
     // named.
     void RunPending();
+    // What the panel would show of the documents: the active one, its active
+    // entity and how many are selected.
+    tuple<const void*, Entity, size_t> DocumentKey();
+    void ImportSettings( const string& path );
+    void ImportSetting( const string& path, const struct ImportSetting& setting, OptRef<const Json> ownMaybe );
 
     EditorProject& mProject;
+    // The file picked in the assets panel, and what the documents showed
+    // then.
+    string mInspected;
+    tuple<const void*, Entity, size_t> mInspectedOver{ nullptr, Entity::Null, 0 };
     vector<pair<string, Value::Record>> mPending;
     string mPendingStep;
     // A state's name as it is typed, and whose it is; a parameter's to come.

@@ -39,6 +39,16 @@ OptRef<const Document> Workspace::TryActive() const
     return mDocuments.empty() or mDataActive ? OptRef<const Document>() : OptRef<const Document>( *mDocuments.back() );
 }
 
+OptRef<Document> Workspace::TryShownScene()
+{
+    return mDocuments.empty() ? OptRef<Document>() : OptRef<Document>( *mDocuments.back() );
+}
+
+OptRef<const Document> Workspace::TryShownScene() const
+{
+    return mDocuments.empty() ? OptRef<const Document>() : OptRef<const Document>( *mDocuments.back() );
+}
+
 DataDocument& Workspace::OpenData( AssetPath path, Json data )
 {
     mData.push_back( CreateScope<DataDocument>( std::move( path ), std::move( data ) ) );

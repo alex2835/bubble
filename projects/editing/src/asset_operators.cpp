@@ -1,6 +1,7 @@
 // The project's files as operators change them: a new asset from its
-// template, a file renamed or deleted with its .import. None is a step of a
-// document's history: undo takes back edits, not files.
+// template, a file renamed or deleted with its .import, a setting of how it
+// imports. None is a step of a document's history: undo takes back edits,
+// not files.
 #include "bubble/import/import_file.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "operator_helpers.hpp"
@@ -125,6 +126,43 @@ Result RunDelete( Workspace& workspace, const OperatorArgs& args )
     workspace.Removed( path );
     return {};
 }
+
+Result RunSetImport( Workspace& workspace, const OperatorArgs& args )
+{
+    auto pathMaybe = TryPath( args, "path"_n );
+    if ( not pathMaybe )
+        return unexpected( std::move( pathMaybe.error() ) );
+    const AssetPath importPath = ImportFileOf( *pathMaybe );
+    const ProjectFiles& files = workspace.GetFiles();
+    const auto textMaybe = files.TryRead( importPath );
+    if ( not textMaybe )
+        return unexpected( format( "{} has no .import yet: the project's next look writes one", pathMaybe->View() ) );
+    auto fileMaybe = TryParseImportFile( *textMaybe );
+    if ( not fileMaybe )
+        return unexpected( format( "{}: {}", importPath.View(), fileMaybe.error() ) );
+    ImportFile& file = *fileMaybe;
+    if ( not file.mSettings.TryAs<Json::Object>() )
+        file.mSettings = Json( Json::Object() );
+    Json::Object& settings = *file.mSettings.TryAs<Json::Object>();
+    const string setting( args.TryGet<Text>( "setting"_n )->View() );
+    const auto found = ranges::find( settings, setting, &Json::Member::mKey );
+    // Left out, the value is the importer's own again.
+    if ( const auto valueMaybe = args.TryFind( "value"_n ) )
+    {
+        Json value = PlainJson( *valueMaybe, workspace.GetAssets() );
+        if ( found != settings.end() )
+            found->mValue = std::move( value );
+        else
+            settings.push_back( Json::Member{ .mKey = setting, .mValue = std::move( value ) } );
+    }
+    else if ( found != settings.end() )
+        settings.erase( found );
+    else
+        return {};
+    if ( auto writtenMaybe = files.TryWrite( importPath, WriteImportFile( file ) ); not writtenMaybe )
+        return unexpected( format( "{}: {}", importPath.View(), writtenMaybe.error() ) );
+    return {};
+}
 }
 
 void AddAssetOperators( Operators& operators )
@@ -148,5 +186,12 @@ void AddAssetOperators( Operators& operators )
                              .mEdits = false,
                              .mTryPoll = {},
                              .mTryRun = RunDelete } );
+    operators.Add( Operator{ .mId = "asset.set_import",
+                             .mLabel = "Set Import Setting",
+                             .mArgs = { Arg( "path", ValueKind::Text, cRequired ),
+                                        Arg( "setting", ValueKind::Text, cRequired ), Arg( "value", ValueKind::Any ) },
+                             .mEdits = false,
+                             .mTryPoll = {},
+                             .mTryRun = RunSetImport } );
 }
 }
