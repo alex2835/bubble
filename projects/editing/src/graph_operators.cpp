@@ -1,6 +1,7 @@
 // The active animation graph as its editor changes it: states added, renamed
 // and taken out with everything that names them, transitions drawn between
-// them, where each is drawn, a parameter renamed wherever it is read. Each operator is one step of the graph's
+// them, where each is drawn, a parameter renamed wherever it is read, a
+// clip's events. Each operator is one step of the graph's
 // document, its changes taken back together when one of them fails.
 #include "bubble/core/name.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -307,6 +308,47 @@ Result RunRenameParameter( Workspace& workspace, const OperatorArgs& args )
     } );
 }
 
+// A clip's events whole: [ [time, name], ... ], kept under the clip's own
+// name - a model's, not snake_case, which no path reaches -; none takes the
+// clip out, and the events with the last.
+Result RunSetEvents( Workspace& workspace, const OperatorArgs& args )
+{
+    DataDocument& document = Graph( workspace );
+    const string clip = args.TryGet<Text>( "clip"_n )->String();
+    if ( clip.empty() )
+        return unexpected( "clip: an event is at a share of a clip: name the clip"s );
+    const Value::List& list = *args.TryGet<Value::List>( "events"_n );
+    Json::Array events;
+    for ( size_t at = 0; at < list.size(); ++at )
+    {
+        const auto pairMaybe = list[at].TryAs<Value::List>();
+        const auto timeMaybe = pairMaybe and pairMaybe->size() == 2 ? ( *pairMaybe )[0].TryAs<f64>() : nullopt;
+        const auto nameMaybe = pairMaybe and pairMaybe->size() == 2 ? ( *pairMaybe )[1].TryAs<Text>() : nullopt;
+        if ( not timeMaybe or not nameMaybe or not( *timeMaybe >= 0 and *timeMaybe <= 1 ) or nameMaybe->View().empty() )
+            return unexpected(
+                format( "events[{}]: an event is [time, name], its time a share of the clip from 0 to 1", at + 1 ) );
+        events.push_back( Json( Json::Array{ Json( *timeMaybe ), Json( nameMaybe->String() ) } ) );
+    }
+    Json::Object all;
+    if ( const auto objectMaybe = TryObjectAt( document, "events" ) )
+        all = *objectMaybe;
+    const auto found = ranges::find( all, clip, &Json::Member::mKey );
+    if ( events.empty() )
+    {
+        if ( found == all.end() )
+            return {};
+        all.erase( found );
+    }
+    else if ( found != all.end() )
+        found->mValue = Json( std::move( events ) );
+    else
+        all.push_back( Json::Member{ .mKey = clip, .mValue = Json( std::move( events ) ) } );
+    const string label = format( "Set Events of {}", clip );
+    if ( all.empty() )
+        return document.TryRemove( PathOf( "events" ), label );
+    return document.TrySet( PathOf( "events" ), Json( std::move( all ) ), label );
+}
+
 Result RunAddTransition( Workspace& workspace, const OperatorArgs& args )
 {
     DataDocument& document = Graph( workspace );
@@ -379,6 +421,14 @@ void AddGraphOperators( Operators& operators )
     operators.Add( GraphOperator(
         "graph.rename_state", "Rename State",
         { Arg( "state", ValueKind::Text, cRequired ), Arg( "name", ValueKind::Text, cRequired ) }, RunRenameState ) );
+    operators.Add( GraphOperator(
+        "graph.set_events", "Set Events",
+        { Arg( "clip", ValueKind::Text, cRequired ),
+          // [ [time, name], ... ]: each a pair of a number and a text.
+          OperatorArg{ .mName = Declare( "events" ),
+                       .mType = ValueType::ListOf( ValueType::ListOf( ValueType::Of( ValueKind::Any ) ) ),
+                       .mRequired = cRequired } },
+        RunSetEvents ) );
     operators.Add(
         GraphOperator( "graph.rename_parameter", "Rename Parameter",
                        { Arg( "parameter", ValueKind::Text, cRequired ), Arg( "name", ValueKind::Text, cRequired ) },

@@ -654,6 +654,67 @@ void Inspector::ImportSetting( const string& path, const struct ImportSetting& s
     Shown( "import." + setting.mName );
 }
 
+void Inspector::ClipEvents( const Json& data, const string& clip )
+{
+    // As the graph keeps them: [ [time, name], ... ] under the clip's name.
+    vector<pair<f64, string>> events;
+    if ( const auto allMaybe = TryMember( data, "events" ) )
+        if ( const auto listMaybe = TryMember( *allMaybe, clip ); listMaybe and listMaybe->TryAs<Json::Array>() )
+            for ( const Json& event : *listMaybe->TryAs<Json::Array>() )
+                if ( const auto pairMaybe = event.TryAs<Json::Array>(); pairMaybe and pairMaybe->size() == 2 )
+                    events.emplace_back( ( *pairMaybe )[0].TryAs<f64>() ? *( *pairMaybe )[0].TryAs<f64>() : 0.0,
+                                         ( *pairMaybe )[1].TryAs<string>() ? *( *pairMaybe )[1].TryAs<string>()
+                                                                           : string() );
+    const auto set = [&]( const vector<pair<f64, string>>& to ) {
+        Value::List list;
+        for ( const auto& [time, name] : to )
+            list.push_back( Value( Value::List{ Value( time ), TextValue( name ) } ) );
+        Run( "graph.set_events", Args( { ValueField{ .mName = "clip"_n, .mValue = TextValue( clip ) },
+                                         ValueField{ .mName = "events"_n, .mValue = Value( std::move( list ) ) } } ) );
+    };
+    for ( size_t at = 0; at < events.size(); ++at )
+    {
+        const string where = format( "events.{}[{}]", clip, at + 1 );
+        ImGui::PushID( where.c_str() );
+        RowLabel( at == 0 ? "Events" : "" );
+        f32 time = static_cast<f32>( events[at].first );
+        ImGui::SetNextItemWidth( ImGui::GetFontSize() * 4.0f );
+        bool changed = ImGui::DragFloat( "##time", &time, 0.005f, 0.0f, 1.0f, "%.3f" );
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Where in the clip, a share of it from 0 to 1" );
+        Shown( where + ".time" );
+        ImGui::SameLine();
+        string name = events[at].second;
+        ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 2.0f );
+        ImGui::InputTextWithHint( "##name", "on_animation_event's name", &name );
+        const bool named = ImGui::IsItemDeactivatedAfterEdit() and not name.empty();
+        ImGui::SameLine();
+        const bool removed = ImGui::SmallButton( "x" );
+        if ( changed or named )
+        {
+            vector<pair<f64, string>> edited = events;
+            edited[at] = { clamp( static_cast<f64>( time ), 0.0, 1.0 ), name };
+            set( edited );
+        }
+        else if ( removed )
+        {
+            vector<pair<f64, string>> edited = events;
+            edited.erase( edited.begin() + static_cast<ptrdiff_t>( at ) );
+            set( edited );
+        }
+        Hold( changed );
+        ImGui::PopID();
+    }
+    RowLabel( events.empty() ? "Events" : "" );
+    if ( ImGui::SmallButton( "Add Event" ) )
+    {
+        vector<pair<f64, string>> edited = events;
+        edited.emplace_back( 0.5, "event" );
+        set( edited );
+    }
+    Shown( "events." + clip + ".add" );
+}
+
 bool Inspector::ClipField( const char* id, string& clip )
 {
     if ( not ImGui::BeginCombo( id, clip.empty() ? "choose a clip" : clip.c_str() ) )
@@ -888,6 +949,8 @@ void Inspector::GraphState( const Json& data, const string& name, GraphView& vie
             DataSet( base + ".clip", TextValue( clip ) );
         Shown( base + ".clip" );
         Hold( changed );
+        if ( not clipMaybe->empty() )
+            ClipEvents( data, *clipMaybe );
     }
     if ( blendMaybe )
     {

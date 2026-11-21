@@ -241,3 +241,19 @@ TEST_CASE( "While a game plays, the canvas lights the state an animator of its g
     ui.Frame();
     CHECK( ui.View().LiveState().empty() );
 }
+
+TEST_CASE( "A state that plays a clip shows the clip's events, added and taken out from the inspector" )
+{
+    Ui ui;
+    REQUIRE(
+        ui.mProject->Run( "data.set", *Json::TryParse( R"({ "path": "states.fall.clip", "value": "Fall_Loop" })" ) ) );
+    ui.View().Select( "fall" );
+    ui.Frame();
+    ui.Frame();
+    const auto addMaybe = ui.mInspector->TryWhere( "events.Fall_Loop.add" );
+    REQUIRE( addMaybe );
+    ui.Click( *addMaybe );
+    CHECK( ui.At( "events" ) == R"({"Fall_Loop":[[0.5,"event"]]})" );
+    ui.Frame();
+    REQUIRE( ui.mInspector->TryWhere( "events.Fall_Loop[1].time" ) );
+}

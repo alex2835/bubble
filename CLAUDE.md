@@ -243,7 +243,8 @@ projects/editing/include/bubble/editing/
                               open as its JSON with a history of its own, active instead of any scene - what is
                               taken out comes back in its place -; data.set, data.remove in data_operators.cpp;
                               graph.add_state, remove_state, rename_state - what names it follows -,
-                              rename_parameter - its conditions, blends and speeds too -, add_transition,
+                              rename_parameter - its conditions, blends and speeds too -, set_events - a clip's
+                              events whole, under the clip's own name -, add_transition,
                               remove_transition, place in graph_operators.cpp; saved, undone, closed as a scene's
                               are); prefab
                               documents (.prefab, node ids

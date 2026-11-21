@@ -216,3 +216,24 @@ TEST_CASE( "A parameter renamed is renamed where it stands and wherever the grap
            "name: 'Fast' is not a parameter's name: a name is snake_case - a lowercase letter, then lowercase "
            "letters, digits and _" );
 }
+
+TEST_CASE( "A clip's events are set whole under the clip's own name, and go with the last of them" )
+{
+    Fixture f;
+    REQUIRE( f.Run( "graph.set_events",
+                    R"({ "clip": "Walk_Cycle", "events": [ [ 0.25, "step_left" ], [ 0.75, "step_right" ] ] })" ) );
+    CHECK( f.At( "events" ) == R"({"Walk_Cycle":[[0.25,"step_left"],[0.75,"step_right"]]})" );
+    REQUIRE( f.Run( "graph.set_events", R"({ "clip": "jump", "events": [ [ 0, "lift" ] ] })" ) );
+    REQUIRE( f.Run( "graph.set_events", R"({ "clip": "Walk_Cycle", "events": [ [ 0.5, "step" ] ] })" ) );
+    CHECK( f.At( "events" ) == R"({"Walk_Cycle":[[0.5,"step"]],"jump":[[0,"lift"]]})" );
+    // Read by the engine as written.
+    CHECK( f.States() == vector<string>{ "idle", "fall", "land" } );
+
+    REQUIRE( f.Run( "graph.set_events", R"({ "clip": "Walk_Cycle", "events": [] })" ) );
+    REQUIRE( f.Run( "graph.set_events", R"({ "clip": "jump", "events": [] })" ) );
+    CHECK( f.At( "events" ) == "-" );
+    REQUIRE( f.Run( "edit.undo" ) );
+    CHECK( f.At( "events" ) == R"({"jump":[[0,"lift"]]})" );
+    CHECK( f.Why( "graph.set_events", R"({ "clip": "jump", "events": [ [ 1.5, "late" ] ] })" ) ==
+           "events[1]: an event is [time, name], its time a share of the clip from 0 to 1" );
+}
