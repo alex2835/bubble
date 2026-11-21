@@ -183,7 +183,7 @@ void Editor::Frame( f64 elapsed )
             {
                 playMaybe->SetScreen( mViewport.Corner(), mViewport.Size() );
                 // Below, out of the way of the game's own UI.
-                if ( not mGameInput )
+                if ( not mGameInput and mViewport.ShowsGame() )
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2( mViewport.Corner().x + 8,
                                 mViewport.Corner().y + mViewport.Size().y - ImGui::GetFontSize() - 6 ),
@@ -314,7 +314,8 @@ void Editor::GameInput()
 {
     const auto playMaybe = mProject.TryPlaying();
     const auto shownMaybe = mProject.GetWorkspace().TryShownScene();
-    const bool gameInput = playMaybe and shownMaybe and &*shownMaybe == &playMaybe->Played() and not mReleased;
+    const bool gameInput =
+        playMaybe and shownMaybe and &*shownMaybe == &playMaybe->Played() and mViewport.ShowsGame() and not mReleased;
     // Turned away, the game lets go of what was held: nothing stays down.
     if ( mGameInput and not gameInput and playMaybe )
         playMaybe->Release();

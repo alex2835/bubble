@@ -283,7 +283,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               E, R, X; one history group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
                               the world's debug lines; every light and camera marked - Icons -; the scene's UI over
                               the picture, laid out for it; the floor's grid - FloorGrid, faded far off -; a game played
-                              shown through its camera with its UI, only looked at; Decompose),
+                              shown through its camera with its UI, only looked at, or looked around in with the
+                              editor's camera - Free Camera, ShowsGame -; Decompose),
                               ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
                               ctrl and shift, the arrows, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is

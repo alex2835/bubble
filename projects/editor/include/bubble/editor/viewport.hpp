@@ -100,6 +100,8 @@ public:
     // Where the picture was last shown, in ImGui's units - the window's.
     vec2 Corner() const { return mCorner; }
     vec2 Size() const { return mSize; }
+    // A game shown through its own camera, as last shown: what has its input.
+    bool ShowsGame() const { return mPlayed; }
 
 private:
     struct UiBoxShown
@@ -150,8 +152,11 @@ private:
     // The scene's UI the same way: its canvases laid out for the picture.
     bool mUi = true;
     bool mUiShown = false;
-    // A game played is shown: through its camera, its UI over it.
+    // A game played is shown - through its camera, its UI over it - unless
+    // looked around in with the editor's camera.
+    bool mGamePlayed = false;
     bool mPlayed = false;
+    bool mFreeCamera = false;
     vec2 mCorner{ 0.0f };
     vec2 mSize{ 0.0f };
     // Where the camera was when last shown.

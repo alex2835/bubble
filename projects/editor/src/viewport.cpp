@@ -469,17 +469,27 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     const ImVec2 corner = ImGui::GetCursorScreenPos();
     mCorner = vec2( corner.x, corner.y );
     mSize = vec2( area.x, area.y );
-    mPlayed = documentMaybe and documentMaybe->IsPlayed();
+    mGamePlayed = documentMaybe and documentMaybe->IsPlayed();
+    // A game is seen through its camera, or looked around in with the
+    // editor's - picked in, moved - as a scene is.
+    mPlayed = mGamePlayed and not mFreeCamera;
     if ( mPlayed )
     {
-        // The game's: a click gives the panel the focus, and the game the
-        // input; nothing here is picked or moved.
+        // The game's: a click gives the game the input; nothing here is
+        // picked or moved.
+        ImGui::SetNextItemAllowOverlap();
         ImGui::InvisibleButton( "picture", area,
                                 ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
                                     ImGuiButtonFlags_MouseButtonMiddle );
         ImGui::GetWindowDrawList()->AddImage( ImGuiRenderer::TextureId( mPicture.View() ), corner,
                                               ImVec2( corner.x + area.x, corner.y + area.y ) );
         mGridShown = false;
+        const char* label = "Free Camera";
+        ImGui::SetCursorScreenPos( ImVec2( corner.x + area.x - ImGui::CalcTextSize( label ).x - 16, corner.y + 6 ) );
+        if ( ImGui::SmallButton( label ) )
+            mFreeCamera = true;
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Look around the game with the editor's camera, pick in it, move what is picked" );
         return;
     }
     if ( ImGuizmo::IsUsing() or ImGuizmo::IsOver() )
@@ -646,6 +656,14 @@ void Viewport::Tools()
     toggle( "Grid", mGrid, "The floor's grid" );
     ImGui::SameLine();
     toggle( "UI", mUi, "The scene's UI: its screen canvases over the picture, as the game shows them" );
+    if ( mGamePlayed )
+    {
+        ImGui::SameLine();
+        if ( ImGui::SmallButton( "Game Camera" ) )
+            mFreeCamera = false;
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Back to the game's own camera, the game's input with it" );
+    }
 }
 
 void Viewport::Keys( Document& document, EditorCamera& camera )
