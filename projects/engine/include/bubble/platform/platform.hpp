@@ -5,6 +5,7 @@
 #include "bubble/types/filesystem.hpp"
 #include "bubble/types/function.hpp"
 #include "bubble/types/pointer.hpp"
+#include "bubble/types/utility.hpp"
 
 struct SDL_Cursor;
 struct SDL_Gamepad;
@@ -65,6 +66,9 @@ public:
     span<const InputEvent> Poll();
     // The last window was closed, or the system asked the game to end.
     bool QuitRequested() const { return mQuitRequested; }
+    // The same, taken: asked again only when asked again - an editor that
+    // asks about what is not saved, and may stay.
+    bool TakeQuitRequest() { return exchange( mQuitRequested, false ); }
 
     // The pointer over the windows from now on.
     void SetCursor( Cursor cursor );

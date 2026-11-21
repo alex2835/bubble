@@ -206,6 +206,7 @@ void Editor::Frame( f64 elapsed )
         mInspector.Inspect( std::move( *pickedMaybe ) );
     UnsavedChanges();
     SaveAs();
+    QuitDialog();
     GameInput();
     // A game that asked to quit is stopped, between frames.
     if ( const auto quitMaybe = mProject.TryPlaying(); quitMaybe and quitMaybe->GetWorld().Get<Game>().QuitAsked() )
@@ -277,7 +278,7 @@ void Editor::Menu()
             mAskSaveAs = true;
         ImGui::Separator();
         if ( ImGui::MenuItem( "Quit" ) )
-            mQuitAsked = true;
+            mQuitWanted = true;
         ImGui::EndMenu();
     }
     if ( ImGui::BeginMenu( "Edit" ) )
@@ -600,6 +601,77 @@ void Editor::SaveAs()
         if ( mProject.Run( "document.save",
                            Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( mSaveAsPath ) } } ) ) )
             ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button( "Cancel" ) or ImGui::IsKeyPressed( ImGuiKey_Escape ) )
+        ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+}
+
+void Editor::QuitDialog()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    // What would be lost: levels and prefabs - not a game's copy -, then
+    // materials and graphs.
+    const auto unsaved = [&] {
+        vector<string> names;
+        for ( const Scope<Document>& document : workspace.All() )
+            if ( document->IsDirty() and not document->IsPlayed() )
+                names.push_back( document->TryPath() ? string( document->TryPath()->View() ) : "untitled"s );
+        for ( const Scope<DataDocument>& document : workspace.AllData() )
+            if ( document->IsDirty() )
+                names.emplace_back( document->GetPath().View() );
+        return names;
+    };
+    if ( mQuitWanted )
+    {
+        mQuitWanted = false;
+        if ( unsaved().empty() )
+        {
+            mQuitAsked = true;
+            return;
+        }
+        ImGui::OpenPopup( "Quit" );
+    }
+    if ( not ImGui::BeginPopupModal( "Quit", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
+        return;
+    const vector<string> names = unsaved();
+    ImGui::TextUnformatted( "These have changes that are not saved:" );
+    for ( const string& name : names )
+        ImGui::BulletText( "%s", name.c_str() );
+    if ( ImGui::Button( "Save All and Quit" ) )
+    {
+        // Each made active and saved; one that cannot be - a level with no
+        // file yet - keeps the editor open, the log saying why.
+        bool saved = true;
+        const auto save = [&]( auto& document ) {
+            if ( not document->IsDirty() )
+                return;
+            workspace.Activate( *document );
+            saved = mProject.Run( "document.save" ) and saved;
+        };
+        vector<Document*> scenes;
+        for ( const Scope<Document>& document : workspace.All() )
+            if ( not document->IsPlayed() )
+                scenes.push_back( document.get() );
+        vector<DataDocument*> data;
+        for ( const Scope<DataDocument>& document : workspace.AllData() )
+            data.push_back( document.get() );
+        for ( Document* document : scenes )
+            save( document );
+        for ( DataDocument* document : data )
+            save( document );
+        if ( saved )
+        {
+            mQuitAsked = true;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button( "Quit Without Saving" ) )
+    {
+        mQuitAsked = true;
+        ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
     if ( ImGui::Button( "Cancel" ) or ImGui::IsKeyPressed( ImGuiKey_Escape ) )

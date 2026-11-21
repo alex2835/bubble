@@ -55,7 +55,10 @@ public:
     // Whether the game wants the cursor held - a camera turned by the mouse -
     // and has the input to hold it with.
     bool CursorLocked();
-    // Quit was picked.
+    // To quit - Quit picked, the window closed -: at once when nothing is
+    // left not saved, after asking when something is.
+    void AskToQuit() { mQuitWanted = true; }
+    // Quit for good: nothing not saved, or the user said so.
     bool QuitAsked() const { return mQuitAsked; }
     Viewport& GetViewport() { return mViewport; }
 
@@ -78,6 +81,8 @@ private:
     // the viewport, with the other ones.
     void DockAssetWindows();
     void UnsavedChanges();
+    // Quitting with documents not saved: save them all, lose them, or stay.
+    void QuitDialog();
     // The active document saved to a path asked for: "Save As", and a save
     // of one that has no file yet.
     void SaveAs();
@@ -120,5 +125,6 @@ private:
     f64 mSinceRefresh = 0;
     bool mLaidOut = false;
     bool mQuitAsked = false;
+    bool mQuitWanted = false;
 };
 }

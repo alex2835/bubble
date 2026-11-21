@@ -164,6 +164,13 @@ int main( int argc, char** argv )
             if ( drawing.mEditor )
                 drawing.mEditor->Handle( event );
         }
+        // The window closed: the editor asks about what is not saved first.
+        if ( platform.TakeQuitRequest() )
+        {
+            if ( not drawing.mEditor )
+                return false;
+            drawing.mEditor->AskToQuit();
+        }
         if ( not drawing.mGpu )
         {
             auto finishedMaybe = startup->TryFinish();
@@ -223,7 +230,7 @@ int main( int argc, char** argv )
             this_thread::sleep_for( chrono::milliseconds( 10 ) );
         if ( arguments.mFrames and framesDrawn >= *arguments.mFrames )
             return false;
-        return not platform.QuitRequested() and not drawing.mEditor->QuitAsked();
+        return not drawing.mEditor->QuitAsked();
     } );
     return exitCode;
 }

@@ -104,7 +104,7 @@ projects/engine/include/bubble/
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents - TextInput among
                               them -, gamepads opened as they come, QuitRequested, Run - a loop, or the browser's
                               frames, SetCursor - the pointer's shape -, the clipboard's text, TryOpen - a file the
-                              system's way -), Window (the cursor
+                              system's way -; TakeQuitRequest, for an editor that asks first), Window (the cursor
                               held for a camera: SetCursorLocked; SetTextInput)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
@@ -312,7 +312,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               beside the viewport the first time; the inspector, undo and save follow the document
                               turned to last; the assets, the log; Play, Pause, Step, Stop on the menu's bar - Ctrl+P
                               -, the game's input - Handle - and held cursor while it has the viewport, Shift+F1 or a
-                              click elsewhere taking them back; operators alone change anything). main.cpp is
+                              click elsewhere taking them back; quitting with documents not saved asks - save all,
+                              lose them, stay -; operators alone change anything). main.cpp is
                               bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot
                               file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini
