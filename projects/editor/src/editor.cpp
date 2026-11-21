@@ -182,13 +182,16 @@ void Editor::Frame( f64 elapsed )
             if ( playMaybe and &playMaybe->View() == &*shownMaybe )
             {
                 playMaybe->SetScreen( mViewport.Corner(), mViewport.Size() );
-                // Below, out of the way of the game's own UI.
-                if ( not mGameInput and mViewport.ShowsGame() )
+                // Below, out of the way of the game's own UI: how the input
+                // goes to the game and comes back - a held cursor shows no
+                // way out of itself.
+                if ( mViewport.ShowsGame() )
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2( mViewport.Corner().x + 8,
                                 mViewport.Corner().y + mViewport.Size().y - ImGui::GetFontSize() - 6 ),
-                        IM_COL32( 255, 255, 255, 220 ),
-                        "Click to give the game the mouse and the keys; Shift+F1 takes them back" );
+                        IM_COL32( 255, 255, 255, mGameInput ? 140 : 220 ),
+                        mGameInput ? "Shift+F1 takes the mouse and the keys back from the game; Ctrl+P stops it"
+                                   : "Click to give the game the mouse and the keys; Shift+F1 takes them back" );
             }
         }
         else
