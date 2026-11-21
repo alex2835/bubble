@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/editor/editor_project.hpp"
+#include <imgui.h>
 
 namespace bubble
 {
@@ -39,6 +40,10 @@ public:
     opt<vec2> TryWhere( string_view path ) const;
     // The file a click picked since the last ask: what the inspector shows.
     opt<string> TakePicked();
+    // What draws a texture's file small beside its name: its picture as
+    // ImGui takes one, nothing while it loads - or for no texture.
+    using Thumbnail = function<opt<ImTextureID>( const AssetPath& path )>;
+    void SetThumbnail( Thumbnail thumbnail ) { mThumbnail = std::move( thumbnail ); }
     // A folder named `name` in the one shown, shown from now on: the
     // panel's until a file goes in. A name with a slash, or starting with a
     // dot, makes none.
@@ -71,6 +76,7 @@ private:
     string mNewName;
     bool mRenameStarted = false;
     string mDeleting;
+    Thumbnail mThumbnail;
     // Folders made here, kept until a file goes in and the disk has them.
     vector<string> mMadeFolders;
     string mNewFolder;

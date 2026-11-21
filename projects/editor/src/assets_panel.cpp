@@ -1,5 +1,6 @@
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/assets/model_asset.hpp"
+#include "bubble/assets/texture_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -283,6 +284,16 @@ void AssetsPanel::FileRow( const string& path )
     else
     {
         const auto errorMaybe = mProject.TryErrorOf( assetPath );
+        // A texture's picture, small, before its name.
+        if ( mThumbnail and mProject.Makes( assetPath, cTextureKind ) )
+        {
+            const f32 side = ImGui::GetTextLineHeight();
+            if ( const auto pictureMaybe = mThumbnail( assetPath ) )
+                ImGui::Image( ImTextureRef( *pictureMaybe ), ImVec2( side, side ) );
+            else
+                ImGui::Dummy( ImVec2( side, side ) );
+            ImGui::SameLine();
+        }
         if ( errorMaybe )
             ImGui::PushStyleColor( ImGuiCol_Text, cBroken );
         if ( ImGui::Selectable( NameOf( path ).c_str(), mSelected == path,

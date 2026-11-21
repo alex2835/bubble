@@ -1,6 +1,7 @@
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/editor_font.hpp"
 #include "bubble/editor/graph_view.hpp"
+#include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/panel.hpp"
 #include "bubble/editor/play_session.hpp"
@@ -45,6 +46,22 @@ Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<v
       mAssets( project, std::move( open ) ),
       mViewport( project, gpu, renderer )
 {
+    // A texture's file shown small: loaded the first time it is shown, its
+    // GPU copy the renderer's.
+    mAssets.SetThumbnail( [this]( const AssetPath& path ) -> opt<ImTextureID> {
+        auto found = mThumbnails.find( path.String() );
+        if ( found == mThumbnails.end() )
+        {
+            const auto idMaybe = mProject.GetCatalog().TryIdOf( path );
+            if ( not idMaybe )
+                return nullopt;
+            found = mThumbnails.emplace( path.String(), mProject.GetAssets().Load<TextureAsset>( *idMaybe ) ).first;
+        }
+        const auto textureMaybe = mRenderer.Assets().TryTexture( found->second );
+        if ( not textureMaybe )
+            return nullopt;
+        return ImGuiRenderer::TextureId( textureMaybe->View() );
+    } );
 }
 
 void Editor::SetUpImGui( f32 scale )

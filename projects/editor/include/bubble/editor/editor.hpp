@@ -1,4 +1,5 @@
 #pragma once
+#include "bubble/assets/texture_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/document_world.hpp"
@@ -113,6 +114,8 @@ private:
     // Data documents' windows not shown this frame: waiting for the viewport
     // to be docked beside.
     hset<string> mHeld;
+    // The textures the assets panel shows small, held while the editor is.
+    hmap<string, AssetRef<TextureAsset>> mThumbnails;
     string mSaveAsPath;
     bool mAskSaveAs = false;
     bool mAskUnsaved = false;

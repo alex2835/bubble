@@ -12,6 +12,7 @@
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/scripts/script_module.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/world/transform.hpp"
 #include <doctest.h>
 
@@ -275,4 +276,17 @@ TEST_CASE( "A folder made in the panel is shown empty and gone into; a new asset
     CHECK( ui.mAssets->TryWhere( "effects/" ) );
     REQUIRE( ui.mProject->Run( "asset.create", *Json::TryParse( R"({ "path": "effects/smoke.mat" })" ) ) );
     CHECK( ui.mFiles.contains( "effects/smoke.mat" ) );
+}
+
+TEST_CASE( "A texture's file is shown with its picture, small, as the editor hands it over" )
+{
+    Ui ui;
+    vector<string> asked;
+    ui.mAssets->SetThumbnail( [&]( const AssetPath& path ) -> opt<ImTextureID> {
+        asked.emplace_back( path.View() );
+        return nullopt;
+    } );
+    ui.Frame();
+    CHECK( ranges::contains( asked, "sky.png"s ) );
+    CHECK_FALSE( ranges::contains( asked, "glow.luau"s ) );
 }
