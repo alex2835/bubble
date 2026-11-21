@@ -574,6 +574,7 @@ void AddBuiltinOperators( Operators& operators )
     AddPrefabOperators( operators );
     AddAssetOperators( operators );
     AddDataOperators( operators );
+    AddGraphOperators( operators );
     operators.Add( Operator{ .mId = "selection.set",
                              .mLabel = "Select",
                              .mArgs = { Entities( cRequired ) },

@@ -61,12 +61,14 @@ public:
 
 private:
     // One value changed: what was at the path and what is, nothing for
-    // absent.
+    // absent; where it stood among its object's members or its array's
+    // elements, so that one taken out comes back there and not at the end.
     struct Change
     {
         FieldPath mPath;
         opt<Json> mBefore;
         opt<Json> mAfter;
+        opt<size_t> mPlace;
     };
 
     struct Step
@@ -78,8 +80,13 @@ private:
 
     expected<void, string> TryChange( const FieldPath& path, opt<Json> value, string label );
     // `value` put at `path` - or what is there taken out, for nothing -
-    // with no history.
-    expected<void, string> TryPut( const FieldPath& path, const opt<Json>& value );
+    // with no history. With a place, a value not there comes in at that
+    // place among the members or elements: one taken out, put back.
+    expected<void, string> TryPut( const FieldPath& path, const opt<Json>& value, opt<size_t> place = nullopt );
+    // Where what is at `path` stands in what holds it.
+    opt<size_t> TryPlaceOf( const FieldPath& path ) const;
+    // A change taken back.
+    void TakeBack( const Change& change );
     void Push( Step step );
     u64 Position() const { return mUndo.empty() ? 0 : mUndo.back().mId; }
 

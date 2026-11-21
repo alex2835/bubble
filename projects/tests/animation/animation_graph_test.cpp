@@ -119,6 +119,14 @@ TEST_CASE( "An animation graph that is wrong says where and what" )
                .ends_with( "events.a is [ [time, name], ... ] with times from 0 to 1" ) );
     CHECK( error( R"({ "parameters": { "p": "yes" }, "states": { "a": {} } })" ) ==
            "1:24: parameters.p: a number, true or false, or \"trigger\", not \"yes\"" );
+    CHECK( error( R"({ "parameters": { "Speed": 0 }, "states": { "a": {} } })" ) ==
+           "1:28: parameters.Speed: a name is snake_case - a lowercase letter, then lowercase letters, digits and _" );
+    CHECK( error( R"({ "states": { "run fast": {} } })" )
+               .ends_with( "states.run fast: a name is snake_case - a "
+                           "lowercase letter, then lowercase letters, digits "
+                           "and _" ) );
+    CHECK( error( R"({ "states": { "return": {} } })" ) ==
+           "1:25: states.return: return is where a transition goes back to, not a state" );
 }
 
 TEST_CASE( "A blend plays the two points either side of its value, the nearest end alone outside them" )

@@ -52,6 +52,25 @@ struct Fixture
 };
 }
 
+TEST_CASE( "A member or an element taken out comes back where it stood when undone" )
+{
+    Fixture f;
+    REQUIRE( f.Run( "data.set", R"({ "path": "params.metallic", "value": 1 })" ) );
+    REQUIRE( f.Run( "data.set", R"({ "path": "list", "value": [ 1, 2, 3 ] })" ) );
+    REQUIRE( f.Run( "data.remove", R"({ "path": "params.roughness" })" ) );
+    REQUIRE( f.Run( "data.remove", R"({ "path": "list[2]" })" ) );
+    CHECK( f.At( "list" ).find( "2" ) == string::npos );
+    REQUIRE( f.Run( "edit.undo" ) );
+    REQUIRE( f.Run( "edit.undo" ) );
+    const auto params = f.Data().TryAt( *FieldPath::TryParse( "params" ) )->TryAs<Json::Object>();
+    REQUIRE( params->size() == 2 );
+    CHECK( ( *params )[0].mKey == "roughness" );
+    const auto list = f.Data().TryAt( *FieldPath::TryParse( "list" ) )->TryAs<Json::Array>();
+    REQUIRE( list->size() == 3 );
+    CHECK( *( *list )[1].TryAs<f64>() == 2.0 );
+    CHECK( *( *list )[2].TryAs<f64>() == 3.0 );
+}
+
 TEST_CASE( "A material opens as a data document, active instead of any scene, its values set and undone" )
 {
     Fixture f;

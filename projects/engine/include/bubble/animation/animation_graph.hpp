@@ -32,6 +32,9 @@ namespace bubble
 //     "events": { "walk": [ [0.25, "step"], [0.75, "step"] ] }
 //   }
 //
+// States and parameters are named in snake_case, as a script names them;
+// no state is called "return".
+//
 // A parameter is a number, true or false, or "trigger": a bool a script
 // sets and the graph clears - the transition it fires takes it, and one
 // nothing took is gone at the end of the step: a queued attack does not go

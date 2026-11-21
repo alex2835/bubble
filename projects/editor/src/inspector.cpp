@@ -1,5 +1,7 @@
 #include "bubble/editor/inspector.hpp"
+#include "bubble/animation/animation_graph.hpp"
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/scene/hierarchy.hpp"
@@ -203,8 +205,8 @@ void Inspector::Show()
     {
         if ( dataMaybe->GetPath().View().ends_with( ".mat" ) )
             Material( *dataMaybe );
-        else
-            ImGui::TextDisabled( "An animation graph: its editor comes with step 6c" );
+        else if ( dataMaybe->GetPath().View().ends_with( ".anim" ) )
+            Graph( *dataMaybe );
         RunPending();
         return;
     }
@@ -345,6 +347,452 @@ void Inspector::Material( DataDocument& document )
         ImGui::TextDisabled( "not in the shader" );
         Shown( path );
     }
+    ImGui::EndTable();
+}
+
+namespace
+{
+OptRef<const Json> TryMember( const Json& json, string_view key )
+{
+    return json.TryAs<Json::Object>() ? json.TryFind( key ) : nullopt;
+}
+
+opt<string> TryTextAt( const Json& json, string_view key )
+{
+    const auto memberMaybe = TryMember( json, key );
+    return memberMaybe and memberMaybe->TryAs<string>() ? opt<string>( *memberMaybe->TryAs<string>() ) : nullopt;
+}
+
+vector<string> MemberNames( const Json& json, string_view key )
+{
+    vector<string> names;
+    if ( const auto memberMaybe = TryMember( json, key ); memberMaybe and memberMaybe->TryAs<Json::Object>() )
+        for ( const Json::Member& member : *memberMaybe->TryAs<Json::Object>() )
+            names.push_back( member.mKey );
+    return names;
+}
+
+// The parameters that hold numbers: what a blend or a speed reads.
+vector<string> NumberParameters( const Json& data )
+{
+    vector<string> names;
+    if ( const auto parametersMaybe = TryMember( data, "parameters" );
+         parametersMaybe and parametersMaybe->TryAs<Json::Object>() )
+        for ( const Json::Member& member : *parametersMaybe->TryAs<Json::Object>() )
+            if ( member.mValue.TryAs<f64>() )
+                names.push_back( member.mKey );
+    return names;
+}
+
+// A transition's conditions, one or a list in the file.
+vector<string> ConditionsOf( const Json& transition )
+{
+    vector<string> conditions;
+    if ( const auto whenMaybe = TryMember( transition, "when" ) )
+    {
+        if ( const auto oneMaybe = whenMaybe->TryAs<string>() )
+            conditions.push_back( *oneMaybe );
+        else if ( const auto listMaybe = whenMaybe->TryAs<Json::Array>() )
+            for ( const Json& condition : *listMaybe )
+                if ( condition.TryAs<string>() )
+                    conditions.push_back( *condition.TryAs<string>() );
+    }
+    return conditions;
+}
+
+Value ConditionsValue( const vector<string>& conditions )
+{
+    if ( conditions.size() == 1 )
+        return TextValue( conditions.front() );
+    Value::List list;
+    for ( const string& condition : conditions )
+        list.push_back( TextValue( condition ) );
+    return Value( std::move( list ) );
+}
+
+bool TableOfFields( const char* id )
+{
+    if ( not ImGui::BeginTable( id, 2, ImGuiTableFlags_Resizable ) )
+        return false;
+    ImGui::TableSetupColumn( "field", ImGuiTableColumnFlags_WidthStretch, 0.4f );
+    ImGui::TableSetupColumn( "value", ImGuiTableColumnFlags_WidthStretch, 0.6f );
+    return true;
+}
+}
+
+void Inspector::RowLabel( const char* label )
+{
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted( label );
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth( -1.0f );
+}
+
+void Inspector::Graph( DataDocument& document )
+{
+    GraphView& view = GraphViewOf( mProject, document );
+    const Json& data = document.GetData();
+    ImGui::TextUnformatted( document.GetPath().String().c_str() );
+    if ( const auto graphMaybe = TryParseAnimationGraph( data.Write() ); not graphMaybe )
+    {
+        ImGui::PushStyleColor( ImGuiCol_Text, cError );
+        ImGui::TextWrapped( "%s: %s", document.GetPath().String().c_str(), graphMaybe.error().c_str() );
+        ImGui::PopStyleColor();
+    }
+    const vector<string> states = MemberNames( data, "states" );
+    if ( TableOfFields( "graph" ) )
+    {
+        RowLabel( "Entry" );
+        const string entry = TryTextAt( data, "entry" ).value_or( states.empty() ? string() : states.front() );
+        if ( ImGui::BeginCombo( "##entry", entry.c_str() ) )
+        {
+            for ( const string& state : states )
+                if ( ImGui::Selectable( state.c_str(), state == entry ) and state != entry )
+                    DataSet( "entry", TextValue( state ) );
+            ImGui::EndCombo();
+        }
+        Shown( "entry" );
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText( "Parameters" );
+    GraphParameters( data );
+    if ( const string& state = view.SelectedState(); not state.empty() and ranges::contains( states, state ) )
+    {
+        ImGui::SeparatorText( "State" );
+        GraphState( data, state, view );
+    }
+    else if ( const auto transitionMaybe = view.SelectedTransition() )
+    {
+        ImGui::SeparatorText( "Transition" );
+        GraphTransition( data, *transitionMaybe );
+    }
+    else
+        ImGui::TextDisabled( "Select a state or a transition on the graph" );
+}
+
+void Inspector::GraphParameters( const Json& data )
+{
+    const auto parametersMaybe = TryMember( data, "parameters" );
+    const auto objectMaybe = parametersMaybe ? parametersMaybe->TryAs<Json::Object>() : nullopt;
+    if ( objectMaybe and not objectMaybe->empty() and TableOfFields( "parameters" ) )
+    {
+        for ( const Json::Member& member : *objectMaybe )
+        {
+            const string path = "parameters." + member.mKey;
+            ImGui::PushID( path.c_str() );
+            RowLabel( member.mKey.c_str() );
+            constexpr array<const char*, 3> cKinds{ "number", "bool", "trigger" };
+            const int kind = member.mValue.TryAs<f64>() ? 0 : member.mValue.TryAs<bool>() ? 1 : 2;
+            ImGui::SetNextItemWidth( ImGui::GetFontSize() * 5.0f );
+            if ( ImGui::BeginCombo( "##kind", cKinds[static_cast<size_t>( kind )] ) )
+            {
+                const array<Value, 3> defaults{ Value( 0.0 ), Value( false ), TextValue( "trigger" ) };
+                for ( size_t at = 0; at < cKinds.size(); ++at )
+                    if ( ImGui::Selectable( cKinds[at], static_cast<int>( at ) == kind ) and
+                         static_cast<int>( at ) != kind )
+                        DataSet( path, defaults[at] );
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            bool changed = false;
+            if ( const auto numberMaybe = member.mValue.TryAs<f64>() )
+            {
+                f32 number = static_cast<f32>( *numberMaybe );
+                ImGui::SetNextItemWidth( ImGui::GetFontSize() * 5.0f );
+                if ( ( changed = ImGui::DragFloat( "##value", &number, 0.01f, 0, 0, "%.3f" ) ) )
+                    DataSet( path, Value( static_cast<f64>( number ) ) );
+            }
+            else if ( const auto onMaybe = member.mValue.TryAs<bool>() )
+            {
+                bool on = *onMaybe;
+                if ( ( changed = ImGui::Checkbox( "##value", &on ) ) )
+                    DataSet( path, Value( on ) );
+            }
+            else
+                ImGui::TextDisabled( "set by a script" );
+            Shown( path );
+            Hold( changed );
+            ImGui::SameLine();
+            if ( ImGui::SmallButton( "x" ) )
+                DataRemove( path );
+            if ( ImGui::IsItemHovered() )
+                ImGui::SetTooltip( "Remove the parameter" );
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    ImGui::SetNextItemWidth( ImGui::GetFontSize() * 10.0f );
+    ImGui::InputTextWithHint( "##new parameter", "new_parameter", &mNewParameter );
+    ImGui::SameLine();
+    const bool free =
+        detail::NameValid( mNewParameter ) and not ranges::contains( MemberNames( data, "parameters" ), mNewParameter );
+    ImGui::BeginDisabled( not free );
+    if ( ImGui::Button( "Add Parameter" ) )
+    {
+        DataSet( "parameters." + mNewParameter, Value( 0.0 ) );
+        mNewParameter.clear();
+    }
+    ImGui::EndDisabled();
+}
+
+void Inspector::GraphState( const Json& data, const string& name, GraphView& view )
+{
+    const Json& state = *TryMember( data, "states" )->TryFind( name );
+    const string base = "states." + name;
+    if ( not TableOfFields( "state" ) )
+        return;
+    // Renamed when the field is left: a rename rewrites what names it.
+    RowLabel( "Name" );
+    const ImGuiID field = ImGui::GetID( "##state name" );
+    if ( ImGui::GetActiveID() != field or mStateNamed != name )
+    {
+        mStateName = name;
+        mStateNamed = name;
+    }
+    ImGui::InputText( "##state name", &mStateName );
+    Shown( base );
+    if ( ImGui::IsItemDeactivatedAfterEdit() and mStateName != name and detail::NameValid( mStateName ) )
+    {
+        Run( "graph.rename_state", Args( { ValueField{ .mName = "state"_n, .mValue = TextValue( name ) },
+                                           ValueField{ .mName = "name"_n, .mValue = TextValue( mStateName ) } } ) );
+        view.Select( mStateName );
+    }
+
+    const auto clipMaybe = TryTextAt( state, "clip" );
+    const auto blendMaybe = TryMember( state, "blend" );
+    const vector<string> numbers = NumberParameters( data );
+    RowLabel( "Plays" );
+    constexpr array<const char*, 3> cPlays{ "rest pose", "a clip", "a blend" };
+    const size_t plays = blendMaybe ? 2 : clipMaybe ? 1 : 0;
+    if ( ImGui::BeginCombo( "##plays", cPlays[plays] ) )
+    {
+        for ( size_t at = 0; at < cPlays.size(); ++at )
+        {
+            // A blend goes along a number.
+            ImGui::BeginDisabled( at == 2 and numbers.empty() );
+            if ( ImGui::Selectable( cPlays[at], at == plays ) and at != plays )
+            {
+                mPendingStep = "Set Plays";
+                if ( clipMaybe )
+                    DataRemove( base + ".clip" );
+                if ( blendMaybe )
+                    DataRemove( base + ".blend" );
+                if ( at == 1 )
+                    DataSet( base + ".clip", TextValue( "" ) );
+                if ( at == 2 )
+                    DataSet(
+                        base + ".blend",
+                        Value( Value::Record{ ValueField{ .mName = "param"_n, .mValue = TextValue( numbers.front() ) },
+                                              ValueField{ .mName = "points"_n,
+                                                          .mValue = Value( Value::List{ Value( Value::List{
+                                                              TextValue( "" ), Value( 0.0 ) } ) } ) } } ) );
+            }
+            ImGui::EndDisabled();
+        }
+        ImGui::EndCombo();
+    }
+    Shown( base + ".plays" );
+    if ( clipMaybe )
+    {
+        RowLabel( "Clip" );
+        string clip = *clipMaybe;
+        const bool changed = ImGui::InputTextWithHint( "##clip", "as the model names it", &clip );
+        if ( changed )
+            DataSet( base + ".clip", TextValue( clip ) );
+        Shown( base + ".clip" );
+        Hold( changed );
+    }
+    if ( blendMaybe )
+    {
+        RowLabel( "Along" );
+        const string param = TryTextAt( *blendMaybe, "param" ).value_or( "" );
+        if ( ImGui::BeginCombo( "##along", param.c_str() ) )
+        {
+            for ( const string& number : numbers )
+                if ( ImGui::Selectable( number.c_str(), number == param ) and number != param )
+                    DataSet( base + ".blend.param", TextValue( number ) );
+            ImGui::EndCombo();
+        }
+        const auto pointsMaybe = TryMember( *blendMaybe, "points" );
+        const auto listMaybe = pointsMaybe ? pointsMaybe->TryAs<Json::Array>() : nullopt;
+        const size_t count = listMaybe ? listMaybe->size() : 0;
+        for ( size_t at = 0; at < count; ++at )
+        {
+            const auto pointMaybe = ( *listMaybe )[at].TryAs<Json::Array>();
+            if ( not pointMaybe or pointMaybe->size() != 2 )
+                continue;
+            const string point = format( "{}.blend.points[{}]", base, at + 1 );
+            ImGui::PushID( point.c_str() );
+            RowLabel( format( "Point {}", at + 1 ).c_str() );
+            string clip = ( *pointMaybe )[0].TryAs<string>() ? *( *pointMaybe )[0].TryAs<string>() : string();
+            f32 value = ( *pointMaybe )[1].TryAs<f64>() ? static_cast<f32>( *( *pointMaybe )[1].TryAs<f64>() ) : 0.0f;
+            ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x * 0.55f );
+            bool changed = ImGui::InputTextWithHint( "##clip", "clip", &clip );
+            if ( changed )
+                DataSet( point + "[1]", TextValue( clip ) );
+            Shown( point + "[1]" );
+            Hold( changed );
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth( ImGui::GetFontSize() * 4.0f );
+            changed = ImGui::DragFloat( "##at", &value, 0.01f, 0, 0, "%.2f" );
+            if ( changed )
+                DataSet( point + "[2]", Value( static_cast<f64>( value ) ) );
+            Shown( point + "[2]" );
+            Hold( changed );
+            ImGui::SameLine();
+            ImGui::BeginDisabled( count == 1 );
+            if ( ImGui::SmallButton( "x" ) )
+                DataRemove( point );
+            ImGui::EndDisabled();
+            ImGui::PopID();
+        }
+        RowLabel( "" );
+        if ( ImGui::SmallButton( "Add Point" ) )
+        {
+            const f64 last = count > 0 and ( *listMaybe )[count - 1].TryAs<Json::Array>() and
+                                     ( *listMaybe )[count - 1].TryAs<Json::Array>()->size() == 2 and
+                                     ( *( *listMaybe )[count - 1].TryAs<Json::Array>() )[1].TryAs<f64>()
+                                 ? *( *( *listMaybe )[count - 1].TryAs<Json::Array>() )[1].TryAs<f64>()
+                                 : 0.0;
+            DataSet( format( "{}.blend.points[{}]", base, count + 1 ),
+                     Value( Value::List{ TextValue( "" ), Value( last + 1.0 ) } ) );
+        }
+    }
+
+    RowLabel( "Loop" );
+    const auto loopMaybe = TryMember( state, "loop" );
+    bool loop = loopMaybe and loopMaybe->TryAs<bool>() ? *loopMaybe->TryAs<bool>() : true;
+    if ( ImGui::Checkbox( "##loop", &loop ) )
+        DataSet( base + ".loop", Value( loop ) );
+    Shown( base + ".loop" );
+
+    // A number, or a parameter read instead.
+    RowLabel( "Speed" );
+    const auto speedMaybe = TryMember( state, "speed" );
+    const auto speedParameterMaybe = TryTextAt( state, "speed" );
+    if ( not speedParameterMaybe )
+    {
+        f32 speed = speedMaybe and speedMaybe->TryAs<f64>() ? static_cast<f32>( *speedMaybe->TryAs<f64>() ) : 1.0f;
+        ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x * 0.5f );
+        const bool changed = ImGui::DragFloat( "##speed", &speed, 0.01f, 0, 0, "%.2f" );
+        if ( changed )
+            DataSet( base + ".speed", Value( static_cast<f64>( speed ) ) );
+        Shown( base + ".speed" );
+        Hold( changed );
+        ImGui::SameLine();
+    }
+    ImGui::SetNextItemWidth( -1.0f );
+    if ( ImGui::BeginCombo( "##speed by", speedParameterMaybe ? speedParameterMaybe->c_str() : "a number" ) )
+    {
+        if ( ImGui::Selectable( "a number", not speedParameterMaybe ) and speedParameterMaybe )
+            DataSet( base + ".speed", Value( 1.0 ) );
+        for ( const string& number : numbers )
+            if ( ImGui::Selectable( number.c_str(), speedParameterMaybe == number ) and speedParameterMaybe != number )
+                DataSet( base + ".speed", TextValue( number ) );
+        ImGui::EndCombo();
+    }
+
+    RowLabel( "Root motion" );
+    const auto rootMaybe = TryMember( state, "root_motion" );
+    bool root = rootMaybe and rootMaybe->TryAs<bool>() and *rootMaybe->TryAs<bool>();
+    if ( ImGui::Checkbox( "##root motion", &root ) )
+        DataSet( base + ".root_motion", Value( root ) );
+    Shown( base + ".root_motion" );
+    ImGui::EndTable();
+}
+
+void Inspector::GraphTransition( const Json& data, size_t index )
+{
+    const auto transitionsMaybe = TryMember( data, "transitions" );
+    const auto listMaybe = transitionsMaybe ? transitionsMaybe->TryAs<Json::Array>() : nullopt;
+    if ( not listMaybe or index < 1 or index > listMaybe->size() )
+        return;
+    const Json& transition = ( *listMaybe )[index - 1];
+    const string base = format( "transitions[{}]", index );
+    const string from = TryTextAt( transition, "from" ).value_or( "?" );
+    const string to = TryTextAt( transition, "to" ).value_or( "?" );
+    ImGui::Text( "%s  ->  %s", from == "*" ? "any state" : from.c_str(), to.c_str() );
+    if ( not TableOfFields( "transition" ) )
+        return;
+    vector<string> conditions = ConditionsOf( transition );
+    for ( size_t at = 0; at < conditions.size(); ++at )
+    {
+        ImGui::PushID( static_cast<int>( at ) );
+        RowLabel( at == 0 ? "When" : "and" );
+        ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 2.0f );
+        string condition = conditions[at];
+        const bool changed = ImGui::InputTextWithHint( "##when", "name, !name, name < 2", &condition );
+        if ( changed )
+        {
+            vector<string> next = conditions;
+            next[at] = condition;
+            DataSet( base + ".when", ConditionsValue( next ) );
+        }
+        Shown( format( "{}.when[{}]", base, at + 1 ) );
+        Hold( changed );
+        ImGui::SameLine();
+        if ( ImGui::SmallButton( "x" ) )
+        {
+            vector<string> next = conditions;
+            next.erase( next.begin() + static_cast<i64>( at ) );
+            if ( next.empty() )
+                DataRemove( base + ".when" );
+            else
+                DataSet( base + ".when", ConditionsValue( next ) );
+        }
+        ImGui::PopID();
+    }
+    RowLabel( conditions.empty() ? "When" : "" );
+    if ( ImGui::SmallButton( "Add Condition" ) )
+    {
+        const vector<string> parameters = MemberNames( data, "parameters" );
+        conditions.push_back( parameters.empty() ? string() : parameters.front() );
+        DataSet( base + ".when", ConditionsValue( conditions ) );
+    }
+
+    RowLabel( "Exit time" );
+    const auto exitMaybe = TryMember( transition, "exit_time" );
+    bool exits = exitMaybe.HasValue();
+    if ( ImGui::Checkbox( "##exits", &exits ) )
+    {
+        if ( exits )
+            DataSet( base + ".exit_time", Value( 1.0 ) );
+        else
+            DataRemove( base + ".exit_time" );
+    }
+    Shown( base + ".exits" );
+    if ( exitMaybe and exitMaybe->TryAs<f64>() )
+    {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth( -1.0f );
+        f32 share = static_cast<f32>( *exitMaybe->TryAs<f64>() );
+        const bool changed = ImGui::SliderFloat( "##exit time", &share, 0.0f, 1.0f, "%.2f" );
+        if ( changed )
+            DataSet( base + ".exit_time", Value( static_cast<f64>( share ) ) );
+        Shown( base + ".exit_time" );
+        Hold( changed );
+    }
+
+    RowLabel( "Duration" );
+    const auto durationMaybe = TryMember( transition, "duration" );
+    f32 duration =
+        durationMaybe and durationMaybe->TryAs<f64>() ? static_cast<f32>( *durationMaybe->TryAs<f64>() ) : 0.2f;
+    const bool changed = ImGui::DragFloat( "##duration", &duration, 0.005f, 0.0f, 5.0f, "%.3f s" );
+    if ( changed )
+        DataSet( base + ".duration", Value( static_cast<f64>( duration ) ) );
+    Shown( base + ".duration" );
+    Hold( changed );
+
+    RowLabel( "Interrupt" );
+    const auto interruptMaybe = TryMember( transition, "interrupt" );
+    bool interrupt = interruptMaybe and interruptMaybe->TryAs<bool>() and *interruptMaybe->TryAs<bool>();
+    if ( ImGui::Checkbox( "##interrupt", &interrupt ) )
+        DataSet( base + ".interrupt", Value( interrupt ) );
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "Taken while the pose still eases into the state" );
+    Shown( base + ".interrupt" );
     ImGui::EndTable();
 }
 

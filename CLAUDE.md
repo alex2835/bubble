@@ -41,8 +41,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
                               own CMake: its runtime in the engine, its offline builders in import; Yoga in the
                               engine; FreeType - TrueType and OpenType modules - and msdfgen in import; Dear ImGui's
-                              core - docking, no backends -, ImGuizmo and Roboto, the font built into it, in the
-                              editor).
+                              core - docking, no backends -, ImGuizmo, imgui-node-editor and Roboto, the font built
+                              into it, in the editor).
                               wgpu-native alone is downloaded at configure time into out/downloads, pinned by version
                               and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
@@ -69,8 +69,9 @@ projects/engine/include/bubble/
                               MaterialAsset (.mat JSON: shader or base, double_sided, transparent, params by name);
                               PrefabAsset (a .prefab's text, parsed where it is used)
     animation/                on ozz's runtime (src/animation alone): animation_graph (.anim: parameters, states - a
-                              clip, a blend along a parameter, nothing -, transitions by conditions and exit time,
-                              triggers, "return", events at shares of a clip, root motion on a state; parsed, and
+                              clip, a blend along a parameter, nothing; both named in snake_case -, transitions by
+                              conditions and exit time, triggers, "return", events at shares of a clip, root motion
+                              on a state; parsed, and
                               stepped as plain data), animation_assets (the skeleton and clips a model's importer
                               writes beside it under its id; RegisterAnimationLoaders), AnimationModule: animator
                               (graph, speed) - the graph stepped each fixed step in Phase::Physics, its events
@@ -234,8 +235,11 @@ projects/editing/include/bubble/editing/
                               the only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
                               builtin_operators.cpp, prefab_operators.cpp, asset_operators.cpp - asset.create from
                               a kind's template, rename with its .import, delete -); DataDocument (a .mat or .anim
-                              open as its JSON with a history of its own, active instead of any scene; data.set,
-                              data.remove in data_operators.cpp; saved, undone, closed as a scene's are); prefab
+                              open as its JSON with a history of its own, active instead of any scene - what is
+                              taken out comes back in its place -; data.set, data.remove in data_operators.cpp;
+                              graph.add_state, remove_state, rename_state - what names it follows -, add_transition,
+                              remove_transition, place in graph_operators.cpp; saved, undone, closed as a scene's
+                              are); prefab
                               documents (.prefab, node ids
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
@@ -251,7 +255,10 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               by EditorSun, never in its scene -), MaterialPreview (a
                               material document's view: a sphere wearing it as the document has it, saved or not,
                               in a world of its own; its bases and its shader's parameters followed as they load -
-                              TryLayout -, why it does not read), EditorCamera, Viewport (the active document's world in a
+                              TryLayout -, why it does not read), GraphView (an animation graph's view: imgui-node-
+                              editor's canvas, states as nodes where editor.states keeps them, transitions as links,
+                              the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
+                              inspector), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
                               gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
@@ -266,13 +273,15 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               apart -, add, remove, revert to and apply to the prefab; every edit property.set, a
                               drag one history group however many frames - Settle closes it -; a material's base or
                               shader, flags and its shader's parameters - own, its base's or the default; data.set -;
+                              a graph's entry, parameters and the state or transition selected on its canvas;
                               TryWhere for tests),
                               AssetsPanel (the project's folders and files - kinds, import errors -, a file dragged
                               out as cAssetPayload to a field, the tree or the viewport, a level or prefab opened at a
                               double click, anything else handed to the system; new assets from templates, rename,
                               delete; TryPlaceAsset: a prefab or a model into the scene, one step), Editor (the dock
                               space, the menu - New Level, Save As -, a tab a document - data documents too -, the
-                              scene, the viewport - the active document's world or a material's preview -, the
+                              scene, the viewport - the active document's world, a material's preview or a graph's
+                              canvas -, the
                               inspector, the assets, the log; operators alone change anything). main.cpp is
                               bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini

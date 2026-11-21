@@ -1,5 +1,6 @@
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/editor_font.hpp"
+#include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -144,8 +145,8 @@ void Editor::Frame( f64 elapsed )
         SaveAs();
         if ( viewMaybe )
             mViewport.Show( mProject.GetWorkspace().TryActive(), viewMaybe->mCamera );
-        else if ( mProject.GetWorkspace().TryActiveData() )
-            ImGui::TextDisabled( "  An animation graph is edited in its own panel: it comes with step 6c." );
+        else if ( const auto dataMaybe = mProject.GetWorkspace().TryActiveData() )
+            GraphViewOf( mProject, *dataMaybe ).Show( *dataMaybe );
     }
     ImGui::End();
     LogPanel();

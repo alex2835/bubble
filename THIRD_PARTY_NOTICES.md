@@ -18,6 +18,7 @@ SHA-256) and ships as `wgpu_native.dll` / `libwgpu_native.so`.
 | [FreeType](https://freetype.org) | 2.15.0 | FreeType License (FTL) | `deps/freetype/docs/FTL.TXT`, `deps/freetype/LICENSE.TXT` (editor and cook only: fonts are imported into atlases) |
 | [GLM](https://github.com/g-truc/glm) | 1.0.3 | MIT | `deps/glm/copying.txt` |
 | [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo) | 1.89 WIP | MIT | `deps/imguizmo/LICENSE` (editor only) |
+| [imgui-node-editor](https://github.com/thedmd/imgui-node-editor) | 0.9.4 (develop, 021aa0e) | MIT | `deps/imgui_node_editor/LICENSE` (editor only) |
 | [Jolt Physics](https://github.com/jrouwe/JoltPhysics) | 5.7.0 | MIT | `deps/jolt/LICENSE` |
 | [Luau](https://github.com/luau-lang/luau) | 0.741 | MIT | `deps/luau/LICENSE.txt`, `deps/luau/lua_LICENSE.txt` |
 | [meshoptimizer](https://github.com/zeux/meshoptimizer) | 1.3 | MIT | `deps/meshoptimizer/LICENSE.md` |

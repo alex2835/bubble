@@ -7,6 +7,8 @@
 
 namespace bubble
 {
+class GraphView;
+
 // "light_color" as a person reads it: "Light color".
 string FieldLabel( string_view name );
 
@@ -26,7 +28,10 @@ Value DefaultOf( const ValueType& type );
 // A material's document shows its base or its shader, its flags and its
 // shader's parameters - each the document's own, its base's or the shader's
 // default, the own ones told apart and taken back from their menu -, edited
-// through data.set and data.remove.
+// through data.set and data.remove. An animation graph's shows its entry,
+// its parameters and what is selected on its canvas - a state: its name,
+// what it plays, loop, speed, root motion; a transition: its conditions,
+// exit time, duration, interrupt -, renamed through graph.rename_state.
 class Inspector
 {
 public:
@@ -61,6 +66,12 @@ private:
     void AddComponent( Document& document, Entity entity );
 
     void Material( DataDocument& document );
+    void Graph( DataDocument& document );
+    void GraphParameters( const Json& data );
+    void GraphState( const Json& data, const string& name, GraphView& view );
+    void GraphTransition( const Json& data, size_t index );
+    // A row of a table: its label, then its widget's cell.
+    void RowLabel( const char* label );
     void MaterialFlag( const char* label, const string& path, opt<bool> own, bool inherited, bool based );
     void MaterialParamRow( const MaterialAsset& material, span<const MaterialAsset> bases, const MaterialParam& param );
     // A data document's label, set ones told apart; their menu takes them
@@ -91,6 +102,10 @@ private:
     EditorProject& mProject;
     vector<pair<string, Value::Record>> mPending;
     string mPendingStep;
+    // A state's name as it is typed, and whose it is; a parameter's to come.
+    string mStateName;
+    string mStateNamed;
+    string mNewParameter;
     // The widget an edit's step is open for: 0 when none is.
     u32 mHeld = 0;
     string mName;

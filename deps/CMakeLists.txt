@@ -179,6 +179,21 @@ else()
     target_compile_options( imguizmo PRIVATE -w )
 endif()
 
+# imgui-node-editor 0.9.4 (develop, 021aa0e) - the canvas the editor draws an
+# animation graph on: states as nodes, transitions as links, pan and zoom; on
+# Dear ImGui 1.92, as the old engine built it.
+set( node_editor_dir ${CMAKE_CURRENT_SOURCE_DIR}/imgui_node_editor )
+add_library( imgui_node_editor STATIC ${node_editor_dir}/crude_json.cpp ${node_editor_dir}/imgui_canvas.cpp
+                                      ${node_editor_dir}/imgui_node_editor.cpp
+                                      ${node_editor_dir}/imgui_node_editor_api.cpp )
+target_include_directories( imgui_node_editor SYSTEM PUBLIC ${node_editor_dir} )
+target_link_libraries( imgui_node_editor PUBLIC imgui )
+if( MSVC )
+    target_compile_options( imgui_node_editor PRIVATE /w )
+else()
+    target_compile_options( imgui_node_editor PRIVATE -w )
+endif()
+
 # FreeType 2.15.0 and msdfgen 1.13 - a font's glyphs into a multi-channel
 # signed distance field atlas, by the font importer in the editor and the
 # cook; a runner draws the atlas it made. Not on the web, where neither

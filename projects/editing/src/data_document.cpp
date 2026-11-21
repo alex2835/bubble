@@ -50,7 +50,7 @@ OptRef<const Json> DataDocument::TryAt( const FieldPath& path ) const
     return *at;
 }
 
-expected<void, string> DataDocument::TryPut( const FieldPath& path, const opt<Json>& value )
+expected<void, string> DataDocument::TryPut( const FieldPath& path, const opt<Json>& value, opt<size_t> place )
 {
     const span<const FieldPath::Step> steps = path.Steps();
     if ( steps.empty() )
@@ -73,6 +73,9 @@ expected<void, string> DataDocument::TryPut( const FieldPath& path, const opt<Js
             {
                 if ( value and found != object.end() )
                     found->mValue = *value;
+                else if ( value and place )
+                    object.insert( object.begin() + static_cast<i64>( min( *place, object.size() ) ),
+                                   Json::Member{ .mKey = key, .mValue = *value } );
                 else if ( value )
                     object.push_back( Json::Member{ .mKey = key, .mValue = *value } );
                 else if ( found != object.end() )
@@ -103,7 +106,9 @@ expected<void, string> DataDocument::TryPut( const FieldPath& path, const opt<Js
                 return unexpected( format( "{}: the array has {}", where, array.size() ) );
             if ( last )
             {
-                if ( onePast )
+                if ( value and place )
+                    array.insert( array.begin() + static_cast<i64>( min( *place, array.size() ) ), *value );
+                else if ( onePast )
                     array.push_back( *value );
                 else if ( value )
                     array[position - 1] = *value;
@@ -149,13 +154,19 @@ expected<void, string> DataDocument::TryChange( const FieldPath& changed, opt<Js
     }
     const auto beforeMaybe = TryAt( path );
     opt<Json> before = beforeMaybe ? opt<Json>( *beforeMaybe ) : nullopt;
+    const opt<size_t> place = before ? TryPlaceOf( path ) : nullopt;
     // A value set to what it is is no step.
     if ( path == changed and Same( before, value ) )
         return {};
     if ( auto putMaybe = TryPut( changed, value ); not putMaybe )
         return putMaybe;
-    const auto afterMaybe = TryAt( path );
-    value = afterMaybe ? opt<Json>( *afterMaybe ) : nullopt;
+    // What a set made, objects made on the way with it. A removal leaves
+    // nothing - in an array, what comes after moves into its position.
+    if ( value )
+    {
+        const auto afterMaybe = TryAt( path );
+        value = afterMaybe ? opt<Json>( *afterMaybe ) : nullopt;
+    }
     ++mVersion;
     if ( InGroup() )
     {
@@ -163,15 +174,39 @@ expected<void, string> DataDocument::TryChange( const FieldPath& changed, opt<Js
         if ( mGroup.mChanges.size() > mGroupStarts.back() and mGroup.mChanges.back().mPath == path )
             mGroup.mChanges.back().mAfter = std::move( value );
         else
-            mGroup.mChanges.push_back(
-                Change{ .mPath = path, .mBefore = std::move( before ), .mAfter = std::move( value ) } );
+            mGroup.mChanges.push_back( Change{
+                .mPath = path, .mBefore = std::move( before ), .mAfter = std::move( value ), .mPlace = place } );
         return {};
     }
     Push(
         Step{ .mId = mNextId++,
               .mLabel = std::move( label ),
-              .mChanges = { Change{ .mPath = path, .mBefore = std::move( before ), .mAfter = std::move( value ) } } } );
+              .mChanges = { Change{
+                  .mPath = path, .mBefore = std::move( before ), .mAfter = std::move( value ), .mPlace = place } } } );
     return {};
+}
+
+opt<size_t> DataDocument::TryPlaceOf( const FieldPath& path ) const
+{
+    const span<const FieldPath::Step> steps = path.Steps();
+    if ( const size_t* position = get_if<size_t>( &steps.back() ) )
+        return *position - 1;
+    FieldPath parent;
+    for ( size_t index = 0; index + 1 < steps.size(); ++index )
+        parent = parent.Then( steps[index] );
+    const auto holderMaybe = steps.size() == 1 ? OptRef<const Json>( mData ) : TryAt( parent );
+    const auto objectMaybe = holderMaybe ? holderMaybe->TryAs<Json::Object>() : nullopt;
+    if ( not objectMaybe )
+        return nullopt;
+    const auto found = ranges::find( *objectMaybe, get<Name>( steps.back() ).ToString(), &Json::Member::mKey );
+    return found != objectMaybe->end() ? opt<size_t>( static_cast<size_t>( found - objectMaybe->begin() ) ) : nullopt;
+}
+
+void DataDocument::TakeBack( const Change& change )
+{
+    // One the change took out comes back where it stood; one it set goes
+    // back to what it was, in its place.
+    static_cast<void>( TryPut( change.mPath, change.mBefore, change.mAfter ? nullopt : change.mPlace ) );
 }
 
 void DataDocument::Push( Step step )
@@ -189,7 +224,7 @@ void DataDocument::Undo()
     Step step = std::move( mUndo.back() );
     mUndo.pop_back();
     for ( auto change = step.mChanges.rbegin(); change != step.mChanges.rend(); ++change )
-        static_cast<void>( TryPut( change->mPath, change->mBefore ) );
+        TakeBack( *change );
     mRedo.push_back( std::move( step ) );
     ++mVersion;
 }
@@ -235,7 +270,7 @@ void DataDocument::CancelGroup()
     mGroupStarts.pop_back();
     while ( mGroup.mChanges.size() > start )
     {
-        static_cast<void>( TryPut( mGroup.mChanges.back().mPath, mGroup.mChanges.back().mBefore ) );
+        TakeBack( mGroup.mChanges.back() );
         mGroup.mChanges.pop_back();
         ++mVersion;
     }

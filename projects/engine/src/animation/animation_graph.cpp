@@ -1,4 +1,5 @@
 #include "bubble/animation/animation_graph.hpp"
+#include "bubble/core/name.hpp"
 #include "bubble/data/json.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
@@ -13,6 +14,10 @@ Failure Fail( const Json& at, string_view what )
 {
     return unexpected( format( "{}: {}", at.Where(), what ) );
 }
+
+// States and parameters are named as everything a person sees is: a script
+// names them, the editor's paths go through them.
+constexpr string_view cNotAName = "a name is snake_case - a lowercase letter, then lowercase letters, digits and _";
 
 // Every member of an object must be one of `fields`.
 expected<void, string> TryKnown( const Json::Object& object,
@@ -146,6 +151,8 @@ expected<void, string> TryParameters( AnimationGraph& graph, const Json& json )
         return Fail( json, format( "parameters is an object of name: default, not {}", json.Describe() ) );
     for ( const Json::Member& member : *objectMaybe )
     {
+        if ( not detail::NameValid( member.mKey ) )
+            return Fail( member.mValue, format( "parameters.{}: {}", member.mKey, cNotAName ) );
         AnimationParameter parameter;
         parameter.mName = member.mKey;
         if ( const auto numberMaybe = member.mValue.TryAs<f64>() )
@@ -173,6 +180,10 @@ expected<void, string> TryStates( AnimationGraph& graph, const Json& json )
     // The names first: a transition may name any of them.
     for ( const Json::Member& member : *objectMaybe )
     {
+        if ( not detail::NameValid( member.mKey ) )
+            return Fail( member.mValue, format( "states.{}: {}", member.mKey, cNotAName ) );
+        if ( member.mKey == "return" )
+            return Fail( member.mValue, "states.return: return is where a transition goes back to, not a state" );
         AnimationState state;
         state.mName = member.mKey;
         graph.mStates.push_back( std::move( state ) );

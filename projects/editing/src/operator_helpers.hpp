@@ -47,4 +47,7 @@ void AddPrefabOperators( Operators& operators );
 void AddAssetOperators( Operators& operators );
 // The active data document: data.set, data.remove.
 void AddDataOperators( Operators& operators );
+// The active animation graph: graph.add_state, remove_state, rename_state,
+// add_transition, remove_transition, place.
+void AddGraphOperators( Operators& operators );
 }
