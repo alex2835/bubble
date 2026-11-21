@@ -164,6 +164,10 @@ struct AnimatorRuntime
     array<u32, 4> mVersions{};
     bool mReady = false;
     AnimationGraphState mState;
+    // The names of the states and parameters of the graph it was made of:
+    // a graph made again goes on by them. Empty before the first.
+    vector<string> mStateNames;
+    vector<string> mParameterNames;
     // Set before the graph came.
     vector<PendingSet> mPending;
     // By state, the clip of each of its points - one for a clip -; nothing for
@@ -418,14 +422,70 @@ private:
 
     // Every parameter at its default, before the first step or for a new
     // graph, and what was set meanwhile laid on.
+    // A graph made again - reloaded, edited - goes on from the state it was
+    // in by its name, the parameters by theirs; one that no longer has the
+    // state starts over from its entry. A state restored from a snapshot,
+    // before any graph was made, stays as it is if the graph can hold it.
     void StartState( AnimatorRuntime& runtime, const AnimationGraph& graph )
     {
-        if ( runtime.mState.mParameters.size() == graph.mParameters.size() and
-             runtime.mState.mState < static_cast<i32>( graph.mStates.size() ) )
+        const auto remember = [&] {
+            runtime.mStateNames.clear();
+            for ( const AnimationState& state : graph.mStates )
+                runtime.mStateNames.push_back( state.mName );
+            runtime.mParameterNames.clear();
+            for ( const AnimationParameter& parameter : graph.mParameters )
+                runtime.mParameterNames.push_back( parameter.mName );
+        };
+        AnimationGraphState& state = runtime.mState;
+        if ( runtime.mStateNames.empty() )
+        {
+            if ( state.mParameters.size() == graph.mParameters.size() and
+                 state.mState < static_cast<i32>( graph.mStates.size() ) )
+            {
+                remember();
+                return;
+            }
+        }
+        else
+        {
+            // The parameters by name, whatever happens to the state.
+            vector<f32> parameters = StartAnimationGraph( graph ).mParameters;
+            for ( size_t at = 0; at < graph.mParameters.size(); ++at )
+                for ( size_t was = 0; was < runtime.mParameterNames.size() and was < state.mParameters.size(); ++was )
+                    if ( runtime.mParameterNames[was] == graph.mParameters[at].mName )
+                        parameters[at] = state.mParameters[was];
+            // A state of the graph before, as this one numbers it.
+            const auto renamed = [&]( i32 index ) -> opt<i32> {
+                if ( index < 0 or index >= static_cast<i32>( runtime.mStateNames.size() ) )
+                    return nullopt;
+                const auto foundMaybe = graph.TryState( runtime.mStateNames[static_cast<size_t>( index )] );
+                return foundMaybe ? opt<i32>( static_cast<i32>( *foundMaybe ) ) : nullopt;
+            };
+            const auto nowMaybe = renamed( state.mState );
+            // Not stepped yet, or its state still there: on from where it is.
+            if ( state.mState < 0 or nowMaybe )
+            {
+                if ( nowMaybe )
+                {
+                    state.mState = *nowMaybe;
+                    state.mPrevious = renamed( state.mPrevious ).value_or( -1 );
+                    state.mPlayed = renamed( state.mPlayed ).value_or( *nowMaybe );
+                }
+                state.mParameters = std::move( parameters );
+                remember();
+                return;
+            }
+            runtime.mState = StartAnimationGraph( graph );
+            runtime.mState.mParameters = std::move( parameters );
+            if ( runtime.mPose )
+                runtime.mPose->mSeenEntered = runtime.mState.mEntered;
+            remember();
             return;
+        }
         runtime.mState = StartAnimationGraph( graph );
         if ( runtime.mPose )
             runtime.mPose->mSeenEntered = runtime.mState.mEntered;
+        remember();
     }
 
     expected<void, string> TryApply( AnimatorRuntime& runtime,

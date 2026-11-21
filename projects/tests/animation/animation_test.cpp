@@ -501,3 +501,41 @@ TEST_CASE( "A clips asset's names read without its clips: what the editor offers
     CHECK( ClipNames( "junk" ).empty() );
     CHECK( ClipNames( bytes.substr( 0, bytes.size() - 1 ) ).empty() );
 }
+
+TEST_CASE( "A graph made again goes on from its state by name; one that lost it starts over from its entry" )
+{
+    AnimationFixture f;
+    const AssetId model = f.Strip();
+    const AssetId graph = f.Graph( "anims/moods.anim", R"({
+  "parameters": { "calm": true },
+  "entry": "rest",
+  "states": { "rest": {}, "bend": { "clip": "bend" }, "lean": { "clip": "lean" } },
+  "transitions": [ { "from": "rest", "to": "lean", "when": "!calm" } ]
+})" );
+    Scene scene;
+    const Entity strip = AnimationFixture::Animated( scene, model, graph );
+    World world( f.mApp, std::move( scene ) );
+    f.Settle( world );
+    AnimationWorld& animation = world.Get<AnimationWorld>();
+    REQUIRE( animation.TrySet( strip, "calm", false ) );
+    f.Steps( world, 3 );
+    REQUIRE( animation.TryState( strip ) == "lean"s );
+
+    // Its states in another order, bend gone, a parameter added before calm:
+    // still leaning, calm still false.
+    f.Graph( "anims/moods.anim", R"({
+  "parameters": { "speed": 0, "calm": true },
+  "entry": "rest",
+  "states": { "lean": { "clip": "lean" }, "rest": {} },
+  "transitions": [ { "from": "lean", "to": "rest", "when": "calm" } ]
+})" );
+    REQUIRE( f.mAssets.TryReload( *AssetPath::TryFrom( "anims/moods.anim" ) ) );
+    f.Steps( world, 3 );
+    CHECK( animation.TryState( strip ) == "lean"s );
+
+    // Lean gone: from the entry again.
+    f.Graph( "anims/moods.anim", R"({ "entry": "rest", "states": { "rest": {}, "bend": { "clip": "bend" } } })" );
+    REQUIRE( f.mAssets.TryReload( *AssetPath::TryFrom( "anims/moods.anim" ) ) );
+    f.Steps( world, 3 );
+    CHECK( animation.TryState( strip ) == "rest"s );
+}
