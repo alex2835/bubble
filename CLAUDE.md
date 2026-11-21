@@ -271,14 +271,15 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
                               inspector; the state a game plays lit - LiveState -), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
-                              picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
-                              gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
-                              group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
+                              picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, a
+                              rectangle drawn selects what it covers - InRectangle -, the gizmo on ImGuizmo moves,
+                              turns and scales the active entity and the rest selected with it - MovedTogether; W,
+                              E, R, X; one history group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
                               the world's debug lines; every light and camera marked - Icons -; the scene's UI over
                               the picture, laid out for it; the floor's grid - FloorGrid, faded far off -; a game played
                               shown through its camera with its UI, only looked at; Decompose),
                               ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
-                              ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
+                              ctrl and shift, the arrows, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is
                               shown), Inspector (the active entity: its name, its components' fields as Values by
                               kind - FieldInfo's angle, slider, colour, mAssetKind for the asset picker, mChoices for

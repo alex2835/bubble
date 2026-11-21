@@ -359,6 +359,11 @@ void Editor::Shortcuts()
     if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_S ) and TryActiveTitle() )
         Save();
     key( ImGuiMod_Ctrl | ImGuiKey_Z, "edit.undo" );
+    key( ImGuiMod_Ctrl | ImGuiKey_C, "edit.copy" );
+    key( ImGuiMod_Ctrl | ImGuiKey_X, "edit.cut" );
+    key( ImGuiMod_Ctrl | ImGuiKey_V, "edit.paste" );
+    key( ImGuiMod_Ctrl | ImGuiKey_D, "entity.duplicate" );
+    key( ImGuiMod_Ctrl | ImGuiKey_G, "entity.group" );
     key( ImGuiMod_Ctrl | ImGuiKey_Y, "edit.redo" );
     key( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, "edit.redo" );
 }

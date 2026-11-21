@@ -429,13 +429,25 @@ void ScenePanel::Keys( Document& document )
         if ( ImGui::IsKeyChordPressed( chord ) and mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )
             Run( op );
     };
+    // Copy, cut, paste, duplicate and group are the editor's, wherever the
+    // focus is.
     key( ImGuiKey_Delete, "entity.destroy" );
-    key( ImGuiMod_Ctrl | ImGuiKey_D, "entity.duplicate" );
-    key( ImGuiMod_Ctrl | ImGuiKey_G, "entity.group" );
-    key( ImGuiMod_Ctrl | ImGuiKey_C, "edit.copy" );
-    key( ImGuiMod_Ctrl | ImGuiKey_X, "edit.cut" );
-    key( ImGuiMod_Ctrl | ImGuiKey_V, "edit.paste" );
     const Entity active = document.GetSelection().Active();
+    // The arrows walk the rows as they were shown.
+    for ( const auto& [arrow, step] :
+          { pair<ImGuiKey, i32>{ ImGuiKey_UpArrow, -1 }, pair<ImGuiKey, i32>{ ImGuiKey_DownArrow, 1 } } )
+        if ( ImGui::IsKeyPressed( arrow ) and not mRows.empty() )
+        {
+            const auto found = ranges::find( mRows, active );
+            const i32 at = found == mRows.end() ? ( step > 0 ? -1 : static_cast<i32>( mRows.size() ) )
+                                                : static_cast<i32>( found - mRows.begin() );
+            const i32 next = clamp( at + step, 0, static_cast<i32>( mRows.size() ) - 1 );
+            if ( scene.Alive( mRows[static_cast<size_t>( next )] ) )
+            {
+                Run( "selection.set", EntitiesJson( scene, vector<Entity>{ mRows[static_cast<size_t>( next )] } ) );
+                mReveal = mRows[static_cast<size_t>( next )];
+            }
+        }
     if ( ImGui::IsKeyChordPressed( ImGuiKey_F2 ) and active != Entity::Null and active != scene.Root() )
     {
         mRenaming = active;

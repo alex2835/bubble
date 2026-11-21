@@ -117,6 +117,55 @@ TEST_CASE( "The floor's grid is around the camera's focus, its step a power of t
     CHECK( far[1] - far[0] == doctest::Approx( 10.0f ) );
 }
 
+TEST_CASE( "The rest selected go with the active one the gizmo drags: moved, turned about it, scaled as it is" )
+{
+    Scene scene;
+    const Entity a = CreateChild( scene, scene.Root(), Make( "a" ) );
+    const Entity b = CreateChild( scene, scene.Root(), Make( "b" ) );
+    const Entity c = CreateChild( scene, a, Make( "c" ) );
+    for ( const Entity entity : { a, b, c } )
+        scene.Add<Transform>( entity, Transform{} );
+    scene.Get<Transform>( b ).mPosition = vec3( 2, 0, 0 );
+    const vector<Entity> selected{ a, b, c };
+    const auto near = []( vec3 got, vec3 wanted ) { return glm::length( got - wanted ) < 1e-4f; };
+
+    const auto moved = MovedTogether( scene, selected, a, mat4( 1.0f ), glm::translate( mat4( 1.0f ), vec3( 1, 0, 0 ) ),
+                                      GizmoTool::Move );
+    // c is under a, and goes with it.
+    REQUIRE( moved.size() == 2 );
+    CHECK( moved[0].first == a );
+    CHECK( near( moved[0].second.mPosition, vec3( 1, 0, 0 ) ) );
+    CHECK( near( moved[1].second.mPosition, vec3( 3, 0, 0 ) ) );
+
+    const auto turned =
+        MovedTogether( scene, selected, a, mat4( 1.0f ),
+                       glm::rotate( mat4( 1.0f ), glm::radians( 90.0f ), vec3( 0, 1, 0 ) ), GizmoTool::Turn );
+    CHECK( near( turned[1].second.mPosition, vec3( 0, 0, -2 ) ) );
+
+    const auto scaled =
+        MovedTogether( scene, selected, a, mat4( 1.0f ), glm::scale( mat4( 1.0f ), vec3( 2.0f ) ), GizmoTool::Scale );
+    CHECK( near( scaled[1].second.mScale, vec3( 2.0f ) ) );
+    CHECK( near( scaled[1].second.mPosition, vec3( 2, 0, 0 ) ) );
+}
+
+TEST_CASE( "A rectangle over the picture takes what it covers there" )
+{
+    // Seen straight: the world's x and y from -1 to 1 across a picture of
+    // 100 by 100, y up.
+    Scene scene;
+    const Entity middle = CreateChild( scene, scene.Root(), Make( "middle" ) );
+    const Entity corner = CreateChild( scene, scene.Root(), Make( "corner" ) );
+    const vector<pair<Entity, pair<vec3, vec3>>> boxes{
+        { middle, { vec3( -0.1f ), vec3( 0.1f ) } }, { corner, { vec3( 0.5f, 0.5f, 0.0f ), vec3( 0.6f, 0.6f, 0.0f ) } }
+    };
+    const mat4 straight( 1.0f );
+    CHECK( InRectangle( boxes, straight, vec2( 100 ), vec2( 40 ), vec2( 60 ) ) == vector<Entity>{ middle } );
+    // Dragged the other way round, the top right corner: the second.
+    CHECK( InRectangle( boxes, straight, vec2( 100 ), vec2( 90, 10 ), vec2( 70, 30 ) ) == vector<Entity>{ corner } );
+    CHECK( InRectangle( boxes, straight, vec2( 100 ), vec2( 0 ), vec2( 100 ) ).size() == 2 );
+    CHECK( InRectangle( boxes, straight, vec2( 100 ), vec2( 0, 90 ), vec2( 10, 100 ) ).empty() );
+}
+
 #if defined( BUBBLE_IMPORT_MODELS ) and not defined( __EMSCRIPTEN__ )
 namespace
 {
@@ -283,5 +332,29 @@ TEST_CASE( "A click on the viewport's picture picks what is drawn there; the giz
     REQUIRE( view.mProject->Run( "edit.undo" ) );
     CHECK( glm::length( view.GetScene().Get<Transform>( view.Cube() ).mPosition ) < 1e-5f );
     CHECK( not view.GetDocument().IsDirty() );
+}
+
+TEST_CASE( "A rectangle drawn over the viewport's picture selects what is in it" )
+{
+    View view;
+    REQUIRE( view.Until( [&] {
+        const World& world = WorldOf( view.mProject->GetApp(), view.GetDocument() );
+        const auto& items = const_cast<World&>( world ).Get<RenderScene>().mItems;
+        return not items.empty() and items.front().mModel.TryGet().HasValue();
+    } ) );
+    view.Frame();
+    // From the bottom right, clear of the tools in the top left corner.
+    const ImVec2 from( cSize.x - 6, cSize.y - 6 );
+    const ImVec2 to( 10, 40 );
+    view.MoveTo( from );
+    view.Button( true );
+    for ( int step = 1; step <= 4; ++step )
+    {
+        const f32 share = static_cast<f32>( step ) / 4.0f;
+        view.MoveTo( ImVec2( from.x + ( to.x - from.x ) * share, from.y + ( to.y - from.y ) * share ) );
+    }
+    view.Button( false );
+    view.Frame();
+    CHECK( view.GetDocument().GetSelection().Active() == view.Cube() );
 }
 #endif

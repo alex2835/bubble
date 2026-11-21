@@ -331,6 +331,20 @@ TEST_CASE( "The panel renames in place with F2, deletes with Del, and both undo 
     CHECK( ui.Top() == vector<string>{ "a", "b", "c" } );
 }
 
+TEST_CASE( "The arrows walk the rows as they are shown" )
+{
+    Ui ui;
+    // Rows: a (closed), b, c.
+    ui.Click( 1 );
+    ui.Press( ImGuiKey_DownArrow );
+    CHECK( ui.Selected() == vector<string>{ "/c" } );
+    ui.Press( ImGuiKey_DownArrow );
+    CHECK( ui.Selected() == vector<string>{ "/c" } );
+    ui.Press( ImGuiKey_UpArrow );
+    ui.Press( ImGuiKey_UpArrow );
+    CHECK( ui.Selected() == vector<string>{ "/a" } );
+}
+
 TEST_CASE( "The panel moves what is dragged onto a row into it" )
 {
     Ui ui;

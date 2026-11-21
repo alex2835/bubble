@@ -108,6 +108,85 @@ Entity PickTarget( const Scene& scene, const Selection& selection, Entity picked
     return inside ? picked : root;
 }
 
+vector<pair<Entity, Decomposed>> MovedTogether( const Scene& scene,
+                                                span<const Entity> selected,
+                                                Entity active,
+                                                const mat4& before,
+                                                const mat4& after,
+                                                GizmoTool tool )
+{
+    const mat4 delta = after * glm::inverse( before );
+    const auto parentWorld = [&]( Entity entity ) {
+        const Entity parent = ParentOf( scene, entity );
+        return parent != Entity::Null ? ComputeWorldMatrix( scene, parent ) : mat4( 1.0f );
+    };
+    const Decomposed activeBefore = Decompose( glm::inverse( parentWorld( active ) ) * before );
+    const Decomposed activeAfter = Decompose( glm::inverse( parentWorld( active ) ) * after );
+    vector<pair<Entity, Decomposed>> moves;
+    for ( const Entity entity : selected )
+    {
+        if ( not scene.Alive( entity ) or not scene.Has<Transform>( entity ) )
+            continue;
+        // Under another one selected, it goes with that one.
+        if ( ranges::any_of( selected, [&]( Entity other ) {
+                 return other != entity and scene.Alive( other ) and IsAncestor( scene, other, entity );
+             } ) )
+            continue;
+        if ( entity == active )
+        {
+            moves.emplace_back( entity, activeAfter );
+            continue;
+        }
+        Decomposed local =
+            Decompose( glm::inverse( parentWorld( entity ) ) * delta * ComputeWorldMatrix( scene, entity ) );
+        // A scale is the entity's own, along its own axes: the same share of
+        // it as the active one's.
+        if ( tool == GizmoTool::Scale )
+        {
+            const Transform& transform = scene.Get<Transform>( entity );
+            local = Decomposed{ .mPosition = transform.mPosition,
+                                .mRotation = quat( 1.0f, 0.0f, 0.0f, 0.0f ),
+                                .mScale = transform.mScale * activeAfter.mScale / activeBefore.mScale };
+        }
+        moves.emplace_back( entity, local );
+    }
+    return moves;
+}
+
+vector<Entity> InRectangle( span<const pair<Entity, pair<vec3, vec3>>> boxes,
+                            const mat4& viewProjection,
+                            vec2 size,
+                            vec2 from,
+                            vec2 to )
+{
+    const vec2 low = glm::min( from, to );
+    const vec2 high = glm::max( from, to );
+    vector<Entity> inside;
+    for ( const auto& [entity, box] : boxes )
+    {
+        // The box's corners on the picture; those behind the eye left out.
+        vec2 seenLow( numeric_limits<f32>::max() );
+        vec2 seenHigh( -numeric_limits<f32>::max() );
+        bool seen = false;
+        for ( u32 corner = 0; corner < 8; ++corner )
+        {
+            const vec3 at( corner & 1 ? box.second.x : box.first.x, corner & 2 ? box.second.y : box.first.y,
+                           corner & 4 ? box.second.z : box.first.z );
+            const vec4 clip = viewProjection * vec4( at, 1.0f );
+            if ( clip.w <= 0.0f )
+                continue;
+            const vec2 ndc( clip.x / clip.w, clip.y / clip.w );
+            const vec2 onPicture( ( ndc.x + 1.0f ) * 0.5f * size.x, ( 1.0f - ndc.y ) * 0.5f * size.y );
+            seenLow = glm::min( seenLow, onPicture );
+            seenHigh = glm::max( seenHigh, onPicture );
+            seen = true;
+        }
+        if ( seen and seenLow.x <= high.x and seenHigh.x >= low.x and seenLow.y <= high.y and seenHigh.y >= low.y )
+            inside.push_back( entity );
+    }
+    return inside;
+}
+
 vector<DebugLine> FloorGrid( const EditorCamera& camera )
 {
     constexpr int cHalf = 50;
@@ -246,6 +325,7 @@ void Viewport::Helpers( Document& document, World& world )
     const vector<Entity> selected = document.GetSelection().All();
     DebugDraw& draw = world.Get<DebugDraw>();
     mBoxes.clear();
+    mAllBoxes.clear();
     // The models of what is selected and of what is under it, as the last
     // frame drew them.
     for ( const RenderItem& item : world.Get<RenderScene>().mItems )
@@ -253,6 +333,7 @@ void Viewport::Helpers( Document& document, World& world )
         const auto modelMaybe = item.mModel.TryGet();
         if ( not modelMaybe or not scene.Alive( item.mEntity ) )
             continue;
+        mAllBoxes.emplace_back( item.mEntity, BoundsOf( item.mWorld, modelMaybe->mMin, modelMaybe->mMax ) );
         const bool shown = ranges::any_of( selected, [&]( Entity entity ) {
             return entity == item.mEntity or IsAncestor( scene, entity, item.mEntity );
         } );
@@ -421,12 +502,22 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
         mPressedAt = vec2( io.MousePos.x, io.MousePos.y );
         mPickToggles = io.KeyCtrl;
     }
+    if ( mPressedAt and ImGui::IsMouseDown( ImGuiMouseButton_Left ) and
+         glm::length( vec2( io.MousePos.x, io.MousePos.y ) - *mPressedAt ) >= cClickSlop )
+    {
+        // The rectangle being drawn.
+        ImDrawList& draw = *ImGui::GetWindowDrawList();
+        draw.AddRectFilled( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, IM_COL32( 255, 160, 40, 40 ) );
+        draw.AddRect( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, IM_COL32( 255, 160, 40, 200 ) );
+    }
     if ( mPressedAt and ImGui::IsMouseReleased( ImGuiMouseButton_Left ) )
     {
         const vec2 at( io.MousePos.x, io.MousePos.y );
         if ( glm::length( at - *mPressedAt ) < cClickSlop )
             mView.Pick( ivec2( static_cast<i32>( ( at.x - corner.x ) * scale.x ),
                                static_cast<i32>( ( at.y - corner.y ) * scale.y ) ) );
+        else if ( documentMaybe )
+            Rectangle( *documentMaybe, camera, *mPressedAt - mCorner, at - mCorner );
         mPressedAt.reset();
     }
 
@@ -547,6 +638,7 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
     const mat4 view = glm::inverse( camera.mWorld );
     const mat4 projection = glm::perspective( camera.mFov, size.x / size.y, camera.mNear, camera.mFar );
     mat4 matrix = ComputeWorldMatrix( scene, active );
+    const mat4 before = matrix;
     const ImGuizmo::OPERATION operation = mTool == GizmoTool::Move   ? ImGuizmo::TRANSLATE
                                           : mTool == GizmoTool::Turn ? ImGuizmo::ROTATE
                                                                      : ImGuizmo::SCALE;
@@ -566,22 +658,60 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
     }
     if ( not moved )
         return;
-    const Entity parent = ParentOf( scene, active );
-    const mat4 parentWorld = parent != Entity::Null ? ComputeWorldMatrix( scene, parent ) : mat4( 1.0f );
-    const Decomposed local = Decompose( glm::inverse( parentWorld ) * matrix );
-    const auto set = [&]( const char* path, Value value ) {
-        Value::Record args = EntitiesArgs( scene, active );
-        args.push_back( ValueField{ .mName = "component"_n, .mValue = Value( "transform"_n ) } );
-        args.push_back( ValueField{ .mName = "path"_n, .mValue = Value( *Text::TryFrom( path ) ) } );
-        args.push_back( ValueField{ .mName = "value"_n, .mValue = std::move( value ) } );
-        mProject.Run( "property.set", args );
-    };
-    switch ( mTool )
+    // Every one selected goes with the active one; the values worked out
+    // before any is set, as a parent's move would change a child's world.
+    const vector<pair<Entity, Decomposed>> moves =
+        MovedTogether( scene, document.GetSelection().All(), active, before, matrix, mTool );
+    for ( const auto& [entity, local] : moves )
     {
-        case GizmoTool::Move: set( "position", Value( local.mPosition ) ); break;
-        case GizmoTool::Turn: set( "rotation", Value( AnglesOf( local.mRotation ) ) ); break;
-        case GizmoTool::Scale: set( "scale", Value( local.mScale ) ); break;
+        const auto set = [&, target = entity]( const char* path, Value value ) {
+            Value::Record args = EntitiesArgs( scene, target );
+            args.push_back( ValueField{ .mName = "component"_n, .mValue = Value( "transform"_n ) } );
+            args.push_back( ValueField{ .mName = "path"_n, .mValue = Value( *Text::TryFrom( path ) ) } );
+            args.push_back( ValueField{ .mName = "value"_n, .mValue = std::move( value ) } );
+            mProject.Run( "property.set", args );
+        };
+        switch ( mTool )
+        {
+            case GizmoTool::Move: set( "position", Value( local.mPosition ) ); break;
+            case GizmoTool::Turn:
+                // About the active one: the others go round it.
+                if ( entity != active )
+                    set( "position", Value( local.mPosition ) );
+                set( "rotation", Value( AnglesOf( local.mRotation ) ) );
+                break;
+            case GizmoTool::Scale: set( "scale", Value( local.mScale ) ); break;
+        }
     }
+}
+
+void Viewport::Rectangle( Document& document, const EditorCamera& editorCamera, vec2 from, vec2 to )
+{
+    const Scene& scene = document.GetScene();
+    const RenderCamera camera = editorCamera.ToRenderCamera();
+    const mat4 viewProjection =
+        glm::perspective( camera.mFov, mSize.x / max( mSize.y, 1.0f ), camera.mNear, camera.mFar ) *
+        glm::inverse( camera.mWorld );
+    // An instance of a prefab whole, as a click takes it; each once.
+    vector<Entity> taken;
+    for ( const Entity entity : InRectangle( mAllBoxes, viewProjection, mSize, from, to ) )
+    {
+        const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
+        const Entity target = linkMaybe and scene.Alive( linkMaybe->mInstance ) ? linkMaybe->mInstance : entity;
+        if ( not ranges::contains( taken, target ) )
+            taken.push_back( target );
+    }
+    if ( taken.empty() and mPickToggles )
+        return;
+    Value::List paths;
+    for ( const Entity entity : taken )
+        paths.push_back( Value( PathOf( scene, entity ) ) );
+    mProject.GetWorkspace().Activate( document );
+    if ( taken.empty() )
+        mProject.Run( "selection.clear" );
+    else
+        mProject.Run( mPickToggles ? "selection.add" : "selection.set",
+                      Value::Record{ ValueField{ .mName = "entities"_n, .mValue = Value( std::move( paths ) ) } } );
 }
 
 void Viewport::Draw( World& world, const EditorCamera& camera )
