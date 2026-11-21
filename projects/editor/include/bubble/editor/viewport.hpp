@@ -45,7 +45,9 @@ vector<DebugLine> FloorGrid( const EditorCamera& camera );
 // active entity (W, E, R; X its axes or the world's; ctrl snaps), each drag
 // one step; a prefab or a model dropped from the assets panel stands on the
 // ground under the mouse. What is selected shows its box, its colliders, a
-// light its reach, a camera its view.
+// light its reach, a camera its view. A game played is shown through its
+// own camera with its UI over it, and only looked at: the mouse and the
+// keys are the game's.
 class Viewport
 {
 public:
@@ -70,6 +72,9 @@ public:
 
     const GpuTexture& Picture() const { return mPicture; }
     GizmoTool Tool() const { return mTool; }
+    // Where the picture was last shown, in ImGui's units - the window's.
+    vec2 Corner() const { return mCorner; }
+    vec2 Size() const { return mSize; }
 
 private:
     void Tools();
@@ -93,6 +98,10 @@ private:
     // The floor's grid: asked for, and drawn - a scene's document is shown.
     bool mGrid = true;
     bool mGridShown = false;
+    // A game played is shown: through its camera, its UI over it.
+    bool mPlayed = false;
+    vec2 mCorner{ 0.0f };
+    vec2 mSize{ 0.0f };
     // A drag of the gizmo under way: one step of the document's history.
     bool mGizmoHeld = false;
     // A press of the left button on the picture, where: a pick if it comes

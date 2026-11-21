@@ -68,6 +68,11 @@ public:
     // The scene as it is now stays, the steps go; dirty or not as before.
     void ForgetHistory();
 
+    // A game played from another document's scene, on a copy of it: never
+    // saved, and closed by stopping the game alone (play.stop).
+    bool IsPlayed() const { return mPlayed; }
+    void SetPlayed() { mPlayed = true; }
+
     // The editor's view of it: nothing until the editor shows it.
     OptRef<DocumentView> TryView();
     void SetView( Scope<DocumentView> view ) { mView = std::move( view ); }
@@ -80,6 +85,7 @@ private:
     u64 mSavedAt = 0;
     opt<AssetPath> mPathMaybe;
     opt<PrefabNodes> mPrefabNodesMaybe;
+    bool mPlayed = false;
     // Last, so it goes first: it holds the scene.
     Scope<DocumentView> mView;
 };

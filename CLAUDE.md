@@ -245,16 +245,21 @@ projects/editing/include/bubble/editing/
                               remove_transition, place in graph_operators.cpp; saved, undone, closed as a scene's
                               are); prefab
                               documents (.prefab, node ids
-                              kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
+                              kept by Entity), a game played on a copy (IsPlayed: document.save and close refuse it), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
 projects/editor/              bubble_editor, on editing and Dear ImGui, never included by the rest: ImGui's backends
                               of our own (ImGuiInput - the platform's events in, the pointer, text input and the
                               clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
-                              (a project open: settings, App with every module, the registry, its sources kept
-                              imported, the Workspace and Operators; TryImporterOf), DocumentWorld (a document's editing world over
-                              its scene and the camera on it, its view: ViewOf, WorldOf; Gathered - the camera placed
+                              (a project open: settings, App with every module - saves into memory -, the
+                              registry, its sources kept imported, the Workspace and Operators; TryImporterOf; the
+                              game playing - play.start, stop, pause, step -, TryPlaying), PlaySession (Play: the
+                              scene shown copied into a document of its own - Document::IsPlayed: never saved,
+                              closed by play.stop - with every module's world over it, the project's actions from
+                              Handle, Release when turned away; the document played from untouched), DocumentWorld (a document's editing world over
+                              its scene and the camera on it, its view - a game's world when played -: ViewOf,
+                              WorldOf; Gathered - the camera placed
                               once, at a level's camera or around what the scene shows, a prefab with no light lit
                               by EditorSun, never in its scene -), MaterialPreview (a
                               material document's view: a sphere wearing it as the document has it, saved or not,
@@ -264,12 +269,13 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               to makes its document the active one), GraphView (an animation graph's view: imgui-node-
                               editor's canvas, states as nodes where editor.states keeps them, transitions as links,
                               the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
-                              inspector), EditorCamera, Viewport (the active document's world in a
+                              inspector; the state a game plays lit - LiveState -), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
                               gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
                               group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
-                              the world's debug lines; the floor's grid - FloorGrid, faded far off -; Decompose),
+                              the world's debug lines; the floor's grid - FloorGrid, faded far off -; a game played
+                              shown through its camera with its UI, only looked at; Decompose),
                               ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
                               ctrl and shift, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is
@@ -292,8 +298,11 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               with a tab a level or a prefab - the scene active last, Workspace::TryShownScene -, a
                               window of its own for each material - its preview - and graph - its canvas -, docked
                               beside the viewport the first time; the inspector, undo and save follow the document
-                              turned to last; the assets, the log; operators alone change anything). main.cpp is
-                              bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png], the
+                              turned to last; the assets, the log; Play, Pause, Step, Stop on the menu's bar - Ctrl+P
+                              -, the game's input - Handle - and held cursor while it has the viewport, Shift+F1 or a
+                              click elsewhere taking them back; operators alone change anything). main.cpp is
+                              bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot
+                              file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the

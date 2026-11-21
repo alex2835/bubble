@@ -1,6 +1,10 @@
 #include "bubble/editor/graph_view.hpp"
+#include "bubble/animation/animation.hpp"
 #include "bubble/editor/panel.hpp"
+#include "bubble/editor/play_session.hpp"
+#include "bubble/scene/hierarchy.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/types/format.hpp"
 #include "bubble/types/matrix.hpp"
 #include <imgui.h>
 
@@ -182,6 +186,7 @@ void GraphView::Show( DataDocument& document )
     // the active one, the inspector's.
     if ( ClickedInWindow() )
         mProject.GetWorkspace().Activate( document );
+    Live( document );
     const Json& data = document.GetData();
     const OptRef<const Json> editorMaybe = TryMember( data, "editor" );
     const auto placeOf = [&]( string_view key ) {
@@ -218,6 +223,7 @@ void GraphView::Show( DataDocument& document )
                                .mPlaceMaybe = placesMaybe ? TryPoint( TryMember( *placesMaybe, states[at] ) ) : nullopt,
                                .mFallback = vec2( 260.0f * static_cast<f32>( at ), 0.0f ) } );
 
+    const ImVec2 corner = ImGui::GetCursorScreenPos();
     ed::SetCurrentEditor( mCanvas->mContext );
     ed::Begin( "graph" );
     Nodes( document, nodes );
@@ -237,6 +243,10 @@ void GraphView::Show( DataDocument& document )
         mSelect.clear();
     }
     ed::End();
+
+    if ( not mLiveState.empty() )
+        ImGui::GetWindowDrawList()->AddText( ImVec2( corner.x + 8, corner.y + 6 ), IM_COL32( 110, 255, 130, 255 ),
+                                             format( "playing in {}", mLiveEntity ).c_str() );
 
     // One state or one transition selected is what the inspector shows.
     array<ed::NodeId, 2> selectedNodes{};
@@ -275,6 +285,13 @@ void GraphView::Nodes( const DataDocument& document, span<const Node> nodes )
             ed::SetNodePosition( id, ImVec2( at.x, at.y ) );
             mPut[node.mName] = at;
         }
+        // The state the game plays now, lit.
+        const bool live = node.mName == mLiveState;
+        if ( live )
+        {
+            ed::PushStyleColor( ed::StyleColor_NodeBorder, ImVec4( 0.43f, 1.0f, 0.5f, 1.0f ) );
+            ed::PushStyleVar( ed::StyleVar_NodeBorderWidth, 3.0f );
+        }
         ed::BeginNode( id );
         ImGui::PushID( static_cast<int>( index ) );
         if ( node.mEntry )
@@ -298,6 +315,11 @@ void GraphView::Nodes( const DataDocument& document, span<const Node> nodes )
         }
         ImGui::PopID();
         ed::EndNode();
+        if ( live )
+        {
+            ed::PopStyleVar();
+            ed::PopStyleColor();
+        }
         const ImVec2 position = ed::GetNodePosition( id );
         const ImVec2 size = ed::GetNodeSize( id );
         mDrawn[node.mName] = vec2( position.x, position.y );
@@ -492,6 +514,42 @@ void GraphView::RunPending( DataDocument& document )
         for ( const string& name : after )
             if ( not ranges::contains( before, name ) )
                 Select( name );
+}
+
+void GraphView::Live( const DataDocument& document )
+{
+    mLiveState.clear();
+    mLiveEntity.clear();
+    const auto playMaybe = mProject.TryPlaying();
+    if ( not playMaybe )
+        return;
+    const auto graphIdMaybe = mProject.GetCatalog().TryIdOf( document.GetPath() );
+    if ( not graphIdMaybe )
+        return;
+    const Document& played = playMaybe->Played();
+    const Scene& scene = played.GetScene();
+    const auto plays = [&]( Entity entity ) {
+        const auto animatorMaybe = scene.TryGet<Animator>( entity );
+        return animatorMaybe and animatorMaybe->mGraph == *graphIdMaybe;
+    };
+    Entity entity = played.GetSelection().Active();
+    if ( entity == Entity::Null or not scene.Alive( entity ) or not plays( entity ) )
+    {
+        entity = Entity::Null;
+        for ( const Entity each : scene.EntitiesWith<Animator>() )
+            if ( plays( each ) )
+            {
+                entity = each;
+                break;
+            }
+    }
+    if ( entity == Entity::Null )
+        return;
+    if ( const auto stateMaybe = playMaybe->GetWorld().Get<AnimationWorld>().TryState( entity ) )
+    {
+        mLiveState = *stateMaybe;
+        mLiveEntity = PathOf( scene, entity ).mPath.String();
+    }
 }
 
 GraphView& GraphViewOf( EditorProject& project, DataDocument& document )

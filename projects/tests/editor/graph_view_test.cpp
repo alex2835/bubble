@@ -2,11 +2,13 @@
 // window and no GPU: nodes where the document keeps them, a node dragged as
 // one step, a state picked on the canvas edited in the inspector, Delete
 // taking it out - the mouse and the keys as ImGui's events.
+#include "../animation/skinned_model.hpp"
 #include "bubble/audio/audio.hpp"
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/inspector.hpp"
+#include "bubble/editor/play_session.hpp"
 #include <doctest.h>
 #include <imgui.h>
 
@@ -43,8 +45,10 @@ struct Ui
     // The graph whose window is drawn: the active one when none is named.
     DataDocument* mShown = nullptr;
 
-    Ui()
+    // `more` files beside the graphs: a level, a model.
+    explicit Ui( hmap<string, string> more = {} )
     {
+        mFiles.merge( more );
         const ProjectFiles files = ProjectFiles::InMemory( mFiles );
         auto projectMaybe =
             EditorProject::TryOpen( files, AssetRegistry::AtOnce( [files]( const AssetId& assetId, string_view kind ) {
@@ -205,4 +209,33 @@ TEST_CASE( "A state clicked on the canvas is the inspector's to edit; Delete tak
     CHECK( ui.At( "transitions" ) == R"([{"from":"land","to":"return","exit_time":0.9}])" );
     REQUIRE( ui.mProject->Run( "edit.undo" ) );
     CHECK( ui.At( "states.fall" ) == R"({"loop":false})" );
+}
+
+TEST_CASE( "While a game plays, the canvas lights the state an animator of its graph plays there" )
+{
+    // The asset ids are no one's: the level finds the files by their paths.
+    Ui ui( { { "strip.glb", test::SkinnedGlb() }, { "main.scene", R"({
+  "version": 1,
+  "root": { "children": [ { "name": "strip", "components": {
+    "transform": {},
+    "model": { "asset": { "asset": "00000000000000000000000000000001", "path": "strip.glb" } },
+    "animator": { "graph": { "asset": "00000000000000000000000000000002", "path": "hero.anim" } } } } ] }
+})" } } );
+    ui.mShown = &ui.Data();
+    CHECK( ui.View().LiveState().empty() );
+    REQUIRE( ui.mProject->Run( "document.open", *Json::TryParse( R"({ "path": "main.scene" })" ) ) );
+    REQUIRE( ui.mProject->Run( "play.start" ) );
+    PlaySession& play = *ui.mProject->TryPlaying();
+    for ( int frame = 0; frame < 30; ++frame )
+    {
+        ui.mProject->GetApp().GetJobs().RunMainQueue();
+        play.Frame( 1.0 / 60 );
+    }
+    ui.Frame();
+    CHECK( ui.View().LiveState() == "idle" );
+    CHECK( ui.View().LiveEntity() == "/strip" );
+
+    REQUIRE( ui.mProject->Run( "play.stop" ) );
+    ui.Frame();
+    CHECK( ui.View().LiveState().empty() );
 }

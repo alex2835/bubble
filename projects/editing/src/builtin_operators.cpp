@@ -343,6 +343,8 @@ Result RunSave( Workspace& workspace, const OperatorArgs& args )
     if ( not documentMaybe )
         return NoDocument();
     Document& document = *documentMaybe;
+    if ( document.IsPlayed() )
+        return unexpected( "a game playing is not saved: stop it, and edit the level it was played from"s );
     AssetPath path;
     if ( args.Has( "path"_n ) )
     {
@@ -386,6 +388,8 @@ Result RunClose( Workspace& workspace, const OperatorArgs& args )
     const auto documentMaybe = workspace.TryActive();
     if ( not documentMaybe )
         return NoDocument();
+    if ( documentMaybe->IsPlayed() )
+        return unexpected( "a game is playing in it: play.stop ends it"s );
     if ( documentMaybe->IsDirty() and not( discardMaybe and *discardMaybe ) )
         return unexpected( "it has changes not saved: save it, or close it with discard"s );
     workspace.Close( *documentMaybe );

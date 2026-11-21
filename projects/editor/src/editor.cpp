@@ -3,7 +3,9 @@
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/panel.hpp"
+#include "bubble/editor/play_session.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/world/game.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_stdlib.h>
@@ -117,11 +119,27 @@ void Editor::Frame( f64 elapsed )
     Workspace& workspace = mProject.GetWorkspace();
     const auto shownMaybe = TryShownWorld();
     mViewport.Prepare( workspace.TryShownScene(), shownMaybe ? OptRef<World>( shownMaybe->Get() ) : OptRef<World>() );
+    const auto playMaybe = mProject.TryPlaying();
     if ( shownMaybe )
     {
-        shownMaybe->Get().Frame( elapsed );
+        // A game shown has its frame below, not an editing world's.
+        if ( not playMaybe or &playMaybe->View() != &*shownMaybe )
+            shownMaybe->Get().Frame( elapsed );
         shownMaybe->Gathered();
     }
+    if ( playMaybe )
+    {
+        playMaybe->Frame( elapsed );
+        // Begun: the game has the input at once.
+        if ( not mWasPlaying )
+            mReleased = false;
+    }
+    // A click anywhere but on the game takes its input back; on it, gives it
+    // again (below, in the viewport).
+    if ( ImGui::IsMouseClicked( ImGuiMouseButton_Left ) or ImGui::IsMouseClicked( ImGuiMouseButton_Right ) or
+         ImGui::IsMouseClicked( ImGuiMouseButton_Middle ) )
+        mReleased = true;
+    mWasPlaying = static_cast<bool>( playMaybe );
     for ( const Scope<DataDocument>& document : workspace.AllData() )
         if ( IsMaterial( *document ) )
         {
@@ -150,7 +168,22 @@ void Editor::Frame( f64 elapsed )
     {
         DocumentTabs();
         if ( shownMaybe )
+        {
+            if ( playMaybe and ClickedInWindow() )
+                mReleased = false;
             mViewport.Show( workspace.TryShownScene(), shownMaybe->Camera() );
+            if ( playMaybe and &playMaybe->View() == &*shownMaybe )
+            {
+                playMaybe->SetScreen( mViewport.Corner(), mViewport.Size() );
+                // Below, out of the way of the game's own UI.
+                if ( not mGameInput )
+                    ImGui::GetWindowDrawList()->AddText(
+                        ImVec2( mViewport.Corner().x + 8,
+                                mViewport.Corner().y + mViewport.Size().y - ImGui::GetFontSize() - 6 ),
+                        IM_COL32( 255, 255, 255, 220 ),
+                        "Click to give the game the mouse and the keys; Shift+F1 takes them back" );
+            }
+        }
         else
             ImGui::TextDisabled( "No level or prefab is open" );
     }
@@ -166,6 +199,10 @@ void Editor::Frame( f64 elapsed )
         mInspector.Inspect( std::move( *pickedMaybe ) );
     UnsavedChanges();
     SaveAs();
+    GameInput();
+    // A game that asked to quit is stopped, between frames.
+    if ( const auto quitMaybe = mProject.TryPlaying(); quitMaybe and quitMaybe->GetWorld().Get<Game>().QuitAsked() )
+        mProject.Run( "play.stop" );
     const auto dataMaybe = workspace.TryActiveData();
     const auto activeMaybe = workspace.TryActive();
     // A window held back is brought forward when it first shows.
@@ -242,7 +279,53 @@ void Editor::Menu()
         MenuItem( "Redo", "Ctrl+Y", "edit.redo" );
         ImGui::EndMenu();
     }
+    PlayButtons();
     ImGui::EndMainMenuBar();
+}
+
+void Editor::PlayButtons()
+{
+    ImGui::Separator();
+    const auto playMaybe = mProject.TryPlaying();
+    const auto button = [&]( const char* label, string_view op, const char* tip ) {
+        const auto pollMaybe = mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op );
+        if ( ImGui::MenuItem( label, nullptr, false, pollMaybe.has_value() ) )
+            mProject.Run( op );
+        if ( ImGui::IsItemHovered( ImGuiHoveredFlags_AllowWhenDisabled ) )
+            ImGui::SetTooltip( "%s", pollMaybe ? tip : pollMaybe.error().c_str() );
+    };
+    if ( playMaybe )
+        button( "Stop", "play.stop", "Ctrl+P: the game's copy thrown away" );
+    else
+        button( "Play", "play.start", "Ctrl+P: the scene shown, played on a copy" );
+    const bool paused = playMaybe and playMaybe->GetWorld().Paused();
+    button( paused ? "Resume" : "Pause", "play.pause", "Ctrl+Shift+P" );
+    button( "Step", "play.step", "One fixed step of the game paused" );
+}
+
+void Editor::GameInput()
+{
+    const auto playMaybe = mProject.TryPlaying();
+    const auto shownMaybe = mProject.GetWorkspace().TryShownScene();
+    const bool gameInput = playMaybe and shownMaybe and &*shownMaybe == &playMaybe->Played() and not mReleased;
+    // Turned away, the game lets go of what was held: nothing stays down.
+    if ( mGameInput and not gameInput and playMaybe )
+        playMaybe->Release();
+    mGameInput = gameInput;
+}
+
+void Editor::Handle( const InputEvent& event )
+{
+    if ( not mGameInput )
+        return;
+    if ( const auto playMaybe = mProject.TryPlaying() )
+        playMaybe->Handle( event );
+}
+
+bool Editor::CursorLocked()
+{
+    const auto playMaybe = mProject.TryPlaying();
+    return mGameInput and playMaybe and playMaybe->GetWorld().Get<Game>().CursorLocked();
 }
 
 void Editor::Shortcuts()
@@ -251,6 +334,16 @@ void Editor::Shortcuts()
     // Ctrl+Z, and a drag under way - one step that is not over - takes none;
     // saving works from anywhere.
     const bool typing = ImGui::GetIO().WantTextInput or ImGui::IsAnyItemActive();
+    // Play and stop from anywhere, the game's input or not; the rest are the
+    // editor's while the game does not have the keys.
+    if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_P ) )
+        mProject.Run( mProject.TryPlaying() ? "play.stop" : "play.start" );
+    if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P ) and mProject.TryPlaying() )
+        mProject.Run( "play.pause" );
+    if ( ImGui::IsKeyChordPressed( ImGuiMod_Shift | ImGuiKey_F1 ) )
+        mReleased = true;
+    if ( mGameInput )
+        return;
     const auto key = [&]( ImGuiKeyChord chord, string_view op, bool always = false ) {
         if ( ( always or not typing ) and ImGui::IsKeyChordPressed( chord ) and
              mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )
@@ -290,12 +383,16 @@ void Editor::DocumentTabs()
     const bool changed = activeTab != mActiveTab;
     mActiveTab = activeTab;
     vector<Tab> tabs;
+    const auto playMaybe = mProject.TryPlaying();
     for ( const Scope<Document>& document : workspace.All() )
     {
         const auto pathMaybe = document->TryPath();
+        const bool played = playMaybe and &playMaybe->Played() == document.get();
         tabs.push_back( Tab{ .mId = TabId( document.get() ),
-                             .mTitle = pathMaybe ? FileNameOf( pathMaybe->View() ) : "untitled"s,
-                             .mDirty = document->IsDirty(),
+                             .mTitle = played      ? format( "{} (playing)", playMaybe->Title() )
+                                       : pathMaybe ? FileNameOf( pathMaybe->View() )
+                                                   : "untitled"s,
+                             .mDirty = document->IsDirty() and not played,
                              .mDocument = *document } );
     }
     if ( not ImGui::BeginTabBar( "documents", ImGuiTabBarFlags_Reorderable ) )
@@ -325,11 +422,17 @@ void Editor::DocumentTabs()
         workspace.Activate( tabs[*picked].mDocument );
     if ( closed )
     {
-        workspace.Activate( tabs[*closed].mDocument );
-        if ( tabs[*closed].mDirty )
-            mAskUnsaved = true;
+        // A game's tab closed stops it.
+        if ( tabs[*closed].mDocument.IsPlayed() )
+            mProject.Run( "play.stop" );
         else
-            mProject.Run( "document.close" );
+        {
+            workspace.Activate( tabs[*closed].mDocument );
+            if ( tabs[*closed].mDirty )
+                mAskUnsaved = true;
+            else
+                mProject.Run( "document.close" );
+        }
     }
 }
 
@@ -448,8 +551,9 @@ void Editor::Save()
 {
     Workspace& workspace = mProject.GetWorkspace();
     const auto activeMaybe = workspace.TryActive();
-    // A data document always has its file; a level with none yet asks where.
-    if ( workspace.TryActiveData() or ( activeMaybe and activeMaybe->TryPath() ) )
+    // A data document always has its file; a level with none yet asks where;
+    // a game playing is told it is not saved.
+    if ( workspace.TryActiveData() or ( activeMaybe and ( activeMaybe->TryPath() or activeMaybe->IsPlayed() ) ) )
         mProject.Run( "document.save" );
     else if ( activeMaybe )
         mAskSaveAs = true;
@@ -569,6 +673,8 @@ string Editor::Title()
     const auto activeMaybe = mProject.GetWorkspace().TryActive();
     if ( not activeMaybe )
         return format( "{} - bubble editor", project );
+    if ( const auto playMaybe = mProject.TryPlaying(); playMaybe and &playMaybe->Played() == &*activeMaybe )
+        return format( "{} (playing) - {} - bubble editor", playMaybe->Title(), project );
     const auto pathMaybe = activeMaybe->TryPath();
     return format( "{}{} - {} - bubble editor", pathMaybe ? pathMaybe->View() : "untitled",
                    activeMaybe->IsDirty() ? " *" : "", project );

@@ -10,6 +10,7 @@
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/matrix.hpp"
+#include "bubble/ui/ui.hpp"
 #include "bubble/world/transform.hpp"
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -308,6 +309,21 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     // the gizmo, which only starts a drag where no widget is under the mouse,
     // a disabled one too: there the space is kept and nothing hovers.
     const ImVec2 corner = ImGui::GetCursorScreenPos();
+    mCorner = vec2( corner.x, corner.y );
+    mSize = vec2( area.x, area.y );
+    mPlayed = documentMaybe and documentMaybe->IsPlayed();
+    if ( mPlayed )
+    {
+        // The game's: a click gives the panel the focus, and the game the
+        // input; nothing here is picked or moved.
+        ImGui::InvisibleButton( "picture", area,
+                                ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
+                                    ImGuiButtonFlags_MouseButtonMiddle );
+        ImGui::GetWindowDrawList()->AddImage( ImGuiRenderer::TextureId( mPicture.View() ), corner,
+                                              ImVec2( corner.x + area.x, corner.y + area.y ) );
+        mGridShown = false;
+        return;
+    }
     if ( ImGuizmo::IsUsing() or ImGuizmo::IsOver() )
         ImGui::Dummy( area );
     else
@@ -513,6 +529,16 @@ void Viewport::Draw( World& world, const EditorCamera& camera )
     if ( not mPicture )
         return;
     RenderScene& scene = world.Get<RenderScene>();
+    if ( mPlayed )
+    {
+        // Through the game's first camera, as bubble_play shows it; the
+        // editor's while it has none.
+        mRenderer.Draw(
+            mView, scene, scene.mCameras.empty() ? camera.ToRenderCamera() : scene.mCameras.front(),
+            RenderTarget{ .mView = mPicture.View(), .mSize = mPicture.Size(), .mFormat = mPicture.Format() },
+            world.Get<UiScene>() );
+        return;
+    }
     // Among the lines the world gathered, which it gathers anew next frame.
     if ( mGridShown )
         ranges::copy( FloorGrid( camera ), back_inserter( scene.mLines ) );

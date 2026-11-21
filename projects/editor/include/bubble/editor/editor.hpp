@@ -7,6 +7,7 @@
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/viewport.hpp"
 #include "bubble/editor/world_picture.hpp"
+#include "bubble/input/input_event.hpp"
 
 namespace bubble
 {
@@ -18,6 +19,11 @@ namespace bubble
 // last; the inspector, undo and save the active document - the one turned
 // to last, by a click in its window or a tab picked. Operators alone change
 // anything.
+//
+// Play (Ctrl+P) plays the scene shown on a copy of it, a tab of its own,
+// shown through the game's camera; the game has the mouse and the keys from
+// then on - Shift+F1 or a click elsewhere takes them back, a click on it
+// gives them again -, and Stop throws the copy away.
 class Editor
 {
 public:
@@ -43,6 +49,12 @@ public:
     // What the window's title says: the project, the document, a * when it
     // is not saved.
     string Title();
+    // The player's input as the platform polled it, beside ImGui's: the
+    // game's while it has the viewport.
+    void Handle( const InputEvent& event );
+    // Whether the game wants the cursor held - a camera turned by the mouse -
+    // and has the input to hold it with.
+    bool CursorLocked();
     // Quit was picked.
     bool QuitAsked() const { return mQuitAsked; }
     Viewport& GetViewport() { return mViewport; }
@@ -51,6 +63,11 @@ private:
     void Layout( u32 dockSpace );
     void Menu();
     void MenuItem( const char* label, const char* keys, string_view op );
+    // Play, Pause, Step, Stop: buttons on the menu's bar.
+    void PlayButtons();
+    // Whether the game has the input from now on: playing, shown, not taken
+    // back.
+    void GameInput();
     void Shortcuts();
     void LogPanel();
     void DocumentTabs();
@@ -94,6 +111,10 @@ private:
     string mSaveAsPath;
     bool mAskSaveAs = false;
     bool mAskUnsaved = false;
+    // The game has the input; Shift+F1 took it back until the next click.
+    bool mGameInput = false;
+    bool mReleased = false;
+    bool mWasPlaying = false;
     vector<LogEntry> mLog;
     u64 mLogNext = 0;
     f64 mSinceRefresh = 0;

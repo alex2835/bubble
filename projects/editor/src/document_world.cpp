@@ -22,9 +22,9 @@ RenderLight EditorSun()
                         .mShadows = true };
 }
 
-DocumentWorld::DocumentWorld( App& app, Document& document )
+DocumentWorld::DocumentWorld( App& app, Document& document, WorldOptions options )
     : mDocument( document ),
-      mWorld( World::Over( app, document.SceneOutsideHistory(), WorldOptions{ .mEditing = true } ) )
+      mWorld( World::Over( app, document.SceneOutsideHistory(), options ) )
 {
 }
 

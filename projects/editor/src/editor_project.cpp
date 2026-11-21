@@ -1,6 +1,7 @@
 #include "bubble/editor/editor_project.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
+#include "bubble/editor/play_session.hpp"
 #include "bubble/import/project_setup.hpp"
 #include "bubble/import/script_importer.hpp"
 #include "bubble/scene/engine_file.hpp"
@@ -89,7 +90,9 @@ expected<void, string> EditorProject::TryStart( AudioDevice& audio )
                                            .mAliases = aliases,
                                            .mTimeLimit = 1.0,
                                            .mProgress = CreateRef<ScriptProgress>(),
-                                           .mSaves = nullptr,
+                                           // A game played in the editor saves into
+                                           // memory, never over the player's slots.
+                                           .mSaves = SaveSlotsInMemory(),
                                            .mGameVersion = game } );
 
     // Scripts are checked against the engine's declarations with the
@@ -109,6 +112,7 @@ expected<void, string> EditorProject::TryStart( AudioDevice& audio )
     AddEngineImporters( mProject, mApp, std::move( *checkMaybe ) );
     RegisterEngineLoaders( mAssets );
     AddBuiltinOperators( mOperators );
+    AddPlayOperators();
 
     const auto refreshMaybe = mProject.TryRefresh();
     if ( not refreshMaybe )
@@ -153,6 +157,71 @@ string_view EditorProject::KindOf( const AssetPath& path ) const
         return {};
     const auto importerMaybe = mProject.GetImporters().TryFind( text.substr( dot ) );
     return importerMaybe ? string_view( importerMaybe->mKind ) : string_view();
+}
+
+OptRef<PlaySession> EditorProject::TryPlaying()
+{
+    return mPlay ? OptRef<PlaySession>( *mPlay ) : nullopt;
+}
+
+void EditorProject::AddPlayOperators()
+{
+    using Result = expected<void, string>;
+    const auto playing = [this]( const Workspace&, const OperatorArgs& ) -> Result {
+        if ( not mPlay )
+            return unexpected( "no game is playing: play.start begins one"s );
+        return {};
+    };
+    mOperators.Add( Operator{ .mId = "play.start",
+                              .mLabel = "Play",
+                              .mArgs = {},
+                              .mEdits = false,
+                              .mTryPoll = [this]( const Workspace& workspace, const OperatorArgs& ) -> Result {
+                                  if ( mPlay )
+                                      return unexpected( "a game is playing already: play.stop ends it"s );
+                                  if ( not workspace.TryShownScene() )
+                                      return unexpected( "no level or prefab is open to play"s );
+                                  return {};
+                              },
+                              .mTryRun = [this]( Workspace& workspace, const OperatorArgs& ) -> Result {
+                                  mPlay = CreateScope<PlaySession>( *this, *workspace.TryShownScene() );
+                                  return {};
+                              } } );
+    mOperators.Add( Operator{ .mId = "play.stop",
+                              .mLabel = "Stop",
+                              .mArgs = {},
+                              .mEdits = false,
+                              .mTryPoll = playing,
+                              .mTryRun = [this]( Workspace&, const OperatorArgs& ) -> Result {
+                                  mPlay.reset();
+                                  return {};
+                              } } );
+    // Paused or going on as `paused` says; left out, the other way round.
+    mOperators.Add( Operator{
+        .mId = "play.pause",
+        .mLabel = "Pause",
+        .mArgs = { OperatorArg{ .mName = *Name::TryFrom( "paused" ), .mType = ValueType::Of( ValueKind::Bool ) } },
+        .mEdits = false,
+        .mTryPoll = playing,
+        .mTryRun = [this]( Workspace&, const OperatorArgs& args ) -> Result {
+            World& world = mPlay->GetWorld();
+            const auto pausedMaybe = args.TryGet<bool>( *Name::TryFrom( "paused" ) );
+            world.SetPaused( pausedMaybe ? *pausedMaybe : not world.Paused() );
+            return {};
+        } } );
+    mOperators.Add( Operator{ .mId = "play.step",
+                              .mLabel = "Step",
+                              .mArgs = {},
+                              .mEdits = false,
+                              .mTryPoll = [this]( const Workspace&, const OperatorArgs& ) -> Result {
+                                  if ( not mPlay or not mPlay->GetWorld().Paused() )
+                                      return unexpected( "a game steps one step at a time while it is paused"s );
+                                  return {};
+                              },
+                              .mTryRun = [this]( Workspace&, const OperatorArgs& ) -> Result {
+                                  mPlay->GetWorld().Step();
+                                  return {};
+                              } } );
 }
 
 OptRef<const Importer> EditorProject::TryImporterOf( const AssetPath& path ) const

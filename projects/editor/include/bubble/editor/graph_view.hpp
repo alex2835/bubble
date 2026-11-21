@@ -11,7 +11,9 @@ namespace bubble
 // it (editor.states, editor.any, editor.return). The mouse pans and zooms,
 // adds a state from the canvas's menu, draws a transition between two nodes,
 // moves nodes - several at once one step - and deletes what is selected, all
-// through graph.* operators; the inspector shows what is selected.
+// through graph.* operators; the inspector shows what is selected. While a
+// game plays, the state an animator of this graph plays there - the one
+// selected in the game's tree, or the first - is lit.
 class GraphView final : public DocumentView
 {
 public:
@@ -32,12 +34,18 @@ public:
     // on the screen, in ImGui's.
     opt<vec2> TryNodeAt( string_view node ) const;
     opt<vec2> TryNodeOnScreen( string_view node ) const;
+    // The state lit as last shown, and whose it is: empty while no game
+    // plays the graph.
+    const string& LiveState() const { return mLiveState; }
+    const string& LiveEntity() const { return mLiveEntity; }
 
 private:
     struct Canvas;
     struct Node;
 
     u32 IndexOf( const string& node );
+    // The state an animator of the graph plays in the game, if one does.
+    void Live( const DataDocument& document );
     void Nodes( const DataDocument& document, span<const Node> nodes );
     void Links( const DataDocument& document );
     void Create();
@@ -63,6 +71,8 @@ private:
     u32 mFramesShown = 0;
     string mSelectedState;
     opt<size_t> mSelectedTransition;
+    string mLiveState;
+    string mLiveEntity;
     string mSelect;
     vec2 mMenuAt{ 0.0f };
     string mMenuNode;

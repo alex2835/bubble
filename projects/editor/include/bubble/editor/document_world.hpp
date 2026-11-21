@@ -10,11 +10,12 @@ namespace bubble
 // with the document as its view - the modules that show a scene, and those
 // alone, hearing each edit as data changing - and the editor's camera on
 // it, each document's its own. It goes with the document, before its scene,
-// and leaves the scene its data.
+// and leaves the scene its data. A game played has every module's world
+// instead (PlaySession).
 class DocumentWorld final : public DocumentView
 {
 public:
-    DocumentWorld( App& app, Document& document );
+    DocumentWorld( App& app, Document& document, WorldOptions options = WorldOptions{ .mEditing = true } );
     World& Get() { return *mWorld; }
     EditorCamera& Camera() { return mCamera; }
     // Each frame, once the world has gathered what it shows and before it

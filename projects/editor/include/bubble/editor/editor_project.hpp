@@ -9,6 +9,7 @@
 namespace bubble
 {
 class AudioDevice;
+class PlaySession;
 
 // A project open in the editor: its settings, App with every module the
 // engine has - what the inspector describes and Play runs -, the registry
@@ -57,6 +58,9 @@ public:
     OptRef<const OsPath> TryRoot() const;
     Workspace& GetWorkspace() { return mWorkspace; }
     const Operators& GetOperators() const { return mOperators; }
+    // The game playing - play.start began it, play.stop ends it -; nothing
+    // when none is.
+    OptRef<PlaySession> TryPlaying();
     // Runs an operator on the workspace; its error is logged, as a menu or a
     // key that ran it has no one else to tell.
     bool Run( string_view id, const Json& args = Json() );
@@ -64,6 +68,9 @@ public:
 
 private:
     EditorProject( ProjectFiles files, AssetRegistry::ReadImported read, ProjectSettings settings );
+    // play.start, play.stop, play.pause, play.step: the game is the
+    // project's, not the workspace's.
+    void AddPlayOperators();
     expected<void, string> TryStart( AudioDevice& audio );
     // What a refresh said: logged, and kept by file.
     void Report( const ProjectRefresh& refresh );
@@ -80,5 +87,7 @@ private:
     // both, so it goes first.
     Workspace mWorkspace;
     Operators mOperators;
+    // Last, so it goes first: its document is the workspace's.
+    Scope<PlaySession> mPlay;
 };
 }

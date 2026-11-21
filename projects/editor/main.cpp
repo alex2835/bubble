@@ -1,9 +1,10 @@
-// bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png]
+// bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot file.png]
 //
 // The editor over a project's folder: its sources imported as it opens and
 // again as they change, project.bubble's start level open as a document,
 // shown in a viewport through the editor's own camera. --open opens a file of
-// the project too - a level, a prefab, a material -, the last one active.
+// the project too - a level, a prefab, a material -, the last one active;
+// --play plays the scene shown, as Play does.
 // --frames quits after N frames, --screenshot writes the last one - the
 // whole window - as a PNG.
 #include "bubble/audio/audio.hpp"
@@ -26,6 +27,7 @@ struct Arguments
 {
     OsPath mRoot;
     vector<string> mOpen;
+    bool mPlay = false;
     opt<u64> mFrames;
     string mScreenshot;
 };
@@ -49,6 +51,8 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
             arguments.mScreenshot = argv[++at];
         else if ( argument == "--open" and at + 1 < argc )
             arguments.mOpen.emplace_back( argv[++at] );
+        else if ( argument == "--play" )
+            arguments.mPlay = true;
         else if ( not rooted and not argument.starts_with( "--" ) )
         {
             arguments.mRoot = PathFromUtf8( argument );
@@ -58,7 +62,8 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
             return unexpected( format( "{}: not an argument", argument ) );
     }
     if ( not rooted )
-        return unexpected( "bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png]"s );
+        return unexpected(
+            "bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot file.png]"s );
     return arguments;
 }
 
@@ -127,6 +132,8 @@ int main( int argc, char** argv )
         LogWarning( "{}", openedMaybe.error() );
     for ( const string& path : arguments.mOpen )
         project.Run( "document.open", Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( path ) } } ) );
+    if ( arguments.mPlay )
+        project.Run( "play.start" );
 
     auto windowMaybe = platform.TryOpenWindow(
         WindowOptions{ .mTitle = "bubble editor", .mSize = { 1600, 900 }, .mResizable = true } );
@@ -144,6 +151,7 @@ int main( int argc, char** argv )
     const Scope<GpuStartup> startup = Gpu::Start( window );
     Drawing drawing;
     string title;
+    bool cursorLocked = false;
     u64 framesDrawn = 0;
     int exitCode = 0;
     platform.Run( [&]( f64 elapsed ) {
@@ -151,6 +159,10 @@ int main( int argc, char** argv )
         {
             audio->Resume();
             input.Handle( event );
+            // A game playing takes the player's input too, while it has the
+            // viewport.
+            if ( drawing.mEditor )
+                drawing.mEditor->Handle( event );
         }
         if ( not drawing.mGpu )
         {
@@ -186,6 +198,11 @@ int main( int argc, char** argv )
         {
             title = now;
             window.SetTitle( title );
+        }
+        if ( const bool locked = drawing.mEditor->CursorLocked(); locked != cursorLocked )
+        {
+            cursorLocked = locked;
+            window.SetCursorLocked( locked );
         }
 
         GpuSurface& surface = *gpu.TrySurface();
