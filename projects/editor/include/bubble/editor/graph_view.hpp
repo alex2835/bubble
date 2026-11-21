@@ -1,6 +1,7 @@
 #pragma once
 #include "bubble/editing/data_document.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/editor/graph_preview.hpp"
 #include "bubble/types/math.hpp"
 
 namespace bubble
@@ -13,7 +14,9 @@ namespace bubble
 // moves nodes - several at once one step - and deletes what is selected, all
 // through graph.* operators; the inspector shows what is selected. While a
 // game plays, the state an animator of this graph plays there - the one
-// selected in the game's tree, or the first - is lit.
+// selected in the game's tree, or the first - is lit; with none, the
+// preview's - the graph played on a model beside the canvas, its parameters
+// set by hand.
 class GraphView final : public DocumentView
 {
 public:
@@ -38,6 +41,16 @@ public:
     // plays the graph.
     const string& LiveState() const { return mLiveState; }
     const string& LiveEntity() const { return mLiveEntity; }
+
+    // The graph played on a model beside the canvas: shown or not, made the
+    // first time it is asked for.
+    bool PreviewShown() const { return mPreviewShown; }
+    void ShowPreview( bool shown ) { mPreviewShown = shown; }
+    GraphPreview& Preview( const DataDocument& document );
+    OptRef<GraphPreview> TryPreview();
+    // The preview's widgets, in an ImGui window: the model it plays on, the
+    // parameters, the state.
+    void PreviewControls( const DataDocument& document );
 
 private:
     struct Canvas;
@@ -73,6 +86,8 @@ private:
     opt<size_t> mSelectedTransition;
     string mLiveState;
     string mLiveEntity;
+    Scope<GraphPreview> mPreview;
+    bool mPreviewShown = false;
     string mSelect;
     vec2 mMenuAt{ 0.0f };
     string mMenuNode;

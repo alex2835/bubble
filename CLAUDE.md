@@ -74,7 +74,8 @@ projects/engine/include/bubble/
                               on a state; parsed, and
                               stepped as plain data), animation_assets (the skeleton and clips a model's importer
                               writes beside it under its id; RegisterAnimationLoaders), AnimationModule: animator
-                              (graph, speed) - the graph stepped each fixed step in Phase::Physics, its events
+                              (graph, speed) - the graph stepped each fixed step in Phase::Physics - made again on a
+                              reload, it goes on from its state and parameters by name -, its events
                               ScriptCalls to on_animation_event; ClipNames - a clips asset's names, for the editor -;
                               poses sampled each frame between the last two steps
                               on Jobs' pool, transitions eased by inertialization, written as the model's SkinPose -,
@@ -273,7 +274,9 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               to makes its document the active one), GraphView (an animation graph's view: imgui-node-
                               editor's canvas, states as nodes where editor.states keeps them, transitions as links,
                               the mouse adding, drawing, moving, deleting through graph.*; what is selected for the
-                              inspector; the state a game plays lit - LiveState -), EditorCamera, Viewport (the active document's world in a
+                              inspector; the state a game plays lit - LiveState -, or the preview's: GraphPreview, the
+                              graph as the document has it played on a model in a world of its own, its parameters
+                              set by hand), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first; the
                               screen UI's element there before it - its box in the canvas's pixels made the

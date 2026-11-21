@@ -257,3 +257,40 @@ TEST_CASE( "A state that plays a clip shows the clip's events, added and taken o
     ui.Frame();
     REQUIRE( ui.mInspector->TryWhere( "events.Fall_Loop[1].time" ) );
 }
+
+TEST_CASE( "With no game playing, the preview plays the graph on a model, its parameters set by hand" )
+{
+    Ui ui( { { "strip.glb", test::SkinnedGlb() } } );
+    DataDocument& hero = ui.Data();
+    ui.View().ShowPreview( true );
+    GraphPreview& preview = ui.View().Preview( hero );
+    // The project's one model with clips.
+    REQUIRE( preview.TryModel() );
+    CHECK( preview.TryModel()->View() == "strip.glb" );
+    const auto play = [&]( int frames ) {
+        for ( int frame = 0; frame < frames; ++frame )
+        {
+            ui.mProject->GetApp().GetJobs().RunMainQueue();
+            preview.Frame( hero, 1.0 / 60 );
+        }
+        ui.Frame();
+    };
+    play( 30 );
+    CHECK( preview.TryState() == "idle"s );
+    CHECK( ui.View().LiveState() == "idle" );
+    CHECK( ui.View().LiveEntity() == "the preview" );
+
+    // Not grounded: idle goes to fall, as the document says.
+    CHECK( preview.Parameter( "grounded" ) == 1.0f );
+    preview.SetParameter( "grounded", 0.0f );
+    play( 10 );
+    CHECK( preview.TryState() == "fall"s );
+    // An edit not saved plays at once: fall is taken out, the entry kept.
+    REQUIRE( ui.mProject->Run( "graph.remove_state", *Json::TryParse( R"({ "state": "fall" })" ) ) );
+    play( 10 );
+    CHECK( preview.TryState().value_or( "nothing" ) == "idle" );
+
+    ui.View().ShowPreview( false );
+    ui.Frame();
+    CHECK( ui.View().LiveState().empty() );
+}

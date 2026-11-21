@@ -223,6 +223,11 @@ void GraphView::Show( DataDocument& document )
                                .mPlaceMaybe = placesMaybe ? TryPoint( TryMember( *placesMaybe, states[at] ) ) : nullopt,
                                .mFallback = vec2( 260.0f * static_cast<f32>( at ), 0.0f ) } );
 
+    // Above the canvas: the preview beside it, or not.
+    if ( ImGui::SmallButton( mPreviewShown ? "Hide Preview" : "Preview" ) )
+        mPreviewShown = not mPreviewShown;
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "The graph played on a model beside the canvas, its parameters set by hand" );
     const ImVec2 corner = ImGui::GetCursorScreenPos();
     ed::SetCurrentEditor( mCanvas->mContext );
     ed::Begin( "graph" );
@@ -521,8 +526,16 @@ void GraphView::Live( const DataDocument& document )
     mLiveState.clear();
     mLiveEntity.clear();
     const auto playMaybe = mProject.TryPlaying();
+    // No game playing: the preview's state, when it is shown.
     if ( not playMaybe )
+    {
+        if ( const auto stateMaybe = mPreview and mPreviewShown ? mPreview->TryState() : nullopt )
+        {
+            mLiveState = *stateMaybe;
+            mLiveEntity = "the preview";
+        }
         return;
+    }
     const auto graphIdMaybe = mProject.GetCatalog().TryIdOf( document.GetPath() );
     if ( not graphIdMaybe )
         return;
@@ -550,6 +563,62 @@ void GraphView::Live( const DataDocument& document )
         mLiveState = *stateMaybe;
         mLiveEntity = PathOf( scene, entity ).mPath.String();
     }
+}
+
+GraphPreview& GraphView::Preview( const DataDocument& document )
+{
+    if ( not mPreview )
+        mPreview = CreateScope<GraphPreview>( mProject, document );
+    return *mPreview;
+}
+
+OptRef<GraphPreview> GraphView::TryPreview()
+{
+    return mPreview ? OptRef<GraphPreview>( *mPreview ) : nullopt;
+}
+
+void GraphView::PreviewControls( const DataDocument& document )
+{
+    GraphPreview& preview = Preview( document );
+    const auto modelMaybe = preview.TryModel();
+    const string model = modelMaybe ? string( modelMaybe->View() ) : "no model with clips";
+    ImGui::SetNextItemWidth( -1.0f );
+    if ( ImGui::BeginCombo( "##model", model.c_str() ) )
+    {
+        for ( const AssetPath& path : preview.Models() )
+            if ( ImGui::Selectable( string( path.View() ).c_str(), modelMaybe and *modelMaybe == path ) )
+                preview.SetModel( path );
+        ImGui::EndCombo();
+    }
+    // The parameters as the document declares them, set here alone.
+    if ( const OptRef<const Json> parametersMaybe = TryMember( document.GetData(), "parameters" ) )
+        if ( const auto objectMaybe = parametersMaybe->TryAs<Json::Object>() )
+            for ( const Json::Member& member : *objectMaybe )
+            {
+                ImGui::PushID( member.mKey.c_str() );
+                if ( member.mValue.TryAs<f64>() )
+                {
+                    f32 value = preview.Parameter( member.mKey );
+                    ImGui::SetNextItemWidth( ImGui::GetContentRegionAvail().x * 0.5f );
+                    if ( ImGui::DragFloat( "##value", &value, 0.01f, 0, 0, "%.2f" ) )
+                        preview.SetParameter( member.mKey, value );
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted( member.mKey.c_str() );
+                }
+                else if ( member.mValue.TryAs<bool>() )
+                {
+                    bool on = preview.Parameter( member.mKey ) != 0.0f;
+                    if ( ImGui::Checkbox( member.mKey.c_str(), &on ) )
+                        preview.SetParameter( member.mKey, on ? 1.0f : 0.0f );
+                }
+                else if ( ImGui::SmallButton( member.mKey.c_str() ) )
+                    preview.Trigger( member.mKey );
+                ImGui::PopID();
+            }
+    if ( not preview.Error().empty() )
+        ImGui::TextColored( ImVec4( 1.0f, 0.45f, 0.4f, 1.0f ), "%s", preview.Error().c_str() );
+    else if ( const auto stateMaybe = preview.TryState() )
+        ImGui::TextDisabled( "playing %s", stateMaybe->c_str() );
 }
 
 GraphView& GraphViewOf( EditorProject& project, DataDocument& document )

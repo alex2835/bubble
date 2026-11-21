@@ -176,6 +176,8 @@ void Editor::Frame( f64 elapsed )
             preview.Refresh( *document );
             preview.Get().Frame( elapsed );
         }
+        else if ( GraphView& view = GraphViewOf( mProject, *document ); view.PreviewShown() )
+            view.Preview( *document ).Frame( *document, elapsed );
 
     Shortcuts();
     const ImGuiID dockSpace = ImHashStr( "bubble editor" );
@@ -255,8 +257,13 @@ void Editor::Draw()
         mViewport.Draw( shownMaybe->Get(), shownMaybe->Camera() );
     for ( DataDocument* document : mPictured )
     {
-        MaterialPreview& preview = PreviewOf( mProject, *document );
-        mPictures.at( document )->Draw( preview.Get(), preview.Camera() );
+        if ( IsMaterial( *document ) )
+        {
+            MaterialPreview& preview = PreviewOf( mProject, *document );
+            mPictures.at( document )->Draw( preview.Get(), preview.Camera() );
+        }
+        else if ( const auto previewMaybe = GraphViewOf( mProject, *document ).TryPreview() )
+            mPictures.at( document )->Draw( previewMaybe->Get(), previewMaybe->Camera() );
     }
 }
 
@@ -574,7 +581,32 @@ void Editor::AssetWindows()
                 mPictured.push_back( document );
             }
             else
-                GraphViewOf( mProject, *document ).Show( *document );
+            {
+                GraphView& view = GraphViewOf( mProject, *document );
+                if ( view.PreviewShown() )
+                {
+                    // The canvas, and the graph played on a model beside it.
+                    const ImVec2 area = ImGui::GetContentRegionAvail();
+                    if ( ImGui::BeginChild( "canvas", ImVec2( area.x * 0.6f, area.y ) ) )
+                        view.Show( *document );
+                    ImGui::EndChild();
+                    ImGui::SameLine( 0.0f, 0.0f );
+                    if ( ImGui::BeginChild( "preview", ImVec2( 0.0f, area.y ) ) )
+                    {
+                        if ( ClickedInWindow() )
+                            workspace.Activate( *document );
+                        view.PreviewControls( *document );
+                        Scope<WorldPicture>& picture = mPictures[document];
+                        if ( not picture )
+                            picture = CreateScope<WorldPicture>( mGpu, mRenderer );
+                        picture->Show( view.Preview( *document ).Camera() );
+                        mPictured.push_back( document );
+                    }
+                    ImGui::EndChild();
+                }
+                else
+                    view.Show( *document );
+            }
         }
         ImGui::End();
         if ( not open )
