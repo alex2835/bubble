@@ -90,7 +90,30 @@ ProjectFiles ProjectFiles::FromDirectory( OsPath root )
         ranges::sort( listed, {}, &ListedFile::mPath );
         return listed;
     };
-    return ProjectFiles( std::move( read ), std::move( write ), std::move( list ) );
+    Remove remove = [root]( const AssetPath& path ) -> expected<void, string> {
+        error_code error;
+        if ( not fs::remove( path.ToOsPath( root ), error ) )
+            return unexpected( error ? format( "cannot remove it: {}", error.message() ) : "no such file"s );
+        return {};
+    };
+    Move move = [root]( const AssetPath& from, const AssetPath& to ) -> expected<void, string> {
+        const OsPath source = from.ToOsPath( root );
+        const OsPath target = to.ToOsPath( root );
+        error_code error;
+        if ( not fs::exists( source, error ) )
+            return unexpected( "no such file"s );
+        if ( fs::exists( target, error ) )
+            return unexpected( format( "{} is there already", to.View() ) );
+        fs::create_directories( target.parent_path(), error );
+        if ( error )
+            return unexpected( format( "cannot make its folder: {}", error.message() ) );
+        fs::rename( source, target, error );
+        if ( error )
+            return unexpected( format( "cannot move it: {}", error.message() ) );
+        return {};
+    };
+    return ProjectFiles( std::move( read ), std::move( write ), std::move( list ), std::move( remove ),
+                         std::move( move ) );
 }
 
 ProjectFiles ProjectFiles::InMemory( hmap<string, string>& files )
@@ -115,6 +138,23 @@ ProjectFiles ProjectFiles::InMemory( hmap<string, string>& files )
         ranges::sort( listed, {}, &ListedFile::mPath );
         return listed;
     };
-    return ProjectFiles( std::move( read ), std::move( write ), std::move( list ) );
+    Remove remove = [&files]( const AssetPath& path ) -> expected<void, string> {
+        if ( files.erase( path.String() ) == 0 )
+            return unexpected( "no such file"s );
+        return {};
+    };
+    Move move = [&files]( const AssetPath& from, const AssetPath& to ) -> expected<void, string> {
+        const auto found = files.find( from.View() );
+        if ( found == files.end() )
+            return unexpected( "no such file"s );
+        if ( files.contains( to.View() ) )
+            return unexpected( format( "{} is there already", to.View() ) );
+        string bytes = std::move( found->second );
+        files.erase( found );
+        files.emplace( to.String(), std::move( bytes ) );
+        return {};
+    };
+    return ProjectFiles( std::move( read ), std::move( write ), std::move( list ), std::move( remove ),
+                         std::move( move ) );
 }
 }

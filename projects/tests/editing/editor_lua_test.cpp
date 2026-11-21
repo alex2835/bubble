@@ -135,9 +135,9 @@ TEST_CASE( "An operator's error is a script error at the line that ran it, and s
            "macro.luau:1: entity.rename: name is missing (arguments: entity?, name)" );
     CHECK( f.Why( "editor.ops.entity.vanish()" )
                .starts_with( "macro.luau:1: entity.vanish is not an operator (entity has: " ) );
-    CHECK( f.Why( "editor.ops.lights.on()" ) ==
-           "macro.luau:1: no operators are called lights.* (there are: component, document, edit, entity, prefab, "
-           "property, selection)" );
+    CHECK( f.Why( "editor.ops.lights.on()" ) == "macro.luau:1: no operators are called lights.* (there are: asset, "
+                                                "component, data, document, edit, entity, prefab, "
+                                                "property, selection)" );
     CHECK( f.Why( R"(editor.get( "/props/lamp", "light.glow" ))" ).starts_with( "macro.luau:1: /props/lamp: " ) );
     CHECK( f.Why( R"(editor.get( "/props/lamp", "shadow" ))" ) ==
            "macro.luau:1: /props/lamp: shadow is not a component (components: light)" );

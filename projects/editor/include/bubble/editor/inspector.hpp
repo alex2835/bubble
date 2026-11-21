@@ -1,5 +1,8 @@
 #pragma once
+#include "bubble/assets/material_asset.hpp"
+#include "bubble/editing/data_document.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/render/material_layout.hpp"
 #include "bubble/scripts/script_asset.hpp"
 
 namespace bubble
@@ -19,6 +22,11 @@ Value DefaultOf( const ValueType& type );
 // Components are added and removed from it, and reverted to or applied to
 // their prefab. Every edit is property.set on what is selected; a drag or a
 // text typed across frames is one step.
+//
+// A material's document shows its base or its shader, its flags and its
+// shader's parameters - each the document's own, its base's or the shader's
+// default, the own ones told apart and taken back from their menu -, edited
+// through data.set and data.remove.
 class Inspector
 {
 public:
@@ -30,7 +38,8 @@ public:
     // Its widgets, inside an ImGui window.
     void Show();
     // Where a field's widget was drawn last, its middle in ImGui's units:
-    // "name" for the entity's name, "point_light.intensity", "script.props.speed".
+    // "name" for the entity's name, "point_light.intensity", "script.props.speed";
+    // a material's "base", "double_sided", "params.roughness".
     opt<vec2> TryWhere( string_view field ) const;
 
 private:
@@ -51,6 +60,15 @@ private:
     void ScriptProps( const Scene& scene, const Value& overrides, const AssetId& scriptId );
     void AddComponent( Document& document, Entity entity );
 
+    void Material( DataDocument& document );
+    void MaterialFlag( const char* label, const string& path, opt<bool> own, bool inherited, bool based );
+    void MaterialParamRow( const MaterialAsset& material, span<const MaterialAsset> bases, const MaterialParam& param );
+    // A data document's label, set ones told apart; their menu takes them
+    // back to the base's value, or the default.
+    void DataLabel( const string& label, const string& path, bool set, bool based );
+    void DataSet( const string& path, Value value );
+    void DataRemove( const string& path );
+
     // A field's row - the label, then the widget - or rows, for a list or a
     // record; true when `value` was changed.
     bool ValueRows( const Scene& scene, const Row& row, Value& value, const ValueType& type, const FieldInfo& info );
@@ -66,9 +84,13 @@ private:
 
     void Set( Name component, const string& path, Value value );
     void Run( string_view op, Value::Record args );
+    // What the widgets asked, run after them: one step, when a step is
+    // named.
+    void RunPending();
 
     EditorProject& mProject;
     vector<pair<string, Value::Record>> mPending;
+    string mPendingStep;
     // The widget an edit's step is open for: 0 when none is.
     u32 mHeld = 0;
     string mName;

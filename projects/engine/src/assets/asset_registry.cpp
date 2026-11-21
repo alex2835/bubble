@@ -194,6 +194,21 @@ void AssetRegistry::Tell( const Listeners& listeners, Heard heard, const AssetEn
         }
 }
 
+void AssetRegistry::Settled( const Ref<AssetEntryBase>& entry, bool made, type_index type )
+{
+    if ( made )
+    {
+        mIndex->mByKey[detail::AssetKey{ entry->mId, type }] = entry;
+        entry->mIndex = mIndex;
+    }
+    const bool first = entry->mState != AssetState::Ready;
+    entry->mState = AssetState::Ready;
+    entry->mError.clear();
+    if ( not made )
+        ++entry->mVersion;
+    Tell( *mListeners, first ? Heard::Loaded : Heard::Changed, *entry );
+}
+
 expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
 {
     const auto assetIdMaybe = mCatalog.TryIdOf( path );

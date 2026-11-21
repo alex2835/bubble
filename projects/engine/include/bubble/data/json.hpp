@@ -63,6 +63,14 @@ public:
         return value ? OptRef<const T>( *value ) : nullopt;
     }
 
+    // To be changed in place: an object's members, an array's elements.
+    template <typename T>
+    OptRef<T> TryAs()
+    {
+        T* value = get_if<T>( &mData );
+        return value ? OptRef<T>( *value ) : nullopt;
+    }
+
     // An object's member by key; nothing for another key or a non-object.
     OptRef<const Json> TryFind( string_view key ) const;
 

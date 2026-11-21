@@ -36,8 +36,9 @@ enum class GizmoTool : u8
 // there - an instance of a prefab first, a part of it at the second click,
 // ctrl flipping it in the selection -; the gizmo moves, turns or scales the
 // active entity (W, E, R; X its axes or the world's; ctrl snaps), each drag
-// one step. What is selected shows its box, its colliders, a light its
-// reach, a camera its view.
+// one step; a prefab or a model dropped from the assets panel stands on the
+// ground under the mouse. What is selected shows its box, its colliders, a
+// light its reach, a camera its view.
 class Viewport
 {
 public:
@@ -52,33 +53,34 @@ public:
     void Prepare( OptRef<Document> documentMaybe, OptRef<World> worldMaybe );
     // Its widgets, inside an ImGui window: the picture last drawn - made
     // again here when the panel's size changed, before ImGui's lists name it
-    // -, the tools, the gizmo, the camera and picks by the mouse.
-    void Show( OptRef<Document> documentMaybe );
-    // `world` drawn into the picture, as the camera sees it now: after the
-    // widgets, before ImGui's lists are drawn. The first world it draws
-    // places the camera where the scene's first camera is, if it has one.
-    void Draw( World& world );
+    // -, the tools, the gizmo, `camera` moved and picks made by the mouse. A
+    // world with no scene document - a material's preview - is only looked
+    // at.
+    void Show( OptRef<Document> documentMaybe, EditorCamera& camera );
+    // `world` drawn into the picture, as `camera` sees it now: after the
+    // widgets, before ImGui's lists are drawn.
+    void Draw( World& world, const EditorCamera& camera );
 
-    EditorCamera& GetCamera() { return mCamera; }
     const GpuTexture& Picture() const { return mPicture; }
     GizmoTool Tool() const { return mTool; }
 
 private:
     void Tools();
-    void Keys( Document& document );
-    void Gizmo( Document& document, vec2 corner, vec2 size );
+    void Keys( Document& document, EditorCamera& camera );
+    void Gizmo( Document& document, const EditorCamera& camera, vec2 corner, vec2 size );
     void Picked( Document& document, Entity entity );
     void Helpers( Document& document, World& world );
     // The camera turned to the selection's box, near enough to fill the view.
-    void Frame( Document& document );
+    void Frame( Document& document, EditorCamera& camera );
+    // Where the ground - the plane y = 0 - is under `mouse`, in the window's
+    // units; the camera's focus when the ground is not under it.
+    static vec3 GroundAt( const EditorCamera& camera, vec2 mouse, vec2 corner, vec2 size );
 
     EditorProject& mProject;
     Gpu& mGpu;
     Renderer& mRenderer;
     RenderView mView;
     GpuTexture mPicture;
-    EditorCamera mCamera;
-    bool mPlaced = false;
     GizmoTool mTool = GizmoTool::Move;
     bool mLocal = false;
     // A drag of the gizmo under way: one step of the document's history.

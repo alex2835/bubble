@@ -1,9 +1,11 @@
-// bubble_editor <project folder> [--frames N] [--screenshot file.png]
+// bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png]
 //
 // The editor over a project's folder: its sources imported as it opens and
 // again as they change, project.bubble's start level open as a document,
-// shown in a viewport through the editor's own camera. --frames quits after
-// N frames, --screenshot writes the last one - the whole window - as a PNG.
+// shown in a viewport through the editor's own camera. --open opens a file of
+// the project too - a level, a prefab, a material -, the last one active.
+// --frames quits after N frames, --screenshot writes the last one - the
+// whole window - as a PNG.
 #include "bubble/audio/audio.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
@@ -23,6 +25,7 @@ namespace
 struct Arguments
 {
     OsPath mRoot;
+    vector<string> mOpen;
     opt<u64> mFrames;
     string mScreenshot;
 };
@@ -44,6 +47,8 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
         }
         else if ( argument == "--screenshot" and at + 1 < argc )
             arguments.mScreenshot = argv[++at];
+        else if ( argument == "--open" and at + 1 < argc )
+            arguments.mOpen.emplace_back( argv[++at] );
         else if ( not rooted and not argument.starts_with( "--" ) )
         {
             arguments.mRoot = PathFromUtf8( argument );
@@ -53,7 +58,7 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
             return unexpected( format( "{}: not an argument", argument ) );
     }
     if ( not rooted )
-        return unexpected( "bubble_editor <project folder> [--frames N] [--screenshot file.png]"s );
+        return unexpected( "bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png]"s );
     return arguments;
 }
 
@@ -120,6 +125,8 @@ int main( int argc, char** argv )
     EditorProject& project = **projectMaybe;
     if ( auto openedMaybe = project.TryOpenStartLevel(); not openedMaybe )
         LogWarning( "{}", openedMaybe.error() );
+    for ( const string& path : arguments.mOpen )
+        project.Run( "document.open", Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( path ) } } ) );
 
     auto windowMaybe = platform.TryOpenWindow(
         WindowOptions{ .mTitle = "bubble editor", .mSize = { 1600, 900 }, .mResizable = true } );
@@ -159,7 +166,11 @@ int main( int argc, char** argv )
             drawing.mGpu = std::move( **finishedMaybe );
             drawing.mRenderer = CreateScope<Renderer>( *drawing.mGpu, project.GetAssets() );
             drawing.mImGui = CreateScope<ImGuiRenderer>( *drawing.mGpu );
-            drawing.mEditor = CreateScope<Editor>( project, *drawing.mGpu, *drawing.mRenderer );
+            drawing.mEditor =
+                CreateScope<Editor>( project, *drawing.mGpu, *drawing.mRenderer, [&platform]( const OsPath& path ) {
+                    if ( auto openedMaybe = platform.TryOpen( path ); not openedMaybe )
+                        LogError( "{}", openedMaybe.error() );
+                } );
         }
         Gpu& gpu = *drawing.mGpu;
         gpu.Poll();

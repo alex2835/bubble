@@ -58,15 +58,16 @@ projects/engine/include/bubble/
                               paths through the catalog, loaders by kind reading the import cache - ImportedPath,
                               .bubble/imported/<id>.<kind> - on Jobs' pool (Load: Loading until the main queue
                               runs, then OnLoaded) or here and now (LoadNow); reads hand their bytes over at once
-                              (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events);
+                              (AtOnce, FromDirectory) or later (FromFetch on the web), AssetRef<T>, reload events;
+                              Set: an asset made in memory under an id of its own, a load of the id finds it);
                               TextureAsset (RGBA8 mip levels, its bytes "BTEX", RegisterTextureLoader), ModelAsset
                               (meshes: vertices, a skin's joints and weights beside them, LOD levels sharing them,
                               the box; the joints - name, rest, inverse bind -; "BMDL", RegisterModelLoader;
                               SkinPose: a skinned model's matrices this frame, runtime); FontAsset (an MSDF atlas -
                               a TextureAsset of data -, metrics, glyphs, kerning; "BFNT", RegisterFontLoader);
-                              MakeBox/MakePlane (models made in code); ShaderAsset (a material's WGSL), MaterialAsset
-                              (.mat JSON: shader or base, double_sided, transparent, params by name); PrefabAsset
-                              (a .prefab's text, parsed where it is used)
+                              MakeBox/MakePlane/MakeSphere (models made in code); ShaderAsset (a material's WGSL),
+                              MaterialAsset (.mat JSON: shader or base, double_sided, transparent, params by name);
+                              PrefabAsset (a .prefab's text, parsed where it is used)
     animation/                on ozz's runtime (src/animation alone): animation_graph (.anim: parameters, states - a
                               clip, a blend along a parameter, nothing -, transitions by conditions and exit time,
                               triggers, "return", events at shares of a clip, root motion on a state; parsed, and
@@ -100,7 +101,8 @@ projects/engine/include/bubble/
                               velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents - TextInput among
                               them -, gamepads opened as they come, QuitRequested, Run - a loop, or the browser's
-                              frames, SetCursor - the pointer's shape -, the clipboard's text), Window (the cursor
+                              frames, SetCursor - the pointer's shape -, the clipboard's text, TryOpen - a file the
+                              system's way -), Window (the cursor
                               held for a camera: SetCursorLocked; SetTextInput)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
@@ -195,7 +197,7 @@ projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gi
                               glyphs)
 projects/import/include/bubble/import/
                               bubble_import, on the engine and never included by it: ProjectFiles (the project's
-                              files: read, list with stamps, a save replaces the file whole), ImportFile
+                              files: read, list with stamps, a save replaces the file whole, remove, move), ImportFile
                               (<source>.import: the asset's id and settings), TryScanProject (ids from .import files
                               and from inside levels and prefabs, new ones written, a copy re-ided, orphans listed);
                               Importer
@@ -228,9 +230,13 @@ projects/editing/include/bubble/editing/
                               a DocumentView, gone before its scene), Command, the edits
                               (TrySetField, TryCreateEntity...; a rename or a move keeps links), Clipboard and
                               paste/duplicate; Workspace (open documents, the active one, the catalog it adds the
-                              files it writes to, prefabs by id) and Operators - the
-                              only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
-                              builtin_operators.cpp, prefab_operators.cpp); prefab documents (.prefab, node ids
+                              files it writes to - following files moved and removed -, prefabs by id) and Operators -
+                              the only way the editor acts ("entity.rename", JSON args, one step each, built-ins in
+                              builtin_operators.cpp, prefab_operators.cpp, asset_operators.cpp - asset.create from
+                              a kind's template, rename with its .import, delete -); DataDocument (a .mat or .anim
+                              open as its JSON with a history of its own, active instead of any scene; data.set,
+                              data.remove in data_operators.cpp; saved, undone, closed as a scene's are); prefab
+                              documents (.prefab, node ids
                               kept by Entity), a prefab saved remakes the instances open (src/prefabs.cpp);
                               EditorLua (the editor's own VM: editor.ops.*, editor.get, editor.group); undo brings
                               an entity back under its own number (Revive)
@@ -240,7 +246,10 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
                               (a project open: settings, App with every module, the registry, its sources kept
                               imported, the Workspace and Operators), DocumentWorld (a document's editing world over
-                              its scene, its view: WorldOf), EditorCamera, Viewport (the active document's world in a
+                              its scene and the camera on it, its view: ViewOf, WorldOf), MaterialPreview (a
+                              material document's view: a sphere wearing it as the document has it, saved or not,
+                              in a world of its own; its bases and its shader's parameters followed as they load -
+                              TryLayout -, why it does not read), EditorCamera, Viewport (the active document's world in a
                               picture the panel's size, the camera on the mouse - F frames the selection -, a click
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first -, the
                               gizmo on ImGuizmo moves, turns and scales the active entity - W, E, R, X; one history
@@ -252,11 +261,18 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               kind - FieldInfo's angle, slider, colour, mAssetKind for the asset picker -, an entity
                               field taking a row dropped from the tree, a script's props from its file - set ones
                               apart -, add, remove, revert to and apply to the prefab; every edit property.set, a
-                              drag one history group however many frames - Settle closes it -; TryWhere for tests),
-                              Editor (the dock space, the menu, a tab a document, the scene, the viewport, the
-                              inspector, the log; operators alone change anything). main.cpp is bubble_editor
-                              <project folder> [--frames N] [--screenshot file.png], the desktop alone; its layout in
-                              the project's .bubble/editor_layout.ini
+                              drag one history group however many frames - Settle closes it -; a material's base or
+                              shader, flags and its shader's parameters - own, its base's or the default; data.set -;
+                              TryWhere for tests),
+                              AssetsPanel (the project's folders and files - kinds, import errors -, a file dragged
+                              out as cAssetPayload to a field, the tree or the viewport, a level or prefab opened at a
+                              double click, anything else handed to the system; new assets from templates, rename,
+                              delete; TryPlaceAsset: a prefab or a model into the scene, one step), Editor (the dock
+                              space, the menu - New Level, Save As -, a tab a document - data documents too -, the
+                              scene, the viewport - the active document's world or a material's preview -, the
+                              inspector, the assets, the log; operators alone change anything). main.cpp is
+                              bubble_editor <project folder> [--open path]... [--frames N] [--screenshot file.png], the
+                              desktop alone; its layout in the project's .bubble/editor_layout.ini
 projects/runner/              bubble_runner, on the engine alone (never import or editing); for now a scene made in
                               code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character

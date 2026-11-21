@@ -72,6 +72,9 @@ private:
     vector<Entity> mShown;
     // Being dragged.
     vector<Entity> mDragged;
+    // A prefab or a model dropped on the tree, and the entity it goes under:
+    // placed once the rows are walked.
+    opt<pair<AssetPath, EntityPath>> mPlaceMaybe;
     // A click on a row already selected, kept until the button comes up:
     // it may be the start of a drag of them all.
     Entity mPressed = Entity::Null;

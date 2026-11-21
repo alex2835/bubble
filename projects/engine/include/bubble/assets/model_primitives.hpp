@@ -12,4 +12,8 @@ namespace bubble
 ModelAsset MakeBox( vec3 size );
 // A square `size` across in X and Z, facing +Y.
 ModelAsset MakePlane( f32 size );
+// A sphere of `radius` about the origin, in `rings` bands from pole to pole
+// and twice as many around; its uvs wrap it once around and once top to
+// bottom.
+ModelAsset MakeSphere( f32 radius, u32 rings = 16 );
 }

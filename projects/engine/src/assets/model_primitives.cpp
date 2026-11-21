@@ -1,4 +1,5 @@
 #include "bubble/assets/model_primitives.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/matrix.hpp"
 
 namespace bubble
@@ -60,6 +61,42 @@ ModelAsset MakeBox( vec3 size )
     AddFace( mesh, -z, -x, y, half );
     AddFace( mesh, y, x, -z, half );
     AddFace( mesh, -y, x, z, half );
+    return WithOneMesh( std::move( mesh ) );
+}
+
+ModelAsset MakeSphere( f32 radius, u32 rings )
+{
+    rings = max( rings, 2u );
+    const u32 around = rings * 2;
+    ModelMesh mesh = EmptyMesh();
+    // A grid of (around + 1) x (rings + 1) points: the seam and the poles
+    // repeated, each with its own uv.
+    for ( u32 ring = 0; ring <= rings; ++ring )
+    {
+        const f32 latitude = glm::pi<f32>() * static_cast<f32>( ring ) / static_cast<f32>( rings );
+        for ( u32 step = 0; step <= around; ++step )
+        {
+            const f32 longitude = 2.0f * glm::pi<f32>() * static_cast<f32>( step ) / static_cast<f32>( around );
+            const vec3 normal( sin( latitude ) * sin( longitude ), cos( latitude ),
+                               sin( latitude ) * cos( longitude ) );
+            mesh.mVertices.push_back( ModelVertex{
+                .mPosition = normal * radius,
+                .mNormal = normal,
+                .mUv = vec2( static_cast<f32>( step ) / static_cast<f32>( around ),
+                             static_cast<f32>( ring ) / static_cast<f32>( rings ) ),
+            } );
+        }
+    }
+    vector<u32>& indices = mesh.mLods.front().mIndices;
+    for ( u32 ring = 0; ring < rings; ++ring )
+        for ( u32 step = 0; step < around; ++step )
+        {
+            const u32 here = ring * ( around + 1 ) + step;
+            const u32 below = here + around + 1;
+            // Counter-clockwise seen from outside.
+            for ( const u32 index : { here, below, here + 1, here + 1, below, below + 1 } )
+                indices.push_back( index );
+        }
     return WithOneMesh( std::move( mesh ) );
 }
 

@@ -44,6 +44,14 @@ public:
     // Whether the source at `path` imports as `kind` - its importer's own
     // kind, or one it makes beside: a model's skeleton.
     bool Makes( const AssetPath& path, string_view kind ) const;
+    // What the file at `path` is: its importer's kind - "model", "script" -,
+    // "level" for a level, nothing for a file no importer takes.
+    string_view KindOf( const AssetPath& path ) const;
+    // What the last import of `path` said was wrong with it; nothing when it
+    // imported, or has not been tried.
+    OptRef<const string> TryErrorOf( const AssetPath& path ) const;
+    // The project's folder on disk; nothing for one in memory.
+    OptRef<const OsPath> TryRoot() const;
     Workspace& GetWorkspace() { return mWorkspace; }
     const Operators& GetOperators() const { return mOperators; }
     // Runs an operator on the workspace; its error is logged, as a menu or a
@@ -54,8 +62,13 @@ public:
 private:
     EditorProject( ProjectFiles files, AssetRegistry::ReadImported read, ProjectSettings settings );
     expected<void, string> TryStart( AudioDevice& audio );
+    // What a refresh said: logged, and kept by file.
+    void Report( const ProjectRefresh& refresh );
 
     ProjectSettings mSettings;
+    opt<OsPath> mRootMaybe;
+    // By path: the error of each file that would not import last time.
+    hmap<string, string> mErrors;
     // Before the registry, whose loads it finishes as it goes.
     App mApp;
     ProjectAssets mProject;

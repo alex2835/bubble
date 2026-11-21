@@ -257,6 +257,16 @@ void Platform::SetCursor( Cursor cursor )
     SDL_ShowCursor();
 }
 
+expected<void, string> Platform::TryOpen( const OsPath& path ) const
+{
+    string url = PathToUtf8( path );
+    ranges::replace( url, '\\', '/' );
+    url = ( url.starts_with( '/' ) ? "file://" : "file:///" ) + url;
+    if ( not SDL_OpenURL( url.c_str() ) )
+        return unexpected( format( "{} would not open: {}", PathToUtf8( path ), SDL_GetError() ) );
+    return {};
+}
+
 string Platform::ClipboardText() const
 {
     char* text = SDL_GetClipboardText();

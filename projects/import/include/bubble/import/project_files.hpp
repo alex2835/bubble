@@ -30,11 +30,17 @@ public:
     using Write = function<expected<void, string>( const AssetPath& path, string_view bytes )>;
     // Every file of the project, in the order of their paths.
     using List = function<expected<vector<ListedFile>, string>()>;
+    using Remove = function<expected<void, string>( const AssetPath& path )>;
+    // A file to another path, the folders on the way made; one there
+    // already is an error, and nothing moves.
+    using Move = function<expected<void, string>( const AssetPath& from, const AssetPath& to )>;
 
-    ProjectFiles( Read read, Write write, List list )
+    ProjectFiles( Read read, Write write, List list, Remove remove, Move move )
         : mRead( std::move( read ) ),
           mWrite( std::move( write ) ),
-          mList( std::move( list ) )
+          mList( std::move( list ) ),
+          mRemove( std::move( remove ) ),
+          mMove( std::move( move ) )
     {
     }
 
@@ -51,10 +57,14 @@ public:
     expected<string, string> TryRead( const AssetPath& path ) const { return mRead( path ); }
     expected<void, string> TryWrite( const AssetPath& path, string_view bytes ) const { return mWrite( path, bytes ); }
     expected<vector<ListedFile>, string> TryList() const { return mList(); }
+    expected<void, string> TryRemove( const AssetPath& path ) const { return mRemove( path ); }
+    expected<void, string> TryMove( const AssetPath& from, const AssetPath& to ) const { return mMove( from, to ); }
 
 private:
     Read mRead;
     Write mWrite;
     List mList;
+    Remove mRemove;
+    Move mMove;
 };
 }

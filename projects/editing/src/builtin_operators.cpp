@@ -246,6 +246,12 @@ Result PollPaste( const Workspace& workspace, const OperatorArgs& )
 
 Result PollHistory( const Workspace& workspace, bool undo )
 {
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+    {
+        if ( undo ? not dataMaybe->CanUndo() : not dataMaybe->CanRedo() )
+            return unexpected( undo ? "nothing to undo"s : "nothing to redo"s );
+        return {};
+    }
     const auto documentMaybe = workspace.TryActive();
     if ( not documentMaybe )
         return NoDocument();
@@ -253,6 +259,13 @@ Result PollHistory( const Workspace& workspace, bool undo )
     if ( undo ? not history.CanUndo() : not history.CanRedo() )
         return unexpected( undo ? "nothing to undo"s : "nothing to redo"s );
     return {};
+}
+
+// A file opened as data rather than as a scene: a material, an animation
+// graph.
+bool IsDataPath( const AssetPath& path )
+{
+    return path.View().ends_with( ".mat" ) or path.View().ends_with( ".anim" );
 }
 
 expected<AssetPath, string> TryPathArg( const OperatorArgs& args )
@@ -274,6 +287,22 @@ Result RunOpen( Workspace& workspace, const OperatorArgs& args )
         workspace.Activate( *openMaybe );
         return {};
     }
+    if ( IsDataPath( *pathMaybe ) )
+    {
+        if ( const auto openMaybe = workspace.TryFindData( *pathMaybe ) )
+        {
+            workspace.Activate( *openMaybe );
+            return {};
+        }
+        auto textMaybe = workspace.GetFiles().TryRead( *pathMaybe );
+        if ( not textMaybe )
+            return unexpected( format( "{}: {}", pathMaybe->View(), textMaybe.error() ) );
+        auto jsonMaybe = Json::TryParse( *textMaybe );
+        if ( not jsonMaybe )
+            return unexpected( format( "{}:{}", pathMaybe->View(), jsonMaybe.error() ) );
+        workspace.OpenData( std::move( *pathMaybe ), std::move( *jsonMaybe ) );
+        return {};
+    }
     if ( IsPrefabPath( *pathMaybe ) )
         return TryOpenPrefabDocument( workspace, *pathMaybe );
     auto textMaybe = workspace.GetFiles().TryRead( *pathMaybe );
@@ -291,6 +320,25 @@ Result RunOpen( Workspace& workspace, const OperatorArgs& args )
 // its own file when not.
 Result RunSave( Workspace& workspace, const OperatorArgs& args )
 {
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+    {
+        DataDocument& data = *dataMaybe;
+        AssetPath path = data.GetPath();
+        if ( args.Has( "path"_n ) )
+        {
+            auto pathMaybe = TryPathArg( args );
+            if ( not pathMaybe )
+                return unexpected( std::move( pathMaybe.error() ) );
+            if ( const auto otherMaybe = workspace.TryFindData( *pathMaybe ); otherMaybe and &*otherMaybe != &data )
+                return unexpected( format( "{} is open as another document", pathMaybe->View() ) );
+            path = std::move( *pathMaybe );
+        }
+        if ( auto writtenMaybe = workspace.GetFiles().TryWrite( path, data.GetData().Write() ); not writtenMaybe )
+            return unexpected( format( "{}: {}", path.View(), writtenMaybe.error() ) );
+        data.SetPath( std::move( path ) );
+        data.MarkSaved();
+        return {};
+    }
     const auto documentMaybe = workspace.TryActive();
     if ( not documentMaybe )
         return NoDocument();
@@ -327,10 +375,17 @@ Result RunSave( Workspace& workspace, const OperatorArgs& args )
 // Refuses to lose what is not saved, unless `discard` says so.
 Result RunClose( Workspace& workspace, const OperatorArgs& args )
 {
+    const auto discardMaybe = args.TryGet<bool>( "discard"_n );
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+    {
+        if ( dataMaybe->IsDirty() and not( discardMaybe and *discardMaybe ) )
+            return unexpected( "it has changes not saved: save it, or close it with discard"s );
+        workspace.Close( *dataMaybe );
+        return {};
+    }
     const auto documentMaybe = workspace.TryActive();
     if ( not documentMaybe )
         return NoDocument();
-    const auto discardMaybe = args.TryGet<bool>( "discard"_n );
     if ( documentMaybe->IsDirty() and not( discardMaybe and *discardMaybe ) )
         return unexpected( "it has changes not saved: save it, or close it with discard"s );
     workspace.Close( *documentMaybe );
@@ -469,7 +524,10 @@ void AddBuiltinOperators( Operators& operators )
         .mTryPoll = []( const Workspace& workspace, const OperatorArgs& ) { return PollHistory( workspace, true ); },
         .mTryRun =
             []( Workspace& workspace, const OperatorArgs& ) {
-                workspace.TryActive()->GetHistory().Undo();
+                if ( const auto dataMaybe = workspace.TryActiveData() )
+                    dataMaybe->Undo();
+                else
+                    workspace.TryActive()->GetHistory().Undo();
                 return Result();
             } } );
     operators.Add( Operator{
@@ -480,7 +538,10 @@ void AddBuiltinOperators( Operators& operators )
         .mTryPoll = []( const Workspace& workspace, const OperatorArgs& ) { return PollHistory( workspace, false ); },
         .mTryRun =
             []( Workspace& workspace, const OperatorArgs& ) {
-                workspace.TryActive()->GetHistory().Redo();
+                if ( const auto dataMaybe = workspace.TryActiveData() )
+                    dataMaybe->Redo();
+                else
+                    workspace.TryActive()->GetHistory().Redo();
                 return Result();
             } } );
     operators.Add( Operator{ .mId = "document.new",
@@ -511,6 +572,8 @@ void AddBuiltinOperators( Operators& operators )
                              .mTryPoll = {},
                              .mTryRun = RunClose } );
     AddPrefabOperators( operators );
+    AddAssetOperators( operators );
+    AddDataOperators( operators );
     operators.Add( Operator{ .mId = "selection.set",
                              .mLabel = "Select",
                              .mArgs = { Entities( cRequired ) },

@@ -140,7 +140,7 @@ TEST_CASE( "Arguments are checked against what the operator takes, and say where
     CHECK( f.Why( "entity.rename", R"({ "entity": "/lmap", "name": "x" })" ) ==
            "entity.rename: entity: /lmap: / has no child 'lmap' (children: 'lamp', 'props')" );
     CHECK( f.Why( "entity.create", R"({ "index": 0 })" ) == "entity.create: index: a place counts from 1, not 0" );
-    CHECK( f.Why( "entity.vanish" ).starts_with( "entity.vanish is not an operator (operators: component.add, " ) );
+    CHECK( f.Why( "entity.vanish" ).starts_with( "entity.vanish is not an operator (operators: asset.create, " ) );
     // Nothing of what failed is a step.
     CHECK_FALSE( f.mDocument.IsDirty() );
 }

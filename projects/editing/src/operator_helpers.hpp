@@ -43,4 +43,8 @@ Operator Taking( Take take, Operator op );
 
 // The prefab operators: prefab.instantiate, create, unpack, revert, apply.
 void AddPrefabOperators( Operators& operators );
+// The project's files: asset.create, rename, delete.
+void AddAssetOperators( Operators& operators );
+// The active data document: data.set, data.remove.
+void AddDataOperators( Operators& operators );
 }

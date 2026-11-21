@@ -1,4 +1,6 @@
 #include "bubble/editor/viewport.hpp"
+#include "bubble/core/log.hpp"
+#include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/physics/physics.hpp"
 #include "bubble/render/debug_draw.hpp"
@@ -241,7 +243,7 @@ void Viewport::Helpers( Document& document, World& world )
     }
 }
 
-void Viewport::Show( OptRef<Document> documentMaybe )
+void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
 {
     const ImVec2 area = ImGui::GetContentRegionAvail();
     if ( area.x < 1 or area.y < 1 )
@@ -273,19 +275,34 @@ void Viewport::Show( OptRef<Document> documentMaybe )
     }
     ImGui::GetWindowDrawList()->AddImage( ImGuiRenderer::TextureId( mPicture.View() ), corner,
                                           ImVec2( corner.x + area.x, corner.y + area.y ) );
+    if ( documentMaybe and ImGui::BeginDragDropTarget() )
+    {
+        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( cAssetPayload ) )
+            if ( const auto pathMaybe = AssetPath::TryFrom( string_view( static_cast<const char*>( payload->Data ),
+                                                                         static_cast<size_t>( payload->DataSize ) ) ) )
+            {
+                const vec3 ground = GroundAt( camera, vec2( ImGui::GetIO().MousePos.x, ImGui::GetIO().MousePos.y ),
+                                              vec2( corner.x, corner.y ), vec2( area.x, area.y ) );
+                if ( auto placedMaybe =
+                         TryPlaceAsset( mProject, *pathMaybe, EntityPath{ *Text::TryFrom( "/" ) }, ground );
+                     not placedMaybe )
+                    LogError( "{}", placedMaybe.error() );
+            }
+        ImGui::EndDragDropTarget();
+    }
 
     const ImGuiIO& io = ImGui::GetIO();
     const vec2 delta( io.MouseDelta.x * scale.x, io.MouseDelta.y * scale.y );
     if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Right ) )
-        mCamera.Orbit( delta );
+        camera.Orbit( delta );
     else if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Middle ) )
-        mCamera.Pan( delta, static_cast<f32>( pixels.y ) );
+        camera.Pan( delta, static_cast<f32>( pixels.y ) );
     if ( ImGui::IsItemHovered() and io.MouseWheel != 0 )
-        mCamera.Zoom( io.MouseWheel );
+        camera.Zoom( io.MouseWheel );
 
     // A click picks what is drawn under it, the GPU answering a frame or so
-    // later.
-    if ( ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
+    // later; a preview has nothing to pick.
+    if ( documentMaybe and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
     {
         mPressedAt = vec2( io.MousePos.x, io.MousePos.y );
         mPickToggles = io.KeyCtrl;
@@ -299,15 +316,28 @@ void Viewport::Show( OptRef<Document> documentMaybe )
         mPressedAt.reset();
     }
 
-    // The tools over the picture's corner, the last widgets of the panel.
-    ImGui::SetCursorScreenPos( ImVec2( corner.x + 6, corner.y + 6 ) );
-    Tools();
     if ( documentMaybe )
     {
+        // The tools over the picture's corner, the last widgets of the panel.
+        ImGui::SetCursorScreenPos( ImVec2( corner.x + 6, corner.y + 6 ) );
+        Tools();
         if ( ImGui::IsWindowHovered() )
-            Keys( *documentMaybe );
-        Gizmo( *documentMaybe, vec2( corner.x, corner.y ), vec2( area.x, area.y ) );
+            Keys( *documentMaybe, camera );
+        Gizmo( *documentMaybe, camera, vec2( corner.x, corner.y ), vec2( area.x, area.y ) );
     }
+}
+
+vec3 Viewport::GroundAt( const EditorCamera& editorCamera, vec2 mouse, vec2 corner, vec2 size )
+{
+    const RenderCamera camera = editorCamera.ToRenderCamera();
+    const f32 spread = tan( camera.mFov * 0.5f );
+    const vec2 share = ( mouse - corner ) / size * 2.0f - vec2( 1.0f );
+    const vec3 along( share.x * spread * size.x / size.y, -share.y * spread, -1.0f );
+    const vec3 direction = glm::normalize( mat3( camera.mWorld ) * along );
+    const vec3 origin( camera.mWorld[3] );
+    if ( direction.y >= -1e-4f )
+        return editorCamera.mFocus;
+    return origin + direction * ( -origin.y / direction.y );
 }
 
 void Viewport::Tools()
@@ -333,7 +363,7 @@ void Viewport::Tools()
         ImGui::SetTooltip( "X: the entity's own axes or the world's" );
 }
 
-void Viewport::Keys( Document& document )
+void Viewport::Keys( Document& document, EditorCamera& camera )
 {
     if ( ImGui::GetIO().WantTextInput or ImGui::GetIO().KeyCtrl )
         return;
@@ -346,13 +376,13 @@ void Viewport::Keys( Document& document )
     if ( ImGui::IsKeyPressed( ImGuiKey_X, false ) )
         mLocal = not mLocal;
     if ( ImGui::IsKeyPressed( ImGuiKey_F, false ) )
-        Frame( document );
+        Frame( document, camera );
     if ( ImGui::IsKeyPressed( ImGuiKey_Delete, false ) and
          mProject.GetOperators().TryPoll( mProject.GetWorkspace(), "entity.destroy" ) )
         mProject.Run( "entity.destroy" );
 }
 
-void Viewport::Frame( Document& document )
+void Viewport::Frame( Document& document, EditorCamera& camera )
 {
     const Scene& scene = document.GetScene();
     const Entity active = document.GetSelection().Active();
@@ -368,11 +398,11 @@ void Viewport::Frame( Document& document )
     if ( mBoxes.empty() )
         low = high = vec3( WorldOf( scene, active )[3] );
     const f32 radius = max( glm::length( high - low ) * 0.5f, 0.5f );
-    mCamera.mFocus = ( low + high ) * 0.5f;
-    mCamera.mDistance = radius / sin( mCamera.mFov * 0.5f ) * 1.1f;
+    camera.mFocus = ( low + high ) * 0.5f;
+    camera.mDistance = radius / sin( camera.mFov * 0.5f ) * 1.1f;
 }
 
-void Viewport::Gizmo( Document& document, vec2 corner, vec2 size )
+void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2 corner, vec2 size )
 {
     const Scene& scene = document.GetScene();
     const Entity active = document.GetSelection().Active();
@@ -381,7 +411,7 @@ void Viewport::Gizmo( Document& document, vec2 corner, vec2 size )
     ImGuizmo::SetDrawlist();
     ImGuizmo::SetRect( corner.x, corner.y, size.x, size.y );
     ImGuizmo::SetOrthographic( false );
-    const RenderCamera camera = mCamera.ToRenderCamera();
+    const RenderCamera camera = editorCamera.ToRenderCamera();
     const mat4 view = glm::inverse( camera.mWorld );
     const mat4 projection = glm::perspective( camera.mFov, size.x / size.y, camera.mNear, camera.mFar );
     mat4 matrix = ComputeWorldMatrix( scene, active );
@@ -422,18 +452,11 @@ void Viewport::Gizmo( Document& document, vec2 corner, vec2 size )
     }
 }
 
-void Viewport::Draw( World& world )
+void Viewport::Draw( World& world, const EditorCamera& camera )
 {
     if ( not mPicture )
         return;
-    const RenderScene& scene = world.Get<RenderScene>();
-    if ( not mPlaced )
-    {
-        mPlaced = true;
-        if ( not scene.mCameras.empty() )
-            mCamera.LookFrom( scene.mCameras.front().mWorld, 10.0f );
-    }
-    mRenderer.Draw( mView, scene, mCamera.ToRenderCamera(),
+    mRenderer.Draw( mView, world.Get<RenderScene>(), camera.ToRenderCamera(),
                     RenderTarget{ .mView = mPicture.View(), .mSize = mPicture.Size(), .mFormat = mPicture.Format() } );
 }
 }

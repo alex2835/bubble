@@ -1,4 +1,6 @@
 #include "bubble/editor/scene_panel.hpp"
+#include "bubble/core/log.hpp"
+#include "bubble/editor/assets_panel.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
 #include "bubble/types/algorithm.hpp"
@@ -130,7 +132,9 @@ void ScenePanel::Show()
     const auto documentMaybe = mProject.GetWorkspace().TryActive();
     if ( not documentMaybe )
     {
-        ImGui::TextDisabled( "No document is open" );
+        const auto dataMaybe = mProject.GetWorkspace().TryActiveData();
+        ImGui::TextDisabled( "%s", dataMaybe ? format( "{} has no scene", dataMaybe->GetPath().View() ).c_str()
+                                             : "No document is open" );
         return;
     }
     Document& document = *documentMaybe;
@@ -181,6 +185,12 @@ void ScenePanel::Show()
     for ( const OperatorCall& call : pending )
         if ( not mProject.Run( call.mId, call.mArgs ) )
             break;
+    if ( mPlaceMaybe )
+    {
+        if ( auto placedMaybe = TryPlaceAsset( mProject, mPlaceMaybe->first, mPlaceMaybe->second ); not placedMaybe )
+            LogError( "{}", placedMaybe.error() );
+        mPlaceMaybe.reset();
+    }
 }
 
 void ScenePanel::Row( Document& document, Entity entity )
@@ -332,6 +342,10 @@ void ScenePanel::DropOn( Document& document, Entity entity, bool open )
     if ( not ImGui::BeginDragDropTarget() )
         return;
     const Scene& scene = document.GetScene();
+    if ( const ImGuiPayload* asset = ImGui::AcceptDragDropPayload( cAssetPayload ) )
+        if ( auto pathMaybe = AssetPath::TryFrom(
+                 string_view( static_cast<const char*>( asset->Data ), static_cast<size_t>( asset->DataSize ) ) ) )
+            mPlaceMaybe = pair<AssetPath, EntityPath>( std::move( *pathMaybe ), PathOf( scene, entity ) );
     const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(
         cEntitiesPayload, ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect );
     if ( payload != nullptr )

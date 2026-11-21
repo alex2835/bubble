@@ -152,9 +152,11 @@ struct View
     {
         mProject->GetApp().GetJobs().RunMainQueue();
         mGpu->Poll();
-        World& world = WorldOf( mProject->GetApp(), GetDocument() );
+        DocumentWorld& shown = ViewOf( mProject->GetApp(), GetDocument() );
+        World& world = shown.Get();
         mViewport->Prepare( GetDocument(), world );
         world.Frame( 1.0 / 60 );
+        shown.PlaceCamera( world.Get<RenderScene>() );
         ImGui::GetIO().DeltaTime = 1.0f / 60;
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();
@@ -163,10 +165,10 @@ struct View
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
         ImGui::Begin( "Viewport", nullptr, ImGuiWindowFlags_NoDecoration );
         ImGui::PopStyleVar();
-        mViewport->Show( GetDocument() );
+        mViewport->Show( GetDocument(), shown.Camera() );
         ImGui::End();
         ImGui::Render();
-        mViewport->Draw( world );
+        mViewport->Draw( world, shown.Camera() );
     }
 
     void MoveTo( ImVec2 at )

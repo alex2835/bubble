@@ -9,18 +9,33 @@
 
 namespace bubble
 {
-namespace
-{
-// What a refresh said, a line each.
-void Report( const ProjectRefresh& refresh )
+void EditorProject::Report( const ProjectRefresh& refresh )
 {
     for ( const string& warning : refresh.mWarnings )
         LogWarning( "{}", warning );
+    for ( const AssetPath& path : refresh.mImported )
+        mErrors.erase( path.String() );
+    // Each error says its file first: "scripts/player.luau:3: ...".
     for ( const string& error : refresh.mErrors )
+    {
         LogError( "{}", error );
+        const size_t colon = error.find( ':' );
+        if ( colon != string::npos )
+            mErrors.insert_or_assign( error.substr( 0, colon ), error.substr( colon + 1 ) );
+    }
     for ( const auto& [path, assetId] : refresh.mOrphans )
         LogWarning( "{}: an .import whose source is gone", path.View() );
 }
+
+OptRef<const string> EditorProject::TryErrorOf( const AssetPath& path ) const
+{
+    const auto found = mErrors.find( path.View() );
+    return found != mErrors.end() ? OptRef<const string>( found->second ) : nullopt;
+}
+
+OptRef<const OsPath> EditorProject::TryRoot() const
+{
+    return mRootMaybe ? OptRef<const OsPath>( *mRootMaybe ) : nullopt;
 }
 
 expected<Scope<EditorProject>, string> EditorProject::TryOpen( ProjectFiles files,
@@ -42,7 +57,10 @@ expected<Scope<EditorProject>, string> EditorProject::TryOpen( ProjectFiles file
 
 expected<Scope<EditorProject>, string> EditorProject::TryOpen( const OsPath& root, AudioDevice& audio )
 {
-    return TryOpen( ProjectFiles::FromDirectory( root ), AssetRegistry::FromDirectory( root ), audio );
+    auto projectMaybe = TryOpen( ProjectFiles::FromDirectory( root ), AssetRegistry::FromDirectory( root ), audio );
+    if ( projectMaybe )
+        ( *projectMaybe )->mRootMaybe = root;
+    return projectMaybe;
 }
 
 EditorProject::EditorProject( ProjectFiles files, AssetRegistry::ReadImported read, ProjectSettings settings )
@@ -123,6 +141,18 @@ expected<void, string> EditorProject::TryOpenStartLevel()
         return unexpected( format( "{}: start_level: no such level in the project", cProjectFile ) );
     return mOperators.TryRun( mWorkspace, "document.open",
                               Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = pathMaybe->String() } } ) );
+}
+
+string_view EditorProject::KindOf( const AssetPath& path ) const
+{
+    const string_view text = path.View();
+    if ( text.ends_with( ".scene" ) )
+        return "level";
+    const size_t dot = text.rfind( '.' );
+    if ( dot == string_view::npos )
+        return {};
+    const auto importerMaybe = mProject.GetImporters().TryFind( text.substr( dot ) );
+    return importerMaybe ? string_view( importerMaybe->mKind ) : string_view();
 }
 
 bool EditorProject::Makes( const AssetPath& path, string_view kind ) const

@@ -98,7 +98,8 @@ TEST_CASE( "A broken .import leaves its source out, and one with no source is an
 
 TEST_CASE( "A scan that cannot list, read or write the project fails, saying what" )
 {
-    const ProjectFiles unlisted( {}, {}, [] { return expected<vector<ListedFile>, string>( unexpected( "gone"s ) ); } );
+    const ProjectFiles unlisted( {}, {}, [] { return expected<vector<ListedFile>, string>( unexpected( "gone"s ) ); },
+                                 {}, {} );
     CHECK( TryScanProject( unlisted, cSources, cEngineFileExtensions ).error() == "gone" );
 
     const ProjectFiles readOnly(
@@ -107,7 +108,8 @@ TEST_CASE( "A scan that cannot list, read or write the project fails, saying wha
         [] {
             return expected<vector<ListedFile>, string>(
                 vector<ListedFile>{ ListedFile{ .mPath = Path( "a.luau" ), .mStamp = 0 } } );
-        } );
+        },
+        {}, {} );
     CHECK( TryScanProject( readOnly, cSources, cEngineFileExtensions ).error() ==
            "cannot write a.luau.import: read-only" );
 }

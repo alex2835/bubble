@@ -262,6 +262,23 @@ public:
         return Typed<T>( TryFindEntry( assetId, typeid( T ) ) );
     }
 
+    // An asset made in memory rather than read from the cache, under
+    // `assetId`: a material's preview as it is edited, a model made in code.
+    // Its entry is Ready with it - or, there already, takes it as a reload
+    // would, its version moved on and its listeners told. A load of the id
+    // finds it; the ref keeps it, as any does.
+    template <typename T>
+    AssetRef<T> Set( const AssetId& assetId, T asset )
+    {
+        Ref<AssetEntryBase> entry = TryFindEntry( assetId, typeid( T ) );
+        const bool made = entry == nullptr;
+        if ( made )
+            entry = CreateRef<AssetEntry<T>>( assetId, AssetPath() );
+        static_cast<AssetEntry<T>&>( *entry ).mDataMaybe.emplace( std::move( asset ) );
+        Settled( entry, made, typeid( T ) );
+        return Typed<T>( entry );
+    }
+
     // How many entries are in memory.
     size_t Count() const { return mIndex->mByKey.size(); }
     const AssetCatalog& Catalog() const { return mCatalog; }
@@ -354,7 +371,12 @@ private:
     {
         const auto pathMaybe = mCatalog.TryPathOf( assetId );
         if ( not pathMaybe )
+        {
+            // One set from memory is known by its id alone.
+            if ( Ref<AssetEntryBase> entry = TryFindEntry( assetId, typeid( T ) ) )
+                return Typed<T>( std::move( entry ) );
             return Unknown<T>( assetId, {}, format( "no asset {} in the project", assetId.ToString() ) );
+        }
         return Typed<T>( LoadEntry( assetId, *pathMaybe, typeid( T ), &Make<T>, when ) );
     }
 
@@ -369,6 +391,8 @@ private:
     // Loads the entry here and now; whether it took.
     expected<void, string> TryLoadHere( AssetEntryBase& entry );
     static void Finish( AssetEntryBase& entry, const expected<Install, string>& loaded );
+    // Set's work past the data: listed, Ready, its version and its listeners.
+    void Settled( const Ref<AssetEntryBase>& entry, bool made, type_index type );
     static void Tell( const Listeners& listeners, Heard heard, const AssetEntryBase& entry );
 
     const AssetCatalog& mCatalog;

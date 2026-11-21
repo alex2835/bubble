@@ -1,8 +1,9 @@
 #include "bubble/editor/editor.hpp"
-#include "bubble/editor/document_world.hpp"
 #include "bubble/editor/editor_font.hpp"
+#include "bubble/editor/material_preview.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <imgui_stdlib.h>
 
 // After ImGui's own header, which it takes as given.
 #include <ImGuizmo.h>
@@ -29,10 +30,11 @@ ImVec4 ColorOf( LogLevel level )
 }
 }
 
-Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer )
+Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<void( const OsPath& )> open )
     : mProject( project ),
       mScene( project ),
       mInspector( project ),
+      mAssets( project, std::move( open ) ),
       mViewport( project, gpu, renderer )
 {
 }
@@ -53,12 +55,49 @@ void Editor::SetUpImGui( f32 scale )
     style.FontScaleDpi = scale;
 }
 
-OptRef<World> Editor::TryActiveWorld()
+namespace
 {
-    const auto activeMaybe = mProject.GetWorkspace().TryActive();
-    if ( not activeMaybe )
-        return nullopt;
-    return WorldOf( mProject.GetApp(), *activeMaybe );
+string FileNameOf( string_view path )
+{
+    return string( path.substr( path.rfind( '/' ) + 1 ) );
+}
+
+bool IsMaterial( const DataDocument& document )
+{
+    return document.GetPath().View().ends_with( ".mat" );
+}
+}
+
+opt<Editor::ActiveView> Editor::TryActiveView()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( const auto activeMaybe = workspace.TryActive() )
+    {
+        DocumentWorld& view = ViewOf( mProject.GetApp(), *activeMaybe );
+        return ActiveView{ .mWorld = view.Get(),
+                           .mCamera = view.Camera(),
+                           .mSceneMaybe = OptRef<DocumentWorld>( view ) };
+    }
+    if ( const auto dataMaybe = workspace.TryActiveData(); dataMaybe and IsMaterial( *dataMaybe ) )
+    {
+        MaterialPreview& preview = PreviewOf( mProject, *dataMaybe );
+        preview.Refresh( *dataMaybe );
+        return ActiveView{ .mWorld = preview.Get(), .mCamera = preview.Camera(), .mSceneMaybe = nullopt };
+    }
+    return nullopt;
+}
+
+opt<string> Editor::TryActiveTitle()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+        return FileNameOf( dataMaybe->GetPath().View() );
+    if ( const auto activeMaybe = workspace.TryActive() )
+    {
+        const auto pathMaybe = activeMaybe->TryPath();
+        return pathMaybe ? FileNameOf( pathMaybe->View() ) : "untitled"s;
+    }
+    return nullopt;
 }
 
 void Editor::Frame( f64 elapsed )
@@ -73,10 +112,15 @@ void Editor::Frame( f64 elapsed )
     }
     // The world gathers what it shows - models, lights, the transforms
     // between them - and what the viewport draws over the selection.
-    const auto worldMaybe = TryActiveWorld();
-    mViewport.Prepare( mProject.GetWorkspace().TryActive(), worldMaybe );
-    if ( worldMaybe )
-        worldMaybe->Frame( elapsed );
+    const auto viewMaybe = TryActiveView();
+    mViewport.Prepare( mProject.GetWorkspace().TryActive(),
+                       viewMaybe ? OptRef<World>( viewMaybe->mWorld ) : OptRef<World>() );
+    if ( viewMaybe )
+    {
+        viewMaybe->mWorld.Frame( elapsed );
+        if ( viewMaybe->mSceneMaybe )
+            viewMaybe->mSceneMaybe->PlaceCamera( viewMaybe->mWorld.Get<RenderScene>() );
+    }
 
     Shortcuts();
     const ImGuiID dockSpace = ImHashStr( "bubble editor" );
@@ -97,16 +141,24 @@ void Editor::Frame( f64 elapsed )
     {
         DocumentTabs();
         UnsavedChanges();
-        mViewport.Show( mProject.GetWorkspace().TryActive() );
+        SaveAs();
+        if ( viewMaybe )
+            mViewport.Show( mProject.GetWorkspace().TryActive(), viewMaybe->mCamera );
+        else if ( mProject.GetWorkspace().TryActiveData() )
+            ImGui::TextDisabled( "  An animation graph is edited in its own panel: it comes with step 6c." );
     }
     ImGui::End();
     LogPanel();
+    // After the log: a window made last is the tab shown, the first time.
+    if ( ImGui::Begin( "Assets" ) )
+        mAssets.Show();
+    ImGui::End();
 }
 
 void Editor::Draw()
 {
-    if ( const auto worldMaybe = TryActiveWorld() )
-        mViewport.Draw( *worldMaybe );
+    if ( const auto viewMaybe = TryActiveView() )
+        mViewport.Draw( viewMaybe->mWorld, viewMaybe->mCamera );
 }
 
 void Editor::Layout( u32 dockSpace )
@@ -129,6 +181,7 @@ void Editor::Layout( u32 dockSpace )
     ImGui::DockBuilderDockWindow( "Scene", left );
     ImGui::DockBuilderDockWindow( "Inspector", right );
     ImGui::DockBuilderDockWindow( "Viewport", centre );
+    ImGui::DockBuilderDockWindow( "Assets", bottom );
     ImGui::DockBuilderDockWindow( "Log", bottom );
     ImGui::DockBuilderFinish( dockSpace );
 }
@@ -148,7 +201,11 @@ void Editor::Menu()
         return;
     if ( ImGui::BeginMenu( "File" ) )
     {
-        MenuItem( "Save", "Ctrl+S", "document.save" );
+        MenuItem( "New Level", nullptr, "document.new" );
+        if ( ImGui::MenuItem( "Save", "Ctrl+S", false, TryActiveTitle().has_value() ) )
+            Save();
+        if ( ImGui::MenuItem( "Save As...", nullptr, false, TryActiveTitle().has_value() ) )
+            mAskSaveAs = true;
         ImGui::Separator();
         if ( ImGui::MenuItem( "Quit" ) )
             mQuitAsked = true;
@@ -174,7 +231,8 @@ void Editor::Shortcuts()
              mProject.GetOperators().TryPoll( mProject.GetWorkspace(), op ) )
             mProject.Run( op );
     };
-    key( ImGuiMod_Ctrl | ImGuiKey_S, "document.save", true );
+    if ( ImGui::IsKeyChordPressed( ImGuiMod_Ctrl | ImGuiKey_S ) and TryActiveTitle() )
+        Save();
     key( ImGuiMod_Ctrl | ImGuiKey_Z, "edit.undo" );
     key( ImGuiMod_Ctrl | ImGuiKey_Y, "edit.redo" );
     key( ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z, "edit.redo" );
@@ -183,46 +241,61 @@ void Editor::Shortcuts()
 namespace
 {
 // A document's tab by the document, whatever its title says.
-string TabId( const Document& document )
+string TabId( const void* document )
 {
-    return format( "###document{}", static_cast<const void*>( &document ) );
+    return format( "###document{}", document );
 }
 
-string TitleOf( const Document& document )
+// A tab as the bar shows it: scenes' documents and data documents alike.
+struct Tab
 {
-    const auto pathMaybe = document.TryPath();
-    if ( not pathMaybe )
-        return "untitled";
-    const string_view path = pathMaybe->View();
-    return string( path.substr( path.rfind( '/' ) + 1 ) );
-}
+    string mId;
+    string mTitle;
+    bool mDirty = false;
+    function<void()> mActivate;
+};
 }
 
 void Editor::DocumentTabs()
 {
     Workspace& workspace = mProject.GetWorkspace();
-    const auto activeMaybe = workspace.TryActive();
-    const string activeTab = activeMaybe ? TabId( *activeMaybe ) : string();
+    string activeTab;
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+        activeTab = TabId( &*dataMaybe );
+    else if ( const auto activeMaybe = workspace.TryActive() )
+        activeTab = TabId( &*activeMaybe );
     const bool changed = activeTab != mActiveTab;
     mActiveTab = activeTab;
+    vector<Tab> tabs;
+    for ( const Scope<Document>& document : workspace.All() )
+    {
+        const auto pathMaybe = document->TryPath();
+        tabs.push_back( Tab{ .mId = TabId( document.get() ),
+                             .mTitle = pathMaybe ? FileNameOf( pathMaybe->View() ) : "untitled"s,
+                             .mDirty = document->IsDirty(),
+                             .mActivate = [&workspace, &open = *document] { workspace.Activate( open ); } } );
+    }
+    for ( const Scope<DataDocument>& document : workspace.AllData() )
+        tabs.push_back( Tab{ .mId = TabId( document.get() ),
+                             .mTitle = FileNameOf( document->GetPath().View() ),
+                             .mDirty = document->IsDirty(),
+                             .mActivate = [&workspace, &open = *document] { workspace.Activate( open ); } } );
     if ( not ImGui::BeginTabBar( "documents", ImGuiTabBarFlags_Reorderable ) )
         return;
     // What the tabs ask is done after them: both change the order of the
     // workspace's documents.
     opt<size_t> picked;
     opt<size_t> closed;
-    const span<const Scope<Document>> documents = workspace.All();
-    for ( size_t at = 0; at < documents.size(); ++at )
+    for ( size_t at = 0; at < tabs.size(); ++at )
     {
-        const Document& document = *documents[at];
-        const string tab = TabId( document );
-        ImGuiTabItemFlags flags = document.IsDirty() ? ImGuiTabItemFlags_UnsavedDocument : 0;
-        if ( changed and tab == activeTab )
+        const Tab& tab = tabs[at];
+        ImGuiTabItemFlags flags = tab.mDirty ? ImGuiTabItemFlags_UnsavedDocument : 0;
+        if ( changed and tab.mId == activeTab )
             flags |= ImGuiTabItemFlags_SetSelected;
         bool open = true;
-        if ( ImGui::BeginTabItem( ( TitleOf( document ) + tab ).c_str(), &open, flags ) )
+        if ( ImGui::BeginTabItem( ( tab.mTitle + tab.mId ).c_str(), &open, flags ) )
         {
-            if ( not changed and tab != activeTab )
+            if ( not changed and tab.mId != activeTab )
                 picked = at;
             ImGui::EndTabItem();
         }
@@ -231,30 +304,75 @@ void Editor::DocumentTabs()
     }
     ImGui::EndTabBar();
     if ( picked )
-        workspace.Activate( *workspace.All()[*picked] );
+        tabs[*picked].mActivate();
     if ( closed )
     {
-        Document& document = *workspace.All()[*closed];
-        workspace.Activate( document );
-        if ( document.IsDirty() )
+        tabs[*closed].mActivate();
+        if ( tabs[*closed].mDirty )
             ImGui::OpenPopup( "Unsaved changes" );
         else
             mProject.Run( "document.close" );
     }
 }
 
+void Editor::Save()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    const auto activeMaybe = workspace.TryActive();
+    // A data document always has its file; a level with none yet asks where.
+    if ( workspace.TryActiveData() or ( activeMaybe and activeMaybe->TryPath() ) )
+        mProject.Run( "document.save" );
+    else if ( activeMaybe )
+        mAskSaveAs = true;
+}
+
+void Editor::SaveAs()
+{
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( mAskSaveAs and TryActiveTitle() )
+    {
+        mAskSaveAs = false;
+        const auto activeMaybe = workspace.TryActive();
+        const auto pathMaybe = activeMaybe ? activeMaybe->TryPath() : nullopt;
+        if ( const auto dataMaybe = workspace.TryActiveData() )
+            mSaveAsPath = dataMaybe->GetPath().String();
+        else
+            mSaveAsPath = pathMaybe
+                              ? pathMaybe->String()
+                              : format( "{}untitled.scene", mAssets.Folder().empty() ? "" : mAssets.Folder() + "/" );
+        ImGui::OpenPopup( "Save as" );
+    }
+    if ( not ImGui::BeginPopupModal( "Save as", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
+        return;
+    ImGui::TextUnformatted( "Where in the project:" );
+    if ( ImGui::IsWindowAppearing() )
+        ImGui::SetKeyboardFocusHere();
+    ImGui::SetNextItemWidth( ImGui::GetFontSize() * 24 );
+    const bool entered = ImGui::InputText( "##path", &mSaveAsPath, ImGuiInputTextFlags_EnterReturnsTrue );
+    if ( ImGui::Button( "Save" ) or entered )
+    {
+        if ( mProject.Run( "document.save",
+                           Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = Json( mSaveAsPath ) } } ) ) )
+            ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if ( ImGui::Button( "Cancel" ) or ImGui::IsKeyPressed( ImGuiKey_Escape ) )
+        ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+}
+
 void Editor::UnsavedChanges()
 {
     if ( not ImGui::BeginPopupModal( "Unsaved changes", nullptr, ImGuiWindowFlags_AlwaysAutoResize ) )
         return;
-    const auto activeMaybe = mProject.GetWorkspace().TryActive();
-    if ( not activeMaybe )
+    const auto titleMaybe = TryActiveTitle();
+    if ( not titleMaybe )
     {
         ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
         return;
     }
-    ImGui::Text( "%s has changes that are not saved.", TitleOf( *activeMaybe ).c_str() );
+    ImGui::Text( "%s has changes that are not saved.", titleMaybe->c_str() );
     if ( ImGui::Button( "Save" ) )
     {
         if ( mProject.Run( "document.save" ) )
@@ -311,6 +429,9 @@ void Editor::LogPanel()
 string Editor::Title()
 {
     const string project = mProject.GetSettings().mName.empty() ? "bubble" : mProject.GetSettings().mName;
+    if ( const auto dataMaybe = mProject.GetWorkspace().TryActiveData() )
+        return format( "{}{} - {} - bubble editor", dataMaybe->GetPath().View(), dataMaybe->IsDirty() ? " *" : "",
+                       project );
     const auto activeMaybe = mProject.GetWorkspace().TryActive();
     if ( not activeMaybe )
         return format( "{} - bubble editor", project );

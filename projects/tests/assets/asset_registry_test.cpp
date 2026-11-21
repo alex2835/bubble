@@ -288,6 +288,36 @@ TEST_CASE( "A file that would not load is kept in memory and says the same reaso
     CHECK_FALSE( project.mAssets.TryFind<TextAsset>( *AssetPath::TryFrom( "gone.txt" ) ) );
 }
 
+TEST_CASE( "An asset set from memory is Ready under its id, loads find it, and setting it again is a reload" )
+{
+    Project project;
+    const AssetId assetId = AssetId::Generate();
+    vector<string> heard;
+    const auto loaded = project.mAssets.OnLoaded( [&]( const AssetEntryBase& ) { heard.push_back( "loaded" ); } );
+    const auto changed = project.mAssets.OnChanged( [&]( const AssetEntryBase& ) { heard.push_back( "changed" ); } );
+
+    const AssetRef<TextAsset> set = project.mAssets.Set( assetId, TextAsset{ "first" } );
+    CHECK( set.Ready() );
+    CHECK( set.Entry().Path().View() == "" );
+    // No path in the catalog, and still the same entry.
+    const AssetRef<TextAsset> loadedRef = project.mAssets.Load<TextAsset>( assetId );
+    CHECK( loadedRef.Ready() );
+    CHECK( &loadedRef.Entry() == &set.Entry() );
+    CHECK( project.mAssets.LoadNow<TextAsset>( assetId ).TryGet()->mText == "first" );
+
+    project.mAssets.Set( assetId, TextAsset{ "second" } );
+    CHECK( loadedRef.TryGet()->mText == "second" );
+    CHECK( loadedRef.Entry().Version() == 1 );
+    CHECK( heard == vector<string>{ "loaded", "changed" } );
+    project.mAssets.RemoveListener( loaded );
+    project.mAssets.RemoveListener( changed );
+
+    // Another id the catalog does not have is still no asset.
+    const AssetId otherId = AssetId::Generate();
+    CHECK( project.mAssets.Load<TextAsset>( otherId ).Entry().Error() ==
+           format( "no asset {} in the project", otherId.ToString() ) );
+}
+
 TEST_CASE( "One source imported as two kinds is two entries, reloaded together" )
 {
     // A model and its skeleton, say: one id, a file of each kind.

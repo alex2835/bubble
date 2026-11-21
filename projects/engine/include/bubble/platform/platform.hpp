@@ -68,6 +68,9 @@ public:
 
     // The pointer over the windows from now on.
     void SetCursor( Cursor cursor );
+    // A file or a folder opened as the system opens it: a script in the
+    // editor people chose for it, a folder in the file manager.
+    expected<void, string> TryOpen( const OsPath& path ) const;
     // The system's clipboard as text: empty when it holds none.
     string ClipboardText() const;
     void SetClipboardText( const string& text );

@@ -1,4 +1,6 @@
 #include "bubble/editor/inspector.hpp"
+#include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
@@ -56,6 +58,27 @@ Value TextValue( string_view text )
 
 // A set prop stands out from one at its file's default.
 constexpr ImVec4 cSet{ 1.0f, 0.85f, 0.45f, 1.0f };
+constexpr ImVec4 cError{ 1.0f, 0.45f, 0.4f, 1.0f };
+
+using MaterialParamValue = pair<string, MaterialValue>;
+
+// What a material's bases give a parameter: the nearest that sets it.
+opt<MaterialValue> TryInherited( span<const MaterialAsset> bases, string_view name )
+{
+    for ( const MaterialAsset& base : bases )
+        if ( const auto found = ranges::find( base.mParams, name, &MaterialParamValue::first );
+             found != base.mParams.end() )
+            return found->second;
+    return nullopt;
+}
+
+bool InheritedFlag( span<const MaterialAsset> bases, opt<bool> MaterialAsset::* flag )
+{
+    for ( const MaterialAsset& base : bases )
+        if ( base.*flag )
+            return *( base.*flag );
+    return false;
+}
 }
 
 string FieldLabel( string_view name )
@@ -109,14 +132,49 @@ void Inspector::Set( Name component, const string& path, Value value )
                                  ValueField{ .mName = "value"_n, .mValue = std::move( value ) } } ) );
 }
 
+void Inspector::DataSet( const string& path, Value value )
+{
+    Run( "data.set", Args( { ValueField{ .mName = "path"_n, .mValue = TextValue( path ) },
+                             ValueField{ .mName = "value"_n, .mValue = std::move( value ) } } ) );
+}
+
+void Inspector::DataRemove( const string& path )
+{
+    Run( "data.remove", Args( { ValueField{ .mName = "path"_n, .mValue = TextValue( path ) } } ) );
+}
+
+void Inspector::RunPending()
+{
+    const vector<pair<string, Value::Record>> pending = std::move( mPending );
+    mPending.clear();
+    const string step = std::move( mPendingStep );
+    mPendingStep.clear();
+    const auto dataMaybe = mProject.GetWorkspace().TryActiveData();
+    if ( dataMaybe and not step.empty() )
+        dataMaybe->BeginGroup( step );
+    for ( const auto& [op, args] : pending )
+        if ( not mProject.Run( op, args ) )
+            break;
+    if ( dataMaybe and not step.empty() )
+        dataMaybe->EndGroup();
+}
+
 void Inspector::Settle()
 {
     if ( mHeld == 0 or ImGui::GetActiveID() == mHeld )
         return;
     mHeld = 0;
-    if ( const auto documentMaybe = mProject.GetWorkspace().TryActive() )
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+    {
+        if ( dataMaybe->InGroup() )
+            dataMaybe->EndGroup();
+    }
+    else if ( const auto documentMaybe = workspace.TryActive() )
+    {
         if ( documentMaybe->GetHistory().InGroup() )
             documentMaybe->GetHistory().EndGroup();
+    }
 }
 
 void Inspector::Hold( bool changed )
@@ -125,7 +183,13 @@ void Inspector::Hold( bool changed )
         return;
     // A drag, a text typed, a colour picked: one step however many frames
     // it takes - the history folds a field set again into the first set.
-    if ( const auto documentMaybe = mProject.GetWorkspace().TryActive() )
+    Workspace& workspace = mProject.GetWorkspace();
+    if ( const auto dataMaybe = workspace.TryActiveData() )
+    {
+        dataMaybe->BeginGroup( "Set Property" );
+        mHeld = ImGui::GetActiveID();
+    }
+    else if ( const auto documentMaybe = workspace.TryActive() )
     {
         documentMaybe->GetHistory().BeginGroup( "Set Property" );
         mHeld = ImGui::GetActiveID();
@@ -134,6 +198,16 @@ void Inspector::Hold( bool changed )
 
 void Inspector::Show()
 {
+    mWhere.clear();
+    if ( const auto dataMaybe = mProject.GetWorkspace().TryActiveData() )
+    {
+        if ( dataMaybe->GetPath().View().ends_with( ".mat" ) )
+            Material( *dataMaybe );
+        else
+            ImGui::TextDisabled( "An animation graph: its editor comes with step 6c" );
+        RunPending();
+        return;
+    }
     const auto documentMaybe = mProject.GetWorkspace().TryActive();
     if ( not documentMaybe )
     {
@@ -149,7 +223,6 @@ void Inspector::Show()
         ImGui::TextDisabled( "Nothing is selected" );
         return;
     }
-    mWhere.clear();
     NameRow( document, entity );
     if ( const size_t count = selection.All().size(); count > 1 )
         ImGui::TextDisabled( "%zu selected: an edit goes to each that has the field", count );
@@ -157,12 +230,214 @@ void Inspector::Show()
         if ( type.mGet( scene, entity ) )
             Component( document, entity, type );
     AddComponent( document, entity );
+    RunPending();
+}
 
-    const vector<pair<string, Value::Record>> pending = std::move( mPending );
-    mPending.clear();
-    for ( const auto& [op, args] : pending )
-        if ( not mProject.Run( op, args ) )
-            break;
+void Inspector::Material( DataDocument& document )
+{
+    MaterialPreview& preview = PreviewOf( mProject, document );
+    preview.Refresh( document );
+    ImGui::TextUnformatted( document.GetPath().String().c_str() );
+    if ( not preview.Error().empty() )
+    {
+        ImGui::PushStyleColor( ImGuiCol_Text, cError );
+        ImGui::TextWrapped( "%s", preview.Error().c_str() );
+        ImGui::PopStyleColor();
+    }
+    const auto materialMaybe = preview.TryMaterial();
+    if ( not materialMaybe )
+        return;
+    const MaterialAsset& material = *materialMaybe;
+    const span<const MaterialAsset> bases = preview.Bases();
+    const bool based = static_cast<bool>( material.mBase );
+    const auto table = [] {
+        if ( not ImGui::BeginTable( "fields", 2, ImGuiTableFlags_Resizable ) )
+            return false;
+        ImGui::TableSetupColumn( "field", ImGuiTableColumnFlags_WidthStretch, 0.4f );
+        ImGui::TableSetupColumn( "value", ImGuiTableColumnFlags_WidthStretch, 0.6f );
+        return true;
+    };
+    if ( table() )
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted( "Base" );
+        ImGui::TableNextColumn();
+        ImGui::SetNextItemWidth( -1.0f );
+        AssetId base = material.mBase;
+        if ( AssetPicker( "base", base, "material" ) )
+        {
+            if ( not base )
+                DataRemove( "base" );
+            else
+            {
+                // A material with a base takes its base's shader.
+                if ( material.mShader )
+                {
+                    mPendingStep = "Set Base";
+                    DataRemove( "shader" );
+                }
+                DataSet( "base", Value( base ) );
+            }
+        }
+        Shown( "base" );
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted( "Shader" );
+        ImGui::TableNextColumn();
+        if ( based )
+        {
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextDisabled( "the base's" );
+        }
+        else
+        {
+            ImGui::SetNextItemWidth( -1.0f );
+            AssetId shader = material.mShader;
+            if ( AssetPicker( "shader", shader, "shader" ) )
+            {
+                if ( shader )
+                    DataSet( "shader", Value( shader ) );
+                else
+                    DataRemove( "shader" );
+            }
+            if ( not material.mShader and ImGui::IsItemHovered() )
+                ImGui::SetTooltip( "None: the engine's standard material" );
+        }
+        Shown( "shader" );
+        MaterialFlag( "Double sided", "double_sided", material.mDoubleSided,
+                      InheritedFlag( bases, &MaterialAsset::mDoubleSided ), based );
+        MaterialFlag( "Transparent", "transparent", material.mTransparent,
+                      InheritedFlag( bases, &MaterialAsset::mTransparent ), based );
+        ImGui::EndTable();
+    }
+
+    ImGui::SeparatorText( "Parameters" );
+    const auto layoutMaybe = preview.TryLayout();
+    if ( not layoutMaybe )
+    {
+        if ( preview.Error().empty() )
+            ImGui::TextDisabled( "Loading the shader..." );
+        return;
+    }
+    if ( not table() )
+        return;
+    for ( const MaterialParam& param : layoutMaybe->mParams )
+        MaterialParamRow( material, bases, param );
+    // What the document sets that its shader does not declare: there to be
+    // taken out.
+    for ( const auto& [name, value] : material.mParams )
+    {
+        if ( layoutMaybe->TryFind( name ) )
+            continue;
+        const string path = "params." + name;
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled( "%s", FieldLabel( name ).c_str() );
+        ImGui::TableNextColumn();
+        if ( ImGui::SmallButton( ( "Remove##" + path ).c_str() ) )
+            DataRemove( path );
+        ImGui::SameLine();
+        ImGui::TextDisabled( "not in the shader" );
+        Shown( path );
+    }
+    ImGui::EndTable();
+}
+
+void Inspector::DataLabel( const string& label, const string& path, bool set, bool based )
+{
+    if ( set )
+        ImGui::PushStyleColor( ImGuiCol_Text, cSet );
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted( label.c_str() );
+    if ( set )
+        ImGui::PopStyleColor();
+    if ( set and ImGui::BeginPopupContextItem( path.c_str() ) )
+    {
+        if ( ImGui::MenuItem( based ? "Back to the Base's" : "Back to Default" ) )
+            DataRemove( path );
+        ImGui::EndPopup();
+    }
+}
+
+void Inspector::MaterialFlag( const char* label, const string& path, opt<bool> own, bool inherited, bool based )
+{
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    DataLabel( label, path, own.has_value(), based );
+    ImGui::TableNextColumn();
+    bool on = own.value_or( inherited );
+    const bool changed = ImGui::Checkbox( ( "##" + path ).c_str(), &on );
+    if ( changed )
+        DataSet( path, Value( on ) );
+    Shown( path );
+    Hold( changed );
+}
+
+void Inspector::MaterialParamRow( const MaterialAsset& material,
+                                  span<const MaterialAsset> bases,
+                                  const MaterialParam& param )
+{
+    const string path = "params." + param.mName;
+    const auto own = ranges::find( material.mParams, param.mName, &MaterialParamValue::first );
+    const bool set = own != material.mParams.end();
+    const auto inheritedMaybe = TryInherited( bases, param.mName );
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    DataLabel( FieldLabel( param.mName ), path, set, inheritedMaybe.has_value() );
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth( -1.0f );
+    const string id = "##" + path;
+    bool changed = false;
+    if ( param.mKind == MaterialParamKind::Texture )
+    {
+        AssetId texture = set ? own->second.mTexture : inheritedMaybe ? inheritedMaybe->mTexture : AssetId();
+        // None takes the document's own back: the base's, or the shader's
+        // default.
+        if ( ( changed = AssetPicker( path, texture, "texture" ) ) )
+        {
+            if ( texture )
+                DataSet( path, Value( texture ) );
+            else if ( set )
+                DataRemove( path );
+        }
+    }
+    else
+    {
+        vector<f32> numbers = set ? own->second.mNumbers : inheritedMaybe ? inheritedMaybe->mNumbers : param.mDefault;
+        numbers.resize( param.mComponents, 0.0f );
+        switch ( param.mComponents )
+        {
+            case 1: changed = ImGui::DragFloat( id.c_str(), numbers.data(), 0.01f, 0, 0, "%.3f" ); break;
+            case 2: changed = ImGui::DragFloat2( id.c_str(), numbers.data(), 0.01f, 0, 0, "%.3f" ); break;
+            case 3:
+                changed = param.mColor ? ImGui::ColorEdit3( id.c_str(), numbers.data() )
+                                       : ImGui::DragFloat3( id.c_str(), numbers.data(), 0.01f, 0, 0, "%.3f" );
+                break;
+            default:
+                changed = param.mColor ? ImGui::ColorEdit4( id.c_str(), numbers.data(), ImGuiColorEditFlags_AlphaBar )
+                                       : ImGui::DragFloat4( id.c_str(), numbers.data(), 0.01f, 0, 0, "%.3f" );
+                break;
+        }
+        if ( changed )
+        {
+            if ( numbers.size() == 1 )
+                DataSet( path, Value( static_cast<f64>( numbers[0] ) ) );
+            else
+            {
+                Value::List list;
+                for ( const f32 number : numbers )
+                    list.push_back( Value( static_cast<f64>( number ) ) );
+                DataSet( path, Value( std::move( list ) ) );
+            }
+        }
+    }
+    Shown( path );
+    Hold( changed );
 }
 
 void Inspector::NameRow( Document& document, Entity entity )
@@ -546,7 +821,25 @@ bool Inspector::AssetPicker( const string& path, AssetId& asset, const char* kin
     const auto pathMaybe = catalog.TryPathOf( asset );
     const string shown = not asset ? "None" : pathMaybe ? pathMaybe->String() : "missing " + asset.ToString();
     bool changed = false;
-    if ( ImGui::BeginCombo( ( "##" + path ).c_str(), shown.c_str(), ImGuiComboFlags_HeightLarge ) )
+    const bool open = ImGui::BeginCombo( ( "##" + path ).c_str(), shown.c_str(), ImGuiComboFlags_HeightLarge );
+    // A file dragged from the assets panel, if it is of the field's kind.
+    if ( not open and ImGui::BeginDragDropTarget() )
+    {
+        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( cAssetPayload ) )
+        {
+            const auto droppedMaybe = AssetPath::TryFrom(
+                string_view( static_cast<const char*>( payload->Data ), static_cast<size_t>( payload->DataSize ) ) );
+            if ( droppedMaybe and ( kind == nullptr or mProject.Makes( *droppedMaybe, kind ) ) )
+                if ( const auto droppedIdMaybe = catalog.TryIdOf( *droppedMaybe );
+                     droppedIdMaybe and *droppedIdMaybe != asset )
+                {
+                    asset = *droppedIdMaybe;
+                    changed = true;
+                }
+        }
+        ImGui::EndDragDropTarget();
+    }
+    if ( open )
     {
         if ( ImGui::IsWindowAppearing() )
         {

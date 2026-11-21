@@ -1,14 +1,16 @@
 #pragma once
 #include "bubble/editing/clipboard.hpp"
+#include "bubble/editing/data_document.hpp"
 #include "bubble/editing/document.hpp"
 #include "bubble/import/project_files.hpp"
 #include "bubble/scene/prefab.hpp"
 
 namespace bubble
 {
-// What the editor has open: the documents, the one active - which the panels
-// show and the operators change - and the clipboard they share. One for the
-// editor; documents stay where they are while open.
+// What the editor has open: the documents - levels and prefabs as scenes,
+// materials and animation graphs as data -, the one active, of either kind,
+// which the panels show and the operators change, and the clipboard they
+// share. One for the editor; documents stay where they are while open.
 //
 // The project's catalog is the scan's; the workspace adds to it the levels
 // and prefabs it writes.
@@ -31,10 +33,22 @@ public:
     void Close( Document& document );
     void Activate( Document& document );
 
+    // The scene document active - nothing while a data document is.
     OptRef<Document> TryActive();
     OptRef<const Document> TryActive() const;
     // The open document saved to `path`.
     OptRef<Document> TryFind( const AssetPath& path );
+
+    // A data document of the file at `path`, active from now on.
+    DataDocument& OpenData( AssetPath path, Json data );
+    void Close( DataDocument& document );
+    void Activate( DataDocument& document );
+    // The data document active - nothing while a scene document is.
+    OptRef<DataDocument> TryActiveData();
+    OptRef<const DataDocument> TryActiveData() const;
+    OptRef<DataDocument> TryFindData( const AssetPath& path );
+    // The active one last.
+    span<const Scope<DataDocument>> AllData() const { return mData; }
     size_t Count() const { return mDocuments.size(); }
     // The active one last.
     span<const Scope<Document>> All() const { return mDocuments; }
@@ -51,6 +65,11 @@ public:
     // The prefab with the id, read once and kept until a save here changes
     // it.
     expected<Ref<const Prefab>, string> TryPrefab( const AssetId& prefabId );
+    // A file moved or deleted by an operator: the catalog follows at once -
+    // the scan would only at the next look -, and so does the path of a
+    // document open on it.
+    void Moved( const AssetPath& from, const AssetPath& to );
+    void Removed( const AssetPath& path );
     // The prefab is `prefab` from now on: what a save here wrote.
     void SetPrefab( const AssetId& prefabId, Ref<const Prefab> prefab ) { mPrefabs[prefabId] = std::move( prefab ); }
     // What levels and prefabs are read and written with: the catalog, and
@@ -72,6 +91,9 @@ private:
     AssetCatalog& mAssets;
     // The active one last: closing it goes back to the one before.
     vector<Scope<Document>> mDocuments;
+    vector<Scope<DataDocument>> mData;
+    // Which kind the active document is: the last of its list.
+    bool mDataActive = false;
     Clipboard mClipboard;
     hmap<AssetId, Ref<const Prefab>> mPrefabs;
 };

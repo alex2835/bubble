@@ -136,3 +136,29 @@ TEST_CASE( "The editor's camera turns about its focus, comes closer, and looks f
     // And the renderer sees it from there.
     CHECK( vec3( camera.ToRenderCamera().mWorld[3] ).z == doctest::Approx( 10.0f ) );
 }
+
+TEST_CASE( "Every asset made from its template imports with no error" )
+{
+    hmap<string, string> files{ { "project.bubble", string( cProject ) } };
+    const ProjectFiles projectFiles = ProjectFiles::InMemory( files );
+    const Scope<AudioDevice> audio = AudioDevice::Offline();
+    auto projectMaybe = EditorProject::TryOpen(
+        projectFiles, AssetRegistry::AtOnce( [projectFiles]( const AssetId& assetId, string_view kind ) {
+            return projectFiles.TryRead( ImportedPath( assetId, kind ) );
+        } ),
+        *audio );
+    REQUIRE_MESSAGE( projectMaybe, projectMaybe.error() );
+    EditorProject& project = **projectMaybe;
+    const vector<string_view> made{ "new.mat", "new.prefab", "new.scene", "new.anim", "new.luau" };
+    for ( const string_view path : made )
+        REQUIRE( project.Run( "asset.create", Args( format( R"({{ "path": "{}" }})", path ) ) ) );
+    project.Refresh();
+    for ( const string_view path : made )
+    {
+        const auto errorMaybe = project.TryErrorOf( *AssetPath::TryFrom( path ) );
+        CHECK_MESSAGE( not errorMaybe, path, ":", errorMaybe ? *errorMaybe : string() );
+    }
+    CHECK( project.KindOf( *AssetPath::TryFrom( "new.luau" ) ) == "script" );
+    CHECK( project.KindOf( *AssetPath::TryFrom( "new.scene" ) ) == "level" );
+    CHECK( project.GetCatalog().TryIdOf( *AssetPath::TryFrom( "new.prefab" ) ) );
+}

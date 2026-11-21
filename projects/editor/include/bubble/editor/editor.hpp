@@ -1,5 +1,7 @@
 #pragma once
 #include "bubble/core/log.hpp"
+#include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/document_world.hpp"
 #include "bubble/editor/editor_project.hpp"
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/scene_panel.hpp"
@@ -9,13 +11,16 @@ namespace bubble
 {
 // The editor's window as ImGui draws it, over a project: the dock space, the
 // menu, the panels - the scene's tree, the viewport with a tab a document,
-// the inspector, the log. The panels show the active document, and act on it through
-// operators alone; a tab picked makes its document the active one.
+// the inspector, the project's assets, the log. The panels show the active
+// document - a level or a prefab, a material, an animation graph -, and act
+// on it through operators alone; a tab picked makes its document the active
+// one.
 class Editor
 {
 public:
-    // The project, the Gpu and the renderer outlive it.
-    Editor( EditorProject& project, Gpu& gpu, Renderer& renderer );
+    // The project, the Gpu and the renderer outlive it; `open` hands a file
+    // to the system, as the platform does.
+    Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<void( const OsPath& )> open );
     Editor( const Editor& ) = delete;
     Editor& operator=( const Editor& ) = delete;
 
@@ -47,16 +52,33 @@ private:
     void LogPanel();
     void DocumentTabs();
     void UnsavedChanges();
-    // The active document's world, made the first time it is shown.
-    OptRef<World> TryActiveWorld();
+    // The active document saved to a path asked for: "Save As", and a save
+    // of one that has no file yet.
+    void SaveAs();
+    void Save();
+    // What the viewport shows: the active document's world - a scene's own,
+    // a material's preview - and the camera on it; nothing for a document
+    // that has no world, an animation graph's.
+    struct ActiveView
+    {
+        World& mWorld;
+        EditorCamera& mCamera;
+        OptRef<DocumentWorld> mSceneMaybe;
+    };
+    opt<ActiveView> TryActiveView();
+    // The active document's name as its tab shows it, scene or data.
+    opt<string> TryActiveTitle();
 
     EditorProject& mProject;
     ScenePanel mScene;
     Inspector mInspector;
+    AssetsPanel mAssets;
     Viewport mViewport;
     // The active document's tab as last shown: a document made active by an
     // operator gets its tab picked.
     string mActiveTab;
+    string mSaveAsPath;
+    bool mAskSaveAs = false;
     vector<LogEntry> mLog;
     u64 mLogNext = 0;
     f64 mSinceRefresh = 0;
