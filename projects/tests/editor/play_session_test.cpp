@@ -5,7 +5,10 @@
 // session alone.
 #include "bubble/audio/audio.hpp"
 #include "bubble/editor/document_world.hpp"
+#include "bubble/editor/editor.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/editor/imgui_backend.hpp"
+#include "bubble/editor/inspector.hpp"
 #include "bubble/editor/play_session.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/world/transform.hpp"
@@ -24,12 +27,27 @@ constexpr string_view cProject = R"({
 
 constexpr string_view cLevel = R"({
   "version": 1,
-  "root": { "children": [ { "name": "crate", "components": { "transform": { "position": [ 0, 2, 0 ] } } } ] }
+  "root": { "children": [
+    { "name": "crate", "components": { "transform": { "position": [ 0, 2, 0 ] } } },
+    { "name": "counter", "components": {
+      "script": { "asset": { "asset": "00000000000000000000000000000003", "path": "counter.luau" } } } }
+  ] }
 })";
+
+constexpr string_view cCounter = R"(local P = props { step = 2 }
+local L = locals { ticks = 0 }
+type Self = typeof( P ) & typeof( L ) & { entity: entity }
+
+function on_fixed_update( self: Self, dt: number )
+    self.ticks += self.step
+end
+)";
 
 struct Fixture
 {
-    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) }, { "main.scene", string( cLevel ) } };
+    hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
+                                 { "main.scene", string( cLevel ) },
+                                 { "counter.luau", string( cCounter ) } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
 
@@ -125,4 +143,40 @@ TEST_CASE( "A game played takes the project's actions from the input it is hande
     play.Release();
     play.Frame( 1.0 / 60 );
     CHECK_FALSE( play.GetWorld().GetActions().Down( jump ) );
+}
+
+TEST_CASE( "While a game plays, the inspector shows a script's self as the game has it" )
+{
+    Fixture f;
+    ImGuiContextScope context;
+    Editor::SetUpImGui( 1.0f );
+    ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    ImGui::GetIO().DisplaySize = ImVec2( 500, 900 );
+    Inspector inspector( *f.mProject );
+    const auto frame = [&] {
+        f.mProject->GetApp().GetJobs().RunMainQueue();
+        ImGui::GetIO().DeltaTime = 1.0f / 60;
+        ImGui::NewFrame();
+        ImGui::Begin( "Inspector" );
+        inspector.Show();
+        ImGui::End();
+        ImGui::Render();
+    };
+    REQUIRE( f.Run( "play.start" ) );
+    PlaySession& play = *f.mProject->TryPlaying();
+    REQUIRE( f.Run( "selection.set", R"({ "entities": [ "/counter" ] })" ) );
+    for ( int at = 0; at < 30; ++at )
+    {
+        f.mProject->GetApp().GetJobs().RunMainQueue();
+        play.Frame( 1.0 / 60 );
+    }
+    frame();
+    CHECK( inspector.TryWhere( "script.self.ticks" ) );
+    CHECK( inspector.TryWhere( "script.self.step" ) );
+    CHECK_FALSE( inspector.TryWhere( "script.self.entity" ) );
+    // The level's own document shows no game.
+    REQUIRE( f.Run( "play.stop" ) );
+    REQUIRE( f.Run( "selection.set", R"({ "entities": [ "/counter" ] })" ) );
+    frame();
+    CHECK_FALSE( inspector.TryWhere( "script.self.ticks" ) );
 }

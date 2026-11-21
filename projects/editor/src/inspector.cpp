@@ -5,6 +5,7 @@
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
+#include "bubble/editor/play_session.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/import/import_file.hpp"
 #include "bubble/scene/hierarchy.hpp"
@@ -1264,6 +1265,49 @@ void Inspector::NameRow( Document& document, Entity entity )
     ImGui::TextDisabled( "%s", PathOf( scene, entity ).mPath.String().c_str() );
 }
 
+void Inspector::LiveSelf( const Scene& scene, Entity entity )
+{
+    const auto playMaybe = mProject.TryPlaying();
+    const auto instanceMaybe = scene.TryGet<ScriptInstance>( entity );
+    if ( not playMaybe or not instanceMaybe )
+        return;
+    const ScriptRuntime& runtime = playMaybe->GetWorld().Get<ScriptRuntime>();
+    if ( not runtime.Alive( instanceMaybe->mInstanceHandle ) )
+        return;
+    // As the game has it now: read, never written - the next step would
+    // write over it.
+    vector<pair<string, string>> fields;
+    for ( const auto& [key, value] : runtime.Self( instanceMaybe->mInstanceHandle ).Pairs() )
+    {
+        const auto nameMaybe = key.TryAs<string>();
+        if ( not nameMaybe or *nameMaybe == "entity" )
+            continue;
+        string shown;
+        if ( const auto numberMaybe = value.TryAs<f64>() )
+            shown = format( "{:.4g}", *numberMaybe );
+        else if ( const auto vectorMaybe = value.TryAs<vec3>() )
+            shown = format( "{:.3g}, {:.3g}, {:.3g}", vectorMaybe->x, vectorMaybe->y, vectorMaybe->z );
+        else if ( const auto tableMaybe = value.TryAs<LuaTable>() )
+            shown = format( "a table of {}", tableMaybe->Pairs().size() );
+        else
+            shown = value.Describe();
+        fields.emplace_back( *nameMaybe, std::move( shown ) );
+    }
+    ranges::sort( fields );
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::TextDisabled( "self, playing" );
+    for ( const auto& [name, shown] : fields )
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted( FieldLabel( name ).c_str() );
+        ImGui::TableNextColumn();
+        ImGui::TextDisabled( "%s", shown.c_str() );
+        Shown( "script.self." + name );
+    }
+}
+
 void Inspector::Component( Document& document, Entity entity, const ComponentTypes::Type& type )
 {
     const Scene& scene = document.GetScene();
@@ -1291,7 +1335,11 @@ void Inspector::Component( Document& document, Entity entity, const ComponentTyp
         ImGui::TableSetupColumn( "value", ImGuiTableColumnFlags_WidthStretch, 0.6f );
         ReflectedFields( scene, type.mName, type.mGet( scene, entity ), "" );
         if ( const auto scriptMaybe = scene.TryGet<Script>( entity ); scriptMaybe and type.mName == "script"_n )
+        {
             ScriptProps( scene, scriptMaybe->mProps, scriptMaybe->mAsset );
+            if ( document.IsPlayed() )
+                LiveSelf( scene, entity );
+        }
         ImGui::EndTable();
     }
     ImGui::PopID();

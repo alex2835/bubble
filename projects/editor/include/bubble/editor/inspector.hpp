@@ -115,6 +115,8 @@ private:
     // entity and how many are selected.
     tuple<const void*, Entity, size_t> DocumentKey();
     void ImportSettings( const string& path );
+    // A script's self as the game playing has it: read only.
+    void LiveSelf( const Scene& scene, Entity entity );
     // A clip's name, chosen among the project's models' clips or typed.
     bool ClipField( const char* id, string& clip );
     // The events a clip calls on_animation_event with: where, and named.

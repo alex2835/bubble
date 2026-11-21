@@ -294,6 +294,7 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               drag one history group however many frames - Settle closes it -; a material's base or
                               shader, flags and its shader's parameters - own, its base's or the default; data.set -;
                               a graph's entry, parameters and the state or transition selected on its canvas;
+                              a script's self while a game plays, read only - LiveSelf -;
                               a file picked in the assets panel - Inspect: its kind, its error, its importer's
                               settings, asset.set_import -, until the documents' selection changes; TryWhere for
                               tests),
