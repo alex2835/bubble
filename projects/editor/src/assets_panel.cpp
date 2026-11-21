@@ -139,6 +139,11 @@ void AssetsPanel::List()
         for ( string folder = FolderOf( path ); not folder.empty(); folder = FolderOf( folder ) )
             mFolders.push_back( folder );
     }
+    // Folders made here with nothing in them yet: the panel's, until a file
+    // put in one makes it the disk's.
+    for ( const string& made : mMadeFolders )
+        for ( string folder = made; not folder.empty(); folder = FolderOf( folder ) )
+            mFolders.push_back( folder );
     ranges::sort( mFolders );
     mFolders.erase( ranges::unique( mFolders ).begin(), mFolders.end() );
     if ( ranges::find( mFolders, mFolder ) == mFolders.end() )
@@ -149,6 +154,18 @@ opt<vec2> AssetsPanel::TryWhere( string_view path ) const
 {
     const auto found = mWhere.find( string( path ) );
     return found != mWhere.end() ? opt<vec2>( found->second ) : nullopt;
+}
+
+bool AssetsPanel::MakeFolder( string_view name )
+{
+    if ( name.empty() or name.find( '/' ) != string_view::npos or name.starts_with( '.' ) )
+        return false;
+    const string folder = Joined( mFolder, name );
+    if ( not ranges::contains( mMadeFolders, folder ) )
+        mMadeFolders.push_back( folder );
+    mFolder = folder;
+    mListedAt = -1;
+    return true;
 }
 
 opt<string> AssetsPanel::TakePicked()
@@ -239,6 +256,9 @@ void AssetsPanel::Files()
                 ImGui::TableNextColumn();
                 ImGui::Selectable( ( NameOf( folder ) + "/##" + folder ).c_str(), false,
                                    ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick );
+                const ImVec2 low = ImGui::GetItemRectMin();
+                const ImVec2 high = ImGui::GetItemRectMax();
+                mWhere[folder + "/"] = vec2( low.x + ImGui::GetFontSize() * 2, ( low.y + high.y ) * 0.5f );
                 if ( ImGui::IsItemHovered() and ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) )
                     mFolder = folder;
                 ImGui::TableNextColumn();
@@ -326,9 +346,23 @@ void AssetsPanel::BackgroundMenu()
             tuple<const char*, string_view, string_view>{ "New Script", "script", ".luau" } } )
         if ( ImGui::MenuItem( label ) )
             New( stem, extension );
+    ImGui::Separator();
+    // A folder by the name typed, in the one shown.
+    if ( ImGui::BeginMenu( "New Folder" ) )
+    {
+        if ( ImGui::IsWindowAppearing() )
+            ImGui::SetKeyboardFocusHere();
+        ImGui::SetNextItemWidth( ImGui::GetFontSize() * 10.0f );
+        if ( ImGui::InputTextWithHint( "##folder", "its name", &mNewFolder, ImGuiInputTextFlags_EnterReturnsTrue ) and
+             MakeFolder( mNewFolder ) )
+        {
+            mNewFolder.clear();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndMenu();
+    }
     if ( const auto rootMaybe = mProject.TryRoot() )
     {
-        ImGui::Separator();
         if ( ImGui::MenuItem( "Show in Folder" ) )
             mOpen( *rootMaybe / PathFromUtf8( mFolder ) );
     }

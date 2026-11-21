@@ -21,8 +21,8 @@ expected<void, string> TryPlaceAsset( EditorProject& project,
 // picked - their kinds, a file that would not import marked with why -, a
 // file dragged out to a field, the tree or the viewport. A level or a
 // prefab opens as a document at a double click; anything else as the
-// system opens it. New assets from templates, renaming in place and
-// deleting through the asset operators.
+// system opens it. New assets from templates, new folders, renaming in place
+// and deleting through the asset operators.
 class AssetsPanel
 {
 public:
@@ -34,11 +34,15 @@ public:
     // The folder whose files are shown, "" for the project's own.
     const string& Folder() const { return mFolder; }
     void SetFolder( string folder ) { mFolder = std::move( folder ); }
-    // Where a file's row was drawn last, its middle in ImGui's units: for
-    // tests.
+    // Where a file's row was drawn last - a folder's, its path and "/" -,
+    // its middle in ImGui's units: for tests.
     opt<vec2> TryWhere( string_view path ) const;
     // The file a click picked since the last ask: what the inspector shows.
     opt<string> TakePicked();
+    // A folder named `name` in the one shown, shown from now on: the
+    // panel's until a file goes in. A name with a slash, or starting with a
+    // dot, makes none.
+    bool MakeFolder( string_view name );
 
 private:
     void List();
@@ -67,6 +71,9 @@ private:
     string mNewName;
     bool mRenameStarted = false;
     string mDeleting;
+    // Folders made here, kept until a file goes in and the disk has them.
+    vector<string> mMadeFolders;
+    string mNewFolder;
     hmap<string, vec2> mWhere;
 };
 }

@@ -304,7 +304,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               AssetsPanel (the project's folders and files - kinds, import errors -, a file dragged
                               out as cAssetPayload to a field, the tree or the viewport, a level or prefab opened at a
                               double click - a material or a graph too -, anything else handed to the system;
-                              TakePicked - the file a click picked, for the inspector -; new assets from templates,
+                              TakePicked - the file a click picked, for the inspector -; new folders - MakeFolder,
+                              the panel's until a file goes in -; new assets from templates,
                               rename, delete; TryPlaceAsset: a prefab or a model into the scene, one step), Editor
                               (the dock space, the menu - New Level, Save As -, the scene's tree and the viewport
                               with a tab a level or a prefab - the scene active last, Workspace::TryShownScene -, a

@@ -261,3 +261,18 @@ TEST_CASE( "A file picked in the assets panel shows how it imports; a setting ch
     ui.Frame();
     CHECK( not ui.mInspector->TryWhere( "import.srgb" ) );
 }
+
+TEST_CASE( "A folder made in the panel is shown empty and gone into; a new asset goes in it" )
+{
+    Ui ui;
+    CHECK_FALSE( ui.mAssets->MakeFolder( ".hidden" ) );
+    CHECK_FALSE( ui.mAssets->MakeFolder( "a/b" ) );
+    REQUIRE( ui.mAssets->MakeFolder( "effects" ) );
+    ui.Frame();
+    CHECK( ui.mAssets->Folder() == "effects" );
+    ui.mAssets->SetFolder( "" );
+    ui.Frame();
+    CHECK( ui.mAssets->TryWhere( "effects/" ) );
+    REQUIRE( ui.mProject->Run( "asset.create", *Json::TryParse( R"({ "path": "effects/smoke.mat" })" ) ) );
+    CHECK( ui.mFiles.contains( "effects/smoke.mat" ) );
+}
