@@ -28,8 +28,9 @@ out\build\windows-debug\bin\bubble_tests.exe
 - Presets: `windows-debug`, `windows-release`, `windows-profile` (Tracy),
   `linux` (clang 20 + libc++), `web` (Emscripten). Linux and web are checked
   by CI only.
-- Clang everywhere, C++23, warnings are errors. CI's clang is 20, older than
-  the local 22: a warning flag newer than 20 goes behind
+- Clang everywhere, C++23, warnings are errors. CI's Windows build takes
+  Visual Studio's own clang-cl, as here - its STL asks for it -; Linux's
+  clang is 20, older than the local 22: a warning flag newer than 20 goes behind
   `check_cxx_compiler_flag`. Clang 20 cannot deduce the arguments of an
   alias template either: `vector<T>{ ... }`, `pair<A, B>{ ... }`, never
   `vector{ ... }` or `pair{ ... }` - our containers are aliases.

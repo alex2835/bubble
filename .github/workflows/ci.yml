@@ -13,9 +13,16 @@ jobs:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v5
-      # MSVC's environment for its STL, SDK and linker; the compiler is the
-      # runner's LLVM clang-cl.
+      # MSVC's environment for its STL, SDK and linker.
       - uses: ilammy/msvc-dev-cmd@v1
+      # Visual Studio's own clang-cl ahead of the runner's LLVM: its STL asks
+      # for the clang it ships with.
+      - name: Use Visual Studio's clang
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          "$vs\VC\Tools\Llvm\x64\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          & "$vs\VC\Tools\Llvm\x64\bin\clang-cl.exe" --version
       - name: Configure
         run: cmake --preset windows-debug
       - name: Build
@@ -40,6 +47,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ilammy/msvc-dev-cmd@v1
+      # Visual Studio's own clang-cl ahead of the runner's LLVM: its STL asks
+      # for the clang it ships with.
+      - name: Use Visual Studio's clang
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          "$vs\VC\Tools\Llvm\x64\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          & "$vs\VC\Tools\Llvm\x64\bin\clang-cl.exe" --version
       - name: Configure
         run: cmake --preset windows-profile
       - name: Build

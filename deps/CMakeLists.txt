@@ -36,6 +36,11 @@ endif()
 
 bubble_luau_library( luau_config Config )
 bubble_luau_library( luau_analysis Analysis )
+# Luau's analysis calls std::abs without <cstdlib>; Emscripten's libc++ no
+# longer brings it in through other headers.
+if( EMSCRIPTEN )
+    target_compile_options( luau_analysis PRIVATE "SHELL:-include cstdlib" )
+endif()
 target_link_libraries( luau_config PUBLIC luau_ast PRIVATE luau_compiler luau_vm )
 target_link_libraries( luau_analysis PUBLIC luau_ast luau_config PRIVATE luau_compiler luau_vm )
 

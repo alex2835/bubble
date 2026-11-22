@@ -1,4 +1,5 @@
 #include "bubble/assets/asset_registry.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
 #include "bubble/types/stream.hpp"
 
@@ -222,8 +223,8 @@ expected<void, string> AssetRegistry::TryReload( const AssetPath& path )
                 entries.push_back( std::move( entry ) );
     // In the order of their kinds, whatever the map's: listeners hear them
     // the same way every time.
-    sort( entries.begin(), entries.end(),
-          [&]( const auto& a, const auto& b ) { return LoaderOf( *a ).mKind < LoaderOf( *b ).mKind; } );
+    ranges::sort( entries,
+                  [&]( const auto& a, const auto& b ) { return LoaderOf( *a ).mKind < LoaderOf( *b ).mKind; } );
     string errors;
     for ( const Ref<AssetEntryBase>& entry : entries )
     {
