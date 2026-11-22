@@ -1,9 +1,17 @@
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/animation/animation_graph.hpp"
+#include "bubble/assets/font_asset.hpp"
+#include "bubble/assets/material_asset.hpp"
 #include "bubble/assets/model_asset.hpp"
+#include "bubble/assets/prefab_asset.hpp"
+#include "bubble/assets/shader_asset.hpp"
 #include "bubble/assets/texture_asset.hpp"
+#include "bubble/audio/audio.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
+#include "bubble/editor/editor_icons.hpp"
 #include "bubble/editor/editor_style.hpp"
+#include "bubble/scripts/script_asset.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/world/transform.hpp"
 #include <imgui.h>
@@ -43,6 +51,37 @@ Json Args( vector<Json::Member> members )
 Json::Member Member( string key, string value )
 {
     return Json::Member{ .mKey = std::move( key ), .mValue = Json( std::move( value ) ) };
+}
+
+// `text` cut to fit `width`, "..." at its end when it was: whole letters,
+// never half of one's bytes.
+string Fitted( const string& text, f32 width )
+{
+    if ( ImGui::CalcTextSize( text.c_str() ).x <= width )
+        return text;
+    string cut = text;
+    while ( not cut.empty() )
+    {
+        // Back to the start of the last letter.
+        size_t end = cut.size() - 1;
+        while ( end > 0 and ( static_cast<u8>( cut[end] ) & 0xC0 ) == 0x80 )
+            --end;
+        cut.resize( end );
+        if ( ImGui::CalcTextSize( ( cut + "..." ).c_str() ).x <= width )
+            return cut + "...";
+    }
+    return "...";
+}
+
+// An icon of the icon font at `size`, in the middle of `low` to `high`.
+void DrawIcon( ImDrawList& draw, string_view icon, f32 size, ImVec2 low, ImVec2 high, ImU32 color )
+{
+    ImFont* font = ImGui::GetFont();
+    const char* begin = icon.data();
+    const char* end = icon.data() + icon.size();
+    const ImVec2 measured = font->CalcTextSizeA( size, FLT_MAX, 0.0f, begin, end );
+    draw.AddText( font, size, ImVec2( ( low.x + high.x - measured.x ) * 0.5f, ( low.y + high.y - measured.y ) * 0.5f ),
+                  color, begin, end );
 }
 
 // What document.open takes: a scene, or a material's or a graph's data.
@@ -110,6 +149,31 @@ expected<void, string> TryPlaceAsset( EditorProject& project,
     return {};
 }
 
+string_view FileIcon( string_view path, string_view kind )
+{
+    if ( path.ends_with( ".scene" ) )
+        return Icon::cLevel;
+    if ( path.ends_with( ".prefab" ) or kind == cPrefabKind )
+        return Icon::cPrefab;
+    if ( path.ends_with( ".mat" ) or kind == cMaterialKind )
+        return Icon::cMaterial;
+    if ( path.ends_with( ".anim" ) or kind == cAnimationGraphKind )
+        return Icon::cGraph;
+    if ( kind == cTextureKind )
+        return Icon::cImage;
+    if ( kind == cModelKind )
+        return Icon::cBox;
+    if ( kind == cSoundKind )
+        return Icon::cSound;
+    if ( kind == cFontKind )
+        return Icon::cFont;
+    if ( kind == cScriptKind or path.ends_with( ".luau" ) )
+        return Icon::cScript;
+    if ( kind == cShaderKind or path.ends_with( ".wgsl" ) )
+        return Icon::cShader;
+    return Icon::cFile;
+}
+
 AssetsPanel::AssetsPanel( EditorProject& project, function<void( const OsPath& )> open )
     : mProject( project ),
       mOpen( std::move( open ) )
@@ -150,6 +214,11 @@ void AssetsPanel::List()
     mFolders.erase( ranges::unique( mFolders ).begin(), mFolders.end() );
     if ( ranges::find( mFolders, mFolder ) == mFolders.end() )
         mFolder.clear();
+}
+
+void AssetsPanel::SetTileSize( f32 size )
+{
+    mTileSize = clamp( size, 48.0f, 192.0f );
 }
 
 opt<vec2> AssetsPanel::TryWhere( string_view path ) const
@@ -243,9 +312,55 @@ void AssetsPanel::FolderRow( const string& folder )
     }
 }
 
+void AssetsPanel::Header()
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled( "%s", mFolder.empty() ? "project" : mFolder.c_str() );
+    // Tiles or rows, and the tiles' size, at the right.
+    const f32 button = ImGui::GetFrameHeight();
+    const f32 slider = mView == AssetsView::Tiles ? ImGui::GetFontSize() * 6.0f : 0.0f;
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const f32 right = ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX();
+    ImGui::SameLine( max( ImGui::GetCursorPosX(), right - button * 2 - style.ItemSpacing.x * 2 - slider ) );
+    if ( mView == AssetsView::Tiles )
+    {
+        ImGui::SetNextItemWidth( slider );
+        f32 size = mTileSize;
+        if ( ImGui::SliderFloat( "##size", &size, 48.0f, 192.0f, "" ) )
+            SetTileSize( size );
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "The tiles' size" );
+        ImGui::SameLine();
+    }
+    const auto toggle = [&]( const char* icon, AssetsView view, const char* tip ) {
+        const bool on = mView == view;
+        if ( on )
+            ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
+        if ( ImGui::Button( icon, ImVec2( button, button ) ) )
+            mView = view;
+        if ( on )
+            ImGui::PopStyleColor();
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "%s", tip );
+    };
+    toggle( Icon::cTiles, AssetsView::Tiles, "Tiles" );
+    ImGui::SameLine();
+    toggle( Icon::cList, AssetsView::List, "List" );
+}
+
 void AssetsPanel::Files()
 {
-    ImGui::TextDisabled( "%s", mFolder.empty() ? "project" : mFolder.c_str() );
+    Header();
+    if ( mView == AssetsView::Tiles )
+    {
+        if ( ImGui::BeginChild( "tiles" ) )
+        {
+            Tiles();
+            BackgroundMenu();
+        }
+        ImGui::EndChild();
+        return;
+    }
     if ( ImGui::BeginTable( "list", 2, ImGuiTableFlags_RowBg ) )
     {
         ImGui::TableSetupColumn( "name", ImGuiTableColumnFlags_WidthStretch );
@@ -274,6 +389,151 @@ void AssetsPanel::Files()
     BackgroundMenu();
 }
 
+void AssetsPanel::Tiles()
+{
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const f32 width = mTileSize;
+    const auto columns = max( 1, static_cast<int>( ( ImGui::GetContentRegionAvail().x + style.ItemSpacing.x ) /
+                                                   ( width + style.ItemSpacing.x ) ) );
+    int placed = 0;
+    // A row of tiles as wide as fits, then the next.
+    const auto next = [&] {
+        if ( placed % columns != 0 )
+            ImGui::SameLine();
+        ++placed;
+    };
+    for ( const string& folder : mFolders )
+        if ( not folder.empty() and FolderOf( folder ) == mFolder )
+        {
+            next();
+            FolderTile( folder );
+        }
+    for ( const string& path : mFiles )
+        if ( FolderOf( path ) == mFolder )
+        {
+            next();
+            FileTile( path );
+        }
+}
+
+void AssetsPanel::FolderTile( const string& folder )
+{
+    ImGui::PushID( ( folder + "/" ).c_str() );
+    const ImVec2 low = ImGui::GetCursorScreenPos();
+    const ImVec2 size( mTileSize, mTileSize + ImGui::GetTextLineHeightWithSpacing() );
+    ImGui::Selectable( "##folder", false, ImGuiSelectableFlags_AllowDoubleClick, size );
+    const ImVec2 high( low.x + size.x, low.y + size.y );
+    mWhere[folder + "/"] = vec2( ( low.x + high.x ) * 0.5f, ( low.y + high.y ) * 0.5f );
+    if ( ImGui::IsItemHovered() and ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) )
+        mFolder = folder;
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "%s/", folder.c_str() );
+    // A file dropped on a folder moves there.
+    if ( ImGui::BeginDragDropTarget() )
+    {
+        if ( const ImGuiPayload* payload = ImGui::AcceptDragDropPayload( cAssetPayload ) )
+        {
+            const string path( static_cast<const char*>( payload->Data ), static_cast<size_t>( payload->DataSize ) );
+            if ( FolderOf( path ) != folder )
+                Run( "asset.rename",
+                     Args( { Member( "path", path ), Member( "to", Joined( folder, NameOf( path ) ) ) } ) );
+        }
+        ImGui::EndDragDropTarget();
+    }
+    ImDrawList& draw = *ImGui::GetWindowDrawList();
+    const f32 inset = mTileSize * 0.1f;
+    DrawIcon( draw, Icon::cFolder, mTileSize * 0.5f, ImVec2( low.x + inset, low.y + inset ),
+              ImVec2( high.x - inset, low.y + mTileSize - inset ), ImGui::GetColorU32( EditorColor::cTextDim ) );
+    const string name = Fitted( NameOf( folder ), mTileSize );
+    draw.AddText( ImVec2( low.x + ( mTileSize - ImGui::CalcTextSize( name.c_str() ).x ) * 0.5f, low.y + mTileSize ),
+                  ImGui::GetColorU32( ImGuiCol_Text ), name.c_str() );
+    ImGui::PopID();
+}
+
+void AssetsPanel::FileTile( const string& path )
+{
+    const AssetPath assetPath = *AssetPath::TryFrom( path );
+    ImGui::PushID( path.c_str() );
+    const ImVec2 low = ImGui::GetCursorScreenPos();
+    const f32 line = ImGui::GetTextLineHeightWithSpacing();
+    const ImVec2 size( mTileSize, mTileSize + line );
+    const ImVec2 high( low.x + size.x, low.y + size.y );
+    const auto errorMaybe = mProject.TryErrorOf( assetPath );
+    if ( ImGui::Selectable( "##tile", mSelected == path,
+                            ImGuiSelectableFlags_AllowDoubleClick | ImGuiSelectableFlags_AllowOverlap, size ) )
+    {
+        mSelected = path;
+        mPickedMaybe = path;
+    }
+    mWhere[path] = vec2( ( low.x + high.x ) * 0.5f, ( low.y + high.y ) * 0.5f );
+    FileActions( path, errorMaybe );
+
+    // The picture: a texture as it is, in its own proportions, or the
+    // kind's icon.
+    ImDrawList& draw = *ImGui::GetWindowDrawList();
+    const f32 inset = mTileSize * 0.08f;
+    const ImVec2 pictureLow( low.x + inset, low.y + inset );
+    const ImVec2 pictureHigh( high.x - inset, low.y + mTileSize - inset );
+    const auto pictureMaybe =
+        mThumbnail and mProject.Makes( assetPath, cTextureKind ) ? mThumbnail( assetPath ) : nullopt;
+    if ( pictureMaybe )
+    {
+        const vec2 room( pictureHigh.x - pictureLow.x, pictureHigh.y - pictureLow.y );
+        const vec2 picture = max( pictureMaybe->mSize, vec2( 1.0f ) );
+        const f32 scale = min( room.x / picture.x, room.y / picture.y );
+        const vec2 shown = picture * scale;
+        const ImVec2 at( pictureLow.x + ( room.x - shown.x ) * 0.5f, pictureLow.y + ( room.y - shown.y ) * 0.5f );
+        draw.AddImage( ImTextureRef( pictureMaybe->mId ), at, ImVec2( at.x + shown.x, at.y + shown.y ) );
+    }
+    else
+        DrawIcon( draw, FileIcon( path, mProject.KindOf( assetPath ) ), mTileSize * 0.45f, pictureLow, pictureHigh,
+                  ImGui::GetColorU32( errorMaybe ? cBroken : EditorColor::cTextDim ) );
+
+    // The name under it, or the field it is renamed in.
+    if ( mRenaming == path )
+    {
+        ImGui::SetCursorScreenPos( ImVec2( low.x, low.y + mTileSize ) );
+        ImGui::PushItemWidth( mTileSize );
+        Rename( path );
+        ImGui::PopItemWidth();
+        ImGui::SetCursorScreenPos( low );
+        ImGui::Dummy( size );
+    }
+    else
+    {
+        const string name = Fitted( NameOf( path ), mTileSize );
+        draw.AddText( ImVec2( low.x + ( mTileSize - ImGui::CalcTextSize( name.c_str() ).x ) * 0.5f, low.y + mTileSize ),
+                      ImGui::GetColorU32( errorMaybe ? cBroken : ImGui::GetStyleColorVec4( ImGuiCol_Text ) ),
+                      name.c_str() );
+    }
+    ImGui::PopID();
+}
+
+void AssetsPanel::FileActions( const string& path, OptRef<const string> errorMaybe )
+{
+    if ( ImGui::IsItemHovered() and ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) )
+        Open( path );
+    if ( ImGui::IsItemHovered() )
+    {
+        if ( errorMaybe )
+            ImGui::SetTooltip( "%s:%s", path.c_str(), errorMaybe->c_str() );
+        else if ( mView == AssetsView::Tiles )
+            ImGui::SetTooltip( "%s\n%s", NameOf( path ).c_str(),
+                               string( mProject.KindOf( *AssetPath::TryFrom( path ) ) ).c_str() );
+    }
+    if ( ImGui::BeginDragDropSource() )
+    {
+        ImGui::SetDragDropPayload( cAssetPayload, path.data(), path.size() );
+        ImGui::TextUnformatted( path.c_str() );
+        ImGui::EndDragDropSource();
+    }
+    if ( ImGui::BeginPopupContextItem( "file" ) )
+    {
+        FileMenu( path );
+        ImGui::EndPopup();
+    }
+}
+
 void AssetsPanel::FileRow( const string& path )
 {
     const AssetPath assetPath = *AssetPath::TryFrom( path );
@@ -290,7 +550,7 @@ void AssetsPanel::FileRow( const string& path )
         {
             const f32 side = ImGui::GetTextLineHeight();
             if ( const auto pictureMaybe = mThumbnail( assetPath ) )
-                ImGui::Image( ImTextureRef( *pictureMaybe ), ImVec2( side, side ) );
+                ImGui::Image( ImTextureRef( pictureMaybe->mId ), ImVec2( side, side ) );
             else
                 ImGui::Dummy( ImVec2( side, side ) );
             ImGui::SameLine();
@@ -308,21 +568,7 @@ void AssetsPanel::FileRow( const string& path )
         const ImVec2 low = ImGui::GetItemRectMin();
         const ImVec2 high = ImGui::GetItemRectMax();
         mWhere[path] = vec2( low.x + ImGui::GetFontSize() * 2, ( low.y + high.y ) * 0.5f );
-        if ( ImGui::IsItemHovered() and ImGui::IsMouseDoubleClicked( ImGuiMouseButton_Left ) )
-            Open( path );
-        if ( errorMaybe and ImGui::IsItemHovered() )
-            ImGui::SetTooltip( "%s:%s", path.c_str(), errorMaybe->c_str() );
-        if ( ImGui::BeginDragDropSource() )
-        {
-            ImGui::SetDragDropPayload( cAssetPayload, path.data(), path.size() );
-            ImGui::TextUnformatted( path.c_str() );
-            ImGui::EndDragDropSource();
-        }
-        if ( ImGui::BeginPopupContextItem( "file" ) )
-        {
-            FileMenu( path );
-            ImGui::EndPopup();
-        }
+        FileActions( path, errorMaybe );
     }
     ImGui::TableNextColumn();
     ImGui::TextDisabled( "%s", string( mProject.KindOf( assetPath ) ).c_str() );
@@ -403,7 +649,8 @@ void AssetsPanel::Rename( const string& path )
         ImGui::SetKeyboardFocusHere();
         mRenameStarted = false;
     }
-    ImGui::SetNextItemWidth( -1.0f );
+    if ( mView == AssetsView::List )
+        ImGui::SetNextItemWidth( -1.0f );
     const bool entered = ImGui::InputText( "##name", &mNewName,
                                            ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll );
     if ( ImGui::IsKeyPressed( ImGuiKey_Escape ) )

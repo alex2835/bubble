@@ -123,7 +123,7 @@ projects/engine/include/bubble/
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents - TextInput among
                               them -, gamepads opened as they come, QuitRequested, Run - a loop, or the browser's
                               frames, SetCursor - the pointer's shape -, the clipboard's text, TryOpen - a file the
-                              system's way -, ChooseFolder - the system's folder dialog -; TakeQuitRequest, for an editor that asks first), Window (the cursor
+                              system's way -, ChooseFolder and ChooseFile - the system's dialogs -; TakeQuitRequest, for an editor that asks first), Window (the cursor
                               held for a camera: SetCursorLocked; SetTextInput)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
@@ -340,7 +340,7 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               a file picked in the assets panel - Inspect: its kind, its error, its importer's
                               settings, asset.set_import -, until the documents' selection changes; TryWhere for
                               tests),
-                              AssetsPanel (the project's folders and files - kinds, import errors -, a file dragged
+                              AssetsPanel (the project's folders and files as tiles - a texture's picture in its proportions, any other kind's icon: FileIcon -, a slider for their size, or as rows - kinds, import errors -, a file dragged
                               out as cAssetPayload to a field, the tree or the viewport, a level or prefab opened at a
                               double click - a material or a graph too -, anything else handed to the system;
                               TakePicked - the file a click picked, for the inspector -; a texture's picture small
@@ -364,9 +364,10 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               --mcp or the preferences, moved or stopped as they change). RecentProjects
                               (recent.json beside editor.json: the projects opened, the last first) and
                               TryCreateProject (a folder with project.bubble, levels/main.scene, .gitignore);
-                              ProjectPicker (the start window: recent projects - one gone shown so -, Open Folder
-                              through Platform::ChooseFolder - SDL's dialog, answered in Poll -, a folder typed, New
-                              Project). main.cpp is bubble_editor [project folder] [--open path]... [--play] [--mcp
+                              ProjectPicker (the start window: recent projects - one gone shown so -, Open Project:
+                              its project.bubble through Platform::ChooseFile - SDL's dialog, answered in Poll - or
+                              typed, New Project; TryProjectRoot: a project.bubble or its folder). main.cpp is
+                              bubble_editor [project.bubble] [--open path]... [--play] [--mcp
                               [port]] [--frames N] [--screenshot file.png], the desktop alone: no folder, the start
                               window; File > Close Project goes back to it (asked first as quitting is); the start
                               window and each project an ImGui context of their own, made again between frames, a
@@ -380,7 +381,7 @@ projects/demo/                bubble_demo, on the engine alone (never import or 
                               a pad chimes and lights up when it is reached (progress, the autosave slot in
                               Platform::TrySaveFolder); a touch or click picking what it lands on;
                               `--frames N` quits after N frames, exit code 0
-projects/runner/              bubble_runner <folder> [--frames N] [--screenshot file.png] [--import-only], on the
+projects/runner/              bubble_runner <project.bubble> [--frames N] [--screenshot file.png] [--import-only], on the
                               engine and import, the desktop alone: a project's game run from its folder - project.bubble's
                               start level and actions, its sources imported into .bubble/imported as it starts and
                               again as they change, the scripts checked against .bubble/bubble.d.luau (written there

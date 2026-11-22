@@ -139,6 +139,41 @@ struct Platform::Dialogs
     vector<pair<u32, opt<OsPath>>> mAnswered;
 };
 
+struct Platform::Asked
+{
+    Ref<Dialogs> mDialogs;
+    u32 mId = 0;
+    // A file dialog's filter, which SDL reads until it answers.
+    string mKind;
+    string mPattern;
+    SDL_DialogFileFilter mFilter{};
+};
+
+Platform::Asked* Platform::Ask( function<void( opt<OsPath> )> chosen )
+{
+    if ( not mDialogs )
+        mDialogs = CreateRef<Dialogs>();
+    const u32 id = mDialogs->mNext++;
+    mDialogs->mWaiting[id] = std::move( chosen );
+    // Kept by SDL until it answers, which frees it.
+    auto* asked = new Asked();
+    asked->mDialogs = mDialogs;
+    asked->mId = id;
+    return asked;
+}
+
+void Platform::Answered( void* asked, const char* const* paths )
+{
+    const Scope<Asked> answered( static_cast<Asked*>( asked ) );
+    opt<OsPath> pathMaybe;
+    if ( paths == nullptr )
+        LogError( "the dialog: {}", SDL_GetError() );
+    else if ( paths[0] != nullptr )
+        pathMaybe = PathFromUtf8( paths[0] );
+    const lock_guard lock( answered->mDialogs->mMutex );
+    answered->mDialogs->mAnswered.emplace_back( answered->mId, std::move( pathMaybe ) );
+}
+
 void Platform::ChooseFolder( const Window& window, const OsPath& from, function<void( opt<OsPath> )> chosen )
 {
 #ifdef __EMSCRIPTEN__
@@ -146,26 +181,33 @@ void Platform::ChooseFolder( const Window& window, const OsPath& from, function<
     (void)from;
     chosen( nullopt );
 #else
-    if ( not mDialogs )
-        mDialogs = CreateRef<Dialogs>();
-    const u32 id = mDialogs->mNext++;
-    mDialogs->mWaiting[id] = std::move( chosen );
-    // Kept by SDL until it answers, which frees it.
-    using Asked = pair<Ref<Dialogs>, u32>;
-    auto* asked = new Asked( mDialogs, id );
     const string start = from.empty() ? string() : PathToUtf8( from );
-    SDL_ShowOpenFolderDialog(
-        []( void* userdata, const char* const* folders, int ) {
-            const Scope<Asked> answered( static_cast<Asked*>( userdata ) );
-            opt<OsPath> folderMaybe;
-            if ( folders == nullptr )
-                LogError( "the folder dialog: {}", SDL_GetError() );
-            else if ( folders[0] != nullptr )
-                folderMaybe = PathFromUtf8( folders[0] );
-            const lock_guard lock( answered->first->mMutex );
-            answered->first->mAnswered.emplace_back( answered->second, std::move( folderMaybe ) );
-        },
-        asked, window.mWindow, start.empty() ? nullptr : start.c_str(), false );
+    SDL_ShowOpenFolderDialog( []( void* asked, const char* const* paths, int ) { Answered( asked, paths ); },
+                              Ask( std::move( chosen ) ), window.mWindow, start.empty() ? nullptr : start.c_str(),
+                              false );
+#endif
+}
+
+void Platform::ChooseFile( const Window& window,
+                           const OsPath& from,
+                           string_view kind,
+                           string_view pattern,
+                           function<void( opt<OsPath> )> chosen )
+{
+#ifdef __EMSCRIPTEN__
+    (void)window;
+    (void)from;
+    (void)kind;
+    (void)pattern;
+    chosen( nullopt );
+#else
+    const string start = from.empty() ? string() : PathToUtf8( from );
+    Asked* asked = Ask( std::move( chosen ) );
+    asked->mKind = kind;
+    asked->mPattern = pattern;
+    asked->mFilter = SDL_DialogFileFilter{ .name = asked->mKind.c_str(), .pattern = asked->mPattern.c_str() };
+    SDL_ShowOpenFileDialog( []( void* userdata, const char* const* paths, int ) { Answered( userdata, paths ); }, asked,
+                            window.mWindow, &asked->mFilter, 1, start.empty() ? nullptr : start.c_str(), false );
 #endif
 }
 

@@ -6,20 +6,21 @@ namespace bubble
 {
 // The editor's start window, before a project is open: the projects opened
 // before, the last first - one gone from its folder shown so, to be taken
-// off the list -, a folder to open picked by the system's dialog or typed,
-// and a new project made in a folder of its own.
+// off the list -, a project to open - its project.bubble picked by the
+// system's dialog, or typed -, and a new project made in a folder of its own.
 class ProjectPicker
 {
 public:
-    // The system's folder dialog: from a folder, answering later with the
-    // folder picked, or nothing.
-    using ChooseFolder = function<void( const OsPath& from, function<void( opt<OsPath> )> chosen )>;
+    // The system's dialogs - a project's file, a folder -: from a folder,
+    // answering later with what was picked, or nothing.
+    using Choose = function<void( const OsPath& from, function<void( opt<OsPath> )> chosen )>;
 
-    ProjectPicker( RecentProjects& recent, ChooseFolder choose );
+    ProjectPicker( RecentProjects& recent, Choose chooseProject, Choose chooseFolder );
 
     // The whole window, between ImGui::NewFrame and ImGui::Render.
     void Show();
-    // The project's folder picked since the last call.
+    // What was picked since the last call: a project.bubble, or a folder
+    // typed - TryProjectRoot says which project it is.
     opt<OsPath> TakeChosen() { return std::exchange( mChosenMaybe, nullopt ); }
     // Why the project picked did not open, shown until another is picked.
     void Failed( string why ) { mError = std::move( why ); }
@@ -30,10 +31,11 @@ private:
     void Pick( const OsPath& root );
 
     RecentProjects& mRecent;
-    ChooseFolder mChoose;
+    Choose mChooseProject;
+    Choose mChooseFolder;
     opt<OsPath> mChosenMaybe;
     string mError;
-    // A folder typed.
+    // A project's file, or its folder, typed.
     string mTyped;
     // The new project's: its name, the folder it goes in.
     bool mAskNew = false;

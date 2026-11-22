@@ -40,9 +40,10 @@ string AgoText( i64 then, i64 now )
     return format( "{} years ago", days / 365 );
 }
 
-ProjectPicker::ProjectPicker( RecentProjects& recent, ChooseFolder choose )
+ProjectPicker::ProjectPicker( RecentProjects& recent, Choose chooseProject, Choose chooseFolder )
     : mRecent( recent ),
-      mChoose( std::move( choose ) )
+      mChooseProject( std::move( chooseProject ) ),
+      mChooseFolder( std::move( chooseFolder ) )
 {
     // A new project goes beside the last one opened, at first.
     if ( not recent.All().empty() )
@@ -76,11 +77,13 @@ void ProjectPicker::Show()
     ImGui::TextColored( EditorColor::cTextDim, "Open a project, or make a new one." );
     ImGui::Spacing();
 
-    if ( ImGui::Button( format( "{}  Open Folder...", Icon::cFolder ).c_str() ) )
-        mChoose( mNewParent.empty() ? OsPath() : PathFromUtf8( mNewParent ), [this]( opt<OsPath> folderMaybe ) {
-            if ( folderMaybe )
-                Pick( *folderMaybe );
+    if ( ImGui::Button( format( "{}  Open Project...", Icon::cFolder ).c_str() ) )
+        mChooseProject( mNewParent.empty() ? OsPath() : PathFromUtf8( mNewParent ), [this]( opt<OsPath> fileMaybe ) {
+            if ( fileMaybe )
+                Pick( *fileMaybe );
         } );
+    if ( ImGui::IsItemHovered() )
+        ImGui::SetTooltip( "Its project.bubble" );
     ImGui::SameLine();
     if ( ImGui::Button( "+  New Project..." ) )
     {
@@ -90,8 +93,9 @@ void ProjectPicker::Show()
     ImGui::Spacing();
     ImGui::SetNextItemWidth( width - ImGui::CalcTextSize( "Open" ).x - ImGui::GetStyle().FramePadding.x * 2 -
                              ImGui::GetStyle().ItemSpacing.x );
-    const bool entered = ImGui::InputTextWithHint( "##typed", "or a project's folder: E:\\games\\my_game", &mTyped,
-                                                   ImGuiInputTextFlags_EnterReturnsTrue );
+    const bool entered =
+        ImGui::InputTextWithHint( "##typed", "or its project.bubble: E:\\games\\my_game\\project.bubble", &mTyped,
+                                  ImGuiInputTextFlags_EnterReturnsTrue );
     ImGui::SameLine();
     if ( ( ImGui::Button( "Open" ) or entered ) and not mTyped.empty() )
         Pick( PathFromUtf8( mTyped ) );
@@ -185,7 +189,7 @@ void ProjectPicker::NewProject()
     ImGui::InputTextWithHint( "##parent", "E:\\games", &mNewParent );
     ImGui::SameLine();
     if ( ImGui::Button( "Browse..." ) )
-        mChoose( mNewParent.empty() ? OsPath() : PathFromUtf8( mNewParent ), [this]( opt<OsPath> folderMaybe ) {
+        mChooseFolder( mNewParent.empty() ? OsPath() : PathFromUtf8( mNewParent ), [this]( opt<OsPath> folderMaybe ) {
             if ( folderMaybe )
                 mNewParent = PathToUtf8( *folderMaybe );
         } );

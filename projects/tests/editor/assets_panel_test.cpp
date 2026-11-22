@@ -6,6 +6,7 @@
 #include "bubble/data/png.hpp"
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/editor.hpp"
+#include "bubble/editor/editor_icons.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/inspector.hpp"
 #include "bubble/import/import_file.hpp"
@@ -278,15 +279,44 @@ TEST_CASE( "A folder made in the panel is shown empty and gone into; a new asset
     CHECK( ui.mFiles.contains( "effects/smoke.mat" ) );
 }
 
-TEST_CASE( "A texture's file is shown with its picture, small, as the editor hands it over" )
+TEST_CASE( "A texture's file is shown with its picture, as tiles and as rows, as the editor hands it over" )
 {
     Ui ui;
     vector<string> asked;
-    ui.mAssets->SetThumbnail( [&]( const AssetPath& path ) -> opt<ImTextureID> {
+    ui.mAssets->SetThumbnail( [&]( const AssetPath& path ) -> opt<AssetsPanel::Picture> {
         asked.emplace_back( path.View() );
         return nullopt;
     } );
     ui.Frame();
     CHECK( ranges::contains( asked, "sky.png"s ) );
     CHECK_FALSE( ranges::contains( asked, "glow.luau"s ) );
+    asked.clear();
+    ui.mAssets->SetView( AssetsView::List );
+    ui.Frame();
+    CHECK( ranges::contains( asked, "sky.png"s ) );
+}
+
+TEST_CASE( "A file is shown by its kind's icon, a plain file's for a kind the panel does not know" )
+{
+    CHECK( FileIcon( "levels/main.scene", "" ) == Icon::cLevel );
+    CHECK( FileIcon( "crate.prefab", "prefab" ) == Icon::cPrefab );
+    CHECK( FileIcon( "stone.mat", "material" ) == Icon::cMaterial );
+    CHECK( FileIcon( "player.anim", "animation_graph" ) == Icon::cGraph );
+    CHECK( FileIcon( "hero.glb", "model" ) == Icon::cBox );
+    CHECK( FileIcon( "sky.png", "texture" ) == Icon::cImage );
+    CHECK( FileIcon( "step.wav", "sound" ) == Icon::cSound );
+    CHECK( FileIcon( "roboto.ttf", "font" ) == Icon::cFont );
+    CHECK( FileIcon( "glow.luau", "script" ) == Icon::cScript );
+    CHECK( FileIcon( "pulse.wgsl", "shader" ) == Icon::cShader );
+    CHECK( FileIcon( "notes.txt", "" ) == Icon::cFile );
+}
+
+TEST_CASE( "The tiles' size stays between the smallest and the largest a tile may be" )
+{
+    Ui ui;
+    CHECK( ui.mAssets->View() == AssetsView::Tiles );
+    ui.mAssets->SetTileSize( 10.0f );
+    CHECK( ui.mAssets->TileSize() == 48.0f );
+    ui.mAssets->SetTileSize( 1000.0f );
+    CHECK( ui.mAssets->TileSize() == 192.0f );
 }

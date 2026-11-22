@@ -1,6 +1,6 @@
-// bubble_runner <project folder> [--frames N] [--screenshot file.png] [--import-only]
+// bubble_runner <project.bubble> [--frames N] [--screenshot file.png] [--import-only]
 //
-// Plays a project from its folder: its sources imported into .bubble/imported
+// Plays a project - its project.bubble, or the folder it is in -: its sources imported into .bubble/imported
 // as it starts and again as they change - the registry reloading them -, its
 // project.bubble's start level loaded and played with its actions. --frames
 // quits after N frames, --screenshot writes the last one as a PNG, and
@@ -61,14 +61,17 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
             arguments.mImportOnly = true;
         else if ( not rooted and not argument.starts_with( "--" ) )
         {
+            // The project's file names its folder.
             arguments.mRoot = PathFromUtf8( argument );
+            if ( arguments.mRoot.extension() == ".bubble" )
+                arguments.mRoot = arguments.mRoot.parent_path();
             rooted = true;
         }
         else
             return unexpected( format( "{}: not an argument", argument ) );
     }
     if ( not rooted )
-        return unexpected( "bubble_runner <project folder> [--frames N] [--screenshot file.png] [--import-only]"s );
+        return unexpected( "bubble_runner <project.bubble> [--frames N] [--screenshot file.png] [--import-only]"s );
     return arguments;
 }
 

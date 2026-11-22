@@ -55,9 +55,9 @@ Editor::Editor( EditorProject& project,
       mViewport( project, gpu, renderer ),
       mPreferencesPanel( preferences )
 {
-    // A texture's file shown small: loaded the first time it is shown, its
-    // GPU copy the renderer's.
-    mAssets.SetThumbnail( [this]( const AssetPath& path ) -> opt<ImTextureID> {
+    // A texture's file shown by its picture: loaded the first time it is
+    // shown, its GPU copy the renderer's.
+    mAssets.SetThumbnail( [this]( const AssetPath& path ) -> opt<AssetsPanel::Picture> {
         auto found = mThumbnails.find( path.String() );
         if ( found == mThumbnails.end() )
         {
@@ -69,7 +69,8 @@ Editor::Editor( EditorProject& project,
         const auto textureMaybe = mRenderer.Assets().TryTexture( found->second );
         if ( not textureMaybe )
             return nullopt;
-        return ImGuiRenderer::TextureId( textureMaybe->View() );
+        return AssetsPanel::Picture{ .mId = ImGuiRenderer::TextureId( textureMaybe->View() ),
+                                     .mSize = vec2( textureMaybe->Size() ) };
     } );
 }
 

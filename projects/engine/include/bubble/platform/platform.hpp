@@ -80,6 +80,13 @@ public:
     // the dialog was cancelled, in a later Poll, on this thread. On the web,
     // which has none, nothing at once.
     void ChooseFolder( const Window& window, const OsPath& from, function<void( opt<OsPath> )> chosen );
+    // The same for a file to open: one named as `pattern` says - "bubble"
+    // for *.bubble -, which the dialog calls `kind`.
+    void ChooseFile( const Window& window,
+                     const OsPath& from,
+                     string_view kind,
+                     string_view pattern,
+                     function<void( opt<OsPath> )> chosen );
     // The system's clipboard as text: empty when it holds none.
     string ClipboardText() const;
     void SetClipboardText( const string& text );
@@ -104,5 +111,10 @@ private:
     // in Poll on this one.
     struct Dialogs;
     Ref<Dialogs> mDialogs;
+    // A dialog's answer waited for, and what it shows - SDL hands it back
+    // when it answers, and it goes then.
+    struct Asked;
+    Asked* Ask( function<void( opt<OsPath> )> chosen );
+    static void Answered( void* asked, const char* const* paths );
 };
 }

@@ -31,6 +31,16 @@ inline constexpr const char* cBone = "\xEE\x8D\x98";       // bone
 inline constexpr const char* cFolder = "\xEE\x83\x97";     // folder
 inline constexpr const char* cEmpty = "\xEE\x8B\xBE";      // axis-3d
 inline constexpr const char* cAnimator = "\xEE\x83\x90";   // film
+// The project's files, by kind, and how the assets panel shows them.
+inline constexpr const char* cMaterial = "\xEE\x87\x9D"; // palette
+inline constexpr const char* cSound = "\xEE\x95\x9A";    // audio-lines
+inline constexpr const char* cFont = "\xEE\x86\x98";     // type
+inline constexpr const char* cLevel = "\xEE\x84\x90";    // map
+inline constexpr const char* cShader = "\xEE\x90\x92";   // sparkles
+inline constexpr const char* cGraph = "\xEE\x90\xA5";    // workflow
+inline constexpr const char* cFile = "\xEE\x83\x80";     // file
+inline constexpr const char* cTiles = "\xEE\x83\xBF";    // layout-grid
+inline constexpr const char* cList = "\xEE\x84\x86";     // list
 }
 
 // What an entity is, as an icon for its row in the scene's tree: by its

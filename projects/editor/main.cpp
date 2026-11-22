@@ -1,8 +1,9 @@
-// bubble_editor [project folder] [--open path]... [--play] [--mcp [port]] [--frames N] [--screenshot file.png]
+// bubble_editor [project.bubble] [--open path]... [--play] [--mcp [port]] [--frames N] [--screenshot file.png]
 //
-// The editor over a project's folder: its sources imported as it opens and
+// The editor over a project - its project.bubble, or the folder it is in -:
+// its sources imported as it opens and
 // again as they change, project.bubble's start level open as a document,
-// shown in a viewport through the editor's own camera. With no folder it
+// shown in a viewport through the editor's own camera. With no project it
 // starts on the start window - the projects opened before, a folder to open,
 // a new project -, and File > Close Project comes back to it.
 // --open opens a file of the project too - a level, a prefab, a material -,
@@ -74,7 +75,7 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
         else if ( not arguments.mRootMaybe and not argument.starts_with( "--" ) )
             arguments.mRootMaybe = PathFromUtf8( argument );
         else
-            return unexpected( format( "{}: not an argument (bubble_editor [project folder] [--open path]... "
+            return unexpected( format( "{}: not an argument (bubble_editor [project.bubble] [--open path]... "
                                        "[--play] [--mcp [port]] [--frames N] [--screenshot file.png])",
                                        argument ) );
     }
@@ -213,9 +214,13 @@ int main( int argc, char** argv )
                                                        LogError( "{}", openedMaybe.error() );
                                                } );
     };
-    // A project's folder opened, its start level shown; the error says why
-    // it would not open.
-    const auto tryOpen = [&]( const OsPath& root ) -> expected<void, string> {
+    // A project opened - its project.bubble, or the folder it is in -, its
+    // start level shown; the error says why it would not open.
+    const auto tryOpen = [&]( const OsPath& path ) -> expected<void, string> {
+        const auto rootMaybe = TryProjectRoot( path );
+        if ( not rootMaybe )
+            return unexpected( rootMaybe.error() );
+        const OsPath& root = *rootMaybe;
         auto projectMaybe = EditorProject::TryOpen( root, *audio );
         if ( not projectMaybe )
             return unexpected( std::move( projectMaybe.error() ) );
@@ -235,9 +240,14 @@ int main( int argc, char** argv )
         window.SetTitle( "bubble editor" );
     };
 
-    ProjectPicker picker( recent, [&platform, &window]( const OsPath& from, function<void( opt<OsPath> )> chosen ) {
-        platform.ChooseFolder( window, from, std::move( chosen ) );
-    } );
+    ProjectPicker picker(
+        recent,
+        [&platform, &window]( const OsPath& from, function<void( opt<OsPath> )> chosen ) {
+            platform.ChooseFile( window, from, "Bubble project (project.bubble)", "bubble", std::move( chosen ) );
+        },
+        [&platform, &window]( const OsPath& from, function<void( opt<OsPath> )> chosen ) {
+            platform.ChooseFolder( window, from, std::move( chosen ) );
+        } );
     if ( arguments.mRootMaybe )
     {
         if ( auto openedMaybe = tryOpen( *arguments.mRootMaybe ); not openedMaybe )

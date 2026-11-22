@@ -48,6 +48,11 @@ private:
     opt<OsPath> mFileMaybe;
 };
 
+// The project a path means: its project.bubble - or a file of another name
+// ending in .bubble -, or the folder it is in. The error says what is there
+// instead.
+expected<OsPath, string> TryProjectRoot( const OsPath& path );
+
 // A new project: `name`'s folder under `parent`, with a project.bubble that
 // starts on levels/main.scene - a sun and a camera -, and a .gitignore for
 // the import cache. Refuses a name that is no folder's and a folder that is

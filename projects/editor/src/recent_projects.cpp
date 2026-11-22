@@ -100,6 +100,24 @@ void RecentProjects::Save() const
         LogError( "{}", writtenMaybe.error() );
 }
 
+expected<OsPath, string> TryProjectRoot( const OsPath& path )
+{
+    error_code error;
+    if ( fs::is_regular_file( path, error ) )
+    {
+        if ( path.extension() != ".bubble" )
+            return unexpected( format( "{} is not a project: a project is its project.bubble", PathToUtf8( path ) ) );
+        return path.parent_path();
+    }
+    if ( fs::is_directory( path, error ) )
+    {
+        if ( not fs::exists( path / "project.bubble", error ) )
+            return unexpected( format( "{} has no project.bubble", PathToUtf8( path ) ) );
+        return path;
+    }
+    return unexpected( format( "{} is not there", PathToUtf8( path ) ) );
+}
+
 expected<OsPath, string> TryCreateProject( const OsPath& parent, string_view name )
 {
     if ( name.empty() or name == "." or name == ".." or name.find_first_of( "/\\:*?\"<>|" ) != string_view::npos )

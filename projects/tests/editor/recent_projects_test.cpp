@@ -104,3 +104,22 @@ TEST_CASE( "How long ago a project was opened reads as words" )
     CHECK( AgoText( 0, 90 * day ) == "3 months ago" );
     CHECK( AgoText( 0, 800 * day ) == "2 years ago" );
 }
+
+TEST_CASE( "A project is opened by its project.bubble, or by the folder it is in; anything else says what it is" )
+{
+    const Folder folder( "bubble_project_root_test" );
+    const OsPath root = *TryCreateProject( folder.mPath, "game" );
+    CHECK( TryProjectRoot( root / "project.bubble" ) == root );
+    CHECK( TryProjectRoot( root ) == root );
+
+    const auto levelMaybe = TryProjectRoot( root / "levels" / "main.scene" );
+    REQUIRE_FALSE( levelMaybe );
+    CHECK_MESSAGE( levelMaybe.error().find( "is not a project: a project is its project.bubble" ) != string::npos,
+                   levelMaybe.error() );
+    const auto levelsMaybe = TryProjectRoot( root / "levels" );
+    REQUIRE_FALSE( levelsMaybe );
+    CHECK_MESSAGE( levelsMaybe.error().find( "has no project.bubble" ) != string::npos, levelsMaybe.error() );
+    const auto goneMaybe = TryProjectRoot( root / "nowhere" );
+    REQUIRE_FALSE( goneMaybe );
+    CHECK_MESSAGE( goneMaybe.error().find( "is not there" ) != string::npos, goneMaybe.error() );
+}
