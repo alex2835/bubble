@@ -53,11 +53,30 @@ Editor::Editor( EditorProject& project,
       mInspector( project ),
       mAssets( project, std::move( open ) ),
       mViewport( project, gpu, renderer ),
-      mPreferencesPanel( preferences )
+      mPreferencesPanel( preferences ),
+      mThumbnailService( project, gpu, renderer )
 {
     // A texture's file shown by its picture: loaded the first time it is
     // shown, its GPU copy the renderer's.
     mAssets.SetThumbnail( [this]( const AssetPath& path ) -> opt<AssetsPanel::Picture> {
+        // A model or a material: its picture drawn by the service, nothing
+        // until it is.
+        if ( const string_view kind = mProject.KindOf( path ); ThumbnailService::Draws( kind ) )
+        {
+            auto handle = mThumbnailHandles.find( path.String() );
+            if ( handle == mThumbnailHandles.end() )
+            {
+                const auto idMaybe = mProject.GetCatalog().TryIdOf( path );
+                if ( not idMaybe )
+                    return nullopt;
+                handle = mThumbnailHandles.emplace( path.String(), mThumbnailService.Request( *idMaybe, kind ) ).first;
+            }
+            const auto pictureMaybe = mThumbnailService.TryGet( handle->second );
+            if ( not pictureMaybe )
+                return nullopt;
+            return AssetsPanel::Picture{ .mId = ImGuiRenderer::TextureId( pictureMaybe->View() ),
+                                         .mSize = vec2( pictureMaybe->Size() ) };
+        }
         auto found = mThumbnails.find( path.String() );
         if ( found == mThumbnails.end() )
         {
@@ -305,6 +324,8 @@ void Editor::Frame( f64 elapsed )
 
 void Editor::Draw()
 {
+    // A few pictures of the project's assets, before ImGui's lists show them.
+    mThumbnailService.Pump();
     if ( const auto shownMaybe = TryShownWorld() )
         mViewport.Draw( shownMaybe->Get(), shownMaybe->Camera() );
     // Only what is still open: a window closed this frame - its cross, or

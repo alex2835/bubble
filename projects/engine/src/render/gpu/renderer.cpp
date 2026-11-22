@@ -926,7 +926,7 @@ void Renderer::Draw( RenderView& view,
     }
 
     {
-        const vec4 background = ToLinear( mOptions.mBackground );
+        const vec4 background = ToLinear( view.mBackgroundMaybe.value_or( mOptions.mBackground ) );
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
         color.view = view.mHdr.View();
         color.loadOp = WGPULoadOp_Clear;

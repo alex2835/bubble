@@ -7,6 +7,7 @@
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/preferences_panel.hpp"
 #include "bubble/editor/scene_panel.hpp"
+#include "bubble/editor/thumbnail_service.hpp"
 #include "bubble/editor/viewport.hpp"
 #include "bubble/editor/world_picture.hpp"
 #include "bubble/input/input_event.hpp"
@@ -135,8 +136,12 @@ private:
     // Data documents' windows not shown this frame: waiting for the viewport
     // to be docked beside.
     hset<string> mHeld;
-    // The textures the assets panel shows small, held while the editor is.
+    // The textures the assets panel shows, held while the editor is.
     hmap<string, AssetRef<TextureAsset>> mThumbnails;
+    // The pictures of models and materials, and the assets panel's handles
+    // to them by path.
+    ThumbnailService mThumbnailService;
+    hmap<string, ThumbnailHandle> mThumbnailHandles;
     string mSaveAsPath;
     bool mAskSaveAs = false;
     bool mAskUnsaved = false;

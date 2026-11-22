@@ -22,6 +22,9 @@ expected<void, string> TryPlaceAsset( EditorProject& project,
 // prefab, a material, a model, a sound, a script... -, a plain file's for a
 // kind it does not know.
 string_view FileIcon( string_view path, string_view kind );
+// The colour a file's kind is marked with - the stripe under its tile, the
+// square before its row -; none for a kind it does not know.
+opt<ImVec4> KindColor( string_view path, string_view kind );
 
 // How the assets panel shows the files of a folder: tiles - a picture or an
 // icon each, the name under it -, or a list of rows with their kinds.
@@ -59,8 +62,9 @@ public:
     opt<vec2> TryWhere( string_view path ) const;
     // The file a click picked since the last ask: what the inspector shows.
     opt<string> TakePicked();
-    // What shows a texture's file: its picture as ImGui takes one and its
-    // size in pixels, nothing while it loads - or for no texture.
+    // What shows a file by its picture - a texture's, a model's or a
+    // material's drawn for it -: as ImGui takes one, and its size in pixels;
+    // nothing while there is none yet, or for a kind that has none.
     struct Picture
     {
         ImTextureID mId = 0;

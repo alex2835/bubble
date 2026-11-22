@@ -76,6 +76,10 @@ public:
 
     const RenderStats& Stats() const { return mStats; }
 
+    // Behind everything in this view instead of the renderer's background -
+    // an editor's thumbnails on a neutral grey -; none, the renderer's.
+    void SetBackground( opt<Color> backgroundMaybe ) { mBackgroundMaybe = backgroundMaybe; }
+
     // A pick on its way back from the GPU: shared with the map's callback.
     struct PickState;
 
@@ -90,6 +94,7 @@ private:
         u64 mFrame = 0;
     };
 
+    opt<Color> mBackgroundMaybe;
     // Sized to the view's target.
     GpuTexture mHdr;
     GpuTexture mDepth;

@@ -33,6 +33,19 @@ inline constexpr ImVec4 cPrefab{ 0.45f, 0.68f, 0.98f, 1.0f };
 inline constexpr ImVec4 cPrefabInside{ 0.64f, 0.78f, 0.96f, 1.0f };
 // What a game plays now.
 inline constexpr ImVec4 cLive{ 0.45f, 0.86f, 0.52f, 1.0f };
+// The project's files by kind: the stripe under a tile in the assets panel,
+// as Unreal's content browser marks its assets - a level orange, a material
+// green; a prefab the blue the tree shows one in.
+inline constexpr ImVec4 cKindLevel{ 0.96f, 0.58f, 0.18f, 1.0f };
+inline constexpr ImVec4 cKindPrefab = cPrefab;
+inline constexpr ImVec4 cKindModel{ 0.25f, 0.80f, 0.80f, 1.0f };
+inline constexpr ImVec4 cKindMaterial{ 0.40f, 0.78f, 0.35f, 1.0f };
+inline constexpr ImVec4 cKindTexture{ 0.88f, 0.33f, 0.30f, 1.0f };
+inline constexpr ImVec4 cKindSound{ 0.62f, 0.45f, 0.90f, 1.0f };
+inline constexpr ImVec4 cKindGraph{ 0.30f, 0.45f, 0.95f, 1.0f };
+inline constexpr ImVec4 cKindScript{ 0.93f, 0.82f, 0.30f, 1.0f };
+inline constexpr ImVec4 cKindShader{ 0.65f, 0.90f, 0.55f, 1.0f };
+inline constexpr ImVec4 cKindFont{ 0.62f, 0.64f, 0.67f, 1.0f };
 }
 
 // Dear ImGui's style as the editor has it: the text `fontSize` pixels high,

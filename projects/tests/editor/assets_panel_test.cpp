@@ -7,6 +7,7 @@
 #include "bubble/editor/assets_panel.hpp"
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/editor_icons.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/inspector.hpp"
 #include "bubble/import/import_file.hpp"
@@ -289,7 +290,6 @@ TEST_CASE( "A texture's file is shown with its picture, as tiles and as rows, as
     } );
     ui.Frame();
     CHECK( ranges::contains( asked, "sky.png"s ) );
-    CHECK_FALSE( ranges::contains( asked, "glow.luau"s ) );
     asked.clear();
     ui.mAssets->SetView( AssetsView::List );
     ui.Frame();
@@ -309,6 +309,39 @@ TEST_CASE( "A file is shown by its kind's icon, a plain file's for a kind the pa
     CHECK( FileIcon( "glow.luau", "script" ) == Icon::cScript );
     CHECK( FileIcon( "pulse.wgsl", "shader" ) == Icon::cShader );
     CHECK( FileIcon( "notes.txt", "" ) == Icon::cFile );
+}
+
+namespace
+{
+bool Marked( opt<ImVec4> colorMaybe, ImVec4 wanted )
+{
+    return colorMaybe and colorMaybe->x == wanted.x and colorMaybe->y == wanted.y and colorMaybe->z == wanted.z;
+}
+}
+
+TEST_CASE( "Each kind of file is marked with a colour of its own, as Unreal marks its assets; a plain file with none" )
+{
+    CHECK( Marked( KindColor( "levels/main.scene", "" ), EditorColor::cKindLevel ) );
+    CHECK( Marked( KindColor( "crate.prefab", "prefab" ), EditorColor::cKindPrefab ) );
+    CHECK( Marked( KindColor( "stone.mat", "material" ), EditorColor::cKindMaterial ) );
+    CHECK( Marked( KindColor( "hero.glb", "model" ), EditorColor::cKindModel ) );
+    CHECK( Marked( KindColor( "sky.png", "texture" ), EditorColor::cKindTexture ) );
+    CHECK( Marked( KindColor( "step.wav", "sound" ), EditorColor::cKindSound ) );
+    CHECK( Marked( KindColor( "player.anim", "animation_graph" ), EditorColor::cKindGraph ) );
+    CHECK( Marked( KindColor( "glow.luau", "script" ), EditorColor::cKindScript ) );
+    CHECK( Marked( KindColor( "pulse.wgsl", "shader" ), EditorColor::cKindShader ) );
+    CHECK( Marked( KindColor( "roboto.ttf", "font" ), EditorColor::cKindFont ) );
+    CHECK_FALSE( KindColor( "notes.txt", "" ) );
+    // Told apart at a glance: no two kinds alike.
+    const vector<ImVec4> colors{ EditorColor::cKindLevel,    EditorColor::cKindPrefab,  EditorColor::cKindModel,
+                                 EditorColor::cKindMaterial, EditorColor::cKindTexture, EditorColor::cKindSound,
+                                 EditorColor::cKindGraph,    EditorColor::cKindScript,  EditorColor::cKindShader,
+                                 EditorColor::cKindFont };
+    for ( size_t a = 0; a < colors.size(); ++a )
+        for ( size_t b = a + 1; b < colors.size(); ++b )
+            CHECK( std::abs( colors[a].x - colors[b].x ) + std::abs( colors[a].y - colors[b].y ) +
+                       std::abs( colors[a].z - colors[b].z ) >
+                   0.15f );
 }
 
 TEST_CASE( "The tiles' size stays between the smallest and the largest a tile may be" )

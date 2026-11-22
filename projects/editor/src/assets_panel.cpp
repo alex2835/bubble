@@ -174,6 +174,31 @@ string_view FileIcon( string_view path, string_view kind )
     return Icon::cFile;
 }
 
+opt<ImVec4> KindColor( string_view path, string_view kind )
+{
+    if ( path.ends_with( ".scene" ) )
+        return EditorColor::cKindLevel;
+    if ( path.ends_with( ".prefab" ) or kind == cPrefabKind )
+        return EditorColor::cKindPrefab;
+    if ( path.ends_with( ".mat" ) or kind == cMaterialKind )
+        return EditorColor::cKindMaterial;
+    if ( path.ends_with( ".anim" ) or kind == cAnimationGraphKind )
+        return EditorColor::cKindGraph;
+    if ( kind == cTextureKind )
+        return EditorColor::cKindTexture;
+    if ( kind == cModelKind )
+        return EditorColor::cKindModel;
+    if ( kind == cSoundKind )
+        return EditorColor::cKindSound;
+    if ( kind == cFontKind )
+        return EditorColor::cKindFont;
+    if ( kind == cScriptKind or path.ends_with( ".luau" ) )
+        return EditorColor::cKindScript;
+    if ( kind == cShaderKind or path.ends_with( ".wgsl" ) )
+        return EditorColor::cKindShader;
+    return nullopt;
+}
+
 AssetsPanel::AssetsPanel( EditorProject& project, function<void( const OsPath& )> open )
     : mProject( project ),
       mOpen( std::move( open ) )
@@ -474,8 +499,7 @@ void AssetsPanel::FileTile( const string& path )
     const f32 inset = mTileSize * 0.08f;
     const ImVec2 pictureLow( low.x + inset, low.y + inset );
     const ImVec2 pictureHigh( high.x - inset, low.y + mTileSize - inset );
-    const auto pictureMaybe =
-        mThumbnail and mProject.Makes( assetPath, cTextureKind ) ? mThumbnail( assetPath ) : nullopt;
+    const auto pictureMaybe = mThumbnail ? mThumbnail( assetPath ) : nullopt;
     if ( pictureMaybe )
     {
         const vec2 room( pictureHigh.x - pictureLow.x, pictureHigh.y - pictureLow.y );
@@ -488,6 +512,14 @@ void AssetsPanel::FileTile( const string& path )
     else
         DrawIcon( draw, FileIcon( path, mProject.KindOf( assetPath ) ), mTileSize * 0.45f, pictureLow, pictureHigh,
                   ImGui::GetColorU32( errorMaybe ? cBroken : EditorColor::cTextDim ) );
+    // Its kind's stripe under the picture, as Unreal marks an asset.
+    if ( const auto colorMaybe = KindColor( path, mProject.KindOf( assetPath ) ) )
+    {
+        const f32 thick = max( 3.0f, mTileSize * 0.045f );
+        draw.AddRectFilled( ImVec2( pictureLow.x, pictureHigh.y + 1.0f ),
+                            ImVec2( pictureHigh.x, pictureHigh.y + 1.0f + thick ), ImGui::GetColorU32( *colorMaybe ),
+                            thick * 0.5f );
+    }
 
     // The name under it, or the field it is renamed in.
     if ( mRenaming == path )
@@ -546,14 +578,34 @@ void AssetsPanel::FileRow( const string& path )
     {
         const auto errorMaybe = mProject.TryErrorOf( assetPath );
         // A texture's picture, small, before its name.
-        if ( mThumbnail and mProject.Makes( assetPath, cTextureKind ) )
+        // Its kind's colour, a small square first: every row has its place,
+        // so the names line up.
+        {
+            const f32 line = ImGui::GetTextLineHeight();
+            const f32 mark = line * 0.45f;
+            const ImVec2 at = ImGui::GetCursorScreenPos();
+            if ( const auto colorMaybe = KindColor( path, mProject.KindOf( assetPath ) ) )
+                ImGui::GetWindowDrawList()->AddRectFilled( ImVec2( at.x, at.y + ( line - mark ) * 0.5f ),
+                                                           ImVec2( at.x + mark, at.y + ( line + mark ) * 0.5f ),
+                                                           ImGui::GetColorU32( *colorMaybe ), 1.0f );
+            ImGui::Dummy( ImVec2( mark, line ) );
+            ImGui::SameLine();
+        }
+        // Its picture, small, before its name; a texture's place kept while
+        // it loads.
+        if ( mThumbnail )
         {
             const f32 side = ImGui::GetTextLineHeight();
             if ( const auto pictureMaybe = mThumbnail( assetPath ) )
+            {
                 ImGui::Image( ImTextureRef( pictureMaybe->mId ), ImVec2( side, side ) );
-            else
+                ImGui::SameLine();
+            }
+            else if ( mProject.Makes( assetPath, cTextureKind ) )
+            {
                 ImGui::Dummy( ImVec2( side, side ) );
-            ImGui::SameLine();
+                ImGui::SameLine();
+            }
         }
         if ( errorMaybe )
             ImGui::PushStyleColor( ImGuiCol_Text, cBroken );
