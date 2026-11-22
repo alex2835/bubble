@@ -177,6 +177,88 @@ TEST_CASE( "Far from the listener a spatial sound is quieter; one that is not sp
     CHECK( loudnessAt( 30.0f, false ) > 0.2f );
 }
 
+TEST_CASE( "A spatial sound's distance takes it from whole to nothing as its rolloff says" )
+{
+    // Whole nearer than min_distance, nothing from max_distance on.
+    for ( const Rolloff rolloff : { Rolloff::Natural, Rolloff::Squared, Rolloff::Linear } )
+    {
+        CHECK( DistanceGain( rolloff, 1.0f, 2.0f, 10.0f ) == 1.0f );
+        CHECK( DistanceGain( rolloff, 2.0f, 2.0f, 10.0f ) == 1.0f );
+        CHECK( DistanceGain( rolloff, 10.0f, 2.0f, 10.0f ) == 0.0f );
+        CHECK( DistanceGain( rolloff, 500.0f, 2.0f, 10.0f ) == 0.0f );
+        // Quieter all the way out.
+        f32 before = 1.0f;
+        for ( f32 distance = 2.5f; distance < 10.0f; distance += 0.5f )
+        {
+            const f32 gain = DistanceGain( rolloff, distance, 2.0f, 10.0f );
+            CHECK( gain < before );
+            before = gain;
+        }
+    }
+    // Half way out: natural the quietest, linear the loudest.
+    CHECK( DistanceGain( Rolloff::Natural, 6.0f, 2.0f, 10.0f ) == doctest::Approx( ( 2.0f / 6 - 0.2f ) / 0.8f ) );
+    CHECK( DistanceGain( Rolloff::Squared, 6.0f, 2.0f, 10.0f ) == doctest::Approx( 0.25f ) );
+    CHECK( DistanceGain( Rolloff::Linear, 6.0f, 2.0f, 10.0f ) == doctest::Approx( 0.5f ) );
+    // A min_distance of 0 is not silence everywhere.
+    CHECK( DistanceGain( Rolloff::Natural, 0.5f, 0.0f, 10.0f ) > 0.4f );
+
+    CHECK( TryRolloff( "squared"_n ) == Rolloff::Squared );
+    const auto loudMaybe = TryRolloff( Name::Declare( "loud" ) );
+    REQUIRE_FALSE( loudMaybe );
+    CHECK( loudMaybe.error() == "audio_source.rolloff: loud is not one of natural, squared, linear" );
+}
+
+TEST_CASE( "Past its max_distance a spatial sound is silent; nearer, as quiet as its rolloff says" )
+{
+    AudioFixture f;
+    const AssetId tone = f.AddSound( "sounds/tone.wav", MakeWav( 2.0f ) );
+    const auto loudnessAt = [&]( f32 distance, Name rolloff ) {
+        Scene scene;
+        const Entity ears = AudioFixture::Place( scene, "ears", vec3( 0.0f ) );
+        scene.Add<AudioListener>( ears );
+        const Entity speaker = AudioFixture::Place( scene, "speaker", vec3( 0.0f, 0.0f, -distance ) );
+        scene.Add<AudioSource>(
+            speaker, AudioSource{ .mSound = tone, .mMinDistance = 1, .mMaxDistance = 5, .mRolloff = rolloff } );
+        World world( f.mApp, std::move( scene ) );
+        return f.Loudness( world );
+    };
+    const f32 near = loudnessAt( 1.0f, "natural"_n );
+    CHECK( near > 0.1f );
+    CHECK( loudnessAt( 6.0f, "natural"_n ) < 0.001f );
+    CHECK( loudnessAt( 6.0f, "linear"_n ) < 0.001f );
+    // Half way out, linear is loudest, natural quietest.
+    const f32 natural = loudnessAt( 3.0f, "natural"_n );
+    const f32 squared = loudnessAt( 3.0f, "squared"_n );
+    const f32 linear = loudnessAt( 3.0f, "linear"_n );
+    CHECK( natural > 0.01f );
+    CHECK( natural < squared );
+    CHECK( squared < linear );
+    CHECK( linear == doctest::Approx( near * 0.5f ).epsilon( 0.05 ) );
+
+    // A rolloff that is not one is said, and the natural one plays.
+    const LogWatch log;
+    CHECK( loudnessAt( 3.0f, Name::Declare( "loud" ) ) == doctest::Approx( natural ).epsilon( 0.05 ) );
+    CHECK( log.Saw( LogLevel::Error,
+                    { "speaker", "audio_source.rolloff: loud is not one of natural, squared, linear" } ) );
+
+    // Still turned to its side: to the right, the right ear hears more.
+    Scene scene;
+    scene.Add<AudioListener>( AudioFixture::Place( scene, "ears", vec3( 0.0f ) ) );
+    const Entity speaker = AudioFixture::Place( scene, "speaker", vec3( 2.0f, 0.0f, 0.0f ) );
+    scene.Add<AudioSource>( speaker, AudioSource{ .mSound = tone, .mMinDistance = 1, .mMaxDistance = 5 } );
+    World world( f.mApp, std::move( scene ) );
+    (void)f.Loudness( world );
+    const vector<f32> frames = f.mDevice->ReadFrames( 4800 );
+    vector<f32> left;
+    vector<f32> right;
+    for ( size_t at = 0; at + 1 < frames.size(); at += 2 )
+    {
+        left.push_back( frames[at] );
+        right.push_back( frames[at + 1] );
+    }
+    CHECK( Rms( right ) > Rms( left ) * 2.0f );
+}
+
 TEST_CASE( "A world plays thirty-two voices at most; past them, a sound waits its turn or the quietest gives way" )
 {
     AudioFixture f;

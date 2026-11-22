@@ -71,6 +71,15 @@ public:
             mSound.reset();
             return false;
         }
+        // Its distance makes it quieter as the module says - miniaudio's own
+        // never goes to nothing. No nearer than its farthest, miniaudio
+        // leaves its volume alone, and still turns it to its side; with no
+        // attenuation at all, it would not.
+        if ( spatial )
+        {
+            ma_sound_set_min_distance( mSound.get(), 1.0f );
+            ma_sound_set_max_distance( mSound.get(), 1.0f );
+        }
         return true;
     }
 
@@ -84,6 +93,7 @@ public:
     bool mSpatial = false;
     f32 mMinDistance = 1;
     f32 mMaxDistance = 50;
+    Rolloff mRolloff = Rolloff::Natural;
     // Where a one-shot plays; a source's follows its entity.
     vec3 mPosition{ 0.0f };
     // Stopped by a paused world, to go on with it.
@@ -123,7 +133,7 @@ public:
         world.OnChanged<AudioSource>( "bus"_n, restart );
         world.OnChanged<AudioSource>( "spatial"_n, restart );
         const auto apply = [this]( Entity entity ) { Apply( entity ); };
-        for ( const Name field : { "volume"_n, "pitch"_n, "loop"_n, "min_distance"_n, "max_distance"_n } )
+        for ( const Name field : { "volume"_n, "pitch"_n, "loop"_n, "min_distance"_n, "max_distance"_n, "rolloff"_n } )
             world.OnChanged<AudioSource>( field, apply );
         world.OnRemoved<AudioSource>( [this]( Entity entity ) { Stop( entity ); } );
         world.AddStep( Phase::Audio, [this]( f32 dt ) { Update( dt ); } );
@@ -232,17 +242,26 @@ private:
                 Configure( *voice, *sourceMaybe );
     }
 
-    static void Configure( Voice& voice, const AudioSource& source )
+    void Configure( Voice& voice, const AudioSource& source ) const
     {
         voice.mVolume = source.mVolume;
         voice.mMinDistance = source.mMinDistance;
         voice.mMaxDistance = source.mMaxDistance;
+        auto rolloffMaybe = TryRolloff( source.mRolloff );
+        if ( not rolloffMaybe )
+            LogError( "{}: {}", Describe( mWorld.GetScene(), voice.mSource ), rolloffMaybe.error() );
+        voice.mRolloff = rolloffMaybe.value_or( Rolloff::Natural );
         ma_sound& sound = voice.Sound();
-        ma_sound_set_volume( &sound, source.mVolume );
         ma_sound_set_pitch( &sound, source.mPitch );
         ma_sound_set_looping( &sound, source.mLoop ? MA_TRUE : MA_FALSE );
-        ma_sound_set_min_distance( &sound, source.mMinDistance );
-        ma_sound_set_max_distance( &sound, source.mMaxDistance );
+        SetVolume( voice );
+    }
+
+    // Its volume, and its distance's share of it where the listener is.
+    void SetVolume( Voice& voice ) const
+    {
+        ma_sound_set_volume( &voice.Sound(), Loudness( voice.mVolume, voice.mSpatial, voice.mPosition,
+                                                       voice.mMinDistance, voice.mMaxDistance, voice.mRolloff ) );
     }
 
     vec3 PositionOf( Entity entity ) const
@@ -251,14 +270,13 @@ private:
         return worldMaybe ? vec3( worldMaybe->mMatrix[3] ) : vec3( ComputeWorldMatrix( mWorld.GetScene(), entity )[3] );
     }
 
-    // How loud a voice is where the listener is: what gives way when the
-    // world has no room.
-    f32 Loudness( f32 volume, bool spatial, vec3 position, f32 minDistance, f32 maxDistance ) const
+    // How loud a voice is where the listener is: what it plays at, and what
+    // gives way when the world has no room.
+    f32 Loudness( f32 volume, bool spatial, vec3 position, f32 minDistance, f32 maxDistance, Rolloff rolloff ) const
     {
         if ( not spatial )
             return volume;
-        const f32 distance = glm::clamp( glm::length( position - mListener ), minDistance, maxDistance );
-        return volume * minDistance / max( distance, 0.0001f );
+        return volume * DistanceGain( rolloff, glm::length( position - mListener ), minDistance, maxDistance );
     }
 
     void StartWaiting()
@@ -298,17 +316,20 @@ private:
         const vec3 position = sourceMaybe ? PositionOf( waiting.mSource ) : waiting.mPosition.value_or( vec3( 0.0f ) );
         const f32 minDistance = sourceMaybe ? sourceMaybe->mMinDistance : 1.0f;
         const f32 maxDistance = sourceMaybe ? sourceMaybe->mMaxDistance : 50.0f;
+        const Rolloff rolloff =
+            sourceMaybe ? TryRolloff( sourceMaybe->mRolloff ).value_or( Rolloff::Natural ) : Rolloff::Natural;
 
         // No room: the quietest gives way, unless this would be quieter yet.
         if ( mVoices.size() >= cMaxVoices )
         {
-            const auto quietest = ranges::min_element( mVoices, {}, [&]( const Scope<Voice>& voice ) {
-                return Loudness( voice->mVolume, voice->mSpatial, voice->mPosition, voice->mMinDistance,
-                                 voice->mMaxDistance );
-            } );
-            const f32 loudest = Loudness( ( *quietest )->mVolume, ( *quietest )->mSpatial, ( *quietest )->mPosition,
-                                          ( *quietest )->mMinDistance, ( *quietest )->mMaxDistance );
-            if ( Loudness( waiting.mVolume, spatial, position, minDistance, maxDistance ) <= loudest )
+            const auto loudness = [&]( const Voice& voice ) {
+                return Loudness( voice.mVolume, voice.mSpatial, voice.mPosition, voice.mMinDistance, voice.mMaxDistance,
+                                 voice.mRolloff );
+            };
+            const auto quietest =
+                ranges::min_element( mVoices, {}, [&]( const Scope<Voice>& voice ) { return loudness( *voice ); } );
+            if ( Loudness( waiting.mVolume, spatial, position, minDistance, maxDistance, rolloff ) <=
+                 loudness( **quietest ) )
                 return;
             mVoices.erase( quietest );
         }
@@ -328,7 +349,7 @@ private:
         else
         {
             voice->mVolume = waiting.mVolume;
-            ma_sound_set_volume( &voice->Sound(), waiting.mVolume );
+            SetVolume( *voice );
         }
         if ( spatial )
             ma_sound_set_position( &voice->Sound(), position.x, position.y, position.z );
@@ -382,6 +403,9 @@ private:
                 voice->mPosition = PositionOf( voice->mSource );
                 ma_sound_set_position( &voice->Sound(), voice->mPosition.x, voice->mPosition.y, voice->mPosition.z );
             }
+            // Each frame by a frame's move: steps too small to hear.
+            if ( voice->mSpatial )
+                SetVolume( *voice );
             // A paused world is silent but for its UI; it goes on where it
             // stopped.
             if ( paused and voice->mBus != "ui"_n and not voice->mHeld and ma_sound_is_playing( &voice->Sound() ) )
@@ -418,6 +442,49 @@ private:
     bool mAudible = true;
 };
 
+// The nearest the natural rolloff tells apart: nearer is as loud, so a
+// min_distance of 0 is not silence everywhere.
+constexpr f32 cNearestHeard = 0.25f;
+}
+
+expected<Rolloff, string> TryRolloff( Name name )
+{
+    if ( name == "natural"_n )
+        return Rolloff::Natural;
+    if ( name == "squared"_n )
+        return Rolloff::Squared;
+    if ( name == "linear"_n )
+        return Rolloff::Linear;
+    return unexpected( format( "audio_source.rolloff: {} is not one of natural, squared, linear", name.ToString() ) );
+}
+
+f32 DistanceGain( Rolloff rolloff, f32 distance, f32 minDistance, f32 maxDistance )
+{
+    if ( distance >= maxDistance )
+        return 0;
+    if ( distance <= minDistance )
+        return 1;
+    const f32 share = ( distance - minDistance ) / ( maxDistance - minDistance );
+    switch ( rolloff )
+    {
+        case Rolloff::Natural:
+        {
+            // As loud as the nearest over the distance, as sound is, less
+            // what that is at the farthest: nothing there.
+            const f32 nearest = max( minDistance, cNearestHeard );
+            if ( distance <= nearest )
+                return 1;
+            const f32 far = nearest / maxDistance;
+            return max( ( nearest / distance - far ) / ( 1.0f - far ), 0.0f );
+        }
+        case Rolloff::Squared: return ( 1.0f - share ) * ( 1.0f - share );
+        case Rolloff::Linear: return 1.0f - share;
+    }
+    return 0;
+}
+
+namespace
+{
 // ---- what scripts get ---------------------------------------------------------
 
 AudioWorld& AudioOf( World& world )
@@ -491,8 +558,9 @@ ModuleType AudioModule( AssetRegistry& assets, AudioDevice& device )
                     .Field<&AudioSource::mLoop>( "loop" )
                     .Field<&AudioSource::mAutoplay>( "autoplay" )
                     .Field<&AudioSource::mSpatial>( "spatial" )
-                    .Field<&AudioSource::mMinDistance>( "min_distance" )
-                    .Field<&AudioSource::mMaxDistance>( "max_distance" );
+                    .Field<&AudioSource::mMinDistance>( "min_distance", { .mMin = 0 } )
+                    .Field<&AudioSource::mMaxDistance>( "max_distance", { .mMin = 0 } )
+                    .Field<&AudioSource::mRolloff>( "rolloff", { .mChoices = "natural,squared,linear" } );
                 reflection.Type<AudioListener>( "audio_listener" ).Field<&AudioListener::mActive>( "active" );
                 componentTypes.Add<AudioSource>();
                 componentTypes.Add<AudioListener>();

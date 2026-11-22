@@ -107,11 +107,28 @@ struct AudioSource
     // Plays as soon as it is in the world and its sound is in.
     bool mAutoplay = true;
     bool mSpatial = true;
-    // Full volume nearer than the first, quieter as it goes, and no quieter
-    // past the second.
+    // Full volume nearer than the first, quieter as it goes - as the rolloff
+    // says: natural, squared, linear -, and nothing past the second.
     f32 mMinDistance = 1;
     f32 mMaxDistance = 50;
+    Name mRolloff = "natural"_n;
 };
+
+// How a spatial sound grows quieter between its distances. Natural: fast
+// near, as sound does, tapered to nothing; squared: slower; linear: evenly.
+enum class Rolloff : u8
+{
+    Natural,
+    Squared,
+    Linear,
+};
+
+// The rolloff a name says, or what names there are.
+expected<Rolloff, string> TryRolloff( Name name );
+// A spatial sound's share of its volume `distance` from where it is heard:
+// whole nearer than `minDistance`, nothing from `maxDistance` on, between
+// them as `rolloff` says.
+f32 DistanceGain( Rolloff rolloff, f32 distance, f32 minDistance, f32 maxDistance );
 
 // Where a world is heard from: the first entity with an active one; with
 // none, the first camera.
