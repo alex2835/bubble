@@ -8,9 +8,11 @@ read the section you touch before changing a design, and update the doc when
 a decision changes. It also holds the stage plan: a feature waits for its
 stage, however ready it looks in the old code.
 
-The sandbox - the game stages 7 to 9 are checked against - is a project of
-its own, outside the engine: `E:\projects\bubble_sand_box2`, in the new
-formats. The old one, `E:\projects\bubble_sand_box`, is read only: its
+The sandbox is outside the engine, `E:\projects\bubble_sand_box2`, in the
+new formats, and holds two projects: `test` - the game stages 7 to 9 are
+checked against - and `features` - the showcase, every feature of the engine
+at a station of its own along one avenue; a feature that lands gets its
+station. The old one, `E:\projects\bubble_sand_box`, is read only: its
 assets and scripts are copied and rewritten, never converted by code.
 
 ## Build and test
@@ -91,8 +93,10 @@ projects/engine/include/bubble/
     audio/                    on miniaudio (src/audio alone): AudioDevice (one a process: the mix, buses music, sfx,
                               ui, voice under master, their volumes; Offline for tests, read with ReadFrames;
                               Resume after a browser's gesture), SoundAsset (decoded whole, or streamed from its file
-                              - SoundData shared with the voices -), AudioModule: audio_source, audio_listener (or the
-                              first camera), 32 voices a world - the quietest gives way -, a paused world silent but
+                              - SoundData shared with the voices -), AudioModule: audio_source (whole nearer than
+                              min_distance, nothing from max_distance on, between as its rolloff says - natural,
+                              squared, linear: DistanceGain, set as the voice's volume each frame -), audio_listener
+                              (or the first camera), 32 voices a world - the quietest gives way -, a paused world silent but
                               for ui; AudioWorld (a service: PlaySound, a source's play/stop, SetAudible); scripts'
                               audio.play_sound/play_sound_at/set_bus_volume and audio_source:play()/stop()
     physics/                  PhysicsModule on Jolt (src/physics alone): box, sphere, capsule and mesh colliders,
@@ -277,7 +281,10 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               inspector; the state a game plays lit - LiveState -, or the preview's: GraphPreview, the
                               graph as the document has it played on a model in a world of its own, its parameters
                               set by hand), EditorCamera, Viewport (the active document's world in a
-                              picture the panel's size, the camera on the mouse - F frames the selection -, a click
+                              picture the panel's size, the camera on the mouse - the right button flies it, W, A, S,
+                              D, Q, E, Shift, the wheel its speed, the cursor held: Steers, MouseMoved -; alt and the
+                              left button go round the selection; the wheel toward what is under the mouse, through
+                              the focus; F frames the selection -, a click
                               picks through RenderView::Pick - PickTarget: a prefab's instance whole first; the
                               screen UI's element there before it - its box in the canvas's pixels made the
                               picture's -, outlined when selected, dragged by its left and top -, a
@@ -318,9 +325,15 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               turned to last; the assets, the log; Play, Pause, Step, Stop on the menu's bar - Ctrl+P
                               -, the game's input - Handle - and held cursor while it has the viewport, Shift+F1 or a
                               click elsewhere taking them back; quitting with documents not saved asks - save all,
-                              lose them, stay -; operators alone change anything). main.cpp is
-                              bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot
-                              file.png], the
+                              lose them, stay -; operators alone change anything), McpServer (the Model Context
+                              Protocol for agents: Streamable HTTP on 127.0.0.1 alone, one JSON reply a request, a
+                              web page's Origin refused; its own thread on the sockets, the tools run on the main
+                              thread by Serve between frames; McpProtocol - the JSON-RPC apart from the sockets -),
+                              EditorMcpTools (editor_state, scene_tree, get_entity, set_field - JSON as files write
+                              it, by the field's type -, list_operators, run_operator, run_lua, list_assets,
+                              read_log; ViewportScreenshotTool: the viewport's picture shrunk, a PNG in base64). main.cpp is
+                              bubble_editor <project folder> [--open path]... [--play] [--mcp [port]] [--frames N]
+                              [--screenshot file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini
 projects/demo/                bubble_demo, on the engine alone (never import or editing) - the web's build too -: a
                               scene made in code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the

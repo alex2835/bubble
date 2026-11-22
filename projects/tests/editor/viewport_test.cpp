@@ -389,6 +389,88 @@ TEST_CASE( "A click on the scene's UI over the picture picks the element there" 
     CHECK( view.GetScene().Get<UiRect>( panel ).mLeft == "20" );
 }
 
+TEST_CASE( "The right button flies the viewport's camera: the mouse turns it where it stands, the keys move it" )
+{
+    View view;
+    view.Frame();
+    const EditorCamera& camera = ViewOf( view.mProject->GetApp(), view.GetDocument() ).Camera();
+    view.MoveTo( ImVec2( cSize.x * 0.5f, cSize.y * 0.5f ) );
+    ImGui::GetIO().AddMouseButtonEvent( ImGuiMouseButton_Right, true );
+    view.Frame();
+    CHECK( view.mViewport->Steers() );
+
+    // The platform's move turns it, ImGui's mouse standing still - the cursor
+    // held -, where it stands.
+    const vec3 eye = camera.Position();
+    const f32 yaw = camera.mYaw;
+    view.mViewport->MouseMoved( vec2( 100.0f, 0.0f ) );
+    view.Frame();
+    CHECK( camera.mYaw == doctest::Approx( yaw - 0.5f ) );
+    CHECK( glm::length( camera.Position() - eye ) < 1e-4f );
+
+    // W flies ahead, E up: the camera's keys, not the gizmo's.
+    ImGui::GetIO().AddKeyEvent( ImGuiKey_W, true );
+    for ( int frame = 0; frame < 6; ++frame )
+        view.Frame();
+    ImGui::GetIO().AddKeyEvent( ImGuiKey_W, false );
+    view.Frame();
+    CHECK( glm::dot( camera.Position() - eye, camera.Forward() ) == doctest::Approx( 0.5f ).epsilon( 0.05 ) );
+    const vec3 ahead = camera.Position();
+    ImGui::GetIO().AddKeyEvent( ImGuiKey_E, true );
+    view.Frame();
+    ImGui::GetIO().AddKeyEvent( ImGuiKey_E, false );
+    view.Frame();
+    CHECK( camera.Position().y - ahead.y == doctest::Approx( 5.0f / 60 ) );
+    CHECK( view.mViewport->Tool() == GizmoTool::Move );
+
+    // The wheel sets the speed while it flies.
+    const f32 speed = camera.mFlySpeed;
+    const f32 distance = camera.mDistance;
+    ImGui::GetIO().AddMouseWheelEvent( 0.0f, 1.0f );
+    view.Frame();
+    CHECK( camera.mFlySpeed > speed );
+    CHECK( camera.mDistance == distance );
+
+    ImGui::GetIO().AddMouseButtonEvent( ImGuiMouseButton_Right, false );
+    view.Frame();
+    CHECK( not view.mViewport->Steers() );
+}
+
+TEST_CASE( "Alt and the left button go round the selection in the viewport, picking nothing" )
+{
+    View view;
+    REQUIRE( view.Until( [&] {
+        const World& world = WorldOf( view.mProject->GetApp(), view.GetDocument() );
+        const auto& items = const_cast<World&>( world ).Get<RenderScene>().mItems;
+        return not items.empty() and items.front().mModel.TryGet().HasValue();
+    } ) );
+    view.MoveTo( ImVec2( cSize.x * 0.5f, cSize.y * 0.5f ) );
+    view.Button( true );
+    view.Button( false );
+    REQUIRE( view.Until( [&] { return view.GetDocument().GetSelection().Active() == view.Cube(); } ) );
+    view.Frame();
+
+    // The cube's middle is the origin: the camera goes round it, as far.
+    const EditorCamera& camera = ViewOf( view.mProject->GetApp(), view.GetDocument() ).Camera();
+    const f32 reach = glm::length( camera.Position() );
+    const f32 yaw = camera.mYaw;
+    ImGui::GetIO().AddKeyEvent( ImGuiMod_Alt, true );
+    view.MoveTo( ImVec2( cSize.x - 20, cSize.y - 20 ) );
+    view.Button( true );
+    CHECK( view.mViewport->Steers() );
+    view.mViewport->MouseMoved( vec2( 60.0f, 20.0f ) );
+    view.Frame();
+    view.Button( false );
+    ImGui::GetIO().AddKeyEvent( ImGuiMod_Alt, false );
+    for ( int frame = 0; frame < 5; ++frame )
+        view.Frame();
+    CHECK( not view.mViewport->Steers() );
+    CHECK( camera.mYaw == doctest::Approx( yaw - 0.3f ) );
+    CHECK( glm::length( camera.Position() ) == doctest::Approx( reach ).epsilon( 1e-3 ) );
+    // The press was the camera's: the cube is still the one selected.
+    CHECK( view.GetDocument().GetSelection().Active() == view.Cube() );
+}
+
 TEST_CASE( "A rectangle drawn over the viewport's picture selects what is in it" )
 {
     View view;

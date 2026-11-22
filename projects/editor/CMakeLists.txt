@@ -20,6 +20,10 @@ add_library( bubble_editor STATIC ${BUBBLE_EDITOR_SOURCES} ${BUBBLE_EDITOR_HEADE
 target_include_directories( bubble_editor PUBLIC include )
 bubble_target_warnings( bubble_editor )
 target_link_libraries( bubble_editor PUBLIC bubble_editing imgui PRIVATE imguizmo imgui_node_editor )
+# The MCP server's sockets.
+if( WIN32 )
+    target_link_libraries( bubble_editor PRIVATE ws2_32 )
+endif()
 
 # bubble_editor <project folder>: the desktop alone for now.
 if( NOT EMSCRIPTEN )

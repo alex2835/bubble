@@ -255,8 +255,13 @@ void Editor::Draw()
 {
     if ( const auto shownMaybe = TryShownWorld() )
         mViewport.Draw( shownMaybe->Get(), shownMaybe->Camera() );
+    // Only what is still open: a window closed this frame - its cross, or
+    // the unsaved changes' answer - took its document after it was pictured.
+    const auto& open = mProject.GetWorkspace().AllData();
     for ( DataDocument* document : mPictured )
     {
+        if ( ranges::none_of( open, [&]( const Scope<DataDocument>& data ) { return data.get() == document; } ) )
+            continue;
         if ( IsMaterial( *document ) )
         {
             MaterialPreview& preview = PreviewOf( mProject, *document );
@@ -324,6 +329,15 @@ void Editor::Menu()
         ImGui::EndMenu();
     }
     PlayButtons();
+    if ( not mMcpUrl.empty() )
+    {
+        ImGui::Separator();
+        ImGui::TextDisabled( "MCP" );
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Agents read and change what is open at %s\nclaude mcp add --transport http "
+                               "bubble_editor %s",
+                               mMcpUrl.c_str(), mMcpUrl.c_str() );
+    }
     ImGui::EndMainMenuBar();
 }
 
@@ -361,6 +375,8 @@ void Editor::GameInput()
 
 void Editor::Handle( const InputEvent& event )
 {
+    if ( const auto* move = get_if<MouseMove>( &event ) )
+        mViewport.MouseMoved( move->mDelta );
     if ( not mGameInput )
         return;
     if ( const auto playMaybe = mProject.TryPlaying() )
@@ -370,7 +386,7 @@ void Editor::Handle( const InputEvent& event )
 bool Editor::CursorLocked()
 {
     const auto playMaybe = mProject.TryPlaying();
-    return mGameInput and playMaybe and playMaybe->GetWorld().Get<Game>().CursorLocked();
+    return mViewport.Steers() or ( mGameInput and playMaybe and playMaybe->GetWorld().Get<Game>().CursorLocked() );
 }
 
 void Editor::Shortcuts()

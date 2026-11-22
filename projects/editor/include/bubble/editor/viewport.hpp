@@ -66,8 +66,11 @@ vector<DebugLine> FloorGrid( const EditorCamera& camera );
 
 // The panel that shows the active document's world through the editor's
 // camera: a picture the panel's size in pixels. The mouse over it drives the
-// camera - the right button turns it, the middle one slides it, the wheel
-// brings it closer, F frames the selection -; a click picks what is drawn
+// camera - the right button held flies it: the mouse turns the view, W, A,
+// S, D and Q, E move it, Shift faster, the wheel sets the speed; alt and the
+// left button go round the selection, the middle one slides the view, the
+// wheel brings it closer to what is under the mouse, F frames the
+// selection -; a click picks what is drawn
 // there - an instance of a prefab first, a part of it at the second click,
 // ctrl flipping it in the selection; an element of the scene's UI before
 // what is behind it, one selected and placed by left and top dragged -, a
@@ -107,6 +110,13 @@ public:
     vec2 Size() const { return mSize; }
     // A game shown through its own camera, as last shown: what has its input.
     bool ShowsGame() const { return mPlayed; }
+    // The mouse's move as the platform tells of it, in the window's units:
+    // what turns the camera, on through a held cursor. Each event's, before
+    // the frame's widgets.
+    void MouseMoved( vec2 moved ) { mMouseMoved += moved; }
+    // The camera steered by a held button - flying, going round -: the
+    // cursor held for it, as a game's camera holds it.
+    bool Steers() const { return mFlying or mOrbitPivotMaybe.has_value(); }
 
 private:
     struct UiBoxShown
@@ -125,6 +135,15 @@ private:
         f32 mToCanvas = 1;
     };
     void Tools();
+    // The camera flown on the right button, gone round the selection on alt
+    // and the left one, by the platform's `moved` - the picture's pixels.
+    void Steer( OptRef<Document> documentMaybe, EditorCamera& camera, vec2 moved );
+    // Neither: the picture not shown, or the game's.
+    void StopSteering()
+    {
+        mFlying = false;
+        mOrbitPivotMaybe.reset();
+    }
     void Keys( Document& document, EditorCamera& camera );
     void Gizmo( Document& document, const EditorCamera& camera, vec2 corner, vec2 size );
     void Picked( Document& document, Entity entity );
@@ -138,6 +157,9 @@ private:
     // Each light and camera of the scene marked where it stands; not a
     // camera at `eye`, looked through.
     static void Icons( const Scene& scene, DebugDraw& draw, vec3 eye );
+    // The box along the world's axes around what is selected, as the last
+    // frame gathered it; the active entity's place when it has no box.
+    opt<pair<vec3, vec3>> TrySelectionBox( const Document& document ) const;
     // The camera turned to the selection's box, near enough to fill the view.
     void Frame( Document& document, EditorCamera& camera );
     // Where the ground - the plane y = 0 - is under `mouse`, in the window's
@@ -166,6 +188,11 @@ private:
     vec2 mSize{ 0.0f };
     // Where the camera was when last shown.
     vec3 mEye{ 0.0f };
+    // The mouse's moves the platform told of since the last frame.
+    vec2 mMouseMoved{ 0.0f };
+    // Flying on the right button; going round a point on alt and the left.
+    bool mFlying = false;
+    opt<vec3> mOrbitPivotMaybe;
     // A drag of the gizmo under way: one step of the document's history.
     bool mGizmoHeld = false;
     // A press of the left button on the picture, where: a pick if it comes

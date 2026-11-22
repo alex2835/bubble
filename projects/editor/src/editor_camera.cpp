@@ -10,18 +10,60 @@ namespace
 constexpr f32 cPixelsARadian = 200.0f;
 // Short of straight up and down, where yaw would mean nothing.
 constexpr f32 cPitchLimit = 1.55f;
+// A notch of the wheel takes the distance to this share of it, and the speed
+// flying from it.
+constexpr f32 cNotch = 0.85f;
+// Never nearer the focus than this: closer, a notch takes the focus ahead.
+constexpr f32 cNearest = 0.3f;
+// Nor less far than this a notch, however near: the wheel never sticks.
+constexpr f32 cLeastStep = 0.2f;
+constexpr f32 cFarthest = 100000.0f;
+// Flying with shift.
+constexpr f32 cFast = 4.0f;
 
-quat TurnOf( const EditorCamera& camera )
+quat TurnOf( f32 yaw, f32 pitch )
 {
-    return glm::angleAxis( camera.mYaw, vec3( 0.0f, 1.0f, 0.0f ) ) *
-           glm::angleAxis( camera.mPitch, vec3( 1.0f, 0.0f, 0.0f ) );
+    return glm::angleAxis( yaw, vec3( 0.0f, 1.0f, 0.0f ) ) * glm::angleAxis( pitch, vec3( 1.0f, 0.0f, 0.0f ) );
 }
 }
 
 void EditorCamera::Orbit( vec2 pixels )
 {
-    mYaw -= pixels.x / cPixelsARadian;
-    mPitch = clamp( mPitch - pixels.y / cPixelsARadian, -cPitchLimit, cPitchLimit );
+    OrbitAbout( pixels, mFocus );
+}
+
+void EditorCamera::OrbitAbout( vec2 pixels, vec3 pivot )
+{
+    const f32 yaw = mYaw - pixels.x / cPixelsARadian;
+    const f32 pitch = clamp( mPitch - pixels.y / cPixelsARadian, -cPitchLimit, cPitchLimit );
+    // The turn from the old view to the new, about the pivot: the focus goes
+    // round it, and the camera, as far behind the focus as it was, with it.
+    const quat change = TurnOf( yaw, pitch ) * glm::inverse( TurnOf( mYaw, mPitch ) );
+    mFocus = pivot + change * ( mFocus - pivot );
+    mYaw = yaw;
+    mPitch = pitch;
+}
+
+void EditorCamera::Look( vec2 pixels )
+{
+    OrbitAbout( pixels, Position() );
+}
+
+void EditorCamera::Fly( vec3 keys, f32 seconds, bool fast )
+{
+    vec3 along = Right() * keys.x + vec3( 0.0f, keys.y, 0.0f ) + Forward() * keys.z;
+    const f32 length = glm::length( along );
+    if ( length < 1e-6f )
+        return;
+    // Two keys at once go no faster than one.
+    if ( length > 1.0f )
+        along /= length;
+    mFocus += along * ( mFlySpeed * ( fast ? cFast : 1.0f ) * seconds );
+}
+
+void EditorCamera::Faster( f32 notches )
+{
+    mFlySpeed = clamp( mFlySpeed / pow( cNotch, notches ), 0.05f, 1000.0f );
 }
 
 void EditorCamera::Pan( vec2 pixels, f32 height )
@@ -30,13 +72,27 @@ void EditorCamera::Pan( vec2 pixels, f32 height )
         return;
     // How much of the world a pixel spans at the focus.
     const f32 perPixel = 2.0f * mDistance * tan( mFov * 0.5f ) / height;
-    const quat turn = TurnOf( *this );
-    mFocus += ( turn * vec3( -pixels.x, pixels.y, 0.0f ) ) * perPixel;
+    mFocus += ( Up() * pixels.y - Right() * pixels.x ) * perPixel;
 }
 
-void EditorCamera::Zoom( f32 notches )
+void EditorCamera::Zoom( f32 notches, vec2 at, f32 aspect )
 {
-    mDistance = clamp( mDistance * pow( 0.85f, notches ), 0.05f, 100000.0f );
+    if ( notches == 0 )
+        return;
+    // What is under the mouse as far ahead as the focus: the camera goes
+    // toward it, or away, so that it stays under the mouse.
+    const vec3 under = mFocus + ( Right() * ( at.x * aspect ) + Up() * at.y ) * ( tan( mFov * 0.5f ) * mDistance );
+    const vec3 eye = Position();
+    const vec3 forward = Forward();
+    const vec3 toward = under - eye;
+    const f32 reach = glm::length( toward );
+    const vec3 direction = toward / reach;
+    const f32 share = pow( cNotch, notches );
+    const f32 step = notches > 0 ? max( reach * ( 1.0f - share ), cLeastStep * notches ) : reach * ( 1.0f - share );
+    // As far ahead as the focus's plane is from where the camera comes to:
+    // the distance's share, until the nearest, where the focus goes on ahead.
+    mDistance = clamp( mDistance - step * glm::dot( direction, forward ), cNearest, cFarthest );
+    mFocus = eye + direction * step + forward * mDistance;
 }
 
 void EditorCamera::LookFrom( const mat4& camera, f32 distance )
@@ -74,14 +130,30 @@ pair<vec3, vec3> BoundsOf( const mat4& world, vec3 low, vec3 high )
 
 vec3 EditorCamera::Position() const
 {
-    return mFocus + TurnOf( *this ) * vec3( 0.0f, 0.0f, mDistance );
+    return mFocus - Forward() * mDistance;
+}
+
+vec3 EditorCamera::Right() const
+{
+    return TurnOf( mYaw, mPitch ) * vec3( 1.0f, 0.0f, 0.0f );
+}
+
+vec3 EditorCamera::Up() const
+{
+    return TurnOf( mYaw, mPitch ) * vec3( 0.0f, 1.0f, 0.0f );
+}
+
+vec3 EditorCamera::Forward() const
+{
+    return TurnOf( mYaw, mPitch ) * vec3( 0.0f, 0.0f, -1.0f );
 }
 
 RenderCamera EditorCamera::ToRenderCamera() const
 {
     // The far plane well behind the focus, the near one in proportion: the
     // depth is reversed, so a wide range costs little.
-    return RenderCamera{ .mWorld = glm::translate( mat4( 1.0f ), Position() ) * glm::mat4_cast( TurnOf( *this ) ),
+    return RenderCamera{ .mWorld =
+                             glm::translate( mat4( 1.0f ), Position() ) * glm::mat4_cast( TurnOf( mYaw, mPitch ) ),
                          .mFov = mFov,
                          .mNear = max( mDistance * 0.001f, 0.01f ),
                          .mFar = max( mDistance * 100.0f, 1000.0f ) };

@@ -137,6 +137,92 @@ TEST_CASE( "The editor's camera turns about its focus, comes closer, and looks f
     CHECK( vec3( camera.ToRenderCamera().mWorld[3] ).z == doctest::Approx( 10.0f ) );
 }
 
+namespace
+{
+// Where `point` is seen by `camera`: in shares of the view from its middle,
+// -1 to 1 rightwards and upwards, its width `aspect` times its height.
+vec2 SeenAt( const EditorCamera& camera, vec3 point, f32 aspect )
+{
+    const vec3 offset = point - camera.Position();
+    const f32 ahead = glm::dot( offset, camera.Forward() );
+    const f32 spread = tan( camera.mFov * 0.5f );
+    return vec2( glm::dot( offset, camera.Right() ) / ahead / ( spread * aspect ),
+                 glm::dot( offset, camera.Up() ) / ahead / spread );
+}
+
+bool Near( vec2 a, vec2 b )
+{
+    return glm::length( a - b ) < 1e-3f;
+}
+}
+
+TEST_CASE( "The editor's camera looks about where it stands, flies, and goes round a point keeping it in its place" )
+{
+    EditorCamera camera;
+    camera.mFocus = vec3( 1, 2, 3 );
+
+    // Looking about, it stays where it stands.
+    const vec3 eye = camera.Position();
+    camera.Look( vec2( 120.0f, -40.0f ) );
+    CHECK( glm::length( camera.Position() - eye ) < 1e-4f );
+    CHECK( camera.mYaw == doctest::Approx( 0.0f ).epsilon( 1e-5 ) );
+    CHECK( camera.mPitch == doctest::Approx( -0.25f ) );
+    CHECK( glm::length( camera.Position() - camera.mFocus ) == doctest::Approx( camera.mDistance ) );
+
+    // A second ahead at five meters a second; with shift four times as far,
+    // two keys at once no farther than one; up is the world's.
+    const vec3 from = camera.Position();
+    camera.Fly( vec3( 0, 0, 1 ), 1.0f, false );
+    CHECK( glm::length( camera.Position() - ( from + camera.Forward() * 5.0f ) ) < 1e-4f );
+    const vec3 ahead = camera.Position();
+    camera.Fly( vec3( 1, 0, 1 ), 1.0f, true );
+    CHECK( glm::length( camera.Position() - ahead ) == doctest::Approx( 20.0f ) );
+    const vec3 aside = camera.Position();
+    camera.Fly( vec3( 0, 1, 0 ), 0.5f, false );
+    CHECK( glm::length( camera.Position() - ( aside + vec3( 0, 2.5f, 0 ) ) ) < 1e-4f );
+    camera.Faster( 1.0f );
+    CHECK( camera.mFlySpeed == doctest::Approx( 5.0f / 0.85f ) );
+
+    // Round a point off the focus: it stays where it is seen, as far.
+    const vec3 pivot = camera.Position() + camera.Forward() * 6.0f + camera.Right() * 1.5f + camera.Up() * 0.5f;
+    const vec2 seen = SeenAt( camera, pivot, 1.0f );
+    const f32 reach = glm::length( pivot - camera.Position() );
+    const f32 yaw = camera.mYaw;
+    camera.OrbitAbout( vec2( 150.0f, 60.0f ), pivot );
+    CHECK( camera.mYaw == doctest::Approx( yaw - 0.75f ) );
+    CHECK( Near( SeenAt( camera, pivot, 1.0f ), seen ) );
+    CHECK( glm::length( pivot - camera.Position() ) == doctest::Approx( reach ) );
+}
+
+TEST_CASE( "The editor's camera zooms toward what is under the mouse, and on through its focus" )
+{
+    EditorCamera camera;
+    const f32 aspect = 1.5f;
+    // What is under the mouse at a point of the view, as far as the focus.
+    const vec2 at( 0.5f, -0.25f );
+    const vec3 under = camera.mFocus + ( camera.Right() * ( at.x * aspect ) + camera.Up() * at.y ) *
+                                           ( tan( camera.mFov * 0.5f ) * camera.mDistance );
+    REQUIRE( Near( SeenAt( camera, under, aspect ), at ) );
+
+    // Two notches in and out again: closer and back, it under the mouse all
+    // along.
+    const f32 distance = camera.mDistance;
+    camera.Zoom( 2.0f, at, aspect );
+    CHECK( camera.mDistance == doctest::Approx( distance * 0.85f * 0.85f ) );
+    CHECK( Near( SeenAt( camera, under, aspect ), at ) );
+    camera.Zoom( -2.0f, at, aspect );
+    CHECK( camera.mDistance == doctest::Approx( distance ) );
+    CHECK( Near( SeenAt( camera, under, aspect ), at ) );
+
+    // Near the focus, the wheel goes on through it, the focus ahead.
+    camera.mDistance = 0.4f;
+    const vec3 focus = camera.mFocus;
+    for ( int notch = 0; notch < 10; ++notch )
+        camera.Zoom( 1.0f );
+    CHECK( glm::dot( camera.Position() - focus, camera.Forward() ) > 1.0f );
+    CHECK( camera.mDistance == doctest::Approx( 0.3f ) );
+}
+
 TEST_CASE( "Every asset made from its template imports with no error" )
 {
     hmap<string, string> files{ { "project.bubble", string( cProject ) } };

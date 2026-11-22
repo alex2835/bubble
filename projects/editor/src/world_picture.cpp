@@ -39,7 +39,13 @@ void WorldPicture::Show( EditorCamera& camera )
     else if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Middle ) )
         camera.Pan( delta, static_cast<f32>( pixels.y ) );
     if ( ImGui::IsItemHovered() and io.MouseWheel != 0 )
-        camera.Zoom( io.MouseWheel );
+    {
+        // Toward what is under the mouse.
+        const vec2 share =
+            ( vec2( io.MousePos.x, io.MousePos.y ) - vec2( corner.x, corner.y ) ) / vec2( area.x, area.y ) * 2.0f -
+            vec2( 1.0f );
+        camera.Zoom( io.MouseWheel, vec2( share.x, -share.y ), area.x / area.y );
+    }
 }
 
 void WorldPicture::Draw( World& world, const EditorCamera& camera )

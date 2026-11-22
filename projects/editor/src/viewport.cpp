@@ -463,15 +463,22 @@ void Viewport::Helpers( Document& document, World& world )
 
 void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
 {
+    // The platform's moves since the last frame: they turn the camera, on
+    // through a held cursor, where ImGui's mouse stands still.
+    const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
+    const vec2 moved = mMouseMoved * vec2( scale.x, scale.y );
+    mMouseMoved = vec2( 0.0f );
     const ImVec2 area = ImGui::GetContentRegionAvail();
     if ( area.x < 1 or area.y < 1 )
+    {
+        StopSteering();
         return;
+    }
     // Shown beside a data document's window, the scene is the active
     // document again once it is turned to: a click, a drop, a key.
     if ( documentMaybe and ClickedInWindow() )
         mProject.GetWorkspace().Activate( *documentMaybe );
     mEye = camera.Position();
-    const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
     const ivec2 pixels( static_cast<i32>( area.x * scale.x + 0.5f ), static_cast<i32>( area.y * scale.y + 0.5f ) );
     if ( not mPicture or mPicture.Size() != pixels )
         mPicture =
@@ -497,6 +504,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     {
         // The game's: a click gives the game the input; nothing here is
         // picked or moved.
+        StopSteering();
         ImGui::SetNextItemAllowOverlap();
         ImGui::InvisibleButton( "picture", area,
                                 ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
@@ -512,7 +520,12 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
             ImGui::SetTooltip( "Look around the game with the editor's camera, pick in it, move what is picked" );
         return;
     }
-    if ( ImGuizmo::IsUsing() or ImGuizmo::IsOver() )
+    const ImGuiIO& io = ImGui::GetIO();
+    // The gizmo takes the left button where it is drawn; with alt, or a
+    // button that steers the camera, the mouse is the camera's.
+    if ( ImGuizmo::IsUsing() or
+         ( ImGuizmo::IsOver() and not io.KeyAlt and not Steers() and
+           not ImGui::IsMouseDown( ImGuiMouseButton_Right ) and not ImGui::IsMouseDown( ImGuiMouseButton_Middle ) ) )
         ImGui::Dummy( area );
     else
     {
@@ -540,18 +553,28 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
         ImGui::EndDragDropTarget();
     }
 
-    const ImGuiIO& io = ImGui::GetIO();
-    const vec2 delta( io.MouseDelta.x * scale.x, io.MouseDelta.y * scale.y );
-    if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Right ) )
-        camera.Orbit( delta );
-    else if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Middle ) )
-        camera.Pan( delta, static_cast<f32>( pixels.y ) );
-    if ( ImGui::IsItemHovered() and io.MouseWheel != 0 )
-        camera.Zoom( io.MouseWheel );
+    Steer( documentMaybe, camera, moved );
+    if ( ImGui::IsItemActive() and ImGui::IsMouseDown( ImGuiMouseButton_Middle ) and not Steers() )
+        camera.Pan( vec2( io.MouseDelta.x * scale.x, io.MouseDelta.y * scale.y ), static_cast<f32>( pixels.y ) );
+    if ( mFlying and io.MouseWheel != 0 )
+        camera.Faster( io.MouseWheel );
+    else if ( ImGui::IsItemHovered() and io.MouseWheel != 0 )
+    {
+        // Toward what is under the mouse.
+        const vec2 share = ( vec2( io.MousePos.x, io.MousePos.y ) - mCorner ) / mSize * 2.0f - vec2( 1.0f );
+        camera.Zoom( io.MouseWheel, vec2( share.x, -share.y ), mSize.x / mSize.y );
+    }
+    if ( mFlying )
+    {
+        const string speed = format( "{:.3g} m/s - the wheel sets it, Shift four times as fast", camera.mFlySpeed );
+        ImGui::GetWindowDrawList()->AddText( ImVec2( corner.x + 8, corner.y + area.y - ImGui::GetFontSize() - 6 ),
+                                             IM_COL32( 255, 255, 255, 220 ), speed.c_str() );
+    }
 
     // A click picks what is drawn under it, the GPU answering a frame or so
-    // later; a preview has nothing to pick.
-    if ( documentMaybe and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
+    // later; a preview has nothing to pick. With alt it is the camera's.
+    if ( documentMaybe and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) and
+         not io.KeyAlt )
     {
         // A selected element of the UI placed by left and top is dragged
         // there, one step; anything else is a click or a rectangle.
@@ -686,9 +709,43 @@ void Viewport::Tools()
     }
 }
 
+void Viewport::Steer( OptRef<Document> documentMaybe, EditorCamera& camera, vec2 moved )
+{
+    const ImGuiIO& io = ImGui::GetIO();
+    const bool active = ImGui::IsItemActive();
+    // The right button flies: the mouse turns the view where the camera
+    // stands, W, A, S, D move it, Q and E down and up. The first frame's move
+    // came before the press.
+    const bool flying = active and ImGui::IsMouseDown( ImGuiMouseButton_Right );
+    if ( flying and mFlying )
+        camera.Look( moved );
+    mFlying = flying;
+    if ( mFlying )
+    {
+        const auto axis = []( ImGuiKey plus, ImGuiKey minus ) {
+            return ( ImGui::IsKeyDown( plus ) ? 1.0f : 0.0f ) - ( ImGui::IsKeyDown( minus ) ? 1.0f : 0.0f );
+        };
+        camera.Fly(
+            vec3( axis( ImGuiKey_D, ImGuiKey_A ), axis( ImGuiKey_E, ImGuiKey_Q ), axis( ImGuiKey_W, ImGuiKey_S ) ),
+            io.DeltaTime, io.KeyShift );
+    }
+    // Alt and the left button go round the selection - round the focus when
+    // nothing is selected -, it staying where it is seen.
+    if ( mOrbitPivotMaybe and not( active and ImGui::IsMouseDown( ImGuiMouseButton_Left ) ) )
+        mOrbitPivotMaybe.reset();
+    if ( mOrbitPivotMaybe )
+        camera.OrbitAbout( moved, *mOrbitPivotMaybe );
+    else if ( io.KeyAlt and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
+    {
+        const auto boxMaybe = documentMaybe ? TrySelectionBox( *documentMaybe ) : nullopt;
+        mOrbitPivotMaybe = boxMaybe ? ( boxMaybe->first + boxMaybe->second ) * 0.5f : camera.mFocus;
+    }
+}
+
 void Viewport::Keys( Document& document, EditorCamera& camera )
 {
-    if ( ImGui::GetIO().WantTextInput or ImGui::GetIO().KeyCtrl )
+    // Flying, the letters move the camera.
+    if ( ImGui::GetIO().WantTextInput or ImGui::GetIO().KeyCtrl or Steers() )
         return;
     if ( ImGui::IsKeyPressed( ImGuiKey_W, false ) )
         mTool = GizmoTool::Move;
@@ -708,12 +765,17 @@ void Viewport::Keys( Document& document, EditorCamera& camera )
     }
 }
 
-void Viewport::Frame( Document& document, EditorCamera& camera )
+opt<pair<vec3, vec3>> Viewport::TrySelectionBox( const Document& document ) const
 {
     const Scene& scene = document.GetScene();
     const Entity active = document.GetSelection().Active();
     if ( active == Entity::Null or not scene.Alive( active ) )
-        return;
+        return nullopt;
+    if ( mBoxes.empty() )
+    {
+        const vec3 at( WorldOf( scene, active )[3] );
+        return pair<vec3, vec3>( at, at );
+    }
     vec3 low( numeric_limits<f32>::max() );
     vec3 high( -numeric_limits<f32>::max() );
     for ( const auto& [entity, box] : mBoxes )
@@ -721,9 +783,13 @@ void Viewport::Frame( Document& document, EditorCamera& camera )
         low = glm::min( low, box.first );
         high = glm::max( high, box.second );
     }
-    if ( mBoxes.empty() )
-        low = high = vec3( WorldOf( scene, active )[3] );
-    camera.Frame( low, high );
+    return pair<vec3, vec3>( low, high );
+}
+
+void Viewport::Frame( Document& document, EditorCamera& camera )
+{
+    if ( const auto boxMaybe = TrySelectionBox( document ) )
+        camera.Frame( boxMaybe->first, boxMaybe->second );
 }
 
 void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2 corner, vec2 size )

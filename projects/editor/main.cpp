@@ -1,10 +1,12 @@
-// bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot file.png]
+// bubble_editor <project folder> [--open path]... [--play] [--mcp [port]] [--frames N] [--screenshot file.png]
 //
 // The editor over a project's folder: its sources imported as it opens and
 // again as they change, project.bubble's start level open as a document,
 // shown in a viewport through the editor's own camera. --open opens a file of
 // the project too - a level, a prefab, a material -, the last one active;
-// --play plays the scene shown, as Play does.
+// --play plays the scene shown, as Play does. --mcp serves the editor to
+// agents - Model Context Protocol, on http://127.0.0.1:8752/mcp or the port
+// given -: what is open read and changed by its tools.
 // --frames quits after N frames, --screenshot writes the last one - the
 // whole window - as a PNG.
 #include "bubble/audio/audio.hpp"
@@ -12,6 +14,7 @@
 #include "bubble/core/utf8.hpp"
 #include "bubble/data/png.hpp"
 #include "bubble/editor/editor.hpp"
+#include "bubble/editor/editor_mcp.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/platform/platform.hpp"
 #include "bubble/render/gpu/gpu.hpp"
@@ -30,6 +33,7 @@ struct Arguments
     bool mPlay = false;
     opt<u64> mFrames;
     string mScreenshot;
+    opt<u16> mMcpPort;
 };
 
 expected<Arguments, string> TryArguments( int argc, char** argv )
@@ -53,6 +57,16 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
             arguments.mOpen.emplace_back( argv[++at] );
         else if ( argument == "--play" )
             arguments.mPlay = true;
+        else if ( argument == "--mcp" )
+        {
+            arguments.mMcpPort = McpServer::cDefaultPort;
+            if ( at + 1 < argc and not string_view( argv[at + 1] ).starts_with( "--" ) )
+                if ( const auto portMaybe = TryParse<u16>( argv[at + 1] ) )
+                {
+                    arguments.mMcpPort = *portMaybe;
+                    ++at;
+                }
+        }
         else if ( not rooted and not argument.starts_with( "--" ) )
         {
             arguments.mRoot = PathFromUtf8( argument );
@@ -63,7 +77,7 @@ expected<Arguments, string> TryArguments( int argc, char** argv )
     }
     if ( not rooted )
         return unexpected(
-            "bubble_editor <project folder> [--open path]... [--play] [--frames N] [--screenshot file.png]"s );
+            "bubble_editor <project folder> [--open path]... [--play] [--mcp [port]] [--frames N] [--screenshot file.png]"s );
     return arguments;
 }
 
@@ -77,6 +91,8 @@ struct Drawing
     Scope<Renderer> mRenderer;
     Scope<ImGuiRenderer> mImGui;
     Scope<Editor> mEditor;
+    // Last, so it goes first: its tools reach into the editor.
+    Scope<McpServer> mMcp;
 };
 
 void WriteScreenshot( Drawing& drawing, ImDrawData& data, ivec2 size, const string& file )
@@ -190,10 +206,29 @@ int main( int argc, char** argv )
                     if ( auto openedMaybe = platform.TryOpen( path ); not openedMaybe )
                         LogError( "{}", openedMaybe.error() );
                 } );
+            if ( arguments.mMcpPort )
+            {
+                vector<McpTool> tools = EditorMcpTools( project );
+                tools.push_back( ViewportScreenshotTool( *drawing.mGpu, drawing.mEditor->GetViewport() ) );
+                auto serverMaybe =
+                    McpServer::TryStart( *arguments.mMcpPort, std::move( tools ), EditorMcpInstructions() );
+                if ( serverMaybe )
+                {
+                    drawing.mMcp = std::move( *serverMaybe );
+                    drawing.mEditor->SetMcpUrl( drawing.mMcp->Url() );
+                    LogInfo( "MCP server at {}: claude mcp add --transport http bubble_editor {}", drawing.mMcp->Url(),
+                             drawing.mMcp->Url() );
+                }
+                else
+                    LogError( "{}", serverMaybe.error() );
+            }
         }
         Gpu& gpu = *drawing.mGpu;
         gpu.Poll();
         project.GetApp().GetJobs().RunMainQueue();
+        // What agents asked, between frames, as the menus act.
+        if ( drawing.mMcp )
+            drawing.mMcp->Serve();
 
         input.NewFrame( elapsed );
         ImGui::NewFrame();

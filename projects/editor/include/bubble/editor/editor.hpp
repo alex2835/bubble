@@ -51,14 +51,19 @@ public:
     // is not saved.
     string Title();
     // The player's input as the platform polled it, beside ImGui's: the
-    // game's while it has the viewport.
+    // game's while it has the viewport; the mouse's moves the viewport's
+    // camera's too.
     void Handle( const InputEvent& event );
-    // Whether the game wants the cursor held - a camera turned by the mouse -
-    // and has the input to hold it with.
+    // Whether the cursor is to be held - a camera turned by the mouse -: the
+    // viewport flying or going round, or the game wanting it with the input
+    // to hold it with.
     bool CursorLocked();
     // To quit - Quit picked, the window closed -: at once when nothing is
     // left not saved, after asking when something is.
     void AskToQuit() { mQuitWanted = true; }
+    // Where the MCP server listens, shown on the menu's bar: agents drive
+    // the editor there.
+    void SetMcpUrl( string url ) { mMcpUrl = std::move( url ); }
     // Quit for good: nothing not saved, or the user said so.
     bool QuitAsked() const { return mQuitAsked; }
     Viewport& GetViewport() { return mViewport; }
@@ -101,6 +106,7 @@ private:
     Inspector mInspector;
     AssetsPanel mAssets;
     Viewport mViewport;
+    string mMcpUrl;
     // The shown scene's tab as last drawn: a scene made active by an
     // operator gets its tab picked.
     string mActiveTab;
