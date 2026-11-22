@@ -40,6 +40,7 @@ Color SelectedColor()
 }
 constexpr Color cCollider{ .mR = 0.35f, .mG = 1.0f, .mB = 0.45f, .mA = 1.0f };
 constexpr Color cLight{ .mR = 1.0f, .mG = 0.9f, .mB = 0.4f, .mA = 1.0f };
+constexpr Color cJoint{ .mR = 1.0f, .mG = 0.45f, .mB = 0.9f, .mA = 1.0f };
 constexpr Color cCamera{ .mR = 0.85f, .mG = 0.85f, .mB = 0.85f, .mA = 1.0f };
 // What marks a light or a camera that is not selected, and how large.
 constexpr Color cIcon{ .mR = 0.75f, .mG = 0.7f, .mB = 0.45f, .mA = 1.0f };
@@ -70,6 +71,60 @@ void Circle( DebugDraw& draw, vec3 centre, vec3 u, vec3 v, Color color )
 
 // Upright along `world`'s Y, `height` from end to end, its centre `lift`
 // above the origin: two rings, their caps, four sides.
+// A joint where it holds: its anchor, its axis, a hinge's turn - its limits
+// when it has them -, a slider's travel, a rope to its other end.
+void JointLines( const Scene& scene, DebugDraw& draw, Entity entity, const mat4& world, const Joint& joint )
+{
+    const vec3 anchor( world * vec4( joint.mAnchor, 1.0f ) );
+    const vec3 axis =
+        glm::length( joint.mAxis ) > 0.0f ? glm::normalize( mat3( world ) * joint.mAxis ) : vec3( 1.0f, 0.0f, 0.0f );
+    const vec3 across = glm::normalize( glm::abs( axis.y ) < 0.9f ? glm::cross( axis, vec3( 0.0f, 1.0f, 0.0f ) )
+                                                                  : glm::cross( axis, vec3( 1.0f, 0.0f, 0.0f ) ) );
+    const vec3 other = glm::cross( axis, across );
+    draw.Sphere( anchor, 0.06f, cJoint );
+    const bool limited = joint.mMin < joint.mMax;
+    if ( joint.mKind == "slider"_n and limited )
+        draw.Line( anchor + axis * joint.mMin, anchor + axis * joint.mMax, cJoint );
+    else if ( joint.mKind != "distance"_n )
+        draw.Line( anchor - axis * 0.4f, anchor + axis * 0.4f, cJoint );
+    if ( joint.mKind == "hinge"_n )
+    {
+        const f32 radius = 0.3f;
+        if ( limited )
+        {
+            // The arc it may turn through, from its rest along `across`.
+            constexpr int cSteps = 16;
+            vec3 last = anchor + ( across * cos( joint.mMin ) + other * sin( joint.mMin ) ) * radius;
+            draw.Line( anchor, last, cJoint );
+            for ( int step = 1; step <= cSteps; ++step )
+            {
+                const f32 angle = joint.mMin + ( joint.mMax - joint.mMin ) * static_cast<f32>( step ) / cSteps;
+                const vec3 next = anchor + ( across * cos( angle ) + other * sin( angle ) ) * radius;
+                draw.Line( last, next, cJoint );
+                last = next;
+            }
+            draw.Line( anchor, last, cJoint );
+        }
+        else
+            Circle( draw, anchor, across * radius, other * radius, cJoint );
+    }
+    // What it holds to: the other end of a rope, or the connected entity.
+    opt<vec3> toMaybe;
+    if ( joint.mConnected.mPath.Empty() )
+    {
+        if ( joint.mKind == "distance"_n )
+            toMaybe = joint.mConnectedAnchor;
+    }
+    else if ( const auto targetMaybe = TryResolve( scene, joint.mConnected, entity ) )
+    {
+        const mat4 targetWorld = ComputeWorldMatrix( scene, *targetMaybe );
+        toMaybe = joint.mKind == "distance"_n ? vec3( targetWorld * vec4( joint.mConnectedAnchor, 1.0f ) )
+                                              : vec3( targetWorld[3] );
+    }
+    if ( toMaybe )
+        draw.Line( anchor, *toMaybe, cJoint );
+}
+
 void Capsule( DebugDraw& draw, const mat4& world, f32 radius, f32 height, f32 lift, Color color )
 {
     const vec3 x = glm::normalize( vec3( world[0] ) ) * radius;
@@ -472,6 +527,8 @@ void Viewport::Helpers( Document& document, World& world )
         if ( const auto characterMaybe = scene.TryGet<CharacterController>( entity ) )
             Capsule( draw, matrix, characterMaybe->mRadius, characterMaybe->mHeight, characterMaybe->mHeight * 0.5f,
                      cCollider );
+        if ( const auto jointMaybe = scene.TryGet<Joint>( entity ) )
+            JointLines( scene, draw, entity, matrix, *jointMaybe );
         if ( const auto pointMaybe = scene.TryGet<PointLight>( entity ) )
             draw.Sphere( position, pointMaybe->mRange, cLight );
         if ( const auto spotMaybe = scene.TryGet<SpotLight>( entity ) )
@@ -582,9 +639,10 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     const ImGuiIO& io = ImGui::GetIO();
     // The gizmo takes the left button where it is drawn; with alt, or a
     // button that steers the camera, the mouse is the camera's.
-    if ( ImGuizmo::IsUsing() or
-         ( ImGuizmo::IsOver() and not io.KeyAlt and not Steers() and
-           not ImGui::IsMouseDown( ImGuiMouseButton_Right ) and not ImGui::IsMouseDown( ImGuiMouseButton_Middle ) ) )
+    const bool gizmoShown = std::exchange( mGizmoShown, false );
+    if ( gizmoShown and ( ImGuizmo::IsUsing() or ( ImGuizmo::IsOver() and not io.KeyAlt and not Steers() and
+                                                   not ImGui::IsMouseDown( ImGuiMouseButton_Right ) and
+                                                   not ImGui::IsMouseDown( ImGuiMouseButton_Middle ) ) ) )
         ImGui::Dummy( area );
     else
     {
@@ -888,6 +946,7 @@ void Viewport::Gizmo( Document& document, const EditorCamera& editorCamera, vec2
     const Entity active = document.GetSelection().Active();
     if ( active == Entity::Null or not scene.Alive( active ) or not scene.Has<Transform>( active ) )
         return;
+    mGizmoShown = true;
     ImGuizmo::SetDrawlist();
     ImGuizmo::SetRect( corner.x, corner.y, size.x, size.y );
     ImGuizmo::SetOrthographic( false );

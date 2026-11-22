@@ -236,6 +236,10 @@ struct View
     Scope<Renderer> mRenderer;
     ImGuiContextScope mContext;
     Scope<Viewport> mViewport;
+    // Where its window is, and whether it has a title bar over the picture -
+    // as a docked one has its tab.
+    ImVec2 mWindowAt{ 0, 0 };
+    bool mTitled = false;
 
     // `level` instead of the cube's alone.
     explicit View( string_view level = cLevel )
@@ -254,7 +258,7 @@ struct View
         mViewport = CreateScope<Viewport>( *mProject, *mGpu, *mRenderer );
         Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
-        ImGui::GetIO().DisplaySize = cSize;
+        ImGui::GetIO().DisplaySize = ImVec2( cSize.x + 200, cSize.y + 200 );
     }
 
     ~View()
@@ -282,10 +286,13 @@ struct View
         ImGui::GetIO().DeltaTime = 1.0f / 60;
         ImGui::NewFrame();
         ImGuizmo::BeginFrame();
-        ImGui::SetNextWindowPos( ImVec2( 0, 0 ) );
-        ImGui::SetNextWindowSize( cSize );
+        ImGui::SetNextWindowPos( mWindowAt );
+        // A title bar on top of the picture, which stays its size.
+        ImGui::SetNextWindowSize( mTitled ? ImVec2( cSize.x, cSize.y + ImGui::GetFrameHeight() ) : cSize );
         ImGui::PushStyleVar( ImGuiStyleVar_WindowPadding, ImVec2( 0, 0 ) );
-        ImGui::Begin( "Viewport", nullptr, ImGuiWindowFlags_NoDecoration );
+        ImGui::Begin( "Viewport", nullptr,
+                      mTitled ? ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse
+                              : ImGuiWindowFlags_NoDecoration );
         ImGui::PopStyleVar();
         mViewport->Show( GetDocument(), shown.Camera() );
         ImGui::End();
@@ -495,3 +502,39 @@ TEST_CASE( "A rectangle drawn over the viewport's picture selects what is in it"
     CHECK( view.GetDocument().GetSelection().Active() == view.Cube() );
 }
 #endif
+
+TEST_CASE(
+    "The gizmo answers the mouse where it is drawn, in a window with a title bar over the picture as in one without" )
+{
+    // Where the mouse is over the gizmo, a row at a time across its middle
+    // and along its X arrow, from the picture's middle.
+    const auto over = []( bool titled ) {
+        View view;
+        view.mWindowAt = titled ? ImVec2( 60, 40 ) : ImVec2( 0, 0 );
+        view.mTitled = titled;
+        REQUIRE( view.Until( [&] {
+            const World& world = WorldOf( view.mProject->GetApp(), view.GetDocument() );
+            const auto& items = const_cast<World&>( world ).Get<RenderScene>().mItems;
+            return not items.empty() and items.front().mModel.TryGet().HasValue();
+        } ) );
+        const f32 title = titled ? ImGui::GetFrameHeight() : 0.0f;
+        const ImVec2 middle( view.mWindowAt.x + cSize.x * 0.5f, view.mWindowAt.y + title + cSize.y * 0.5f );
+        view.MoveTo( middle );
+        view.Button( true );
+        view.Button( false );
+        REQUIRE( view.Until( [&] { return view.GetDocument().GetSelection().Active() == view.Cube(); } ) );
+        vector<pair<f32, f32>> rows;
+        for ( const f32 dx : { 0.0f, 15.0f, 25.0f } )
+            for ( f32 dy = -40; dy <= 40; dy += 2 )
+            {
+                view.MoveTo( ImVec2( middle.x + dx, middle.y + dy ) );
+                view.Frame();
+                if ( ImGuizmo::IsOver() )
+                    rows.emplace_back( dx, dy );
+            }
+        return rows;
+    };
+    const vector<pair<f32, f32>> plain = over( false );
+    CHECK( not plain.empty() );
+    CHECK( over( true ) == plain );
+}

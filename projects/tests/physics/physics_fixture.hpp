@@ -1,5 +1,5 @@
 #pragma once
-// Worlds with physics: App with the transform, scripts and physics modules,
+// Worlds with physics: App with the transform, render, scripts and physics modules,
 // a registry over an import cache in memory - models for mesh colliders,
 // scripts compiled by the importer -, record( text ) in every world's
 // globals, and helpers to place bodies and step.
@@ -8,6 +8,7 @@
 #include "bubble/import/import_cache.hpp"
 #include "bubble/import/script_importer.hpp"
 #include "bubble/physics/physics.hpp"
+#include "bubble/render/render_scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
 #include "bubble/world/transform.hpp"
@@ -39,6 +40,8 @@ struct PhysicsFixture
         RegisterModelLoader( mAssets );
         RegisterPrefabLoader( mAssets );
         mApp.AddModule( TransformModule() );
+        // Models and their skins: what a ragdoll is made of, kept by snapshots.
+        mApp.AddModule( RenderModule( mAssets ) );
         mApp.AddModule(
             ScriptModule( mAssets, ScriptModuleOptions{ .mGlobals =
                                                             [this]( LuaState& lua, World& ) {

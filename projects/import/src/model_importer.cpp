@@ -282,7 +282,8 @@ expected<Rig, string> TryMakeRig( const aiScene& scene, const Bones& bones, f32 
     {
         ModelJoint joint{ .mName = names[j],
                           .mRest = ToMat4( ozz::animation::GetJointRestPoseLocalSpace( skeleton, j ) ),
-                          .mInverseBind = mat4( 1.0f ) };
+                          .mInverseBind = mat4( 1.0f ),
+                          .mParent = parents[j] == ozz::animation::Skeleton::kNoParent ? -1 : parents[j] };
         if ( parents[j] != ozz::animation::Skeleton::kNoParent )
             joint.mRest = rig.mJoints[parents[j]].mRest * joint.mRest;
         if ( const auto bone = bones.find( joint.mName ); bone != bones.end() )
@@ -752,7 +753,7 @@ vector<Importer> ModelImporters()
             .mExtension = string( extension ),
             .mKind = string( cModelKind ),
             .mMoreKinds = { string( cSkeletonKind ), string( cClipsKind ) },
-            .mVersion = 3,
+            .mVersion = 4,
             .mImport = &TryImportModel,
             .mSettings = {
                 ImportSetting{ .mName = "scale",

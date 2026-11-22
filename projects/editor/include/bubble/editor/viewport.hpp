@@ -220,6 +220,10 @@ private:
     opt<vec3> mOrbitPivotMaybe;
     // A drag of the gizmo under way: one step of the document's history.
     bool mGizmoHeld = false;
+    // The gizmo drawn last frame. ImGuizmo's state is one for the process
+    // and stays as it was drawn last: with nothing selected now, or another
+    // viewport's, what it says the mouse is over is not here.
+    bool mGizmoShown = false;
     // A press of the left button on the picture, where: a pick if it comes
     // up close by.
     opt<vec2> mPressedAt;

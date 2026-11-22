@@ -45,7 +45,8 @@ TEST_CASE( "A skinned model's joints and weights read back, and a vertex on a jo
     for ( const string_view name : { "root", "arm", "hand" } )
         model.mJoints.push_back( ModelJoint{ .mName = string( name ),
                                              .mRest = glm::translate( mat4( 1.0f ), vec3( 0.0f, 1.0f, 0.0f ) ),
-                                             .mInverseBind = glm::scale( mat4( 1.0f ), vec3( 2.0f ) ) } );
+                                             .mInverseBind = glm::scale( mat4( 1.0f ), vec3( 2.0f ) ),
+                                             .mParent = static_cast<i32>( model.mJoints.size() ) - 1 } );
 
     const auto readMaybe = TryReadModelAsset( WriteModelAsset( model ) );
     REQUIRE_MESSAGE( readMaybe, readMaybe.error() );
@@ -53,6 +54,8 @@ TEST_CASE( "A skinned model's joints and weights read back, and a vertex on a jo
     CHECK( readMaybe->mMeshes[0].mSkin[2].mJoints == array<u16, 4>{ 2, 1, 0, 0 } );
     CHECK( readMaybe->mMeshes[0].mSkin[2].mWeights == vec4( 0.75f, 0.25f, 0.0f, 0.0f ) );
     REQUIRE( readMaybe->mJoints.size() == 3 );
+    CHECK( readMaybe->mJoints[0].mParent == -1 );
+    CHECK( readMaybe->mJoints[2].mParent == 1 );
     CHECK( readMaybe->mJoints[1].mName == "arm" );
     CHECK( readMaybe->mJoints[1].mRest[3] == vec4( 0.0f, 1.0f, 0.0f, 1.0f ) );
     CHECK( readMaybe->mJoints[2].mInverseBind[0][0] == 2.0f );

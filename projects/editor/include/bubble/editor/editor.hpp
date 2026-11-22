@@ -68,12 +68,17 @@ public:
     // To quit - Quit picked, the window closed -: at once when nothing is
     // left not saved, after asking when something is.
     void AskToQuit() { mQuitWanted = true; }
+    // To close the project and go back to the start window, asking first
+    // as quitting does.
+    void AskToClose() { mCloseWanted = true; }
     // Where the MCP server listens, shown on the menu's bar: agents drive
     // the editor there.
     // Empty: no server.
     void SetMcpUrl( string url ) { mMcpUrl = std::move( url ); }
     // Quit for good: nothing not saved, or the user said so.
     bool QuitAsked() const { return mQuitAsked; }
+    // Close the project: nothing not saved, or the user said so.
+    bool CloseAsked() const { return mCloseAsked; }
     Viewport& GetViewport() { return mViewport; }
 
 private:
@@ -145,5 +150,10 @@ private:
     bool mLaidOut = false;
     bool mQuitAsked = false;
     bool mQuitWanted = false;
+    bool mCloseAsked = false;
+    bool mCloseWanted = false;
+    // What the question about what is not saved leads to: quitting, or
+    // closing the project.
+    bool mClosing = false;
 };
 }

@@ -8,7 +8,7 @@ namespace bubble
 namespace
 {
 constexpr string_view cMagic = "BMDL";
-constexpr u32 cVersion = 2;
+constexpr u32 cVersion = 3;
 // Position, normal, texture coordinate.
 constexpr u64 cVertexBytes = 8 * 4;
 // Four joints as two u32s, four weights.
@@ -96,6 +96,8 @@ string WriteModelAsset( const ModelAsset& model )
         out.Text( joint.mName );
         WriteMatrix( out, joint.mRest );
         WriteMatrix( out, joint.mInverseBind );
+        // One past it: 0 is none.
+        out.U32( static_cast<u32>( joint.mParent + 1 ) );
     }
     return out.Take();
 }
@@ -189,10 +191,16 @@ expected<ModelAsset, string> TryReadModelAsset( string_view bytes )
         const auto nameMaybe = reader.TryText();
         const auto restMaybe = nameMaybe ? TryMatrix( reader ) : nullopt;
         const auto inverseBindMaybe = restMaybe ? TryMatrix( reader ) : nullopt;
-        if ( not inverseBindMaybe )
+        const auto parentMaybe = inverseBindMaybe ? reader.TryU32() : nullopt;
+        if ( not parentMaybe )
             return cutShort();
-        model.mJoints.push_back(
-            ModelJoint{ .mName = string( *nameMaybe ), .mRest = *restMaybe, .mInverseBind = *inverseBindMaybe } );
+        const i32 parent = static_cast<i32>( *parentMaybe ) - 1;
+        if ( parent >= static_cast<i32>( j ) )
+            return unexpected( format( "joint {} hangs from joint {}, not one before it", j, parent ) );
+        model.mJoints.push_back( ModelJoint{ .mName = string( *nameMaybe ),
+                                             .mRest = *restMaybe,
+                                             .mInverseBind = *inverseBindMaybe,
+                                             .mParent = parent } );
     }
     for ( u32 m = 0; m < model.mMeshes.size(); ++m )
         for ( const ModelSkinVertex& skin : model.mMeshes[m].mSkin )

@@ -75,6 +75,11 @@ public:
     // A file or a folder opened as the system opens it: a script in the
     // editor people chose for it, a folder in the file manager.
     expected<void, string> TryOpen( const OsPath& path ) const;
+    // The system's dialog for choosing a folder, over `window`, starting in
+    // `from` when it is given: `chosen` hears the folder, or nothing when
+    // the dialog was cancelled, in a later Poll, on this thread. On the web,
+    // which has none, nothing at once.
+    void ChooseFolder( const Window& window, const OsPath& from, function<void( opt<OsPath> )> chosen );
     // The system's clipboard as text: empty when it holds none.
     string ClipboardText() const;
     void SetClipboardText( const string& text );
@@ -95,5 +100,9 @@ private:
     array<SDL_Cursor*, cCursors> mCursors{};
     Cursor mCursor = Cursor::Arrow;
     bool mQuitRequested = false;
+    // Dialogs open and what they answered - on the system's thread, heard
+    // in Poll on this one.
+    struct Dialogs;
+    Ref<Dialogs> mDialogs;
 };
 }

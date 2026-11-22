@@ -9,10 +9,11 @@ a decision changes. It also holds the stage plan: a feature waits for its
 stage, however ready it looks in the old code.
 
 The sandbox is outside the engine, `E:\projects\bubble_sand_box2`, in the
-new formats, and holds two projects: `test` - the game stages 7 to 9 are
-checked against - and `features` - the showcase, every feature of the engine
+new formats, and holds three projects: `test` - the game stages 7 to 9 are
+checked against -, `features` - the showcase, every feature of the engine
 at a station of its own along one avenue; a feature that lands gets its
-station. The old one, `E:\projects\bubble_sand_box`, is read only: its
+station - and `physics` - a level for each of bodies of parts, joints, a
+vehicle and a ragdoll, written by `tools/make_physics.py [level]`. The old one, `E:\projects\bubble_sand_box`, is read only: its
 assets and scripts are copied and rewritten, never converted by code.
 
 ## Build and test
@@ -99,17 +100,30 @@ projects/engine/include/bubble/
                               (or the first camera), 32 voices a world - the quietest gives way -, a paused world silent but
                               for ui; AudioWorld (a service: PlaySound, a source's play/stop, SetAudible); scripts'
                               audio.play_sound/play_sound_at/set_bus_volume and audio_source:play()/stop()
-    physics/                  PhysicsModule on Jolt (src/physics alone): box, sphere, capsule and mesh colliders,
-                              rigid_body (dynamic, or kinematic: moved by its transform), character_controller
+    physics/                  PhysicsModule on Jolt (src/physics alone; jolt.hpp its glm <-> Jolt): box, sphere,
+                              capsule, convex (a model's hull, moves) and mesh (still) colliders, rigid_body (dynamic,
+                              or kinematic: moved by its transform) - the colliders under it down to the next
+                              rigid_body are parts of one body, placed by their transforms (PlacementIn: the local
+                              transforms, so a body made again is the same to the bit) -, character_controller
                               (CharacterVirtual: a velocity set each step, ground, steps, slopes, its weight on what
-                              it stands on - mass, 10 by default, Jolt holding about 10:1 -); stepped in
-                              Phase::Physics on one thread, what moved written into transforms, contacts as
+                              it stands on - mass, 10 by default, Jolt holding about 10:1 -); joint (physics_joints:
+                              fixed, hinge, slider, distance, swing_twist to another entity's body or the world,
+                              limits, springs, motors, break_force -> on_joint_break, joint.broken; its rest on the
+                              connected body kept when a body is made again; the two bodies kept from colliding by
+                              JointedPairs); vehicle + vehicle_wheel (physics_vehicle: Jolt's wheeled vehicle,
+                              throttle/steer/brake/handbrake set by scripts, gauges speed/rpm/gear, the wheels'
+                              children turned by ParentOffset, mass_offset); ragdoll (physics_ragdoll: a skinned
+                              model's bones as capsules - ModelJoint::mParent - held by a human's limits by Mixamo's bone names -
+                              knees and elbows one-way hinges, facing from the toe - or swing/twist; on from the
+                              pose it had, SkinPose written in Phase::Transforms after the animator's, push);
+                              stepped in Phase::Physics on one thread, what moved written into transforms, contacts as
                               ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
-                              velocities, characters); snapshots keep Jolt's state, bodies made again under their ids
+                              velocities, characters, joints, vehicles, ragdolls); snapshots keep Jolt's state, bodies
+                              made again under their ids, constraints in Jolt's order (KeyOf: entity + slot)
     platform/                 Platform (SDL, seen nowhere else: one a process, Poll -> InputEvents - TextInput among
                               them -, gamepads opened as they come, QuitRequested, Run - a loop, or the browser's
                               frames, SetCursor - the pointer's shape -, the clipboard's text, TryOpen - a file the
-                              system's way -; TakeQuitRequest, for an editor that asks first), Window (the cursor
+                              system's way -, ChooseFolder - the system's folder dialog -; TakeQuitRequest, for an editor that asks first), Window (the cursor
                               held for a camera: SetCursorLocked; SetTextInput)
     render/gpu/               Gpu (WebGPU's device: wgpu-native on the desktop, emdawnwebgpu on the web; Start ->
                               GpuStartup::TryFinish each frame, since a browser answers between frames; TryStartNow
@@ -303,7 +317,7 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               picture's -, outlined when selected, dragged by its left and top -, a
                               rectangle drawn selects what it covers - InRectangle -, the gizmo on ImGuizmo moves,
                               turns and scales the active entity and the rest selected with it - MovedTogether; W,
-                              E, R, X; one history group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
+                              E, R, X; one history group a drag -, the selection's boxes, colliders, joints, lights' reach and cameras' views as
                               the world's debug lines; every light and camera marked - Icons -, and
                               what the picture does not show by its icon on a disc - MarkersOf, a click or a
                               rectangle selecting it, TryMarkerAt -; the scene's UI over
@@ -347,10 +361,16 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               EditorMcpTools (editor_state, scene_tree, get_entity, set_field - JSON as files write
                               it, by the field's type -, list_operators, run_operator, run_lua, list_assets,
                               read_log; ViewportScreenshotTool: the viewport's picture shrunk, a PNG in base64; started by
-                              --mcp or the preferences, moved or stopped as they change). main.cpp is
-                              bubble_editor <project folder> [--open path]... [--play] [--mcp [port]] [--frames N]
-                              [--screenshot file.png], the
-                              desktop alone; its layout in the project's .bubble/editor_layout.ini
+                              --mcp or the preferences, moved or stopped as they change). RecentProjects
+                              (recent.json beside editor.json: the projects opened, the last first) and
+                              TryCreateProject (a folder with project.bubble, levels/main.scene, .gitignore);
+                              ProjectPicker (the start window: recent projects - one gone shown so -, Open Folder
+                              through Platform::ChooseFolder - SDL's dialog, answered in Poll -, a folder typed, New
+                              Project). main.cpp is bubble_editor [project folder] [--open path]... [--play] [--mcp
+                              [port]] [--frames N] [--screenshot file.png], the desktop alone: no folder, the start
+                              window; File > Close Project goes back to it (asked first as quitting is); the start
+                              window and each project an ImGui context of their own, made again between frames, a
+                              project's layout in its .bubble/editor_layout.ini
 projects/demo/                bubble_demo, on the engine alone (never import or editing) - the web's build too -: a
                               scene made in code - boxes of a few materials, one its own WGSL, the sun, a lamp - drawn by the
                               Renderer and played by scripts compiled in memory on physics: the red box - a character

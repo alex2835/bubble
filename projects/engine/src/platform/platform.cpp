@@ -129,9 +129,60 @@ expected<Window, string> Platform::TryOpenWindow( const WindowOptions& options )
     return Window( window );
 }
 
+struct Platform::Dialogs
+{
+    mutex mMutex;
+    u32 mNext = 0;
+    // This thread's alone.
+    hmap<u32, function<void( opt<OsPath> )>> mWaiting;
+    // Under the mutex: the system answers on a thread of its own.
+    vector<pair<u32, opt<OsPath>>> mAnswered;
+};
+
+void Platform::ChooseFolder( const Window& window, const OsPath& from, function<void( opt<OsPath> )> chosen )
+{
+#ifdef __EMSCRIPTEN__
+    (void)window;
+    (void)from;
+    chosen( nullopt );
+#else
+    if ( not mDialogs )
+        mDialogs = CreateRef<Dialogs>();
+    const u32 id = mDialogs->mNext++;
+    mDialogs->mWaiting[id] = std::move( chosen );
+    // Kept by SDL until it answers, which frees it.
+    using Asked = pair<Ref<Dialogs>, u32>;
+    auto* asked = new Asked( mDialogs, id );
+    const string start = from.empty() ? string() : PathToUtf8( from );
+    SDL_ShowOpenFolderDialog(
+        []( void* userdata, const char* const* folders, int ) {
+            const Scope<Asked> answered( static_cast<Asked*>( userdata ) );
+            opt<OsPath> folderMaybe;
+            if ( folders == nullptr )
+                LogError( "the folder dialog: {}", SDL_GetError() );
+            else if ( folders[0] != nullptr )
+                folderMaybe = PathFromUtf8( folders[0] );
+            const lock_guard lock( answered->first->mMutex );
+            answered->first->mAnswered.emplace_back( answered->second, std::move( folderMaybe ) );
+        },
+        asked, window.mWindow, start.empty() ? nullptr : start.c_str(), false );
+#endif
+}
+
 span<const InputEvent> Platform::Poll()
 {
     mEvents.clear();
+    if ( mDialogs )
+    {
+        vector<pair<u32, opt<OsPath>>> answered;
+        {
+            const lock_guard lock( mDialogs->mMutex );
+            answered = std::exchange( mDialogs->mAnswered, {} );
+        }
+        for ( auto& [id, folderMaybe] : answered )
+            if ( auto waiting = mDialogs->mWaiting.extract( id ) )
+                waiting.mapped()( std::move( folderMaybe ) );
+    }
     SDL_Event event;
     while ( SDL_PollEvent( &event ) )
     {

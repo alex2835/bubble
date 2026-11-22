@@ -369,6 +369,10 @@ void Editor::Menu()
         if ( ImGui::MenuItem( "Save As...", nullptr, false, TryActiveTitle().has_value() ) )
             mAskSaveAs = true;
         ImGui::Separator();
+        if ( ImGui::MenuItem( "Close Project" ) )
+            mCloseWanted = true;
+        if ( ImGui::IsItemHovered() )
+            ImGui::SetTooltip( "Back to the start window: the projects opened before, a new one" );
         if ( ImGui::MenuItem( "Quit" ) )
             mQuitWanted = true;
         ImGui::EndMenu();
@@ -759,12 +763,21 @@ void Editor::QuitDialog()
                 names.emplace_back( document->GetPath().View() );
         return names;
     };
-    if ( mQuitWanted )
+    // Quitting and closing the project ask alike; what follows is theirs.
+    const auto leave = [this] {
+        if ( mClosing )
+            mCloseAsked = true;
+        else
+            mQuitAsked = true;
+    };
+    if ( mQuitWanted or mCloseWanted )
     {
+        mClosing = mCloseWanted and not mQuitWanted;
         mQuitWanted = false;
+        mCloseWanted = false;
         if ( unsaved().empty() )
         {
-            mQuitAsked = true;
+            leave();
             return;
         }
         ImGui::OpenPopup( "Quit" );
@@ -775,7 +788,7 @@ void Editor::QuitDialog()
     ImGui::TextUnformatted( "These have changes that are not saved:" );
     for ( const string& name : names )
         ImGui::BulletText( "%s", name.c_str() );
-    if ( ImGui::Button( "Save All and Quit" ) )
+    if ( ImGui::Button( mClosing ? "Save All and Close" : "Save All and Quit" ) )
     {
         // Each made active and saved; one that cannot be - a level with no
         // file yet - keeps the editor open, the log saying why.
@@ -799,14 +812,14 @@ void Editor::QuitDialog()
             save( document );
         if ( saved )
         {
-            mQuitAsked = true;
+            leave();
             ImGui::CloseCurrentPopup();
         }
     }
     ImGui::SameLine();
-    if ( ImGui::Button( "Quit Without Saving" ) )
+    if ( ImGui::Button( mClosing ? "Close Without Saving" : "Quit Without Saving" ) )
     {
-        mQuitAsked = true;
+        leave();
         ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();

@@ -60,8 +60,11 @@ struct ModelMesh
 struct ModelJoint
 {
     string mName;
+    // At rest, in the model's space.
     mat4 mRest{ 1.0f };
     mat4 mInverseBind{ 1.0f };
+    // The joint it hangs from, always before it; -1 for a root.
+    i32 mParent = -1;
 };
 
 // A model as the importer made it: its meshes - those not skinned with

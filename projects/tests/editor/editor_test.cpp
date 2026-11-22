@@ -110,3 +110,24 @@ TEST_CASE( "Ctrl+P stops the game in the middle of the editor's frame, and the f
     whole.Frames( 3 );
     CHECK_FALSE( whole.mProject->TryPlaying() );
 }
+
+TEST_CASE( "Closing the project asks first when something is not saved, and says to close when nothing is" )
+{
+    {
+        Whole whole;
+        whole.Frames( 2 );
+        whole.mEditor->AskToClose();
+        whole.Frame();
+        CHECK( whole.mEditor->CloseAsked() );
+        CHECK_FALSE( whole.mEditor->QuitAsked() );
+    }
+    Whole changed;
+    changed.Frames( 2 );
+    REQUIRE( changed.mProject->Run(
+        "entity.rename", Json( Json::Object{ Json::Member{ .mKey = "entity", .mValue = Json( "/crate"s ) },
+                                             Json::Member{ .mKey = "name", .mValue = Json( "box"s ) } } ) ) );
+    changed.mEditor->AskToClose();
+    changed.Frames( 2 );
+    // The question is up: nothing closes until it is answered.
+    CHECK_FALSE( changed.mEditor->CloseAsked() );
+}
