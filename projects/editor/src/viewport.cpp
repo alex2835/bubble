@@ -1,6 +1,8 @@
 #include "bubble/editor/viewport.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/editor_icons.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/panel.hpp"
 #include "bubble/physics/physics.hpp"
@@ -23,7 +25,19 @@ namespace bubble
 {
 namespace
 {
-constexpr Color cSelected{ .mR = 1.0f, .mG = 0.6f, .mB = 0.1f, .mA = 1.0f };
+// The accent, `alpha` of it over what is under.
+ImU32 FadedAccent( f32 alpha )
+{
+    const ImVec4 accent = EditorColor::Accent();
+    return ImGui::GetColorU32( ImVec4( accent.x, accent.y, accent.z, alpha ) );
+}
+
+// The selection's boxes in the accent.
+Color SelectedColor()
+{
+    const ImVec4 accent = EditorColor::Accent();
+    return Color{ .mR = accent.x, .mG = accent.y, .mB = accent.z, .mA = 1.0f };
+}
 constexpr Color cCollider{ .mR = 0.35f, .mG = 1.0f, .mB = 0.45f, .mA = 1.0f };
 constexpr Color cLight{ .mR = 1.0f, .mG = 0.9f, .mB = 0.4f, .mA = 1.0f };
 constexpr Color cCamera{ .mR = 0.85f, .mG = 0.85f, .mB = 0.85f, .mA = 1.0f };
@@ -69,6 +83,16 @@ void Capsule( DebugDraw& draw, const mat4& world, f32 radius, f32 height, f32 li
         draw.Line( low + side, high + side, color );
     draw.Sphere( low, radius, color );
     draw.Sphere( high, radius, color );
+}
+
+// How far off the picture a marker's middle may be and still show a part.
+constexpr f32 cMarkerMargin = 32.0f;
+
+mat4 ViewProjectionOf( const EditorCamera& editorCamera, vec2 size )
+{
+    const RenderCamera camera = editorCamera.ToRenderCamera();
+    return glm::perspective( camera.mFov, size.x / max( size.y, 1.0f ), camera.mNear, camera.mFar ) *
+           glm::inverse( camera.mWorld );
 }
 
 mat4 WorldOf( const Scene& scene, Entity entity )
@@ -207,6 +231,38 @@ vector<Entity> InRectangle( span<const pair<Entity, pair<vec3, vec3>>> boxes,
     return inside;
 }
 
+vector<Marker> MarkersOf( const Scene& scene, const mat4& viewProjection, vec2 size )
+{
+    vector<pair<f32, Marker>> seen;
+    for ( const Entity entity : MarkedEntities( scene ) )
+    {
+        if ( not InTree( scene, entity ) )
+            continue;
+        const vec4 clip = viewProjection * vec4( vec3( WorldOf( scene, entity )[3] ), 1.0f );
+        if ( clip.w <= 0.0f )
+            continue;
+        const vec2 at( ( clip.x / clip.w + 1.0f ) * 0.5f * size.x, ( 1.0f - clip.y / clip.w ) * 0.5f * size.y );
+        const f32 margin = cMarkerMargin;
+        if ( at.x < -margin or at.y < -margin or at.x > size.x + margin or at.y > size.y + margin )
+            continue;
+        seen.push_back( pair<f32, Marker>{
+            clip.w, Marker{ .mEntity = entity, .mIcon = *TryMarkerOf( scene, entity ), .mAt = at } } );
+    }
+    ranges::stable_sort( seen, []( const auto& a, const auto& b ) { return a.first > b.first; } );
+    vector<Marker> markers;
+    for ( const auto& [distance, marker] : seen )
+        markers.push_back( marker );
+    return markers;
+}
+
+opt<Entity> TryMarkerAt( span<const Marker> markers, vec2 at, f32 radius )
+{
+    for ( size_t index = markers.size(); index-- > 0; )
+        if ( glm::length( markers[index].mAt - at ) <= radius )
+            return markers[index].mEntity;
+    return nullopt;
+}
+
 vector<DebugLine> FloorGrid( const EditorCamera& camera )
 {
     constexpr int cHalf = 50;
@@ -308,8 +364,10 @@ void Viewport::Icons( const Scene& scene, DebugDraw& draw, vec3 eye )
         if ( not InTree( scene, entity ) )
             return;
         const auto [position, x, y, forward] = axes( entity );
-        for ( const vec3 axis : { x, y, forward } )
-            draw.Line( position - axis * cIconSize, position + axis * cIconSize, cIcon );
+        // Marked by its icon, a light keeps the arrow alone.
+        if ( not TryMarkerOf( scene, entity ) )
+            for ( const vec3 axis : { x, y, forward } )
+                draw.Line( position - axis * cIconSize, position + axis * cIconSize, cIcon );
         if ( arrow )
             draw.Line( position, position + forward * cIconSize * 3.0f, cIcon );
     };
@@ -359,7 +417,7 @@ void Viewport::Helpers( Document& document, World& world )
         } );
         if ( not shown )
             continue;
-        draw.Box( item.mWorld, modelMaybe->mMin, modelMaybe->mMax, cSelected );
+        draw.Box( item.mWorld, modelMaybe->mMin, modelMaybe->mMax, SelectedColor() );
         mBoxes.emplace_back( item.mEntity, BoundsOf( item.mWorld, modelMaybe->mMin, modelMaybe->mMax ) );
     }
 
@@ -478,6 +536,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     // document again once it is turned to: a click, a drop, a key.
     if ( documentMaybe and ClickedInWindow() )
         mProject.GetWorkspace().Activate( *documentMaybe );
+    camera.mFov = mCamera.mFov;
     mEye = camera.Position();
     const ivec2 pixels( static_cast<i32>( area.x * scale.x + 0.5f ), static_cast<i32>( area.y * scale.y + 0.5f ) );
     if ( not mPicture or mPicture.Size() != pixels )
@@ -562,7 +621,7 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     {
         // Toward what is under the mouse.
         const vec2 share = ( vec2( io.MousePos.x, io.MousePos.y ) - mCorner ) / mSize * 2.0f - vec2( 1.0f );
-        camera.Zoom( io.MouseWheel, vec2( share.x, -share.y ), mSize.x / mSize.y );
+        camera.Zoom( io.MouseWheel * mCamera.mZoomSpeed, vec2( share.x, -share.y ), mSize.x / mSize.y );
     }
     if ( mFlying )
     {
@@ -610,16 +669,20 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
     {
         // The rectangle being drawn.
         ImDrawList& draw = *ImGui::GetWindowDrawList();
-        draw.AddRectFilled( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, IM_COL32( 255, 160, 40, 40 ) );
-        draw.AddRect( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, IM_COL32( 255, 160, 40, 200 ) );
+        draw.AddRectFilled( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, FadedAccent( 0.16f ) );
+        draw.AddRect( ImVec2( mPressedAt->x, mPressedAt->y ), io.MousePos, FadedAccent( 0.8f ) );
     }
     if ( mPressedAt and ImGui::IsMouseReleased( ImGuiMouseButton_Left ) )
     {
         const vec2 at( io.MousePos.x, io.MousePos.y );
         if ( glm::length( at - *mPressedAt ) < cClickSlop )
         {
-            // The UI over the picture first; what is drawn behind it else.
-            if ( const auto boxMaybe = mUiShown ? TryUiAt( at - mCorner ) : nullopt; boxMaybe and documentMaybe )
+            // A marker first, the UI over the picture next; what is drawn
+            // behind them else.
+            if ( const auto markerMaybe =
+                     documentMaybe ? TryMarkerAt( mMarkers, at - mCorner, MarkerRadius() ) : nullopt )
+                Picked( *documentMaybe, *markerMaybe );
+            else if ( const auto boxMaybe = mUiShown ? TryUiAt( at - mCorner ) : nullopt; boxMaybe and documentMaybe )
                 Picked( *documentMaybe, boxMaybe->mEntity );
             else
                 mView.Pick( ivec2( static_cast<i32>( ( at.x - corner.x ) * scale.x ),
@@ -638,7 +701,11 @@ void Viewport::Show( OptRef<Document> documentMaybe, EditorCamera& camera )
             if ( ranges::contains( documentMaybe->GetSelection().All(), box.mEntity ) )
                 ImGui::GetWindowDrawList()->AddRect( ImVec2( corner.x + box.mMin.x, corner.y + box.mMin.y ),
                                                      ImVec2( corner.x + box.mMax.x, corner.y + box.mMax.y ),
-                                                     IM_COL32( 255, 160, 40, 255 ), 0.0f, 0, 2.0f );
+                                                     EditorColor::AccentU32(), 0.0f, 0, 2.0f );
+    if ( documentMaybe )
+        Markers( *documentMaybe, camera );
+    else
+        mMarkers.clear();
     if ( documentMaybe )
     {
         // The tools over the picture's corner, the last widgets of the panel.
@@ -668,7 +735,7 @@ void Viewport::Tools()
     const auto tool = [&]( const char* label, GizmoTool which, const char* keys ) {
         const bool on = mTool == which;
         if ( on )
-            ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
+            ImGui::PushStyleColor( ImGuiCol_Button, EditorColor::On() );
         if ( ImGui::SmallButton( label ) )
             mTool = which;
         if ( on )
@@ -688,7 +755,7 @@ void Viewport::Tools()
     const auto toggle = [&]( const char* label, bool& on, const char* tip ) {
         const bool was = on;
         if ( was )
-            ImGui::PushStyleColor( ImGuiCol_Button, ImGui::GetStyleColorVec4( ImGuiCol_ButtonActive ) );
+            ImGui::PushStyleColor( ImGuiCol_Button, EditorColor::On() );
         if ( ImGui::SmallButton( label ) )
             on = not on;
         if ( was )
@@ -709,6 +776,29 @@ void Viewport::Tools()
     }
 }
 
+void Viewport::Prefer( const EditorPreferences& preferences )
+{
+    mCamera = preferences.mCamera;
+    mMarkerIcon = preferences.mAppearance.mMarkerIcon;
+    // How a viewport starts; its toggles are its own from then on.
+    if ( not mPreferred )
+    {
+        mGrid = preferences.mViewport.mGrid;
+        mUi = preferences.mViewport.mUi;
+        mPreferred = true;
+    }
+}
+
+vec2 Viewport::Turned( vec2 moved ) const
+{
+    return moved * vec2( 1.0f, mCamera.mInvertY ? -1.0f : 1.0f ) * mCamera.mTurnSpeed;
+}
+
+f32 Viewport::MarkerRadius() const
+{
+    return mMarkerIcon * 0.7f * ImGui::GetStyle().FontScaleDpi;
+}
+
 void Viewport::Steer( OptRef<Document> documentMaybe, EditorCamera& camera, vec2 moved )
 {
     const ImGuiIO& io = ImGui::GetIO();
@@ -718,7 +808,7 @@ void Viewport::Steer( OptRef<Document> documentMaybe, EditorCamera& camera, vec2
     // came before the press.
     const bool flying = active and ImGui::IsMouseDown( ImGuiMouseButton_Right );
     if ( flying and mFlying )
-        camera.Look( moved );
+        camera.Look( Turned( moved ) );
     mFlying = flying;
     if ( mFlying )
     {
@@ -727,14 +817,14 @@ void Viewport::Steer( OptRef<Document> documentMaybe, EditorCamera& camera, vec2
         };
         camera.Fly(
             vec3( axis( ImGuiKey_D, ImGuiKey_A ), axis( ImGuiKey_E, ImGuiKey_Q ), axis( ImGuiKey_W, ImGuiKey_S ) ),
-            io.DeltaTime, io.KeyShift );
+            io.DeltaTime, io.KeyShift ? mCamera.mFastFactor : 1.0f );
     }
     // Alt and the left button go round the selection - round the focus when
     // nothing is selected -, it staying where it is seen.
     if ( mOrbitPivotMaybe and not( active and ImGui::IsMouseDown( ImGuiMouseButton_Left ) ) )
         mOrbitPivotMaybe.reset();
     if ( mOrbitPivotMaybe )
-        camera.OrbitAbout( moved, *mOrbitPivotMaybe );
+        camera.OrbitAbout( Turned( moved ), *mOrbitPivotMaybe );
     else if ( io.KeyAlt and ImGui::IsItemActivated() and ImGui::IsMouseClicked( ImGuiMouseButton_Left ) )
     {
         const auto boxMaybe = documentMaybe ? TrySelectionBox( *documentMaybe ) : nullopt;
@@ -901,13 +991,17 @@ void Viewport::UiDrag( Document& document )
 void Viewport::Rectangle( Document& document, const EditorCamera& editorCamera, vec2 from, vec2 to )
 {
     const Scene& scene = document.GetScene();
-    const RenderCamera camera = editorCamera.ToRenderCamera();
-    const mat4 viewProjection =
-        glm::perspective( camera.mFov, mSize.x / max( mSize.y, 1.0f ), camera.mNear, camera.mFar ) *
-        glm::inverse( camera.mWorld );
-    // An instance of a prefab whole, as a click takes it; each once.
+    const mat4 viewProjection = ViewProjectionOf( editorCamera, mSize );
+    // What is drawn and what is marked; an instance of a prefab whole, as a
+    // click takes it; each once.
+    vector<Entity> found = InRectangle( mAllBoxes, viewProjection, mSize, from, to );
+    const vec2 low = glm::min( from, to );
+    const vec2 high = glm::max( from, to );
+    for ( const Marker& marker : mMarkers )
+        if ( marker.mAt.x >= low.x and marker.mAt.y >= low.y and marker.mAt.x <= high.x and marker.mAt.y <= high.y )
+            found.push_back( marker.mEntity );
     vector<Entity> taken;
-    for ( const Entity entity : InRectangle( mAllBoxes, viewProjection, mSize, from, to ) )
+    for ( const Entity entity : found )
     {
         const auto linkMaybe = scene.TryGet<PrefabLink>( entity );
         const Entity target = linkMaybe and scene.Alive( linkMaybe->mInstance ) ? linkMaybe->mInstance : entity;
@@ -925,6 +1019,41 @@ void Viewport::Rectangle( Document& document, const EditorCamera& editorCamera, 
     else
         mProject.Run( mPickToggles ? "selection.add" : "selection.set",
                       Value::Record{ ValueField{ .mName = "entities"_n, .mValue = Value( std::move( paths ) ) } } );
+}
+
+void Viewport::Markers( const Document& document, const EditorCamera& camera )
+{
+    const Scene& scene = document.GetScene();
+    const Selection& selection = document.GetSelection();
+    mMarkers = MarkersOf( scene, ViewProjectionOf( camera, mSize ), mSize );
+    const ImGuiIO& io = ImGui::GetIO();
+    const vec2 mouse = vec2( io.MousePos.x, io.MousePos.y ) - mCorner;
+    const auto hoveredMaybe =
+        ImGui::IsWindowHovered() and not Steers() ? TryMarkerAt( mMarkers, mouse, MarkerRadius() ) : nullopt;
+    ImDrawList& draw = *ImGui::GetWindowDrawList();
+    ImFont& font = *ImGui::GetFont();
+    const f32 size = mMarkerIcon * ImGui::GetStyle().FontScaleDpi;
+    const f32 radius = MarkerRadius();
+    for ( const Marker& marker : mMarkers )
+    {
+        const bool selected = selection.Has( marker.mEntity );
+        const bool hovered = hoveredMaybe == marker.mEntity;
+        const ImVec2 centre( mCorner.x + marker.mAt.x, mCorner.y + marker.mAt.y );
+        // A dark disc keeps the icon readable over any picture.
+        draw.AddCircleFilled( centre, radius, IM_COL32( 24, 25, 28, hovered ? 230 : 180 ) );
+        if ( selected )
+            draw.AddCircle( centre, radius, EditorColor::AccentU32(), 0, 1.5f );
+        const char* begin = marker.mIcon.data();
+        const char* end = begin + marker.mIcon.size();
+        const ImVec2 extent = font.CalcTextSizeA( size, numeric_limits<f32>::max(), 0.0f, begin, end );
+        const ImU32 color = selected  ? EditorColor::AccentU32()
+                            : hovered ? IM_COL32( 255, 255, 255, 255 )
+                                      : IM_COL32( 220, 223, 228, 230 );
+        draw.AddText( &font, size, ImVec2( centre.x - extent.x * 0.5f, centre.y - extent.y * 0.5f ), color, begin,
+                      end );
+    }
+    if ( hoveredMaybe )
+        ImGui::SetTooltip( "%s", NameOf( scene, *hoveredMaybe ).String().c_str() );
 }
 
 void Viewport::Draw( World& world, const EditorCamera& camera )

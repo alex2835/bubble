@@ -252,7 +252,7 @@ struct View
         REQUIRE( mProject->TryOpenStartLevel() );
         mRenderer = CreateScope<Renderer>( *mGpu, mProject->GetAssets() );
         mViewport = CreateScope<Viewport>( *mProject, *mGpu, *mRenderer );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = cSize;
     }

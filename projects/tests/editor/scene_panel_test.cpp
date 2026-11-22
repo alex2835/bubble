@@ -202,7 +202,7 @@ struct Ui
         mProject = std::move( *projectMaybe );
         REQUIRE( mProject->TryOpenStartLevel() );
         mPanel = CreateScope<ScenePanel>( *mProject );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         // Textures asked for and never made: nothing is drawn.
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = ImVec2( 400, 400 );

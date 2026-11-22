@@ -3,7 +3,9 @@
 // by the GPU. Not on the web, where node has no window and no WebGPU.
 #ifndef __EMSCRIPTEN__
 #include "bubble/editor/editor.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/imgui_backend.hpp"
+#include "bubble/editor/preferences_panel.hpp"
 #include "render/gpu_helpers.hpp"
 #include <doctest.h>
 #include <imgui_internal.h>
@@ -79,7 +81,7 @@ TEST_CASE( "ImGui's lists are drawn with its font atlas, made and grown as it as
 {
     const Scope<Gpu> gpu = StartGpu();
     const ImGuiContextScope context;
-    Editor::SetUpImGui( 1.0f );
+    Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
     ImGuiRenderer renderer( *gpu );
     const GpuTexture target( *gpu,
                              GpuTextureOptions{ .mSize = ivec2( 64 ),
@@ -127,5 +129,51 @@ TEST_CASE( "ImGui's lists are drawn with its font atlas, made and grown as it as
     for ( size_t at = 0; at < text.size(); at += 4 )
         lit += text[at] > 200 and text[at + 1] > 200 ? 1u : 0u;
     CHECK( lit > 50 );
+}
+
+TEST_CASE( "The editor's fonts and style are made again between frames when the preferences change, and draw" )
+{
+    const Scope<Gpu> gpu = StartGpu();
+    const ImGuiContextScope context;
+    AppearancePreferences appearance;
+    Editor::SetUpImGui( appearance, 1.0f );
+    ImGuiRenderer renderer( *gpu );
+    const GpuTexture target( *gpu,
+                             GpuTextureOptions{ .mSize = ivec2( 128 ),
+                                                .mMips = 1,
+                                                .mFormat = WGPUTextureFormat_RGBA8UnormSrgb,
+                                                .mUsage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc,
+                                                .mLabel = "target" } );
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2( 128, 128 );
+    Preferences preferences( nullopt );
+    PreferencesPanel panel( preferences );
+    panel.Open();
+    const auto frame = [&] {
+        io.DeltaTime = 1.0f / 60;
+        ImGui::NewFrame();
+        panel.Show();
+        const f32 size = ImGui::GetFontSize();
+        ImGui::Render();
+        renderer.Draw( *ImGui::GetDrawData(),
+                       RenderTarget{ .mView = target.View(), .mSize = target.Size(), .mFormat = target.Format() },
+                       Color{ .mR = 0, .mG = 0, .mB = 0, .mA = 1 } );
+        for ( const ImTextureData* texture : ImGui::GetPlatformIO().Textures )
+            CHECK( texture->Status == ImTextureStatus_OK );
+        return size;
+    };
+    CHECK( frame() == doctest::Approx( 15.0f ) );
+
+    appearance.mFontSize = 20.0f;
+    appearance.mTextIcon = 26.0f;
+    appearance.mAccent = Color{ .mR = 0.2f, .mG = 0.7f, .mB = 0.6f, .mA = 1.0f };
+    Editor::SetUpImGui( appearance, 1.0f );
+    CHECK( frame() == doctest::Approx( 20.0f ) );
+    CHECK( EditorColor::Accent().y == doctest::Approx( 0.7f ) );
+    // A font file that is not there: Roboto still, and said so.
+    appearance.mFont = "nowhere/missing.ttf";
+    Editor::SetUpImGui( appearance, 1.0f );
+    CHECK( frame() == doctest::Approx( 20.0f ) );
+    CHECK( io.Fonts->Fonts.Size == 1 );
 }
 #endif

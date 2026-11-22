@@ -1,5 +1,6 @@
 #pragma once
 #include "bubble/editor/editor_camera.hpp"
+#include "bubble/editor/editor_preferences.hpp"
 #include "bubble/editor/editor_project.hpp"
 #include "bubble/render/debug_draw.hpp"
 #include "bubble/render/gpu/renderer.hpp"
@@ -58,6 +59,22 @@ vector<Entity> InRectangle( span<const pair<Entity, pair<vec3, vec3>>> boxes,
 
 // What the viewport's gizmo does to the active entity.
 
+// An entity the viewport marks with an icon where it stands - what the
+// picture does not show by itself: TryMarkerOf -, on the picture.
+struct Marker
+{
+    Entity mEntity = Entity::Null;
+    string_view mIcon;
+    vec2 mAt{ 0.0f };
+};
+// The scene's markers seen through `viewProjection` on a picture `size`
+// across, the nearest last - drawn over the rest -; none behind the eye or
+// off the picture by more than a marker's size.
+vector<Marker> MarkersOf( const Scene& scene, const mat4& viewProjection, vec2 size );
+// The marker a click at `at` takes, `radius` from a marker's middle: the
+// one drawn over the rest there.
+opt<Entity> TryMarkerAt( span<const Marker> markers, vec2 at, f32 radius );
+
 // The floor's grid under `camera`: on y = 0 around its focus, a line every
 // step - the power of ten that makes its distance a few dozen steps across -,
 // a brighter one every ten steps, the X axis red and the Z axis blue; in
@@ -99,6 +116,9 @@ public:
     // world with no scene document - a material's preview - is only looked
     // at.
     void Show( OptRef<Document> documentMaybe, EditorCamera& camera );
+    // The preferences it follows from now on: how the camera turns, flies,
+    // zooms and sees, the markers' size; the grid and the UI as it starts.
+    void Prefer( const EditorPreferences& preferences );
     // `world` drawn into the picture, as `camera` sees it now: after the
     // widgets, before ImGui's lists are drawn.
     void Draw( World& world, const EditorCamera& camera );
@@ -149,6 +169,11 @@ private:
     void Picked( Document& document, Entity entity );
     // What a rectangle over the picture took, selected - added with ctrl.
     void Rectangle( Document& document, const EditorCamera& camera, vec2 from, vec2 to );
+    void Markers( const Document& document, const EditorCamera& camera );
+    // The mouse's move as the preferences turn the camera by it.
+    vec2 Turned( vec2 moved ) const;
+    // A marker's disc on the screen, which a click takes.
+    f32 MarkerRadius() const;
     // The innermost UI element at a point of the picture.
     OptRef<const UiBoxShown> TryUiAt( vec2 at ) const;
     // A drag of an element going on: its left and top set, one step.
@@ -207,6 +232,12 @@ private:
     // units, and how many of their canvas's pixels one of them is: a click
     // on one picks it before what is drawn behind.
     vector<UiBoxShown> mUiBoxes;
+    // The markers as last drawn, where a click takes them before the rest.
+    vector<Marker> mMarkers;
+    // What the preferences said last: the camera, the markers' icon.
+    CameraPreferences mCamera;
+    f32 mMarkerIcon = 24.0f;
+    bool mPreferred = false;
     // A selected element dragged by its left and top: where the mouse and
     // they started.
     opt<UiDragging> mUiDragMaybe;

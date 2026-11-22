@@ -21,6 +21,7 @@ SHA-256) and ships as `wgpu_native.dll` / `libwgpu_native.so`.
 | [imgui-node-editor](https://github.com/thedmd/imgui-node-editor) | 0.9.4 (develop, 021aa0e) | MIT | `deps/imgui_node_editor/LICENSE` (editor only) |
 | [Jolt Physics](https://github.com/jrouwe/JoltPhysics) | 5.7.0 | MIT | `deps/jolt/LICENSE` |
 | [Luau](https://github.com/luau-lang/luau) | 0.741 | MIT | `deps/luau/LICENSE.txt`, `deps/luau/lua_LICENSE.txt` |
+| [Lucide](https://github.com/lucide-icons/lucide) | 1.66.0 (lucide-static's font) | ISC, MIT for the icons from Feather | `deps/lucide/LICENSE` (the editor's icons) |
 | [meshoptimizer](https://github.com/zeux/meshoptimizer) | 1.3 | MIT | `deps/meshoptimizer/LICENSE.md` |
 | [miniaudio](https://github.com/mackron/miniaudio) | 0.11.26 | public domain (Unlicense) or MIT-0 | `deps/miniaudio/LICENSE` |
 | [msdfgen](https://github.com/Chlumsky/msdfgen) | 1.13 | MIT | `deps/msdfgen/LICENSE.txt` (editor and cook only) |

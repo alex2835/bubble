@@ -3,6 +3,7 @@
 #include "bubble/core/log.hpp"
 #include "bubble/data/value_json.hpp"
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/play_session.hpp"
@@ -65,8 +66,8 @@ Value TextValue( string_view text )
 }
 
 // A set prop stands out from one at its file's default.
-constexpr ImVec4 cSet{ 1.0f, 0.85f, 0.45f, 1.0f };
-constexpr ImVec4 cError{ 1.0f, 0.45f, 0.4f, 1.0f };
+constexpr ImVec4 cSet = EditorColor::cSet;
+constexpr ImVec4 cError = EditorColor::cError;
 
 using MaterialParamValue = pair<string, MaterialValue>;
 
@@ -509,7 +510,7 @@ void Inspector::ImportSettings( const string& path )
         ImGui::TextDisabled( "%.*s", static_cast<int>( kind.size() ), kind.data() );
     if ( const auto errorMaybe = mProject.TryErrorOf( *assetMaybe ) )
     {
-        ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.0f, 0.45f, 0.4f, 1.0f ) );
+        ImGui::PushStyleColor( ImGuiCol_Text, cError );
         ImGui::TextWrapped( "%s", errorMaybe->c_str() );
         ImGui::PopStyleColor();
     }

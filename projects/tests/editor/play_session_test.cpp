@@ -149,7 +149,7 @@ TEST_CASE( "While a game plays, the inspector shows a script's self as the game 
 {
     Fixture f;
     ImGuiContextScope context;
-    Editor::SetUpImGui( 1.0f );
+    Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
     ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
     ImGui::GetIO().DisplaySize = ImVec2( 500, 900 );
     Inspector inspector( *f.mProject );

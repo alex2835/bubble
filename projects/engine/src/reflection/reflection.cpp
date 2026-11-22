@@ -6,6 +6,19 @@
 
 namespace bubble
 {
+void DeclareNames( const char* names )
+{
+    if ( names == nullptr )
+        return;
+    string_view rest( names );
+    while ( not rest.empty() )
+    {
+        const size_t comma = rest.find( ',' );
+        (void)Name::Declare( rest.substr( 0, comma ) );
+        rest = comma == string_view::npos ? string_view() : rest.substr( comma + 1 );
+    }
+}
+
 namespace
 {
 const FieldInfo cNoFieldInfo{};

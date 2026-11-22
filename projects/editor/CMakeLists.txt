@@ -16,7 +16,19 @@ add_custom_command( OUTPUT ${BUBBLE_EDITOR_FONT}
 # operators: ImGui's backends of our own - the platform's events in, the GPU
 # out -, the worlds that show documents, the viewport. The engine, import
 # and editing never include it.
-add_library( bubble_editor STATIC ${BUBBLE_EDITOR_SOURCES} ${BUBBLE_EDITOR_HEADERS} ${BUBBLE_EDITOR_FONT} )
+# Its icons, Lucide's font, built in the same way and merged into the font.
+set( BUBBLE_EDITOR_ICONS_SOURCE ${PROJECT_SOURCE_DIR}/deps/lucide/lucide.ttf )
+set( BUBBLE_EDITOR_ICONS ${CMAKE_CURRENT_BINARY_DIR}/generated/editor_icons_font.cpp )
+add_custom_command( OUTPUT ${BUBBLE_EDITOR_ICONS}
+                    COMMAND ${CMAKE_COMMAND} -DINPUT=${BUBBLE_EDITOR_ICONS_SOURCE} -DOUTPUT=${BUBBLE_EDITOR_ICONS}
+                            -DNAME=EditorIconsFont -DLABEL=deps/lucide/lucide.ttf
+                            -P ${PROJECT_SOURCE_DIR}/cmake/embed_file.cmake
+                    DEPENDS ${BUBBLE_EDITOR_ICONS_SOURCE} ${PROJECT_SOURCE_DIR}/cmake/embed_file.cmake
+                    COMMENT "Building the editor's icons in"
+                    VERBATIM )
+
+add_library( bubble_editor STATIC ${BUBBLE_EDITOR_SOURCES} ${BUBBLE_EDITOR_HEADERS} ${BUBBLE_EDITOR_FONT}
+             ${BUBBLE_EDITOR_ICONS} )
 target_include_directories( bubble_editor PUBLIC include )
 bubble_target_warnings( bubble_editor )
 target_link_libraries( bubble_editor PUBLIC bubble_editing imgui PRIVATE imguizmo imgui_node_editor )

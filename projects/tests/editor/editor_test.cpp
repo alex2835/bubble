@@ -35,6 +35,7 @@ struct Whole
     Scope<EditorProject> mProject;
     Scope<Gpu> mGpu = StartGpu();
     Scope<Renderer> mRenderer;
+    Preferences mPreferences{ nullopt };
     ImGuiContextScope mContext;
     Scope<Editor> mEditor;
 
@@ -50,10 +51,10 @@ struct Whole
         mProject = std::move( *projectMaybe );
         REQUIRE( mProject->TryOpenStartLevel() );
         mRenderer = CreateScope<Renderer>( *mGpu, mProject->GetAssets() );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = ImVec2( 1280, 720 );
-        mEditor = CreateScope<Editor>( *mProject, *mGpu, *mRenderer, []( const OsPath& ) {} );
+        mEditor = CreateScope<Editor>( *mProject, mPreferences, *mGpu, *mRenderer, []( const OsPath& ) {} );
     }
 
     ~Whole()

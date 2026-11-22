@@ -59,7 +59,7 @@ struct Ui
         mProject = std::move( *projectMaybe );
         REQUIRE( mProject->Run( "document.open", *Json::TryParse( R"({ "path": "hero.anim" })" ) ) );
         mInspector = CreateScope<Inspector>( *mProject );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = ImVec2( cCanvas.x + 400, cCanvas.y );
         for ( int frame = 0; frame < 5; ++frame )

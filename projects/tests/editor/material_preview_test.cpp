@@ -172,7 +172,7 @@ struct Ui : Materials
     explicit Ui( string_view path )
     {
         mInspector = CreateScope<Inspector>( *mProject );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = ImVec2( 500, 900 );
         Open( path );

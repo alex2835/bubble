@@ -87,7 +87,7 @@ struct Ui
         REQUIRE( mProject->TryOpenStartLevel() );
         mAssets = CreateScope<AssetsPanel>( *mProject, [this]( const OsPath& path ) { mOpened.push_back( path ); } );
         mInspector = CreateScope<Inspector>( *mProject );
-        Editor::SetUpImGui( 1.0f );
+        Editor::SetUpImGui( AppearancePreferences{}, 1.0f );
         ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
         ImGui::GetIO().DisplaySize = ImVec2( 900, 600 );
         Frame();

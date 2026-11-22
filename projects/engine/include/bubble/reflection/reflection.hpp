@@ -95,6 +95,10 @@ struct TypeInfo
 
 using FieldListenerHandle = Handle<struct FieldListenerTag>;
 
+// Each name of a list with a comma between - "column,row" - declared, so it
+// is written as itself; none is nothing.
+void DeclareNames( const char* names );
+
 // Describes T, a step at a time. A bad name is a bug in the description: a
 // logic_error, at startup.
 template <typename T>
@@ -108,6 +112,7 @@ public:
     template <auto Member>
     TypeBuilder& Field( string_view name, FieldInfo info = {} )
     {
+        DeclareChoices( info );
         mFactory.template data<Member, entt::as_ref_t>( Declare( name ) ).template custom<FieldInfo>( info );
         return *this;
     }
@@ -117,6 +122,7 @@ public:
     template <auto Setter, auto Getter>
     TypeBuilder& Property( string_view name, FieldInfo info = {} )
     {
+        DeclareChoices( info );
         mFactory.template data<Setter, Getter>( Declare( name ) ).template custom<FieldInfo>( info );
         return *this;
     }
@@ -146,6 +152,9 @@ public:
 
 private:
     static u32 Declare( string_view name ) { return Name::Declare( name ).Hash(); }
+    // The names a Name field takes are declared with it: a default made with
+    // "natural"_n is written to a file as natural, not as its hash.
+    static void DeclareChoices( const FieldInfo& info ) { DeclareNames( info.mChoices ); }
 
     entt::meta_factory<T> mFactory;
     TypeInfo mInfo;

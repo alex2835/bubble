@@ -1,5 +1,6 @@
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/animation/animation.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/panel.hpp"
 #include "bubble/editor/play_session.hpp"
 #include "bubble/scene/hierarchy.hpp"
@@ -51,8 +52,8 @@ bool IsInPin( ed::PinId pin )
     return ( pin.Get() - 1 ) % 3 == 1;
 }
 
-constexpr ImVec4 cEntry{ 1.0f, 0.85f, 0.45f, 1.0f };
-constexpr ImVec4 cRefused{ 1.0f, 0.45f, 0.4f, 1.0f };
+constexpr ImVec4 cEntry = EditorColor::cSet;
+constexpr ImVec4 cRefused = EditorColor::cError;
 
 Value TextValue( string_view text )
 {
@@ -250,7 +251,8 @@ void GraphView::Show( DataDocument& document )
     ed::End();
 
     if ( not mLiveState.empty() )
-        ImGui::GetWindowDrawList()->AddText( ImVec2( corner.x + 8, corner.y + 6 ), IM_COL32( 110, 255, 130, 255 ),
+        ImGui::GetWindowDrawList()->AddText( ImVec2( corner.x + 8, corner.y + 6 ),
+                                             ImGui::GetColorU32( EditorColor::cLive ),
                                              format( "playing in {}", mLiveEntity ).c_str() );
 
     // One state or one transition selected is what the inspector shows.
@@ -294,7 +296,7 @@ void GraphView::Nodes( const DataDocument& document, span<const Node> nodes )
         const bool live = node.mName == mLiveState;
         if ( live )
         {
-            ed::PushStyleColor( ed::StyleColor_NodeBorder, ImVec4( 0.43f, 1.0f, 0.5f, 1.0f ) );
+            ed::PushStyleColor( ed::StyleColor_NodeBorder, EditorColor::cLive );
             ed::PushStyleVar( ed::StyleVar_NodeBorderWidth, 3.0f );
         }
         ed::BeginNode( id );
@@ -616,7 +618,7 @@ void GraphView::PreviewControls( const DataDocument& document )
                 ImGui::PopID();
             }
     if ( not preview.Error().empty() )
-        ImGui::TextColored( ImVec4( 1.0f, 0.45f, 0.4f, 1.0f ), "%s", preview.Error().c_str() );
+        ImGui::TextColored( cRefused, "%s", preview.Error().c_str() );
     else if ( const auto stateMaybe = preview.TryState() )
         ImGui::TextDisabled( "playing %s", stateMaybe->c_str() );
 }

@@ -1,0 +1,8 @@
+Lucide 1.66.0, the icon font of the npm package lucide-static (ISC)
+https://lucide.dev, https://github.com/lucide-icons/lucide
+
+font/lucide.ttf as the package ships it: the editor's icons, built into it
+(cmake/embed_file.cmake) and merged into its font. The codepoints the editor
+uses are in projects/editor/include/bubble/editor/editor_icons.hpp, read from
+the package's font/info.json. LICENSE is the package's: ISC, and MIT for the
+icons that came from Feather.

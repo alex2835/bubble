@@ -15,6 +15,7 @@
 #include "bubble/data/png.hpp"
 #include "bubble/editor/editor.hpp"
 #include "bubble/editor/editor_mcp.hpp"
+#include "bubble/editor/editor_preferences.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/platform/platform.hpp"
 #include "bubble/render/gpu/gpu.hpp"
@@ -136,6 +137,11 @@ int main( int argc, char** argv )
     if ( not deviceMaybe )
         LogWarning( "{}", deviceMaybe.error() );
     const Scope<AudioDevice> audio = deviceMaybe ? std::move( *deviceMaybe ) : AudioDevice::Offline();
+    // One person's preferences, for every project, in their own folder.
+    const auto folderMaybe = platform.TrySaveFolder( "editor" );
+    if ( not folderMaybe )
+        LogWarning( "preferences: {}; kept until the editor quits alone", folderMaybe.error() );
+    Preferences preferences( folderMaybe ? opt<OsPath>( *folderMaybe / Preferences::cFileName ) : nullopt );
 
     auto projectMaybe = EditorProject::TryOpen( arguments.mRoot, *audio );
     if ( not projectMaybe )
@@ -161,7 +167,8 @@ int main( int argc, char** argv )
     Window& window = *windowMaybe;
     // The layout is the project's, beside its import cache.
     const ImGuiContextScope context( arguments.mRoot / ".bubble" / "editor_layout.ini" );
-    Editor::SetUpImGui( window.Scale() );
+    AppearancePreferences appearance = preferences.Get().mAppearance;
+    Editor::SetUpImGui( appearance, window.Scale() );
     ImGuiInput input( platform, window );
 
     const Scope<GpuStartup> startup = Gpu::Start( window );
@@ -169,6 +176,7 @@ int main( int argc, char** argv )
     string title;
     bool cursorLocked = false;
     u64 framesDrawn = 0;
+    opt<u16> mcpTried;
     int exitCode = 0;
     platform.Run( [&]( f64 elapsed ) {
         for ( const InputEvent& event : platform.Poll() )
@@ -201,17 +209,29 @@ int main( int argc, char** argv )
             drawing.mGpu = std::move( **finishedMaybe );
             drawing.mRenderer = CreateScope<Renderer>( *drawing.mGpu, project.GetAssets() );
             drawing.mImGui = CreateScope<ImGuiRenderer>( *drawing.mGpu );
-            drawing.mEditor =
-                CreateScope<Editor>( project, *drawing.mGpu, *drawing.mRenderer, [&platform]( const OsPath& path ) {
+            drawing.mEditor = CreateScope<Editor>(
+                project, preferences, *drawing.mGpu, *drawing.mRenderer, [&platform]( const OsPath& path ) {
                     if ( auto openedMaybe = platform.TryOpen( path ); not openedMaybe )
                         LogError( "{}", openedMaybe.error() );
                 } );
-            if ( arguments.mMcpPort )
+        }
+        // The MCP server as --mcp or the preferences want it: started, moved
+        // to another port, stopped. A port that fails is not tried again
+        // until the wish changes.
+        const McpPreferences& mcp = preferences.Get().mMcp;
+        const opt<u16> wantedMaybe = arguments.mMcpPort ? arguments.mMcpPort
+                                     : mcp.mServe       ? opt<u16>( static_cast<u16>( mcp.mPort ) )
+                                                        : nullopt;
+        if ( wantedMaybe != mcpTried )
+        {
+            mcpTried = wantedMaybe;
+            drawing.mMcp.reset();
+            drawing.mEditor->SetMcpUrl( "" );
+            if ( wantedMaybe )
             {
                 vector<McpTool> tools = EditorMcpTools( project );
                 tools.push_back( ViewportScreenshotTool( *drawing.mGpu, drawing.mEditor->GetViewport() ) );
-                auto serverMaybe =
-                    McpServer::TryStart( *arguments.mMcpPort, std::move( tools ), EditorMcpInstructions() );
+                auto serverMaybe = McpServer::TryStart( *wantedMaybe, std::move( tools ), EditorMcpInstructions() );
                 if ( serverMaybe )
                 {
                     drawing.mMcp = std::move( *serverMaybe );
@@ -230,6 +250,13 @@ int main( int argc, char** argv )
         if ( drawing.mMcp )
             drawing.mMcp->Serve();
 
+        // The appearance changed in the preferences: the fonts and the style
+        // made again, between frames.
+        if ( preferences.Get().mAppearance != appearance )
+        {
+            appearance = preferences.Get().mAppearance;
+            Editor::SetUpImGui( appearance, window.Scale() );
+        }
         input.NewFrame( elapsed );
         ImGui::NewFrame();
         drawing.mEditor->Frame( elapsed );

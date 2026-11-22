@@ -3,6 +3,7 @@
 #include "bubble/assets/texture_asset.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/core/utf8.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/world/transform.hpp"
 #include <imgui.h>
@@ -13,7 +14,7 @@ namespace bubble
 namespace
 {
 // A file that would not import.
-constexpr ImVec4 cBroken{ 1.0f, 0.45f, 0.4f, 1.0f };
+constexpr ImVec4 cBroken = EditorColor::cError;
 // How often the project's files are listed again, in seconds, besides after
 // the panel's own changes.
 constexpr f64 cListEvery = 1.0;

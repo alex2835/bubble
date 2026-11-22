@@ -1,6 +1,8 @@
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/core/log.hpp"
 #include "bubble/editor/assets_panel.hpp"
+#include "bubble/editor/editor_icons.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/panel.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scene/prefab_link.hpp"
@@ -43,9 +45,9 @@ Json EntityJson( const Scene& scene, string key, Entity entity )
 opt<ImVec4> ColorOf( const Scene& scene, Entity entity )
 {
     if ( scene.Has<PrefabInstance>( entity ) )
-        return ImVec4( 0.45f, 0.7f, 1.0f, 1.0f );
+        return EditorColor::cPrefab;
     if ( scene.Has<PrefabLink>( entity ) )
-        return ImVec4( 0.65f, 0.8f, 1.0f, 1.0f );
+        return EditorColor::cPrefabInside;
     return nullopt;
 }
 }
@@ -242,7 +244,9 @@ void ScenePanel::Row( Document& document, Entity entity )
     const auto colorMaybe = ColorOf( scene, entity );
     if ( colorMaybe )
         ImGui::PushStyleColor( ImGuiCol_Text, *colorMaybe );
-    const string name = root ? RootLabel( document ) : NameOf( scene, entity ).String();
+    // An icon of what it is before its name; the root is the document's.
+    const string name =
+        root ? RootLabel( document ) : format( "{}  {}", IconOf( scene, entity ), NameOf( scene, entity ).String() );
     if ( mReveal != Entity::Null and IsAncestor( scene, entity, mReveal ) )
         ImGui::SetNextItemOpen( true );
     const bool open = renaming ? ImGui::TreeNodeEx( "node", flags, "%s", "" )

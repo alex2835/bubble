@@ -43,8 +43,8 @@ out\build\windows-debug\bin\bubble_tests.exe
 deps/                         vendored, each with its license; listed in THIRD_PARTY_NOTICES.md (ozz built by our
                               own CMake: its runtime in the engine, its offline builders in import; Yoga in the
                               engine; FreeType - TrueType and OpenType modules - and msdfgen in import; Dear ImGui's
-                              core - docking, no backends -, ImGuizmo, imgui-node-editor and Roboto, the font built
-                              into it, in the editor).
+                              core - docking, no backends -, ImGuizmo, imgui-node-editor, Roboto, the font built
+                              into it, and Lucide's icon font merged into that, in the editor).
                               wgpu-native alone is downloaded at configure time into out/downloads, pinned by version
                               and SHA-256
 deps/luaubind/                our own small sol-like C++ binding for Luau; depends on Luau only
@@ -156,7 +156,7 @@ projects/engine/include/bubble/
                               found by the path when the id is not); EncodePng (RGBA8 as a PNG, stored blocks: a
                               screenshot, a reference picture)
     reflection/               Reflection (an entt::meta context): TypeBuilder, FieldInfo (range, flags, tooltip, the
-                              asset kind a field takes, the names a Name field takes), Get/Set/Call by name,
+                              asset kind a field takes, the names a Name field takes - declared with it -), Get/Set/Call by name,
                               FieldPath ("shadow.bias", "steps[2]"), Value <-> MetaAny, field listeners
     scripts/                  lua.hpp (luaubind names in bubble; Entity, Color, AssetId cross as Luau types),
                               ScriptAsset (bytecode, props read from the AST, requires resolved; TryResolveRequire),
@@ -259,7 +259,20 @@ projects/editing/include/bubble/editing/
 projects/editor/              bubble_editor, on editing and Dear ImGui, never included by the rest: ImGui's backends
                               of our own (ImGuiInput - the platform's events in, the pointer, text input and the
                               clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
-                              and its lists drawn by our GPU; our textures in as TextureId( view ) -), EditorProject
+                              and its lists drawn by our GPU; our textures in as TextureId( view ) -), ApplyEditorStyle and EditorColor (the
+                              palette in one place: neutral greys, one accent - the preferences', orange at first,
+                              kept in the style: Accent() - where it means something - selected, on, turned to -,
+                              errors, overrides, prefabs, what plays), Preferences (editor_preferences.hpp: one
+                              person's EditorPreferences for every project - appearance: font, its size, scale,
+                              accent, icons; camera: turn speed, invert Y, Shift's factor, zoom, field of view;
+                              viewport; MCP -, described to a Reflection of their own, editor.json in
+                              Platform::TrySaveFolder( "editor" ), every field left out at its default),
+                              PreferencesPanel (Edit > Preferences: the fields by reflection, edited as a Value, in
+                              effect at once, written when let go; SetUpImGui makes the fonts again between frames
+                              when the appearance changes), Icon (editor_icons.hpp: Lucide's
+                              characters, merged into the font - an icon is UTF-8 in a label -; IconOf - what an
+                              entity is by its components, for the tree -, TryMarkerOf - what the viewport marks: a
+                              light, a camera, a sound with no model -), EditorProject
                               (a project open: settings, App with every module - saves into memory -, the
                               registry, its sources kept imported, the Workspace and Operators; TryImporterOf;
                               ClipNames - its models' clips -; the
@@ -291,11 +304,13 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               rectangle drawn selects what it covers - InRectangle -, the gizmo on ImGuizmo moves,
                               turns and scales the active entity and the rest selected with it - MovedTogether; W,
                               E, R, X; one history group a drag -, the selection's boxes, colliders, lights' reach and cameras' views as
-                              the world's debug lines; every light and camera marked - Icons -; the scene's UI over
+                              the world's debug lines; every light and camera marked - Icons -, and
+                              what the picture does not show by its icon on a disc - MarkersOf, a click or a
+                              rectangle selecting it, TryMarkerAt -; the scene's UI over
                               the picture, laid out for it; the floor's grid - FloorGrid, faded far off -; a game played
                               shown through its camera with its UI, only looked at, or looked around in with the
                               editor's camera - Free Camera, ShowsGame -; Decompose),
-                              ScenePanel (the tree - a prefab's root a row of its own, RootLabel -: clicks with
+                              ScenePanel (the tree - each row with its entity's icon, a prefab's root a row of its own, RootLabel -: clicks with
                               ctrl and shift, the arrows, F2, drag to move, a menu and keys - ClickCall and TryDropCall say what
                               they ask; operators run after the rows are walked; an entity made active elsewhere is
                               shown), Inspector (the active entity: its name, its components' fields as Values by
@@ -331,7 +346,8 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               thread by Serve between frames; McpProtocol - the JSON-RPC apart from the sockets -),
                               EditorMcpTools (editor_state, scene_tree, get_entity, set_field - JSON as files write
                               it, by the field's type -, list_operators, run_operator, run_lua, list_assets,
-                              read_log; ViewportScreenshotTool: the viewport's picture shrunk, a PNG in base64). main.cpp is
+                              read_log; ViewportScreenshotTool: the viewport's picture shrunk, a PNG in base64; started by
+                              --mcp or the preferences, moved or stopped as they change). main.cpp is
                               bubble_editor <project folder> [--open path]... [--play] [--mcp [port]] [--frames N]
                               [--screenshot file.png], the
                               desktop alone; its layout in the project's .bubble/editor_layout.ini

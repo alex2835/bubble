@@ -5,6 +5,7 @@
 #include "bubble/editor/document_world.hpp"
 #include "bubble/editor/editor_project.hpp"
 #include "bubble/editor/inspector.hpp"
+#include "bubble/editor/preferences_panel.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/viewport.hpp"
 #include "bubble/editor/world_picture.hpp"
@@ -28,16 +29,22 @@ namespace bubble
 class Editor
 {
 public:
-    // The project, the Gpu and the renderer outlive it; `open` hands a file
-    // to the system, as the platform does.
-    Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<void( const OsPath& )> open );
+    // The project, the preferences, the Gpu and the renderer outlive it;
+    // `open` hands a file to the system, as the platform does.
+    Editor( EditorProject& project,
+            Preferences& preferences,
+            Gpu& gpu,
+            Renderer& renderer,
+            function<void( const OsPath& )> open );
     Editor( const Editor& ) = delete;
     Editor& operator=( const Editor& ) = delete;
 
-    // How the editor looks: its own font - built in, glyphs made as text
-    // needs them, Cyrillic too -, at the window's `scale`, ImGui's dark style,
-    // docking. Once a context, before its first frame.
-    static void SetUpImGui( f32 scale );
+    // How the editor looks, as the preferences say: its font - Roboto built
+    // in, or a file -, glyphs made as text needs them, Cyrillic too, the
+    // icons merged in; its style at the display's `displayScale` times the
+    // preferences' own; docking. Before the context's first frame, and again
+    // between frames when the appearance changes.
+    static void SetUpImGui( const AppearancePreferences& appearance, f32 displayScale );
 
     // The frame's widgets, between ImGui::NewFrame and ImGui::Render: the
     // project looked at now and then, the active document's world on a
@@ -63,6 +70,7 @@ public:
     void AskToQuit() { mQuitWanted = true; }
     // Where the MCP server listens, shown on the menu's bar: agents drive
     // the editor there.
+    // Empty: no server.
     void SetMcpUrl( string url ) { mMcpUrl = std::move( url ); }
     // Quit for good: nothing not saved, or the user said so.
     bool QuitAsked() const { return mQuitAsked; }
@@ -100,12 +108,14 @@ private:
     opt<string> TryActiveTitle();
 
     EditorProject& mProject;
+    Preferences& mPreferences;
     Gpu& mGpu;
     Renderer& mRenderer;
     ScenePanel mScene;
     Inspector mInspector;
     AssetsPanel mAssets;
     Viewport mViewport;
+    PreferencesPanel mPreferencesPanel;
     string mMcpUrl;
     // The shown scene's tab as last drawn: a scene made active by an
     // operator gets its tab picked.

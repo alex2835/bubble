@@ -1,11 +1,14 @@
 #include "bubble/editor/editor.hpp"
+#include "bubble/core/utf8.hpp"
 #include "bubble/editor/editor_font.hpp"
+#include "bubble/editor/editor_style.hpp"
 #include "bubble/editor/graph_view.hpp"
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/material_preview.hpp"
 #include "bubble/editor/panel.hpp"
 #include "bubble/editor/play_session.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/types/stream.hpp"
 #include "bubble/ui/ui.hpp"
 #include "bubble/world/game.hpp"
 #include <imgui.h>
@@ -28,23 +31,29 @@ ImVec4 ColorOf( LogLevel level )
 {
     switch ( level )
     {
-        case LogLevel::Warning: return ImVec4( 0.95f, 0.8f, 0.35f, 1.0f );
-        case LogLevel::Error: return ImVec4( 1.0f, 0.45f, 0.4f, 1.0f );
-        case LogLevel::Script: return ImVec4( 0.6f, 0.85f, 1.0f, 1.0f );
+        case LogLevel::Warning: return EditorColor::cWarning;
+        case LogLevel::Error: return EditorColor::cError;
+        case LogLevel::Script: return EditorColor::cScript;
         case LogLevel::Info: break;
     }
     return ImGui::GetStyleColorVec4( ImGuiCol_Text );
 }
 }
 
-Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<void( const OsPath& )> open )
+Editor::Editor( EditorProject& project,
+                Preferences& preferences,
+                Gpu& gpu,
+                Renderer& renderer,
+                function<void( const OsPath& )> open )
     : mProject( project ),
+      mPreferences( preferences ),
       mGpu( gpu ),
       mRenderer( renderer ),
       mScene( project ),
       mInspector( project ),
       mAssets( project, std::move( open ) ),
-      mViewport( project, gpu, renderer )
+      mViewport( project, gpu, renderer ),
+      mPreferencesPanel( preferences )
 {
     // A texture's file shown small: loaded the first time it is shown, its
     // GPU copy the renderer's.
@@ -64,20 +73,60 @@ Editor::Editor( EditorProject& project, Gpu& gpu, Renderer& renderer, function<v
     } );
 }
 
-void Editor::SetUpImGui( f32 scale )
+void Editor::SetUpImGui( const AppearancePreferences& appearance, f32 displayScale )
 {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
-    // The font's bytes are the program's own: the atlas keeps the pointer.
-    ImFontConfig font;
-    font.FontDataOwnedByAtlas = false;
-    const span<const u8> bytes = EditorFont();
-    io.Fonts->AddFontFromMemoryTTF( const_cast<u8*>( bytes.data() ), static_cast<int>( bytes.size() ), 0.0f, &font );
-    ImGui::StyleColorsDark();
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FontSizeBase = 15.0f;
-    style.ScaleAllSizes( scale );
-    style.FontScaleDpi = scale;
+    // Again after the preferences changed, between frames: the fonts made
+    // anew, the glyphs drawn before let go.
+    while ( not io.Fonts->Fonts.empty() )
+        io.Fonts->RemoveFont( io.Fonts->Fonts.back() );
+    // Sizes below are said against this one; the style's font size scales
+    // them all.
+    constexpr f32 cReference = 15.0f;
+    bool added = false;
+    if ( not appearance.mFont.empty() )
+    {
+        ifstream file( PathFromUtf8( appearance.mFont ), ios::binary );
+        ostringstream bytes;
+        bytes << file.rdbuf();
+        const string read = bytes.str();
+        if ( file and not read.empty() )
+        {
+            // The atlas owns its copy, as ImGui's allocator gave it.
+            void* owned = IM_ALLOC( read.size() );
+            memcpy( owned, read.data(), read.size() );
+            added = io.Fonts->AddFontFromMemoryTTF( owned, static_cast<int>( read.size() ), cReference ) != nullptr;
+        }
+        if ( not added )
+            LogError( "preferences: appearance.font: {} is not a font that could be read; Roboto instead",
+                      appearance.mFont );
+    }
+    if ( not added )
+    {
+        // The font's bytes are the program's own: the atlas keeps the pointer.
+        ImFontConfig font;
+        font.FontDataOwnedByAtlas = false;
+        const span<const u8> bytes = EditorFont();
+        io.Fonts->AddFontFromMemoryTTF( const_cast<u8*>( bytes.data() ), static_cast<int>( bytes.size() ), cReference,
+                                        &font );
+    }
+    // The icons merged into it: Lucide's private-use characters alone, as
+    // large as the preferences say against the text's size, a little wider
+    // so a column of them lines up, a little lower to sit on the text's
+    // middle.
+    static constexpr ImWchar cIconRange[] = { 0xE000, 0xF8FF, 0 };
+    const f32 toReference = cReference / appearance.mFontSize;
+    ImFontConfig icons;
+    icons.FontDataOwnedByAtlas = false;
+    icons.MergeMode = true;
+    icons.GlyphRanges = cIconRange;
+    icons.GlyphMinAdvanceX = ( appearance.mTextIcon + 1.0f ) * toReference;
+    icons.GlyphOffset = ImVec2( 0.0f, appearance.mTextIcon / 8.5f * toReference );
+    const span<const u8> iconBytes = EditorIconsFont();
+    io.Fonts->AddFontFromMemoryTTF( const_cast<u8*>( iconBytes.data() ), static_cast<int>( iconBytes.size() ),
+                                    appearance.mTextIcon * toReference, &icons );
+    ApplyEditorStyle( displayScale * appearance.mScale, appearance.mFontSize, appearance.mAccent );
 }
 
 namespace
@@ -135,6 +184,7 @@ void Editor::Frame( f64 elapsed )
     // between them - and what the viewport draws over the selection; each
     // material's preview its sphere.
     Workspace& workspace = mProject.GetWorkspace();
+    mViewport.Prefer( mPreferences.Get() );
     {
         // Looked up for this part alone: a key, the menu or a tab below may
         // stop the game, and its document and world go with it.
@@ -227,6 +277,7 @@ void Editor::Frame( f64 elapsed )
     }
     ImGui::End();
     AssetWindows();
+    mPreferencesPanel.Show();
     LogPanel();
     // After the log: a window made last is the tab shown, the first time.
     if ( ImGui::Begin( "Assets" ) )
@@ -326,6 +377,9 @@ void Editor::Menu()
     {
         MenuItem( "Undo", "Ctrl+Z", "edit.undo" );
         MenuItem( "Redo", "Ctrl+Y", "edit.redo" );
+        ImGui::Separator();
+        if ( ImGui::MenuItem( "Preferences..." ) )
+            mPreferencesPanel.Open();
         ImGui::EndMenu();
     }
     PlayButtons();
@@ -353,7 +407,12 @@ void Editor::PlayButtons()
             ImGui::SetTooltip( "%s", pollMaybe ? tip : pollMaybe.error().c_str() );
     };
     if ( playMaybe )
+    {
+        // A game playing is the one thing on the bar in the accent.
+        ImGui::PushStyleColor( ImGuiCol_Text, EditorColor::Accent() );
         button( "Stop", "play.stop", "Ctrl+P: the game's copy thrown away" );
+        ImGui::PopStyleColor();
+    }
     else
         button( "Play", "play.start", "Ctrl+P: the scene shown, played on a copy" );
     const bool paused = playMaybe and playMaybe->GetWorld().Paused();

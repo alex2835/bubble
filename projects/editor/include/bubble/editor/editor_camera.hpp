@@ -29,8 +29,8 @@ struct EditorCamera
     // The same turn where the camera stands: it looks elsewhere.
     void Look( vec2 pixels );
     // Flies for `seconds` along `keys` - x to the right, y up the world's
-    // up, z ahead where it looks -, `fast` four times as fast.
-    void Fly( vec3 keys, f32 seconds, bool fast );
+    // up, z ahead where it looks -, `speedUp` times as fast as it flies.
+    void Fly( vec3 keys, f32 seconds, f32 speedUp = 1.0f );
     // A wheel's notches flying: up faster, by a share of the speed.
     void Faster( f32 notches );
     // Slides the focus with the mouse, so what is under it stays under it:

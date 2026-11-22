@@ -172,13 +172,13 @@ TEST_CASE( "The editor's camera looks about where it stands, flies, and goes rou
     // A second ahead at five meters a second; with shift four times as far,
     // two keys at once no farther than one; up is the world's.
     const vec3 from = camera.Position();
-    camera.Fly( vec3( 0, 0, 1 ), 1.0f, false );
+    camera.Fly( vec3( 0, 0, 1 ), 1.0f );
     CHECK( glm::length( camera.Position() - ( from + camera.Forward() * 5.0f ) ) < 1e-4f );
     const vec3 ahead = camera.Position();
-    camera.Fly( vec3( 1, 0, 1 ), 1.0f, true );
+    camera.Fly( vec3( 1, 0, 1 ), 1.0f, 4.0f );
     CHECK( glm::length( camera.Position() - ahead ) == doctest::Approx( 20.0f ) );
     const vec3 aside = camera.Position();
-    camera.Fly( vec3( 0, 1, 0 ), 0.5f, false );
+    camera.Fly( vec3( 0, 1, 0 ), 0.5f );
     CHECK( glm::length( camera.Position() - ( aside + vec3( 0, 2.5f, 0 ) ) ) < 1e-4f );
     camera.Faster( 1.0f );
     CHECK( camera.mFlySpeed == doctest::Approx( 5.0f / 0.85f ) );

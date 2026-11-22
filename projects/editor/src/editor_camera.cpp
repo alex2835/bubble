@@ -18,8 +18,6 @@ constexpr f32 cNearest = 0.3f;
 // Nor less far than this a notch, however near: the wheel never sticks.
 constexpr f32 cLeastStep = 0.2f;
 constexpr f32 cFarthest = 100000.0f;
-// Flying with shift.
-constexpr f32 cFast = 4.0f;
 
 quat TurnOf( f32 yaw, f32 pitch )
 {
@@ -49,7 +47,7 @@ void EditorCamera::Look( vec2 pixels )
     OrbitAbout( pixels, Position() );
 }
 
-void EditorCamera::Fly( vec3 keys, f32 seconds, bool fast )
+void EditorCamera::Fly( vec3 keys, f32 seconds, f32 speedUp )
 {
     vec3 along = Right() * keys.x + vec3( 0.0f, keys.y, 0.0f ) + Forward() * keys.z;
     const f32 length = glm::length( along );
@@ -58,7 +56,7 @@ void EditorCamera::Fly( vec3 keys, f32 seconds, bool fast )
     // Two keys at once go no faster than one.
     if ( length > 1.0f )
         along /= length;
-    mFocus += along * ( mFlySpeed * ( fast ? cFast : 1.0f ) * seconds );
+    mFocus += along * ( mFlySpeed * speedUp * seconds );
 }
 
 void EditorCamera::Faster( f32 notches )

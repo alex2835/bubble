@@ -277,3 +277,21 @@ TEST_CASE( "A text or a list of numbers in a Value is taken for the name, entity
     CHECK_FALSE( set( "target", Value( 3 ) ) );
     CHECK( marker.mKind.ToString() == "door" );
 }
+
+namespace
+{
+struct Shade
+{
+    Name mCurve = "zigzag_curve"_n;
+};
+}
+
+TEST_CASE( "The names a field takes are declared with it, so a default is written as itself" )
+{
+    // Nothing else declares these: before, a hash.
+    CHECK( Name( "zigzag_curve"_n ).ToString().starts_with( "#" ) );
+    Reflection reflection;
+    reflection.Type<Shade>( "shade" ).Field<&Shade::mCurve>( "curve", { .mChoices = "zigzag_curve,zigzag_wave" } );
+    CHECK( Shade{}.mCurve.ToString() == "zigzag_curve" );
+    CHECK( Name( "zigzag_wave"_n ).ToString() == "zigzag_wave" );
+}
