@@ -70,14 +70,15 @@ TEST_CASE( "A field set through ComponentTypes is heard by the scene's listeners
     CHECK( fields.mHeard.size() == 2 );
 }
 
-TEST_CASE( "A component type is described first, and added once" )
+TEST_CASE( "A component type is described first, added once, under its category" )
 {
     Reflection reflection;
     ComponentTypes componentTypes( reflection );
     CHECK_THROWS_AS( componentTypes.Add<Lantern>(), logic_error );
     reflection.Type<Shade>( "shade" ).Field<&Shade::mSoftness>( "softness" );
     reflection.Type<Lantern>( "lantern" ).Field<&Lantern::mGlow>( "glow" ).Field<&Lantern::mShade>( "shade" );
-    componentTypes.Add<Lantern>();
+    componentTypes.Add<Lantern>( "lighting" );
     CHECK_THROWS_AS( componentTypes.Add<Lantern>(), logic_error );
     CHECK( componentTypes.Names() == "lantern" );
+    CHECK( componentTypes.All()[0].mCategory == "lighting" );
 }

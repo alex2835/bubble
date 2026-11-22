@@ -9,6 +9,7 @@
 #include "bubble/render/render_scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/scripts/script_module.hpp"
+#include "bubble/types/algorithm.hpp"
 #include "bubble/ui/ui.hpp"
 #include <doctest.h>
 #include <imgui_internal.h>
@@ -263,4 +264,29 @@ TEST_CASE( "A name field that says the names it takes offers them" )
     ui.Button( false );
     ui.Frame();
     CHECK( ui.GetScene().Get<UiText>( ui.At( "/caption" ) ).mAlign == "center"_n );
+}
+
+TEST_CASE( "Components to add come by category, without what the entity has, a filter finding a name or a category" )
+{
+    Ui ui;
+    const ComponentTypes& types = ui.GetDocument().GetComponentTypes();
+    const Entity lamp = ui.At( "/lamp" );
+    const vector<ComponentGroup> all = ComponentsToAdd( types, ui.GetScene(), lamp, "" );
+    const auto group = [&]( const vector<ComponentGroup>& groups, string_view category ) {
+        const auto found = ranges::find( groups, category, &ComponentGroup::mCategory );
+        return found == groups.end() ? vector<Name>{} : found->mTypes;
+    };
+    CHECK( group( all, "lighting" ) == vector<Name>{ "directional_light"_n, "spot_light"_n } );
+    CHECK( ranges::contains( group( all, "colliders" ), "box_collider"_n ) );
+    CHECK( ranges::contains( group( all, "physics" ), "rigid_body"_n ) );
+    // The lamp has a transform and a script: nothing is left of theirs.
+    CHECK( group( all, "general" ).empty() );
+    CHECK( group( all, "scripts" ).empty() );
+
+    const vector<ComponentGroup> physics = ComponentsToAdd( types, ui.GetScene(), lamp, "Physics" );
+    REQUIRE( physics.size() == 1 );
+    CHECK( ranges::contains( physics[0].mTypes, "vehicle"_n ) );
+    const vector<ComponentGroup> spot = ComponentsToAdd( types, ui.GetScene(), lamp, "spot" );
+    REQUIRE( spot.size() == 1 );
+    CHECK( spot[0].mTypes == vector<Name>{ "spot_light"_n } );
 }

@@ -99,6 +99,25 @@ string FieldLabel( string_view name )
     return label;
 }
 
+vector<ComponentGroup> ComponentsToAdd( const ComponentTypes& types,
+                                        const Scene& scene,
+                                        Entity entity,
+                                        string_view filter )
+{
+    vector<ComponentGroup> groups;
+    for ( const ComponentTypes::Type& type : types.All() )
+    {
+        if ( type.mGet( scene, entity ) or
+             not( Contains( type.mName.ToString(), filter ) or Contains( type.mCategory, filter ) ) )
+            continue;
+        auto group = ranges::find( groups, type.mCategory, &ComponentGroup::mCategory );
+        if ( group == groups.end() )
+            group = groups.insert( groups.end(), ComponentGroup{ .mCategory = type.mCategory, .mTypes = {} } );
+        group->mTypes.push_back( type.mName );
+    }
+    return groups;
+}
+
 Value DefaultOf( const ValueType& type )
 {
     switch ( type.mKind )
@@ -1787,14 +1806,29 @@ void Inspector::AddComponent( Document& document, Entity entity )
     if ( ImGui::IsWindowAppearing() )
         ImGui::SetKeyboardFocusHere();
     ImGui::InputTextWithHint( "##filter", "filter", &mFilter );
-    for ( const ComponentTypes::Type& type : document.GetComponentTypes().All() )
+    const auto add = [&]( Name type ) {
+        if ( ImGui::Selectable( FieldLabel( type.ToString() ).c_str() ) )
+            Run( "component.add", Args( { ValueField{ .mName = "component"_n, .mValue = Value( type ) } } ) );
+    };
+    const vector<ComponentGroup> groups = ComponentsToAdd( document.GetComponentTypes(), scene, entity, mFilter );
+    // Each category a menu of its own; one typed for, everything that has
+    // it under its category's heading, there to be seen at once.
+    for ( const ComponentGroup& group : groups )
     {
-        const string name = type.mName.ToString();
-        if ( type.mGet( scene, entity ) or not Contains( name, mFilter ) )
-            continue;
-        if ( ImGui::Selectable( FieldLabel( name ).c_str() ) )
-            Run( "component.add", Args( { ValueField{ .mName = "component"_n, .mValue = Value( type.mName ) } } ) );
+        const string label = FieldLabel( group.mCategory );
+        if ( not mFilter.empty() )
+        {
+            ImGui::SeparatorText( label.c_str() );
+            ranges::for_each( group.mTypes, add );
+        }
+        else if ( ImGui::BeginMenu( label.c_str() ) )
+        {
+            ranges::for_each( group.mTypes, add );
+            ImGui::EndMenu();
+        }
     }
+    if ( groups.empty() )
+        ImGui::TextDisabled( "Nothing to add" );
     ImGui::EndPopup();
 }
 }

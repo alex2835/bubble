@@ -156,7 +156,7 @@ projects/engine/include/bubble/
                               samplers, fn surface; @default and @color in a line's comment)
     scene/                    Entity, EntityPath, Scene (an EnTT registry; components by type; listeners of a type's
                               components and of fields set), Hierarchy (the tree from the root, names unique among
-                              siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene),
+                              siblings, PathOf/Resolve), ComponentTypes (TrySetField tells the scene; each type under a category - general, rendering, lighting, colliders, physics, animation, audio, scripts, ui - for the editor to group by),
                               SaveScene/LoadScene (nested JSON with "version" and the level's own "asset" id),
                               FileContext (component types, catalog, prefabs by id), one entity to JSON and back;
                               Prefab (nodes with ids that last, next_id), Instantiate, an instance in a level as
@@ -332,7 +332,7 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               a name's list -, what an instance has otherwise than its prefab told apart - Marked -,
                               an entity
                               field taking a row dropped from the tree, a script's props from its file - set ones
-                              apart -, add, remove, revert to and apply to the prefab; every edit property.set, a
+                              apart -, add - a menu a category, ComponentsToAdd; a filter finds a name or a category -, remove, revert to and apply to the prefab; every edit property.set, a
                               drag one history group however many frames - Settle closes it -; a material's base or
                               shader, flags and its shader's parameters - own, its base's or the default; data.set -;
                               a graph's entry, parameters and the state or transition selected on its canvas;

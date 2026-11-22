@@ -23,6 +23,9 @@ public:
     struct Type
     {
         Name mName;
+        // What it is about, for the editor to group types by: "physics",
+        // "lighting", "ui". Snake_case, as everything a user sees.
+        string mCategory;
         MetaType mType;
         // What a file holds for one: how JSON is read back.
         ValueType mValueType;
@@ -46,16 +49,22 @@ public:
     // With the engine's own internal types: PrefabInstance, PrefabLink.
     explicit ComponentTypes( Reflection& reflection );
 
-    // A type not described yet, or added twice, is a logic_error.
+    // Under `category`, for the editor to group it with its like. A type
+    // not described yet, or added twice, is a logic_error.
     template <typename T>
-    void Add()
+    void Add( string_view category = cOther )
     {
         // A component is data: one added in the editor starts as its
         // defaults, and undo and copies keep one by copying it.
         static_assert( default_initializable<T> and copy_constructible<T>,
                        "a component is made with its defaults and copied" );
-        AddType( mReflection.TypeOf<T>(), Make<T>() );
+        Type made = Make<T>();
+        made.mCategory = category;
+        AddType( mReflection.TypeOf<T>(), std::move( made ) );
     }
+
+    // The category of a type added with none.
+    static constexpr string_view cOther = "other";
 
     // In the order they were added: the order a file lists them in.
     span<const Type> All() const { return mTypes; }

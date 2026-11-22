@@ -929,8 +929,8 @@ ModuleType AnimationModule( AssetRegistry& assets )
                     .Field<&Animator::mGraph>( "graph", { .mAssetKind = cAnimationGraphKind.data() } )
                     .Field<&Animator::mSpeed>( "speed" );
                 reflection.Type<BoneAttachment>( "bone_attachment" ).Field<&BoneAttachment::mBone>( "bone" );
-                componentTypes.Add<Animator>();
-                componentTypes.Add<BoneAttachment>();
+                componentTypes.Add<Animator>( "animation" );
+                componentTypes.Add<BoneAttachment>( "animation" );
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Animation>( world, assets ); },
         .mScripts = &ScriptsOfAnimation,

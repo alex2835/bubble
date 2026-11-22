@@ -165,11 +165,11 @@ ModuleType RenderModule( AssetRegistry& assets )
                         "box", { .mTooltip = "A box along the world's axes.", .mParameters = "min, max, color" } )
                     .Method<&DebugDraw::Sphere>( "sphere", { .mTooltip = "Three circles, one about each axis.",
                                                              .mParameters = "centre, radius, color" } );
-                componentTypes.Add<Camera>();
-                componentTypes.Add<DirectionalLight>();
-                componentTypes.Add<PointLight>();
-                componentTypes.Add<SpotLight>();
-                componentTypes.Add<Model>();
+                componentTypes.Add<Camera>( "rendering" );
+                componentTypes.Add<DirectionalLight>( "lighting" );
+                componentTypes.Add<PointLight>( "lighting" );
+                componentTypes.Add<SpotLight>( "lighting" );
+                componentTypes.Add<Model>( "rendering" );
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Render>( world, assets ); },
         .mInEditor = true,

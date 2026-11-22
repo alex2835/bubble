@@ -16,6 +16,21 @@ string FieldLabel( string_view name );
 // empty text, no asset; a record with each field so.
 Value DefaultOf( const ValueType& type );
 
+// The component types of one category the entity has none of yet, for the
+// Add Component menu.
+struct ComponentGroup
+{
+    string mCategory;
+    vector<Name> mTypes;
+};
+// By category, in the order the first of each was added, the types in
+// theirs; only those whose name or category has `filter` in it - "physics"
+// finds all of physics -, and no group left empty.
+vector<ComponentGroup> ComponentsToAdd( const ComponentTypes& types,
+                                        const Scene& scene,
+                                        Entity entity,
+                                        string_view filter );
+
 // The panel of the active entity of the active document: its name, then its
 // components, each field a widget by its kind as reflection describes it -
 // degrees for an angle, a slider in its range, a picker of assets of its

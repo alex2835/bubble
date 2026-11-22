@@ -109,7 +109,7 @@ ModuleType TransformModule()
                     .Field<&Transform::mPosition>( "position" )
                     .Field<&Transform::mRotation>( "rotation", { .mFlags = FieldInfo::Angle } )
                     .Field<&Transform::mScale>( "scale" );
-                componentTypes.Add<Transform>();
+                componentTypes.Add<Transform>( "general" );
             },
         .mCreate = []( World& world ) -> Scope<Module> { return CreateScope<Transforms>( world ); },
         .mInEditor = true,

@@ -562,8 +562,8 @@ ModuleType AudioModule( AssetRegistry& assets, AudioDevice& device )
                     .Field<&AudioSource::mMaxDistance>( "max_distance", { .mMin = 0 } )
                     .Field<&AudioSource::mRolloff>( "rolloff", { .mChoices = "natural,squared,linear" } );
                 reflection.Type<AudioListener>( "audio_listener" ).Field<&AudioListener::mActive>( "active" );
-                componentTypes.Add<AudioSource>();
-                componentTypes.Add<AudioListener>();
+                componentTypes.Add<AudioSource>( "audio" );
+                componentTypes.Add<AudioListener>( "audio" );
             },
         .mCreate = [&assets, &device]( World& world ) -> Scope<Module> {
             return CreateScope<Audio>( world, assets, device );

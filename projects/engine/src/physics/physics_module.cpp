@@ -2192,17 +2192,17 @@ ModuleType PhysicsModule( AssetRegistry& assets )
                     .Field<&Joint::mMaxForce>( "max_force" )
                     .Field<&Joint::mBreakForce>( "break_force", { .mTooltip = "Newtons it bears; 0 never breaks" } )
                     .Field<&Joint::mCollide>( "collide" );
-                componentTypes.Add<BoxCollider>();
-                componentTypes.Add<SphereCollider>();
-                componentTypes.Add<CapsuleCollider>();
-                componentTypes.Add<ConvexCollider>();
-                componentTypes.Add<MeshCollider>();
-                componentTypes.Add<RigidBody>();
-                componentTypes.Add<CharacterController>();
-                componentTypes.Add<Joint>();
-                componentTypes.Add<Ragdoll>();
-                componentTypes.Add<Vehicle>();
-                componentTypes.Add<VehicleWheel>();
+                componentTypes.Add<BoxCollider>( "colliders" );
+                componentTypes.Add<SphereCollider>( "colliders" );
+                componentTypes.Add<CapsuleCollider>( "colliders" );
+                componentTypes.Add<ConvexCollider>( "colliders" );
+                componentTypes.Add<MeshCollider>( "colliders" );
+                componentTypes.Add<RigidBody>( "physics" );
+                componentTypes.Add<CharacterController>( "physics" );
+                componentTypes.Add<Joint>( "physics" );
+                componentTypes.Add<Ragdoll>( "physics" );
+                componentTypes.Add<Vehicle>( "physics" );
+                componentTypes.Add<VehicleWheel>( "physics" );
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Physics>( world, assets ); },
         .mScripts = &ScriptsOfPhysics,

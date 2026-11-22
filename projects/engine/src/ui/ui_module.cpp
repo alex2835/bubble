@@ -1008,13 +1008,13 @@ ModuleType UiModule( AssetRegistry& assets )
                     .Field<&UiSlider::mStep>( "step" )
                     .Field<&UiSlider::mDisabled>( "disabled" )
                     .Field<&UiSlider::mFill>( "fill", color );
-                componentTypes.Add<UiCanvas>();
-                componentTypes.Add<UiRect>();
-                componentTypes.Add<UiImage>();
-                componentTypes.Add<UiText>();
-                componentTypes.Add<UiButton>();
-                componentTypes.Add<UiToggle>();
-                componentTypes.Add<UiSlider>();
+                componentTypes.Add<UiCanvas>( "ui" );
+                componentTypes.Add<UiRect>( "ui" );
+                componentTypes.Add<UiImage>( "ui" );
+                componentTypes.Add<UiText>( "ui" );
+                componentTypes.Add<UiButton>( "ui" );
+                componentTypes.Add<UiToggle>( "ui" );
+                componentTypes.Add<UiSlider>( "ui" );
             },
         .mCreate = [&assets]( World& world ) -> Scope<Module> { return CreateScope<Ui>( world, assets ); },
         .mScripts = &ScriptsOfUi,
