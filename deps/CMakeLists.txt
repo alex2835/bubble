@@ -196,7 +196,9 @@ target_link_libraries( imgui_node_editor PUBLIC imgui )
 if( MSVC )
     target_compile_options( imgui_node_editor PRIVATE /w )
 else()
-    target_compile_options( imgui_node_editor PRIVATE -w )
+    # Its JSON calls std::terminate without <exception>; libc++ does not
+    # bring it in through other headers.
+    target_compile_options( imgui_node_editor PRIVATE -w "SHELL:-include exception" )
 endif()
 
 # FreeType 2.15.0 and msdfgen 1.13 - a font's glyphs into a multi-channel

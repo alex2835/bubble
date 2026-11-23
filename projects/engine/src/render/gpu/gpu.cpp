@@ -155,13 +155,19 @@ void OnDeviceLost( WGPUDevice const*, WGPUDeviceLostReason reason, WGPUStringVie
 expected<GpuSurfaceHandle, string> TryCreateSurface( WGPUInstance instance, const NativeWindow& native )
 {
     WGPUSurfaceDescriptor descriptor = WGPU_SURFACE_DESCRIPTOR_INIT;
-    // Each source lives until the surface is made from it.
+    // Each source lives until the surface is made from it. The browser's
+    // WebGPU knows a canvas alone, the desktop's every window but that.
+#ifdef __EMSCRIPTEN__
+    WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvas = WGPU_EMSCRIPTEN_SURFACE_SOURCE_CANVAS_HTML_SELECTOR_INIT;
+    if ( const auto* window = get_if<CanvasWindow>( &native ) )
+    {
+        canvas.selector = ToGpuString( window->mSelector );
+        descriptor.nextInChain = &canvas.chain;
+    }
+#else
     WGPUSurfaceSourceWindowsHWND win32 = WGPU_SURFACE_SOURCE_WINDOWS_HWND_INIT;
     WGPUSurfaceSourceXlibWindow x11 = WGPU_SURFACE_SOURCE_XLIB_WINDOW_INIT;
     WGPUSurfaceSourceWaylandSurface wayland = WGPU_SURFACE_SOURCE_WAYLAND_SURFACE_INIT;
-#ifdef __EMSCRIPTEN__
-    WGPUEmscriptenSurfaceSourceCanvasHTMLSelector canvas = WGPU_EMSCRIPTEN_SURFACE_SOURCE_CANVAS_HTML_SELECTOR_INIT;
-#endif
     if ( const auto* window = get_if<Win32Window>( &native ) )
     {
         win32.hinstance = window->mInstance;
@@ -179,12 +185,6 @@ expected<GpuSurfaceHandle, string> TryCreateSurface( WGPUInstance instance, cons
         wayland.display = window->mDisplay;
         wayland.surface = window->mSurface;
         descriptor.nextInChain = &wayland.chain;
-    }
-#ifdef __EMSCRIPTEN__
-    else if ( const auto* window = get_if<CanvasWindow>( &native ) )
-    {
-        canvas.selector = ToGpuString( window->mSelector );
-        descriptor.nextInChain = &canvas.chain;
     }
 #endif
     else
