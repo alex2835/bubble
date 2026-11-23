@@ -47,6 +47,10 @@ public:
     // One more, before the first refresh: an importer that needs the
     // catalog - prefabs, scripts - is made after the catalog is.
     void AddImporter( Importer importer ) { mImporters.Add( std::move( importer ) ); }
+    // In place of the one for its extension - scripts checked against other
+    // actions -: the next refresh looks at its sources again, and imports
+    // those whose key it changed.
+    void ReplaceImporter( Importer importer );
 
     // The same object for as long as this lives - the registry and the
     // workspace hold it - with the entries a refresh finds.

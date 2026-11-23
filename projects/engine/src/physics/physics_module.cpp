@@ -643,6 +643,12 @@ public:
     opt<RayHit> TryRaycast( vec3 from, vec3 to ) override
     {
         BuildDirty();
+        return TryCastRay( from, to );
+    }
+
+    // The bodies as they are, none made first: what building them asks.
+    opt<RayHit> TryCastRay( vec3 from, vec3 to )
+    {
         const JPH::RRayCast ray{ JPH::RVec3( ToJolt( from ) ), ToJolt( to - from ) };
         JPH::RayCastResult hit;
         if ( not mSystem.GetNarrowPhaseQuery().CastRay( ray, hit ) )
@@ -969,6 +975,41 @@ private:
         LogError( "{}: ragdoll: {}", Describe( mWorld.GetScene(), entity ), why );
     }
 
+    // The first bone - the pelvis - at rest in the entity's space, in metres,
+    // and where its body lies in the world.
+    pair<Pose, Pose> FallenPelvis( const RagdollState& ragdoll )
+    {
+        JPH::RVec3 position;
+        JPH::Quat rotation;
+        mSystem.GetBodyInterface().GetPositionAndRotation( ragdoll.mBodies.front(), position, rotation );
+        const ModelAsset& model = *ragdoll.mModel.TryGet();
+        const Pose joint = PoseOf( JointPoses( model, nullopt )[ragdoll.mSkeleton.mBones.front().mJoint] );
+        return { Pose{ .mPosition = joint.mPosition * ragdoll.mScale, .mRotation = joint.mRotation },
+                 Pose{ .mPosition = FromJolt( JPH::Vec3( position ) ), .mRotation = FromJolt( rotation ) } };
+    }
+
+    // The entity moved to where its ragdoll lies, as StandingPose says - on
+    // the ground under the pelvis, when there is some within reach -, and
+    // said: a character controller, the camera following it, hear it.
+    void StandUp( Entity entity, const Pose& rest, const Pose& pelvis )
+    {
+        Scene& scene = mWorld.GetScene();
+        const auto transformMaybe = scene.TryGet<Transform>( entity );
+        if ( not transformMaybe )
+            return;
+        const Pose placed = PoseOf( ComputeWorldMatrix( scene, entity ) );
+        const auto groundMaybe = TryCastRay( pelvis.mPosition + vec3( 0.0f, 0.1f, 0.0f ),
+                                             pelvis.mPosition - vec3( 0.0f, cGroundReach, 0.0f ) );
+        const Pose standing =
+            StandingPose( placed, rest, pelvis, groundMaybe ? opt<vec3>( groundMaybe->mPoint ) : nullopt );
+        Place( entity, *transformMaybe, standing.mPosition, standing.mRotation, true );
+        scene.NotifyFieldChanged( entity, "transform"_n, "position"_n );
+        scene.NotifyFieldChanged( entity, "transform"_n, "rotation"_n );
+    }
+
+    // How far under its pelvis a ragdoll let go looks for the ground, metres.
+    static constexpr f32 cGroundReach = 3.0f;
+
     void BuildRagdoll( Entity entity )
     {
         Scene& scene = mWorld.GetScene();
@@ -976,13 +1017,21 @@ private:
         if ( const auto found = mRagdolls.find( entity ); found != mRagdolls.end() )
         {
             const bool posed = not found->second.mBodies.empty();
+            const bool lettingGo = not ragdollMaybe or not ragdollMaybe->mActive;
+            // Let go, it stands up where its pelvis lies: where that is, read
+            // before its bodies go.
+            opt<pair<Pose, Pose>> fallenMaybe;
+            if ( lettingGo and posed and scene.Alive( entity ) )
+                fallenMaybe = FallenPelvis( found->second );
             Unragdoll( entity, found->second );
-            if ( not ragdollMaybe or not ragdollMaybe->mActive )
+            if ( lettingGo )
             {
                 // Its animator poses it again, or it stands at rest.
                 if ( posed and scene.Alive( entity ) and scene.Has<SkinPose>( entity ) )
                     scene.Remove<SkinPose>( entity );
                 mRagdolls.erase( found );
+                if ( fallenMaybe )
+                    StandUp( entity, fallenMaybe->first, fallenMaybe->second );
                 return;
             }
         }

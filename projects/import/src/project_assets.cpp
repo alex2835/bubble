@@ -15,6 +15,13 @@ ProjectAssets::ProjectAssets( ProjectFiles files, Importers importers, span<cons
 {
 }
 
+void ProjectAssets::ReplaceImporter( Importer importer )
+{
+    if ( mStampsMaybe )
+        erase_if( *mStampsMaybe, [&]( const auto& entry ) { return entry.first.Extension() == importer.mExtension; } );
+    mImporters.Replace( std::move( importer ) );
+}
+
 expected<ProjectRefresh, string> ProjectAssets::TryRefresh()
 {
     BUBBLE_PROFILE_ZONE();

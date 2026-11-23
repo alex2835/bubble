@@ -54,6 +54,7 @@ Editor::Editor( EditorProject& project,
       mAssets( project, std::move( open ) ),
       mViewport( project, gpu, renderer ),
       mPreferencesPanel( preferences ),
+      mProjectSettings( project ),
       mThumbnailService( project, gpu, renderer )
 {
     // A texture's file shown by its picture: loaded the first time it is
@@ -161,10 +162,17 @@ bool IsMaterial( const DataDocument& document )
     return document.GetPath().View().ends_with( ".mat" );
 }
 
+bool IsGraph( const DataDocument& document )
+{
+    return document.GetPath().View().ends_with( ".anim" );
+}
+
 // A data document's window by its file: where it was docked is kept with
 // the layout from one time to the next.
 string WindowName( const DataDocument& document )
 {
+    if ( IsProjectSettings( document ) )
+        return format( "Project Settings###asset {}", document.GetPath().View() );
     return format( "{}###asset {}", FileNameOf( document.GetPath().View() ), document.GetPath().View() );
 }
 }
@@ -206,6 +214,10 @@ void Editor::Frame( f64 elapsed )
     Workspace& workspace = mProject.GetWorkspace();
     mViewport.Prefer( mPreferences.Get() );
     {
+        // A level a script asked for last frame comes before anything holds
+        // the game's world.
+        if ( const auto playMaybe = mProject.TryPlaying() )
+            playMaybe->LoadAskedLevel();
         // Looked up for this part alone: a key, the menu or a tab below may
         // stop the game, and its document and world go with it.
         const auto shownMaybe = TryShownWorld();
@@ -246,8 +258,11 @@ void Editor::Frame( f64 elapsed )
             preview.Refresh( *document );
             preview.Get().Frame( elapsed );
         }
-        else if ( GraphView& view = GraphViewOf( mProject, *document ); view.PreviewShown() )
-            view.Preview( *document ).Frame( *document, elapsed );
+        else if ( IsGraph( *document ) )
+        {
+            if ( GraphView& view = GraphViewOf( mProject, *document ); view.PreviewShown() )
+                view.Preview( *document ).Frame( *document, elapsed );
+        }
 
     Shortcuts();
     const ImGuiID dockSpace = ImHashStr( "bubble editor" );
@@ -340,7 +355,8 @@ void Editor::Draw()
             MaterialPreview& preview = PreviewOf( mProject, *document );
             mPictures.at( document )->Draw( preview.Get(), preview.Camera() );
         }
-        else if ( const auto previewMaybe = GraphViewOf( mProject, *document ).TryPreview() )
+        else if ( const auto previewMaybe =
+                      IsGraph( *document ) ? GraphViewOf( mProject, *document ).TryPreview() : OptRef<GraphPreview>() )
             mPictures.at( document )->Draw( previewMaybe->Get(), previewMaybe->Camera() );
     }
 }
@@ -404,6 +420,9 @@ void Editor::Menu()
         MenuItem( "Undo", "Ctrl+Z", "edit.undo" );
         MenuItem( "Redo", "Ctrl+Y", "edit.redo" );
         ImGui::Separator();
+        if ( ImGui::MenuItem( "Project Settings..." ) )
+            mProject.Run( "document.open",
+                          Json( Json::Object{ Json::Member{ .mKey = "path", .mValue = string( cProjectFile ) } } ) );
         if ( ImGui::MenuItem( "Preferences..." ) )
             mPreferencesPanel.Open();
         ImGui::EndMenu();
@@ -680,6 +699,12 @@ void Editor::AssetWindows()
                     picture = CreateScope<WorldPicture>( mGpu, mRenderer );
                 picture->Show( PreviewOf( mProject, *document ).Camera() );
                 mPictured.push_back( document );
+            }
+            else if ( IsProjectSettings( *document ) )
+            {
+                if ( ClickedInWindow() )
+                    workspace.Activate( *document );
+                mProjectSettings.Show( *document );
             }
             else
             {

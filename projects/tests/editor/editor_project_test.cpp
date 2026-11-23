@@ -248,3 +248,40 @@ TEST_CASE( "Every asset made from its template imports with no error" )
     CHECK( project.KindOf( *AssetPath::TryFrom( "new.scene" ) ) == "level" );
     CHECK( project.GetCatalog().TryIdOf( *AssetPath::TryFrom( "new.prefab" ) ) );
 }
+
+TEST_CASE( "project.bubble changed is read again: its actions for the next Play, scripts checked against them anew" )
+{
+    hmap<string, string> files{ { "project.bubble", R"({ "version": 1, "name": "test",
+                                                         "actions": { "jump": [ { "key": "space" } ] } })" },
+                                { "dash.luau", R"(type Self = { entity: entity }
+
+function on_update( self: Self, dt: number )
+    if input.pressed( "dash" ) then
+        print( "dash" )
+    end
+end
+)" } };
+    const ProjectFiles projectFiles = ProjectFiles::InMemory( files );
+    const Scope<AudioDevice> audio = AudioDevice::Offline();
+    auto projectMaybe = EditorProject::TryOpen(
+        projectFiles, AssetRegistry::AtOnce( [projectFiles]( const AssetId& assetId, string_view kind ) {
+            return projectFiles.TryRead( ImportedPath( assetId, kind ) );
+        } ),
+        *audio );
+    REQUIRE_MESSAGE( projectMaybe, projectMaybe.error() );
+    EditorProject& project = **projectMaybe;
+    const AssetPath dash = *AssetPath::TryFrom( "dash.luau" );
+    // No such action yet: the script does not check.
+    REQUIRE( project.TryErrorOf( dash ) );
+
+    files["project.bubble"] = R"({ "version": 1, "name": "test", "actions": { "dash": [ { "key": "space" } ] } })";
+    project.Refresh();
+    CHECK( ActionNames( project.GetSettings().mActions ) == vector<string>{ "dash" } );
+    CHECK_FALSE( project.TryErrorOf( dash ) );
+    CHECK( projectFiles.TryRead( *AssetPath::TryFrom( ".bubble/bubble.d.luau" ) )->contains( "\"dash\"" ) );
+
+    // One that does not read leaves the settings as they were.
+    files["project.bubble"] = R"({ "version": 1, "actions": { "Dash": [] } })";
+    project.Refresh();
+    CHECK( ActionNames( project.GetSettings().mActions ) == vector<string>{ "dash" } );
+}

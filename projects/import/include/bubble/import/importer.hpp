@@ -50,6 +50,11 @@ struct Importer
     // Made larger when what it makes changes: every asset it made is
     // imported again.
     u32 mVersion = 1;
+    // What else what it makes follows from, besides the source and its
+    // settings: the declarations scripts are checked against - the engine's
+    // API, the project's actions. In the cache's key, so when it changes
+    // every source it took is imported again.
+    string mDependsOn = {};
     // The source's bytes and the settings in its .import into what the
     // engine loads. The error says what is wrong with the source, its path
     // first: "scripts/player.luau:3: Expected ...".
@@ -65,6 +70,8 @@ class Importers
 public:
     // An extension taken already is a logic_error.
     void Add( Importer importer );
+    // In place of the one for its extension; none there is a logic_error.
+    void Replace( Importer importer );
     OptRef<const Importer> TryFind( string_view extension ) const;
     // What the project's scan takes for sources.
     vector<string_view> Extensions() const;

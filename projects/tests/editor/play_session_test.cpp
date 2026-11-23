@@ -11,6 +11,7 @@
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/play_session.hpp"
 #include "bubble/scene/hierarchy.hpp"
+#include "bubble/world/game.hpp"
 #include "bubble/world/transform.hpp"
 #include <doctest.h>
 
@@ -43,11 +44,19 @@ function on_fixed_update( self: Self, dt: number )
 end
 )";
 
+// The level a game goes on to.
+constexpr string_view cSecond = R"({
+  "version": 1,
+  "asset": "5ec0d0005ec0d0005ec0d0005ec0d000",
+  "root": { "children": [ { "name": "gate", "components": { "transform": {} } } ] }
+})";
+
 struct Fixture
 {
     hmap<string, string> mFiles{ { "project.bubble", string( cProject ) },
                                  { "main.scene", string( cLevel ) },
-                                 { "counter.luau", string( cCounter ) } };
+                                 { "counter.luau", string( cCounter ) },
+                                 { "second.scene", string( cSecond ) } };
     Scope<AudioDevice> mAudio = AudioDevice::Offline();
     Scope<EditorProject> mProject;
 
@@ -179,4 +188,44 @@ TEST_CASE( "While a game plays, the inspector shows a script's self as the game 
     REQUIRE( f.Run( "selection.set", R"({ "entities": [ "/counter" ] })" ) );
     frame();
     CHECK_FALSE( inspector.TryWhere( "script.self.ticks" ) );
+}
+
+TEST_CASE( "A level a game asks for is played in the same document, a world of its own over it" )
+{
+    Fixture f;
+    Document& level = *f.GetWorkspace().TryActive();
+    REQUIRE( f.Run( "play.start" ) );
+    PlaySession& play = *f.mProject->TryPlaying();
+    Document& played = play.Played();
+    play.Frame( 1.0 / 60 );
+    REQUIRE( f.Run( "selection.set", R"({ "entities": [ "/crate" ] })" ) );
+
+    // Nothing asked: nothing happens.
+    World& before = play.GetWorld();
+    play.LoadAskedLevel();
+    CHECK( &play.GetWorld() == &before );
+
+    // One the project lacks is logged; the game goes on where it is.
+    before.Get<Game>().LoadLevel( AssetId::Generate() );
+    play.LoadAskedLevel();
+    CHECK( &play.GetWorld() == &before );
+    CHECK( TryResolve( played.GetScene(), EntityPath{ *Text::TryFrom( "/crate" ) } ) );
+
+    before.Get<Game>().LoadLevel( *AssetId::TryParse( "5ec0d0005ec0d0005ec0d0005ec0d000" ) );
+    play.LoadAskedLevel();
+    CHECK( &play.Played() == &played );
+    CHECK( play.Title() == "second.scene" );
+    CHECK( play.GetWorld().Level() == *AssetId::TryParse( "5ec0d0005ec0d0005ec0d0005ec0d000" ) );
+    CHECK( TryResolve( played.GetScene(), EntityPath{ *Text::TryFrom( "/gate" ) } ) );
+    CHECK_FALSE( TryResolve( played.GetScene(), EntityPath{ *Text::TryFrom( "/crate" ) } ) );
+    CHECK( played.GetSelection().Empty() );
+    CHECK_FALSE( played.GetHistory().CanUndo() );
+    for ( int frame = 0; frame < 5; ++frame )
+        play.Frame( 1.0 / 60 );
+    CHECK( play.GetWorld().Steps() >= 4 );
+
+    // Stopped, the level played from is as it was.
+    REQUIRE( f.Run( "play.stop" ) );
+    CHECK( &*f.GetWorkspace().TryActive() == &level );
+    CHECK( Fixture::CrateAt( level ) == vec3( 0, 2, 0 ) );
 }

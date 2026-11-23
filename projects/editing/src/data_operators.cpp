@@ -20,7 +20,8 @@ expected<FieldPath, string> TryDataPath( const OperatorArgs& args )
 Result PollData( const Workspace& workspace, const OperatorArgs& )
 {
     if ( not workspace.TryActiveData() )
-        return unexpected( "no data document is active: open a material or an animation graph"s );
+        return unexpected(
+            "no data document is active: open a material, an animation graph or the project's settings"s );
     return {};
 }
 

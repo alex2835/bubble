@@ -156,9 +156,6 @@ int main( int argc, char** argv )
     const ProjectSettings& settings = *settingsMaybe;
 
     App app;
-    vector<string> actions;
-    for ( const Action& action : settings.mActions.List() )
-        actions.push_back( action.mName.ToString() );
     AssetRegistry assets( project.GetCatalog(), AssetRegistry::FromDirectory( arguments.mRoot ), app.GetJobs() );
     const auto platformMaybe = Platform::TryStart( PlatformOptions{ .mVideoDriver = {}, .mMouseAsTouch = false } );
     if ( not platformMaybe )
@@ -189,8 +186,8 @@ int main( int argc, char** argv )
 
     // Scripts are checked strictly against the engine's declarations with the
     // project's actions.
-    auto scriptCheckMaybe =
-        TryProjectScriptCheck( app, project.GetFiles(), project.GetCatalog(), ScriptLabels{ .mActions = actions } );
+    auto scriptCheckMaybe = TryProjectScriptCheck( app, project.GetFiles(), project.GetCatalog(),
+                                                   ScriptLabels{ .mActions = ActionNames( settings.mActions ) } );
     if ( not scriptCheckMaybe )
     {
         LogError( "{}", scriptCheckMaybe.error() );
@@ -230,7 +227,6 @@ int main( int argc, char** argv )
         LogError( "{}", sceneMaybe.error() );
         return 1;
     }
-    World world( app, std::move( *sceneMaybe ), WorldOptions{ .mLevel = *levelIdMaybe } );
 
     const auto windowMaybe =
         platform.TryOpenWindow( WindowOptions{ .mTitle = game, .mSize = { 1280, 720 }, .mResizable = true } );
@@ -245,8 +241,15 @@ int main( int argc, char** argv )
     Scope<Renderer> renderer;
     RenderView view;
     Input input( settings.mActions );
-    world.SetInput( WorldInput{ .mLatchStep = [&] { return input.LatchStep(); },
-                                .mLatchFrame = [&] { return input.LatchFrame(); } } );
+    // A world a level: the start level's first, another's when a script
+    // asks for it - game.load_level -, its scripts started anew.
+    const auto makeWorld = [&]( Scene scene, const AssetId& levelId ) {
+        Scope<World> made = CreateScope<World>( app, std::move( scene ), WorldOptions{ .mLevel = levelId } );
+        made->SetInput( WorldInput{ .mLatchStep = [&] { return input.LatchStep(); },
+                                    .mLatchFrame = [&] { return input.LatchFrame(); } } );
+        return made;
+    };
+    Scope<World> world = makeWorld( std::move( *sceneMaybe ), *levelIdMaybe );
     u64 framesDrawn = 0;
     f64 sinceLook = 0;
     bool cursorLocked = false;
@@ -266,7 +269,7 @@ int main( int argc, char** argv )
                         LogError( "{}", reloadedMaybe.error() );
             }
         }
-        UiWorld& ui = world.Get<UiWorld>();
+        UiWorld& ui = world->Get<UiWorld>();
         ui.SetScreen( window.Size() );
         for ( const InputEvent& event : platform.Poll() )
         {
@@ -275,9 +278,22 @@ int main( int argc, char** argv )
                 continue;
             input.Handle( event );
         }
-        world.Frame( elapsed );
+        world->Frame( elapsed );
         app.GetJobs().RunMainQueue();
-        const Game& gameState = world.Get<Game>();
+        if ( const auto levelIdMaybe = world->Get<Game>().TakeLevelAsked() )
+        {
+            if ( auto levelMaybe =
+                     TryLoadLevel( project.GetFiles(), app.GetComponentTypes(), project.GetCatalog(), *levelIdMaybe ) )
+            {
+                // The world that asked goes first: the new one's sounds and
+                // scripts are the only ones.
+                world.reset();
+                world = makeWorld( std::move( *levelMaybe ), *levelIdMaybe );
+            }
+            else
+                LogError( "game.load_level: {}", levelMaybe.error() );
+        }
+        const Game& gameState = world->Get<Game>();
         if ( gameState.CursorLocked() != cursorLocked )
         {
             cursorLocked = gameState.CursorLocked();
@@ -301,14 +317,14 @@ int main( int argc, char** argv )
         gpu->Poll();
         GpuSurface& surface = *gpu->TrySurface();
         surface.Resize( window.PixelSize() );
-        const RenderScene& scene = world.Get<RenderScene>();
+        const RenderScene& scene = world->Get<RenderScene>();
         const bool last = arguments.mFrames and framesDrawn + 1 >= *arguments.mFrames;
         if ( auto viewMaybe = surface.TryAcquire(); viewMaybe and not scene.mCameras.empty() )
         {
             renderer->Draw(
                 view, scene, scene.mCameras.front(),
                 RenderTarget{ .mView = viewMaybe->Get(), .mSize = surface.Size(), .mFormat = surface.ViewFormat() },
-                world.Get<UiScene>() );
+                world->Get<UiScene>() );
             surface.Present();
             ++framesDrawn;
             // The last frame again, into a texture that can be read back.
@@ -322,7 +338,7 @@ int main( int argc, char** argv )
                                              .mLabel = "screenshot" } );
                 renderer->Draw( view, scene, scene.mCameras.front(),
                                 RenderTarget{ .mView = shot.View(), .mSize = shot.Size(), .mFormat = shot.Format() },
-                                world.Get<UiScene>() );
+                                world->Get<UiScene>() );
                 if ( const auto pixelsMaybe = gpu->TryReadRgba8( shot ) )
                 {
                     ofstream( PathFromUtf8( arguments.mScreenshot ), ios::binary )

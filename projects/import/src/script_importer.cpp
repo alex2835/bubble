@@ -540,6 +540,7 @@ Importer ScriptImporter( ScriptCheck check )
         .mExtension = ".luau",
         .mKind = string( cScriptKind ),
         .mVersion = 2,
+        .mDependsOn = check.mDeclarations,
         .mImport = [check = std::move( check )]( string_view source, const Json&, const AssetPath& path )
             -> expected<string, string> { return TryImportScript( check, source, path ); },
     };

@@ -116,6 +116,14 @@ bool SnakeCase( string_view name )
 }
 }
 
+vector<string> ActionNames( const ActionMap& actions )
+{
+    vector<string> names;
+    for ( const Action& action : actions.List() )
+        names.push_back( action.mName.ToString() );
+    return names;
+}
+
 opt<AssetId> ProjectSettings::TryStartLevel( const AssetCatalog& catalog ) const
 {
     if ( mStartLevelId and catalog.TryPathOf( mStartLevelId ) )

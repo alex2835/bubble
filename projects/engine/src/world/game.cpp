@@ -24,6 +24,11 @@ void ScriptsOfGame( ScriptApi& api )
             game["paused"] = [&world]() { return world.Paused(); };
             game["lock_cursor"] = [&world]( bool locked ) { world.Get<Game>().LockCursor( locked ); };
             game["cursor_locked"] = [&world]() { return world.Get<Game>().CursorLocked(); };
+            game["load_level"] = [&world]( const AssetId& levelId ) {
+                if ( not levelId )
+                    throw LuaError( "game.load_level: no level - an asset() prop the scene has not set" );
+                world.Get<Game>().LoadLevel( levelId );
+            };
             game["quit"] = [&world]() { world.Get<Game>().AskToQuit(); };
             lua.Globals()["game"] = game;
         },
@@ -32,6 +37,7 @@ void ScriptsOfGame( ScriptApi& api )
         "    paused: () -> boolean,\n"
         "    lock_cursor: (locked: boolean) -> (),\n"
         "    cursor_locked: () -> boolean,\n"
+        "    load_level: (level: asset) -> (),\n"
         "    quit: () -> (),\n"
         "}\n" );
 }

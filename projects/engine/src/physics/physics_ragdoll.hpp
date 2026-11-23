@@ -4,6 +4,7 @@
 // and the skin.
 #include "bubble/assets/model_asset.hpp"
 #include "bubble/physics/physics.hpp"
+#include "jolt.hpp"
 #include "physics_joints.hpp"
 
 namespace bubble::physics
@@ -70,4 +71,12 @@ vector<mat4> JointPoses( const ModelAsset& model, OptRef<const SkinPose> skin );
 // The skin's matrices with the bones' joints at `poses`, in the model's
 // space, and the rest riding on them as at rest.
 void PoseSkin( const ModelAsset& model, const RagdollSkeleton& skeleton, vector<mat4>& poses, SkinPose& skin );
+
+// Where an entity stands once its ragdoll lets go, in the world: turned
+// about the world's up as far as its first bone - the pelvis - turned from
+// where it is at rest - no lean, whichever way the body lies -, on `ground`
+// under the pelvis, or, with none, as far below the pelvis as it is at rest.
+// `placed` is the entity as it stood when it fell, `rest` the first bone at
+// rest in the entity's space - in metres -, `bone` where it lies now.
+Pose StandingPose( const Pose& placed, const Pose& rest, const Pose& bone, opt<vec3> ground );
 }

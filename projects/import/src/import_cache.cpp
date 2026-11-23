@@ -37,8 +37,11 @@ expected<ImportOutcome, string> TryImportAsset( const ProjectFiles& files,
     auto sourceMaybe = files.TryRead( path );
     if ( not sourceMaybe )
         return unexpected( format( "{}: {}", path.View(), sourceMaybe.error() ) );
-    const string key = format( "{} {} {:016x} {:016x}\n", importer.mKind, importer.mVersion, Hash( *sourceMaybe ),
-                               Hash( settings.Write() ) );
+    string key = format( "{} {} {:016x} {:016x}", importer.mKind, importer.mVersion, Hash( *sourceMaybe ),
+                         Hash( settings.Write() ) );
+    if ( not importer.mDependsOn.empty() )
+        key += format( " {:016x}", Hash( importer.mDependsOn ) );
+    key += '\n';
     if ( files.TryRead( KeyPath( assetId ) ) == key )
         return ImportOutcome::UpToDate;
 

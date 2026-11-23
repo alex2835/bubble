@@ -50,10 +50,12 @@ bool Human( string_view joint, RagdollBone& bone )
         set( 60, 35 );
     else if ( has( "spine" ) or has( "chest" ) or has( "hips" ) or has( "pelvis" ) )
         set( 15, 10 );
+    // The neck and the head together turn about as far as a person's head
+    // does from the chest; each of the two alone, half.
     else if ( has( "neck" ) )
-        set( 25, 25 );
+        set( 15, 12 );
     else if ( has( "head" ) )
-        set( 30, 35 );
+        set( 15, 20 );
     else if ( has( "hand" ) or has( "wrist" ) )
         set( 35, 20 );
     else if ( has( "toe" ) )
@@ -213,6 +215,21 @@ vector<mat4> JointPoses( const ModelAsset& model, OptRef<const SkinPose> skin )
     for ( size_t j = 0; j < poses.size(); ++j )
         poses[j] = posed ? skin->mMatrices[j] * glm::inverse( model.mJoints[j].mInverseBind ) : model.mJoints[j].mRest;
     return poses;
+}
+
+Pose StandingPose( const Pose& placed, const Pose& rest, const Pose& bone, opt<vec3> ground )
+{
+    // The pelvis's turn since it fell, about the world's up alone: its
+    // twist. Lying exactly upside down there is none to tell; it keeps its
+    // facing.
+    const quat turned = bone.mRotation * glm::inverse( placed.mRotation * rest.mRotation );
+    const quat twist( turned.w, 0.0f, turned.y, 0.0f );
+    const f32 length = glm::length( twist );
+    const quat yaw = length > 1e-4f ? twist / length : quat( 1.0f, 0.0f, 0.0f, 0.0f );
+    Pose standing;
+    standing.mRotation = glm::normalize( yaw * placed.mRotation );
+    standing.mPosition = ground ? *ground : bone.mPosition - standing.mRotation * rest.mPosition;
+    return standing;
 }
 
 void PoseSkin( const ModelAsset& model, const RagdollSkeleton& skeleton, vector<mat4>& poses, SkinPose& skin )

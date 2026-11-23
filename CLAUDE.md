@@ -116,7 +116,8 @@ projects/engine/include/bubble/
                               children turned by ParentOffset, mass_offset); ragdoll (physics_ragdoll: a skinned
                               model's bones as capsules - ModelJoint::mParent - held by a human's limits by Mixamo's bone names -
                               knees and elbows one-way hinges, facing from the toe - or swing/twist; on from the
-                              pose it had, SkinPose written in Phase::Transforms after the animator's, push);
+                              pose it had, SkinPose written in Phase::Transforms after the animator's, push; let go, its entity
+                              stands where the pelvis lies - on the ground under it, turned about the up: StandingPose -);
                               stepped in Phase::Physics on one thread, what moved written into transforms, contacts as
                               ScriptCalls to on_collision; PhysicsWorld (a service: raycast, overlap_sphere,
                               velocities, characters, joints, vehicles, ragdolls); snapshots keep Jolt's state, bodies
@@ -211,7 +212,8 @@ projects/engine/include/bubble/
                               TransformModule: WorldTransform each frame, through an entity's ParentOffset (a joint
                               it hangs on) when it has one; ProjectSettings (project.bubble: name, start level,
                               actions; TryReadProjectSettings); Game (a service: what scripts ask of whatever runs
-                              the world - game.pause/paused, lock_cursor/cursor_locked, quit -, GameModule)
+                              the world - game.pause/paused, lock_cursor/cursor_locked, load_level - the loop makes a world of the
+                              level, scripts anew, their progress lasting -, quit -, GameModule)
 projects/engine/src/...       same tree; ScriptRuntime's .cpp is spread over src/scripts/runtime/
 projects/engine/shaders/      the engine's WGSL: lit (what surface() gets and gives, the vertex stage - vs_skinned for
                               a skin -, PBR lighting, the shadow; built after a material's own), standard_material,
@@ -227,7 +229,8 @@ projects/import/include/bubble/import/
                               same id, written every time, empty when the source has none; mSettings: what its
                               .import may set - ImportSetting: name, type, default or the source deciding, tooltip
                               - for the editor), the import cache (TryImportAsset,
-                              ImportProject: again when the source's hash, the settings' or the importer's version
+                              ImportProject: again when the source's hash, the settings', the importer's version or what it
+                              depends on - Importer::mDependsOn: a script's declarations, the actions among them; ReplaceImporter -
                               changes), ScriptImporter (.luau -> ScriptAsset: compiled, props
                               and requires read from the AST; with a ScriptCheck - bubble.d.luau, .luaurc aliases,
                               the project's files - checked strictly by Luau.Analysis: no --!nonstrict, no any, the
@@ -282,6 +285,9 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               accent, icons; camera: turn speed, invert Y, Shift's factor, zoom, field of view;
                               viewport; MCP -, described to a Reflection of their own, editor.json in
                               Platform::TrySaveFolder( "editor" ), every field left out at its default),
+                              ProjectSettingsPanel (Edit > Project Settings: project.bubble a data document in a window of its
+                              own - name, start level, actions and their bindings: a key from a list, a mouse's, a
+                              gamepad's, a touch area, the scale; data.set, run once the fields are walked),
                               PreferencesPanel (Edit > Preferences: the fields by reflection, edited as a Value, in
                               effect at once, written when let go; SetUpImGui makes the fonts again between frames
                               when the appearance changes), Icon (editor_icons.hpp: Lucide's
@@ -291,9 +297,11 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               (a project open: settings, App with every module - saves into memory -, the
                               registry, its sources kept imported, the Workspace and Operators; TryImporterOf;
                               ClipNames - its models' clips -; the
-                              game playing - play.start, stop, pause, step -, TryPlaying), PlaySession (Play: the
+                              game playing - play.start, stop, pause, step -, TryPlaying; project.bubble read again when it changes - its
+                              actions for the next Play, scripts checked against them anew), PlaySession (Play: the
                               scene shown copied into a document of its own - Document::IsPlayed: never saved,
-                              closed by play.stop - with every module's world over it, the project's actions from
+                              closed by play.stop - with every module's world over it, a level a script asks for played in it -
+                              LoadAskedLevel: a world of its own, the history and selection gone -, the project's actions from
                               Handle, Release when turned away; the document played from untouched), DocumentWorld (a document's editing world over
                               its scene and the camera on it, its view - a game's world when played -: ViewOf,
                               WorldOf; Gathered - the camera placed
@@ -386,7 +394,7 @@ projects/runner/              bubble_runner <project.bubble> [--frames N] [--scr
                               engine and import, the desktop alone: a project's game run from its folder - project.bubble's
                               start level and actions, its sources imported into .bubble/imported as it starts and
                               again as they change, the scripts checked against .bubble/bubble.d.luau (written there
-                              for a language server too), the Game service's cursor and quit; the sandbox is played
+                              for a language server too), the Game service's cursor, quit and another level - a world of its own -; the sandbox is played
                               with it
 projects/tests/               doctest; folders follow the engine's, import/, editing/ and editor/; log_watch.hpp (what was
                               logged); animation/skinned_model.hpp (a skinned .glb made in code: two joints, three

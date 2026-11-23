@@ -3,6 +3,7 @@
 #include "bubble/editing/operators.hpp"
 #include "bubble/editing/workspace.hpp"
 #include "bubble/import/project_assets.hpp"
+#include "bubble/import/script_importer.hpp"
 #include "bubble/world/app.hpp"
 #include "bubble/world/project.hpp"
 
@@ -32,7 +33,10 @@ public:
     EditorProject& operator=( const EditorProject& ) = delete;
 
     // The files looked at again: what changed is imported, and the registry
-    // reloads it; what went wrong is logged.
+    // reloads it; what went wrong is logged. project.bubble changed - saved
+    // from Project Settings, or by hand - is read again: the next Play takes
+    // its actions, and scripts are checked against them anew when they are
+    // others; one that does not read is logged, the settings staying.
     void Refresh();
     // The level project.bubble starts the game with, as a document.
     expected<void, string> TryOpenStartLevel();
@@ -75,10 +79,16 @@ private:
     // project's, not the workspace's.
     void AddPlayOperators();
     expected<void, string> TryStart( AudioDevice& audio );
+    // How scripts are checked with the settings' actions; the declarations
+    // written under .bubble too, for a language server.
+    expected<ScriptCheck, string> TryScriptCheck();
+    void FollowSettings();
     // What a refresh said: logged, and kept by file.
     void Report( const ProjectRefresh& refresh );
 
     ProjectSettings mSettings;
+    // project.bubble as it was last read.
+    string mSettingsText;
     opt<OsPath> mRootMaybe;
     // By path: the error of each file that would not import last time.
     hmap<string, string> mErrors;

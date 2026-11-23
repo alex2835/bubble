@@ -52,6 +52,7 @@ expected<Scope<EditorProject>, string> EditorProject::TryOpen( ProjectFiles file
         return unexpected( format( "{}:{}", cProjectFile, settingsMaybe.error() ) );
     Scope<EditorProject> project(
         new EditorProject( std::move( files ), std::move( read ), std::move( *settingsMaybe ) ) );
+    project->mSettingsText = *textMaybe;
     if ( auto startedMaybe = project->TryStart( audio ); not startedMaybe )
         return unexpected( startedMaybe.error() );
     return project;
@@ -96,20 +97,9 @@ expected<void, string> EditorProject::TryStart( AudioDevice& audio )
                                            .mSaves = SaveSlotsInMemory(),
                                            .mGameVersion = game } );
 
-    // Scripts are checked against the engine's declarations with the
-    // project's actions, which go under .bubble too, for a language server.
-    vector<string> actions;
-    for ( const Action& action : mSettings.mActions.List() )
-        actions.push_back( action.mName.ToString() );
-    auto checkMaybe =
-        TryProjectScriptCheck( mApp, mProject.GetFiles(), mProject.GetCatalog(), ScriptLabels{ .mActions = actions } );
+    auto checkMaybe = TryScriptCheck();
     if ( not checkMaybe )
         return unexpected( checkMaybe.error() );
-    const AssetPath declarationsPath = *AssetPath::TryFrom( ".bubble/bubble.d.luau" );
-    if ( mProject.GetFiles().TryRead( declarationsPath ).value_or( string() ) != checkMaybe->mDeclarations )
-        if ( auto writtenMaybe = mProject.GetFiles().TryWrite( declarationsPath, checkMaybe->mDeclarations );
-             not writtenMaybe )
-            LogWarning( "{}: {}", declarationsPath.View(), writtenMaybe.error() );
     AddEngineImporters( mProject, mApp, std::move( *checkMaybe ) );
     RegisterEngineLoaders( mAssets );
     AddBuiltinOperators( mOperators );
@@ -122,8 +112,52 @@ expected<void, string> EditorProject::TryStart( AudioDevice& audio )
     return {};
 }
 
+expected<ScriptCheck, string> EditorProject::TryScriptCheck()
+{
+    // Scripts are checked against the engine's declarations with the
+    // project's actions, which go under .bubble too, for a language server.
+    auto checkMaybe = TryProjectScriptCheck( mApp, mProject.GetFiles(), mProject.GetCatalog(),
+                                             ScriptLabels{ .mActions = ActionNames( mSettings.mActions ) } );
+    if ( not checkMaybe )
+        return unexpected( checkMaybe.error() );
+    const AssetPath declarationsPath = *AssetPath::TryFrom( ".bubble/bubble.d.luau" );
+    if ( mProject.GetFiles().TryRead( declarationsPath ).value_or( string() ) != checkMaybe->mDeclarations )
+        if ( auto writtenMaybe = mProject.GetFiles().TryWrite( declarationsPath, checkMaybe->mDeclarations );
+             not writtenMaybe )
+            LogWarning( "{}: {}", declarationsPath.View(), writtenMaybe.error() );
+    return checkMaybe;
+}
+
+void EditorProject::FollowSettings()
+{
+    const auto textMaybe = mProject.GetFiles().TryRead( *AssetPath::TryFrom( cProjectFile ) );
+    if ( not textMaybe or *textMaybe == mSettingsText )
+        return;
+    // Kept even when it does not read: the error is logged once, not at
+    // every look.
+    mSettingsText = *textMaybe;
+    auto settingsMaybe = TryReadProjectSettings( *textMaybe );
+    if ( not settingsMaybe )
+    {
+        LogError( "{}:{}", cProjectFile, settingsMaybe.error() );
+        return;
+    }
+    const bool othersActions = ActionNames( settingsMaybe->mActions ) != ActionNames( mSettings.mActions );
+    mSettings = std::move( *settingsMaybe );
+    if ( not othersActions )
+        return;
+    auto checkMaybe = TryScriptCheck();
+    if ( not checkMaybe )
+    {
+        LogError( "{}", checkMaybe.error() );
+        return;
+    }
+    mProject.ReplaceImporter( ScriptImporter( std::move( *checkMaybe ) ) );
+}
+
 void EditorProject::Refresh()
 {
+    FollowSettings();
     const auto refreshMaybe = mProject.TryRefresh();
     if ( not refreshMaybe )
     {

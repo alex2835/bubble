@@ -1,9 +1,12 @@
 #include "bubble/editor/play_session.hpp"
+#include "bubble/core/log.hpp"
 #include "bubble/editor/document_world.hpp"
 #include "bubble/editor/editor_project.hpp"
+#include "bubble/scene/scene_file.hpp"
 #include "bubble/scene/scene_snapshot.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/ui/ui.hpp"
+#include "bubble/world/game.hpp"
 
 namespace bubble
 {
@@ -47,10 +50,53 @@ PlaySession::PlaySession( EditorProject& project, Document& source )
     if ( const auto pathMaybe = source.TryPath() )
         if ( const auto idMaybe = project.GetWorkspace().TryIdOf( *pathMaybe ) )
             levelId = *idMaybe;
-    mPlayed.SetView(
-        CreateScope<DocumentWorld>( project.GetApp(), mPlayed, WorldOptions{ .mLevel = levelId, .mEditing = false } ) );
+    StartWorld( levelId );
+}
+
+void PlaySession::StartWorld( const AssetId& levelId )
+{
+    mPlayed.SetView( CreateScope<DocumentWorld>( mProject.GetApp(), mPlayed,
+                                                 WorldOptions{ .mLevel = levelId, .mEditing = false } ) );
     GetWorld().SetInput( WorldInput{ .mLatchStep = [this] { return mInput.LatchStep(); },
                                      .mLatchFrame = [this] { return mInput.LatchFrame(); } } );
+}
+
+void PlaySession::LoadAskedLevel()
+{
+    const auto levelIdMaybe = GetWorld().Get<Game>().TakeLevelAsked();
+    if ( not levelIdMaybe )
+        return;
+    Workspace& workspace = mProject.GetWorkspace();
+    const auto pathMaybe = mProject.GetCatalog().TryPathOf( *levelIdMaybe );
+    if ( not pathMaybe )
+    {
+        LogError( "game.load_level: no level {} in the project", levelIdMaybe->ToString() );
+        return;
+    }
+    const auto textMaybe = workspace.GetFiles().TryRead( *pathMaybe );
+    if ( not textMaybe )
+    {
+        LogError( "game.load_level: {}: {}", pathMaybe->View(), textMaybe.error() );
+        return;
+    }
+    auto sceneMaybe = TryLoadScene( *textMaybe, workspace.GetFileContext() );
+    if ( not sceneMaybe )
+    {
+        LogError( "game.load_level: {}:{}", pathMaybe->View(), sceneMaybe.error() );
+        return;
+    }
+    // The world that asked goes, leaving the document its data; the level's
+    // takes its place, and the steps and the selection that named the old
+    // one's entities go with them.
+    if ( mPlayed.GetHistory().InGroup() )
+        mPlayed.GetHistory().EndGroup();
+    mPlayed.SetView( nullptr );
+    const ComponentTypes& types = mProject.GetApp().GetComponentTypes();
+    SceneSnapshot( *sceneMaybe, types ).Restore( mPlayed.SceneOutsideHistory(), types );
+    mPlayed.ForgetHistory();
+    mPlayed.GetSelection().Clear();
+    mTitle = string( pathMaybe->View().substr( pathMaybe->View().rfind( '/' ) + 1 ) );
+    StartWorld( *levelIdMaybe );
 }
 
 PlaySession::~PlaySession()

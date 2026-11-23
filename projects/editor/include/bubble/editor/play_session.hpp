@@ -33,6 +33,11 @@ public:
     // Each frame: the world's frame, what `elapsed` makes due - nothing
     // while it is paused.
     void Frame( f64 elapsed );
+    // Between frames, before anything looks at the world: the level a script
+    // asked for - game.load_level - read and played in the same document, a
+    // world of its own over it, its history and selection gone. One that
+    // does not read is logged, and the game goes on where it is.
+    void LoadAskedLevel();
     // Where the game is shown, in the window's units: its screen, and what
     // the mouse's positions are made relative to.
     void SetScreen( vec2 corner, vec2 size );
@@ -43,6 +48,10 @@ public:
     void Release();
 
 private:
+    // A world of every module over the played document, the project's
+    // actions its input.
+    void StartWorld( const AssetId& levelId );
+
     EditorProject& mProject;
     string mTitle;
     Document& mPlayed;

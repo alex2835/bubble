@@ -6,6 +6,7 @@
 #include "bubble/editor/editor_project.hpp"
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/preferences_panel.hpp"
+#include "bubble/editor/project_settings_panel.hpp"
 #include "bubble/editor/scene_panel.hpp"
 #include "bubble/editor/thumbnail_service.hpp"
 #include "bubble/editor/viewport.hpp"
@@ -122,6 +123,7 @@ private:
     AssetsPanel mAssets;
     Viewport mViewport;
     PreferencesPanel mPreferencesPanel;
+    ProjectSettingsPanel mProjectSettings;
     string mMcpUrl;
     // The shown scene's tab as last drawn: a scene made active by an
     // operator gets its tab picked.

@@ -69,7 +69,8 @@ struct Project
 };
 }
 
-TEST_CASE( "A source is imported once, and again when the source, its settings or the importer change" )
+TEST_CASE(
+    "A source is imported once, and again when the source, its settings, the importer or what it depends on change" )
 {
     Shouting shouting;
     Project project;
@@ -87,6 +88,15 @@ TEST_CASE( "A source is imported once, and again when the source, its settings o
     CHECK( project.Import( importer, R"({ "suffix": "!" })" ) == ImportOutcome::UpToDate );
     CHECK( project.Import( shouting.Make( 2 ), R"({ "suffix": "!" })" ) == ImportOutcome::Imported );
     CHECK( shouting.mRuns == 4 );
+    // What it depends on besides - the declarations a script is checked
+    // against - changed, it imports again.
+    Importer depending = shouting.Make( 2 );
+    depending.mDependsOn = "type action = \"jump\"";
+    CHECK( project.Import( depending, R"({ "suffix": "!" })" ) == ImportOutcome::Imported );
+    CHECK( project.Import( depending, R"({ "suffix": "!" })" ) == ImportOutcome::UpToDate );
+    depending.mDependsOn = "type action = \"dash\"";
+    CHECK( project.Import( depending, R"({ "suffix": "!" })" ) == ImportOutcome::Imported );
+    CHECK( shouting.mRuns == 6 );
     // The cache is no source: a scan does not take it in.
     CHECK( TryScanProject( project.mProject, array<string_view, 1>{ ".text" }, {} )->mCatalog.Count() == 0 );
 }

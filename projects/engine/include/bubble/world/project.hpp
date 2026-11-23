@@ -39,6 +39,9 @@ struct ProjectSettings
 
 constexpr string_view cProjectFile = "project.bubble";
 
+// The actions' names in their order: what scripts are checked against.
+vector<string> ActionNames( const ActionMap& actions );
+
 // The error says where, as Json does, and what is wrong: "7:24:
 // actions.jump[0].key: no key spce" - names listed for what has few.
 expected<ProjectSettings, string> TryReadProjectSettings( string_view text );

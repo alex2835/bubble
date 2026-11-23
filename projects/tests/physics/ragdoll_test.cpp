@@ -111,6 +111,32 @@ TEST_CASE( "A ragdoll pushed flies off; turned off, its pose is its animator's a
     CHECK_FALSE( world.Get<PhysicsWorld>().TryPushRagdoll( figure, vec3( 1.0f ) ) );
 }
 
+TEST_CASE( "A ragdoll let go stands its entity up where the pelvis lies: on the ground, turned as the body, no lean" )
+{
+    PhysicsFixture f;
+    Scene scene;
+    PhysicsFixture::Ground( scene );
+    const Entity figure = Figure( f, scene, true );
+    World world( f.mApp, std::move( scene ) );
+    f.Steps( world, 1 );
+    // Off to the side, turning about the up as it goes.
+    REQUIRE( world.Get<PhysicsWorld>().TryPushRagdoll( figure, vec3( 250.0f, 0.0f, 120.0f ) ) );
+    f.Steps( world, 240 );
+    const vec3 pelvis = JointAt( world, figure, 0 );
+    REQUIRE( glm::length( vec3( pelvis.x, 0.0f, pelvis.z ) ) > 0.5f );
+
+    SetActive( f, world, figure, false );
+    f.Steps( world, 1 );
+    const Transform& transform = world.GetScene().Get<Transform>( figure );
+    CHECK( transform.mPosition.x == doctest::Approx( pelvis.x ).epsilon( 0.01 ) );
+    CHECK( transform.mPosition.z == doctest::Approx( pelvis.z ).epsilon( 0.01 ) );
+    CHECK( transform.mPosition.y == doctest::Approx( 0.0f ).scale( 1.0 ).epsilon( 0.01 ) );
+    CHECK( transform.mRotation.x == doctest::Approx( 0.0f ).scale( 1.0 ).epsilon( 0.001 ) );
+    CHECK( transform.mRotation.z == doctest::Approx( 0.0f ).scale( 1.0 ).epsilon( 0.001 ) );
+    // Its animator's pose again, standing there.
+    CHECK_FALSE( world.GetScene().Has<SkinPose>( figure ) );
+}
+
 TEST_CASE( "A ragdoll with no skinned model says why" )
 {
     PhysicsFixture f;
@@ -181,7 +207,7 @@ TEST_CASE( "A ragdoll's joints keep a human's limits: a knee bends back, an elbo
     constexpr size_t cNeck = 2, cHead = 3, cForeArm = 6, cLeg = 10;
     const quat neck = relative( cNeck ), head = relative( cHead ), elbow = relative( cForeArm ),
                knee = relative( cLeg );
-    f32 neckMost = 0, headMost = 0;
+    f32 neckMost = 0, headMost = 0, chestMost = 0;
     f32 kneeLeast = 0, kneeMost = 0, elbowLeast = 0, elbowMost = 0;
     // Shoved into the wall at a run.
     REQUIRE( world.Get<PhysicsWorld>().TryPushRagdoll( figure, vec3( 300.0f, 60.0f, 40.0f ) ) );
@@ -190,6 +216,9 @@ TEST_CASE( "A ragdoll's joints keep a human's limits: a knee bends back, an elbo
         f.Steps( world, 1 );
         neckMost = std::max( neckMost, whole( glm::inverse( neck ) * relative( cNeck ) ) );
         headMost = std::max( headMost, whole( glm::inverse( head ) * relative( cHead ) ) );
+        // The head from the chest: the neck's turn and its own.
+        chestMost =
+            std::max( chestMost, whole( glm::inverse( neck * head ) * ( relative( cNeck ) * relative( cHead ) ) ) );
         // The knee's hinge is X - back from the toe's +Z -, the elbow's -Y -
         // forward from the arm out along +X.
         const f32 kneeBent = about( glm::inverse( knee ) * relative( cLeg ), vec3( 1.0f, 0.0f, 0.0f ) );
@@ -200,8 +229,9 @@ TEST_CASE( "A ragdoll's joints keep a human's limits: a knee bends back, an elbo
         elbowMost = std::max( elbowMost, elbowBent );
     }
     // Swing and twist together, and the give of a hard landing.
-    CHECK( neckMost < 50.0f );
-    CHECK( headMost < 60.0f );
+    CHECK( neckMost < 30.0f );
+    CHECK( headMost < 35.0f );
+    CHECK( chestMost < 50.0f );
     // Bent, and only the one way: never past straight by more than a little.
     CHECK( kneeMost > 20.0f );
     CHECK( kneeLeast > -10.0f );

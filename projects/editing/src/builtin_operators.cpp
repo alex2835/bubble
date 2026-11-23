@@ -3,6 +3,7 @@
 #include "bubble/scene/scene_file.hpp"
 #include "bubble/types/algorithm.hpp"
 #include "bubble/types/format.hpp"
+#include "bubble/world/project.hpp"
 #include "operator_helpers.hpp"
 #include "prefabs.hpp"
 
@@ -265,7 +266,7 @@ Result PollHistory( const Workspace& workspace, bool undo )
 // graph.
 bool IsDataPath( const AssetPath& path )
 {
-    return path.View().ends_with( ".mat" ) or path.View().ends_with( ".anim" );
+    return path.View().ends_with( ".mat" ) or path.View().ends_with( ".anim" ) or path.View() == cProjectFile;
 }
 
 expected<AssetPath, string> TryPathArg( const OperatorArgs& args )
