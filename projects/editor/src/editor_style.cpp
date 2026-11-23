@@ -6,7 +6,7 @@ namespace
 {
 constexpr ImVec4 Grey( f32 value, f32 alpha = 1.0f )
 {
-    // A touch of blue keeps the greys from looking brown beside the orange.
+    // A touch of blue keeps the greys from looking brown beside a warm accent.
     return ImVec4( value, value + 0.004f, value + 0.014f, alpha );
 }
 

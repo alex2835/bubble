@@ -21,7 +21,7 @@ struct AppearancePreferences
     // On top of the display's own scale: everything larger or smaller.
     f32 mScale = 1.0f;
     // The one colour that marks what is selected, on, turned to.
-    Color mAccent{ .mR = 0.96f, .mG = 0.58f, .mB = 0.18f, .mA = 1.0f };
+    Color mAccent{ .mR = 0.341f, .mG = 0.481f, .mB = 0.673f, .mA = 1.0f };
     // An icon among the text - a row of the scene's tree.
     f32 mTextIcon = 17.0f;
     // The icon the viewport marks a light, a camera, a sound with.

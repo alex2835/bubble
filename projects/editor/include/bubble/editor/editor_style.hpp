@@ -5,8 +5,8 @@
 
 namespace bubble
 {
-// The editor's colours in one place: neutral greys, and one accent - orange
-// unless the preferences say otherwise, the viewport's selection outlined in
+// The editor's colours in one place: neutral greys, and one accent - a
+// muted blue unless the preferences say otherwise, the viewport's selection outlined in
 // it too - only where it means something: what is selected, turned to, held.
 namespace EditorColor
 {

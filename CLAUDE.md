@@ -278,7 +278,7 @@ projects/editor/              bubble_editor, on editing and Dear ImGui, never in
                               of our own (ImGuiInput - the platform's events in, the pointer, text input and the
                               clipboard out -, ImGuiRenderer - its textures, the font atlas grown as glyphs are needed,
                               and its lists drawn by our GPU; our textures in as TextureId( view ) -), ApplyEditorStyle and EditorColor (the
-                              palette in one place: neutral greys, one accent - the preferences', orange at first,
+                              palette in one place: neutral greys, one accent - the preferences', a muted blue at first,
                               kept in the style: Accent() - where it means something - selected, on, turned to -,
                               errors, overrides, prefabs, what plays), Preferences (editor_preferences.hpp: one
                               person's EditorPreferences for every project - appearance: font, its size, scale,

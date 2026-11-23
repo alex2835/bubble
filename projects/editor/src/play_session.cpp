@@ -51,6 +51,10 @@ PlaySession::PlaySession( EditorProject& project, Document& source )
         if ( const auto idMaybe = project.GetWorkspace().TryIdOf( *pathMaybe ) )
             levelId = *idMaybe;
     StartWorld( levelId );
+    // Begun in the middle of the editor's frame - a key, the menu -, it is
+    // drawn at the end of it: a frame of no time gathers what it shows, or
+    // that one frame would show the sky alone.
+    GetWorld().Frame( 0.0 );
 }
 
 void PlaySession::StartWorld( const AssetId& levelId )

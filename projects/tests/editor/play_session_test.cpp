@@ -10,6 +10,7 @@
 #include "bubble/editor/imgui_backend.hpp"
 #include "bubble/editor/inspector.hpp"
 #include "bubble/editor/play_session.hpp"
+#include "bubble/render/render_scene.hpp"
 #include "bubble/scene/hierarchy.hpp"
 #include "bubble/world/game.hpp"
 #include "bubble/world/transform.hpp"
@@ -30,6 +31,7 @@ constexpr string_view cLevel = R"({
   "version": 1,
   "root": { "children": [
     { "name": "crate", "components": { "transform": { "position": [ 0, 2, 0 ] } } },
+    { "name": "eye", "components": { "transform": { "position": [ 0, 2, 6 ] }, "camera": {} } },
     { "name": "counter", "components": {
       "script": { "asset": { "asset": "00000000000000000000000000000003", "path": "counter.luau" } } } }
   ] }
@@ -99,6 +101,8 @@ TEST_CASE( "Play copies the scene shown into a document of its own, played; Stop
     CHECK( played.IsPlayed() );
     CHECK( &*f.GetWorkspace().TryActive() == &played );
     CHECK( playMaybe->Title() == "main.scene" );
+    // Drawable at once, before its first frame: what it shows is gathered.
+    CHECK( playMaybe->GetWorld().Get<RenderScene>().mCameras.size() == 1 );
     CHECK( f.Run( "play.start" ).error() == "play.start: a game is playing already: play.stop ends it" );
 
     // A world of every module, stepping: 60 steps a second.
