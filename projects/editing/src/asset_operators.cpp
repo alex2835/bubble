@@ -4,6 +4,7 @@
 // not files.
 #include "bubble/import/import_file.hpp"
 #include "bubble/types/algorithm.hpp"
+#include "bubble/types/format.hpp"
 #include "operator_helpers.hpp"
 
 namespace bubble

@@ -38,7 +38,12 @@ void AddEngineModules( App& app, AssetRegistry& assets, AudioDevice& audio, Scri
 
 void AddEngineImporters( ProjectAssets& project, const App& app, ScriptCheck check )
 {
-    for ( vector<Importer> group : { TextureImporters(), ModelImporters(), SoundImporters() } )
+    // Models and fonts are imported where their libraries are built: not on the web.
+    vector<vector<Importer>> groups{ TextureImporters(), SoundImporters() };
+#ifdef BUBBLE_IMPORT_MODELS
+    groups.push_back( ModelImporters() );
+#endif
+    for ( vector<Importer>& group : groups )
         for ( Importer& importer : group )
             project.AddImporter( std::move( importer ) );
     project.AddImporter( ShaderImporter() );
@@ -46,8 +51,10 @@ void AddEngineImporters( ProjectAssets& project, const App& app, ScriptCheck che
     project.AddImporter( PrefabImporter( app.GetComponentTypes(), project.GetCatalog() ) );
     project.AddImporter( ScriptImporter( std::move( check ) ) );
     project.AddImporter( AnimationGraphImporter() );
+#ifdef BUBBLE_IMPORT_FONTS
     project.AddImporter( FontImporter( ".ttf" ) );
     project.AddImporter( FontImporter( ".otf" ) );
+#endif
 }
 
 void RegisterEngineLoaders( AssetRegistry& assets )
